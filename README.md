@@ -123,9 +123,21 @@ Open **`http://127.0.0.1:8765`** in your browser to inspect the 3D Neural Galaxy
 
 ---
 
-### 2. Connect Your AI Agent (1-Click MCP Setup)
+## 🔌 Connect Any AI Agent (Universal MCP Setup)
 
-#### 🔷 Cursor IDE (`.cursor/mcp.json` or Global Settings)
+NeuroMesh is 100% compliant with the open standard **Model Context Protocol (MCP)**. It works seamlessly with **any** AI coding assistant, IDE, agentic CLI, or custom workflow through two standard communication transports:
+
+1. **Stdio Transport (Standard & Recommended)**: Launches `neuromesh mcp` directly as a local subprocess communicating over JSON-RPC 2.0 via standard input/output.
+2. **HTTP Server-Sent Events (SSE) Transport**: Connects to the embedded monitor server at `http://127.0.0.1:8765/sse` for remote, browser-based, or multi-agent setups.
+
+> 💡 **Quick Helper**: Run `neuromesh connect` in your terminal to instantly print the ready-to-paste JSON snippet for your preferred editor!
+
+---
+
+### 🛠️ Client Configuration Guides
+
+#### 🔷 Cursor IDE
+Add to `.cursor/mcp.json` in your workspace root, or go to **Cursor Settings > Features > MCP > Add New MCP Server**:
 ```json
 {
   "mcpServers": {
@@ -137,19 +149,26 @@ Open **`http://127.0.0.1:8765`** in your browser to inspect the 3D Neural Galaxy
 }
 ```
 
-#### 🟣 Claude Desktop (`claude_desktop_config.json`)
+#### 💻 VS Code / GitHub Copilot
+Add to `.vscode/mcp.json` (or use Claude Dev / Cline / MCP Extension for VS Code):
 ```json
 {
   "mcpServers": {
     "neuromesh": {
-      "command": "/absolute/path/to/neuromesh",
+      "command": "neuromesh",
       "args": ["mcp"]
     }
   }
 }
 ```
+*(Or install our native companion extension from `./editors/vscode-neuromesh`)*
 
-#### 🌊 Windsurf (`~/.codeium/windsurf/mcp_config.json`)
+#### 🟣 Claude Desktop
+Add to your `claude_desktop_config.json`:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
 ```json
 {
   "mcpServers": {
@@ -161,11 +180,90 @@ Open **`http://127.0.0.1:8765`** in your browser to inspect the 3D Neural Galaxy
 }
 ```
 
-#### 🌐 Universal HTTP Server-Sent Events (SSE) / Remote Agents
+#### 🤖 Claude Code CLI (Anthropic Terminal Agent)
+Register NeuroMesh directly in the Claude Code terminal:
+```bash
+claude mcp add neuromesh -- neuromesh mcp
 ```
-GET  http://127.0.0.1:8765/sse
-POST http://127.0.0.1:8765/mcp
+
+#### 🚀 Cline (VS Code Autonomous Coding Agent)
+In **Cline Settings > MCP Servers** (`cline_mcp_settings.json`):
+```json
+{
+  "mcpServers": {
+    "neuromesh": {
+      "command": "neuromesh",
+      "args": ["mcp"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
 ```
+
+#### 🦘 Roo Code / Roo Clinic
+In **Roo Code Settings > MCP Servers** (`~/.roo/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "neuromesh": {
+      "command": "neuromesh",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+#### 🌊 Windsurf IDE (Codeium)
+Add to `~/.codeium/windsurf/mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "neuromesh": {
+      "command": "neuromesh",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+#### ⚡ Continue.dev (VS Code & JetBrains)
+Add to `~/.continue/config.json`:
+```json
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "neuromesh",
+          "args": ["mcp"]
+        }
+      }
+    ]
+  }
+}
+```
+
+#### 📐 Zed Editor
+Add to `~/.config/zed/settings.json`:
+```json
+{
+  "context_servers": {
+    "neuromesh": {
+      "command": {
+        "path": "neuromesh",
+        "args": ["mcp"]
+      }
+    }
+  }
+}
+```
+
+#### 🦅 Aider, Codex, Gemini CLI & Custom Agents (Remote HTTP SSE)
+Start the background daemon with `neuromesh monitor`, then connect your tool to:
+- **SSE Event Stream**: `GET http://127.0.0.1:8765/sse`
+- **JSON-RPC Messages**: `POST http://127.0.0.1:8765/mcp`
 
 ---
 
