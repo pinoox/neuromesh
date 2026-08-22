@@ -135,6 +135,8 @@ pub struct ContextNode {
     pub token_cost: usize,
     pub content: Option<String>,
     pub content_hash: String,
+    #[serde(default)]
+    pub parent: Option<String>,
     pub base_relevance: f32,
     pub access_count: u64,
     pub last_accessed: DateTime<Utc>,
@@ -151,6 +153,80 @@ pub struct ContextEdge {
     pub reinforcement_count: u64,
     pub failure_count: u64,
     pub last_reinforced: DateTime<Utc>,
+    #[serde(default)]
+    pub confidence: EdgeConfidence,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EdgeConfidence {
+    Proven,
+    #[default]
+    Likely,
+    Unresolved,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnresolvedRef {
+    pub name: String,
+    pub from: String,
+    pub from_file: PathBuf,
+    pub reason: String,
+    pub relationship: EdgeType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SeedResolution {
+    pub query: String,
+    pub resolved_id: Option<NodeId>,
+    pub confidence: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoverageReport {
+    pub seeds_hit: Vec<String>,
+    pub seeds_missed: Vec<String>,
+    pub claim: String,
+}
+
+impl CoverageReport {
+    pub fn from_seeds(seeds: &[SeedResolution]) -> Self {
+        let seeds_hit: Vec<String> = seeds
+            .iter()
+            .filter(|s| s.resolved_id.is_some())
+            .map(|s| s.query.clone())
+            .collect();
+        let seeds_missed: Vec<String> = seeds
+            .iter()
+            .filter(|s| s.resolved_id.is_none())
+            .map(|s| s.query.clone())
+            .collect();
+        let claim = if seeds_missed.is_empty() {
+            "no_recorded_gap".to_string()
+        } else {
+            "partial".to_string()
+        };
+        Self {
+            seeds_hit,
+            seeds_missed,
+            claim,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NextAction {
+    pub tool: String,
+    pub query: String,
+    pub why: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexMeta {
+    pub generation: u64,
+    pub file_count: usize,
+    pub indexed_at: DateTime<Utc>,
+    pub stale_files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -194,6 +270,22 @@ pub struct ContextView {
     pub reduction_percentage: f32,
     pub confidence_score: f32,
     pub bypass_applied: bool,
+    #[serde(default)]
+    pub seeds: Vec<SeedResolution>,
+    #[serde(default)]
+    pub unresolved: Vec<UnresolvedRef>,
+    #[serde(default)]
+    pub coverage: Option<CoverageReport>,
+    #[serde(default)]
+    pub next_actions: Vec<NextAction>,
+    #[serde(default)]
+    pub budget_used: usize,
+    #[serde(default)]
+    pub budget_cap: usize,
+    #[serde(default)]
+    pub budget_mode: String,
+    #[serde(default)]
+    pub fold_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

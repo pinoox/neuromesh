@@ -61,12 +61,7 @@ impl ProjectWalker {
             .unwrap_or_default();
         !matches!(
             name.as_str(),
-            "" | "users"
-                | "windows"
-                | "program files"
-                | "program files (x86)"
-                | "appdata"
-                | "/"
+            "" | "users" | "windows" | "program files" | "program files (x86)" | "appdata" | "/"
         )
     }
 

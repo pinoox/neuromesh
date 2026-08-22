@@ -287,6 +287,7 @@ mod tests {
             token_cost: 100,
             content: None,
             content_hash: "hash".into(),
+            parent: None,
             base_relevance: 1.0,
             access_count: 1,
             last_accessed: Utc::now(),
@@ -310,6 +311,7 @@ mod tests {
             reinforcement_count: 1,
             failure_count: 0,
             last_reinforced: Utc::now(),
+            confidence: neuromesh_core::EdgeConfidence::Proven,
         };
 
         let mut edges = HashMap::new();

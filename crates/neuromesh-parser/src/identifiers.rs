@@ -3,13 +3,82 @@ use std::sync::OnceLock;
 
 /// Tokens that are English / prompt noise, not code identifiers.
 const STOPWORDS: &[&str] = &[
-    "the", "and", "for", "how", "does", "what", "this", "that", "with", "from", "into", "using",
-    "when", "where", "which", "about", "after", "before", "should", "would", "could", "please",
-    "make", "update", "change", "add", "fix", "create", "implement", "explain", "show", "find",
-    "get", "set", "run", "use", "need", "want", "task", "code", "file", "function", "class",
-    "method", "type", "module", "project", "context", "minimal", "active", "exact", "real",
-    "why", "any", "all", "our", "your", "their", "have", "has", "been", "were", "was", "are",
-    "is", "not", "can", "will", "just", "also", "than", "then", "them", "they", "you", "its",
+    "the",
+    "and",
+    "for",
+    "how",
+    "does",
+    "what",
+    "this",
+    "that",
+    "with",
+    "from",
+    "into",
+    "using",
+    "when",
+    "where",
+    "which",
+    "about",
+    "after",
+    "before",
+    "should",
+    "would",
+    "could",
+    "please",
+    "make",
+    "update",
+    "change",
+    "add",
+    "fix",
+    "create",
+    "implement",
+    "explain",
+    "show",
+    "find",
+    "get",
+    "set",
+    "run",
+    "use",
+    "need",
+    "want",
+    "task",
+    "code",
+    "file",
+    "function",
+    "class",
+    "method",
+    "type",
+    "module",
+    "project",
+    "context",
+    "minimal",
+    "active",
+    "exact",
+    "real",
+    "why",
+    "any",
+    "all",
+    "our",
+    "your",
+    "their",
+    "have",
+    "has",
+    "been",
+    "were",
+    "was",
+    "are",
+    "is",
+    "not",
+    "can",
+    "will",
+    "just",
+    "also",
+    "than",
+    "then",
+    "them",
+    "they",
+    "you",
+    "its",
 ];
 
 /// Extract code-like identifiers, file paths, and qualified paths from a prompt.
@@ -30,10 +99,14 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     let bare_file_re = BARE_FILE_RE.get_or_init(|| {
         Regex::new(r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|py|vue|go|java|cs)\b").unwrap()
     });
-    let qual_re = QUAL_RE.get_or_init(|| Regex::new(r"\b[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+\b").unwrap());
+    let qual_re = QUAL_RE.get_or_init(|| {
+        Regex::new(r"\b[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+\b").unwrap()
+    });
     let ident_re = IDENT_RE.get_or_init(|| {
-        Regex::new(r"\b(?:[a-z][a-z0-9]*(_[a-z0-9]+)+|[a-z]+[A-Z][A-Za-z0-9]*|[A-Z][a-zA-Z0-9]{2,})\b")
-            .unwrap()
+        Regex::new(
+            r"\b(?:[a-z][a-z0-9]*(_[a-z0-9]+)+|[a-z]+[A-Z][A-Za-z0-9]*|[A-Z][a-zA-Z0-9]{2,})\b",
+        )
+        .unwrap()
     });
     let tick_re = TICK_RE.get_or_init(|| Regex::new(r"`([^`]+)`").unwrap());
 
@@ -151,10 +224,7 @@ mod tests {
             anchors.identifiers
         );
         assert!(
-            anchors
-                .file_hints
-                .iter()
-                .any(|p| p.contains("tools.rs")),
+            anchors.file_hints.iter().any(|p| p.contains("tools.rs")),
             "file_hints = {:?}",
             anchors.file_hints
         );

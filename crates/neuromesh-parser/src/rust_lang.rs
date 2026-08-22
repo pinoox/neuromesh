@@ -1,4 +1,4 @@
-use crate::calls::{brace_delta, extract_calls_from_line};
+use crate::calls::{brace_delta, extract_calls_from_line_ctx};
 use crate::imports::{expand_rust_use, record_import};
 use crate::types::{AstAnalysisResult, ParsedSymbol};
 use neuromesh_core::NodeType;
@@ -92,7 +92,7 @@ impl RustParser {
                     fn_start_depth = depth;
                     fn_line_start = line_no;
                     result.symbols.push(ParsedSymbol {
-                        name,
+                        name: name.clone(),
                         symbol_type: NodeType::Function,
                         signature: Some(line.trim().to_string()),
                         line_range: line_no..(line_no + 1),
@@ -101,9 +101,10 @@ impl RustParser {
                         parent: current_impl.clone(),
                         calls: Vec::new(),
                     });
+                    extract_calls_from_line_ctx(&name, line, &mut result, current_impl.as_deref());
                 }
             } else if let Some(caller) = current_fn.as_deref() {
-                extract_calls_from_line(caller, line, &mut result);
+                extract_calls_from_line_ctx(caller, line, &mut result, current_impl.as_deref());
             }
 
             depth += brace_delta(line);
@@ -122,6 +123,12 @@ impl RustParser {
             close_function(&mut result, &prev, fn_line_start, content.lines().count());
         }
 
+        result.exports = result
+            .symbols
+            .iter()
+            .filter(|s| s.exported)
+            .map(|s| s.name.clone())
+            .collect();
         attach_calls(&mut result);
         result
     }
@@ -179,7 +186,9 @@ fn helper() {}
 "#;
         let ast = RustParser::parse(&PathBuf::from("tools.rs"), code);
         assert!(ast.symbols.iter().any(|s| s.name == "handle_tool_call"));
-        assert!(ast.imports.iter().any(|i| i.imported_symbols.contains(&"TaskSignatureExtractor".into())));
+        assert!(ast.imports.iter().any(|i| i
+            .imported_symbols
+            .contains(&"TaskSignatureExtractor".into())));
         assert!(ast.relationships.iter().any(|r| {
             r.relationship == EdgeType::Calls
                 && r.source_symbol == "handle_tool_call"
@@ -190,5 +199,30 @@ fn helper() {}
                 && r.source_symbol == "handle_tool_call"
                 && (r.target_symbol == "activate" || r.target_symbol == "evaluate")
         }));
+        assert!(ast.exports.contains(&"handle_tool_call".to_string()));
+    }
+
+    #[test]
+    fn self_call_records_impl_receiver() {
+        let code = r#"
+pub struct Bar;
+impl Bar {
+    pub fn foo(&self) { self.bar(); }
+    pub fn bar(&self) {}
+}
+"#;
+        let ast = RustParser::parse(&PathBuf::from("bar.rs"), code);
+        assert!(ast.relationships.iter().any(|r| {
+            r.source_symbol == "foo"
+                && r.target_symbol == "bar"
+                && r.receiver_hint.as_deref() == Some("impl:Bar")
+        }));
+        assert_eq!(
+            ast.symbols
+                .iter()
+                .find(|s| s.name == "foo")
+                .and_then(|s| s.parent.as_deref()),
+            Some("Bar")
+        );
     }
 }

@@ -17,7 +17,7 @@ pub use graph::{GraphStats, NeuralProjectGraph};
 pub use node::NodeFactory;
 pub use physarum::{PhysarumConfig, PhysarumResult, PhysarumSolver};
 pub use query::{
-    ArchitecturePackage, ArchitectureSummary, ImpactResult, NeighborView, SearchHit, TraceDirection,
-    TraceHop, TraceResult,
+    ArchitecturePackage, ArchitectureSummary, ImpactResult, NeighborView, SearchHit,
+    TraceDirection, TraceHop, TraceResult,
 };
 pub use synapse::{NeuralSpike, StdpConfig, SynapticPlasticityEngine};

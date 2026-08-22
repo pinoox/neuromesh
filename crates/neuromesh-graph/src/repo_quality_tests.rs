@@ -45,13 +45,20 @@ mod tests {
             stats.total_nodes
         );
         assert!(stats.resolved_calls >= 5, "no resolved calls: {:?}", stats);
-        assert!(stats.resolved_imports >= 5, "no resolved imports: {:?}", stats);
+        assert!(
+            stats.resolved_imports >= 5,
+            "no resolved imports: {:?}",
+            stats
+        );
         assert!(index_ms < 30_000, "index too slow: {index_ms}ms");
 
         let search_started = Instant::now();
         let hits = graph.search_symbols("handle_tool_call", 10);
         let search_ms = search_started.elapsed().as_millis();
-        assert!(search_ms < 80, "search timeout-class latency: {search_ms}ms");
+        assert!(
+            search_ms < 80,
+            "search timeout-class latency: {search_ms}ms"
+        );
         assert!(
             hits.iter().any(|h| h.name == "handle_tool_call"),
             "missing handle_tool_call in {:?}",

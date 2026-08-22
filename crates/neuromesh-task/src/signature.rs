@@ -51,15 +51,17 @@ impl TaskSignatureExtractor {
             TaskIntent::Query
         };
 
-        let technology = if lower.contains("vue 3") || lower.contains("vue3") || lower.contains("vue")
+        let technology = if lower.contains("vue 3")
+            || lower.contains("vue3")
+            || lower.contains("vue")
         {
             "Vue".to_string()
         } else if lower.contains("react") || lower.contains("next") {
             "React".to_string()
-        } else if lower.contains("rust") || lower.contains("cargo") || lower.contains("neuromesh")
-        {
+        } else if lower.contains("rust") || lower.contains("cargo") || lower.contains("neuromesh") {
             "Rust".to_string()
-        } else if lower.contains("python") || lower.contains("django") || lower.contains("fastapi") {
+        } else if lower.contains("python") || lower.contains("django") || lower.contains("fastapi")
+        {
             "Python".to_string()
         } else if lower.contains("typescript") || lower.contains(".ts") {
             "TypeScript".to_string()
@@ -79,10 +81,13 @@ impl TaskSignatureExtractor {
             None
         };
 
-        let domain = if lower.contains("ecommerce") || lower.contains("store") || lower.contains("shop")
+        let domain = if lower.contains("ecommerce")
+            || lower.contains("store")
+            || lower.contains("shop")
         {
             "ecommerce".to_string()
-        } else if lower.contains("frontend") || lower.contains("ui") || lower.contains("responsive") {
+        } else if lower.contains("frontend") || lower.contains("ui") || lower.contains("responsive")
+        {
             "frontend".to_string()
         } else if lower.contains("backend") || lower.contains("api") || lower.contains("database") {
             "backend".to_string()
@@ -99,7 +104,9 @@ impl TaskSignatureExtractor {
 
         let goal = if lower.contains("responsive") {
             "responsive".to_string()
-        } else if lower.contains("explain") || lower.contains("how does") || lower.contains("what is")
+        } else if lower.contains("explain")
+            || lower.contains("how does")
+            || lower.contains("what is")
         {
             "explain".to_string()
         } else if lower.contains("fix") {
@@ -128,7 +135,8 @@ impl TaskSignatureExtractor {
         };
 
         let mut related_concepts = anchors.identifiers.clone();
-        if lower.contains("responsive") || lower.contains("mobile") || lower.contains("breakpoint") {
+        if lower.contains("responsive") || lower.contains("mobile") || lower.contains("breakpoint")
+        {
             related_concepts.push("layout".to_string());
             related_concepts.push("breakpoints".to_string());
         }
@@ -205,7 +213,10 @@ mod tests {
         let sig = TaskSignatureExtractor::extract(
             "How does neuromesh_get_context extract task intent in tools.rs?",
         );
-        assert!(sig.identifiers.iter().any(|id| id == "neuromesh_get_context"));
+        assert!(sig
+            .identifiers
+            .iter()
+            .any(|id| id == "neuromesh_get_context"));
         assert_eq!(sig.intent, TaskIntent::Explain);
         assert!(sig.file_hints.iter().any(|p| p.contains("tools.rs")));
     }

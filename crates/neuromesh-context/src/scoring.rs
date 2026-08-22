@@ -60,7 +60,11 @@ impl ActivationScorer {
     fn compute_relevance(&self, node: &ContextNode, signature: &TaskSignature) -> f32 {
         let node_name_lower = node.name.to_lowercase();
         let entity_lower = signature.entity.to_lowercase();
-        let path_lower = node.file_path.to_string_lossy().replace('\\', "/").to_lowercase();
+        let path_lower = node
+            .file_path
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_lowercase();
 
         for ident in &signature.identifiers {
             let ident_lower = ident.to_lowercase();

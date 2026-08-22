@@ -84,7 +84,10 @@ impl SpreadingActivation {
         }
 
         // Apply Physarum only on modest graphs. Full-graph SOR on 10k+ edges times out.
-        if self.config.enable_physarum && seed_energies.len() > 1 && graph.stats().total_edges <= 8_000 {
+        if self.config.enable_physarum
+            && seed_energies.len() > 1
+            && graph.stats().total_edges <= 8_000
+        {
             let seed_set: HashSet<NodeId> = seed_energies.keys().cloned().collect();
             let nodes_map = graph.get_nodes_map();
             let edges_map = graph.get_edges_map();

@@ -1,5 +1,5 @@
 use chrono::Utc;
-use neuromesh_core::{ContextEdge, EdgeId, EdgeType, NodeId, ProjectId};
+use neuromesh_core::{ContextEdge, EdgeConfidence, EdgeId, EdgeType, NodeId, ProjectId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +52,24 @@ impl PheromoneEngine {
             reinforcement_count: 0,
             failure_count: 0,
             last_reinforced: Utc::now(),
+            confidence: EdgeConfidence::Proven,
         }
+    }
+
+    pub fn create_edge_with_confidence(
+        &self,
+        project_id: ProjectId,
+        source: NodeId,
+        target: NodeId,
+        edge_type: EdgeType,
+        confidence: EdgeConfidence,
+    ) -> ContextEdge {
+        let mut edge = self.create_edge(project_id, source, target, edge_type);
+        edge.confidence = confidence;
+        if confidence == EdgeConfidence::Likely {
+            edge.pheromone_weight = (edge.pheromone_weight * 0.75).max(self.config.min_weight);
+        }
+        edge
     }
 
     /// Reinforces an edge after a successful task

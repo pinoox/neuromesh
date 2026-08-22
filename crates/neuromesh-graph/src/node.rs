@@ -31,6 +31,7 @@ impl NodeFactory {
             token_cost,
             content,
             content_hash,
+            parent: None,
             base_relevance: 1.0,
             access_count: 0,
             last_accessed: Utc::now(),
@@ -45,6 +46,7 @@ impl NodeFactory {
         signature: Option<String>,
         line_range: Range<usize>,
         token_cost: usize,
+        parent: Option<String>,
     ) -> ContextNode {
         let path_str = file_path.to_string_lossy();
         let id = NodeId::from_symbol(&path_str, &name);
@@ -60,6 +62,7 @@ impl NodeFactory {
             token_cost,
             content: None,
             content_hash: String::new(),
+            parent,
             base_relevance: 1.0,
             access_count: 0,
             last_accessed: Utc::now(),

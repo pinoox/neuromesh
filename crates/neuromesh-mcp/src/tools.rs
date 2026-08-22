@@ -78,18 +78,20 @@ impl McpToolHandler {
                     view.reduction_percentage
                 };
 
+                let index_meta = self.graph.index_meta();
                 let files: Vec<Value> = view
                     .active_nodes
                     .iter()
                     .filter(|n| n.node.node_type == neuromesh_core::NodeType::File)
                     .map(|n| {
                         json!({
-                            "id": n.node.id,
                             "path": n.node.file_path,
-                            "score": n.activation_score,
-                            "reason": n.expansion_reason,
-                            "tokens": n.node.token_cost,
                             "skeleton": n.node.content,
+                            "tokens": n.node.token_cost,
+                            "why": n.expansion_reason,
+                            "folds": view.fold_ids.iter().filter(|id| {
+                                id.contains(&n.node.name.replace('.', "_"))
+                            }).cloned().collect::<Vec<_>>(),
                         })
                     })
                     .collect();
@@ -100,14 +102,14 @@ impl McpToolHandler {
                     .filter(|n| n.node.node_type != neuromesh_core::NodeType::File)
                     .map(|n| {
                         json!({
-                            "id": n.node.id,
                             "name": n.node.name,
-                            "kind": n.node.node_type,
                             "path": n.node.file_path,
                             "signature": n.node.signature,
+                            "why": n.expansion_reason,
+                            "kind": n.node.node_type,
+                            "id": n.node.id,
                             "lines": n.node.line_range,
                             "score": n.activation_score,
-                            "reason": n.expansion_reason,
                         })
                     })
                     .collect();
@@ -145,18 +147,28 @@ impl McpToolHandler {
                     "effective_mode": format!("{:?}", gate.effective_mode),
                     "latency_ms": elapsed_ms,
                     "evidence_packet": {
+                        "index": {
+                            "generation": index_meta.generation,
+                            "file_count": index_meta.file_count,
+                            "indexed_at": index_meta.indexed_at,
+                            "stale_files": index_meta.stale_files,
+                        },
+                        "seeds": view.seeds,
                         "files": files,
                         "symbols": symbols,
+                        "unresolved": view.unresolved,
+                        "coverage": view.coverage,
+                        "next_actions": view.next_actions,
+                        "budget": {
+                            "used": view.budget_used,
+                            "cap": view.budget_cap,
+                            "mode": view.budget_mode,
+                        },
                         "inactive_hints": view.inactive_descriptors,
                         "raw_tokens": raw_tokens,
                         "active_tokens": opt_tokens,
                         "token_reduction_pct": format!("{:.1}%", red_pct),
-                    },
-                    "follow_up": [
-                        "neuromesh_trace for inbound/outbound call chains",
-                        "neuromesh_expand_fold to unskeletonize a specific body",
-                        "neuromesh_analyze_impact for blast radius"
-                    ]
+                    }
                 }))
             }
 
@@ -379,9 +391,7 @@ impl McpToolHandler {
                 Ok(json!(self.graph.analyze_impact(query, depth)))
             }
 
-            "neuromesh_get_architecture" => {
-                Ok(json!(self.graph.architecture_summary()))
-            }
+            "neuromesh_get_architecture" => Ok(json!(self.graph.architecture_summary())),
 
             // 6. Record Feedback & Trigger Synaptic STDP Plasticity Learning
             "neuromesh_record_feedback" => {
@@ -395,17 +405,23 @@ impl McpToolHandler {
                     })
                     .unwrap_or_default();
 
+                let mut path: Vec<NodeId> = Vec::new();
                 for node_name in &touched_nodes {
                     let node_id = NodeId::new(node_name);
-                    self.graph.record_neural_spike(node_id, true, success);
+                    self.graph.record_neural_spike(node_id.clone(), true, success);
+                    path.push(node_id);
                 }
-
-                self.graph.apply_stdp_learning();
+                self.graph.apply_stdp_on_path(&path);
+                self.graph.reinforce_path(&path, success);
+                if let Ok(cwd) = std::env::current_dir() {
+                    let _ = self.graph.save_persisted(&cwd);
+                }
 
                 Ok(json!({
                     "status": "Feedback recorded",
                     "success": success,
                     "stdp_learning_applied": true,
+                    "path_nodes": path.len(),
                     "updated_graph_stats": self.graph.stats()
                 }))
             }

@@ -4,17 +4,89 @@ use regex::Regex;
 use std::sync::OnceLock;
 
 const CALL_STOPWORDS: &[&str] = &[
-    "if", "for", "while", "loop", "match", "return", "break", "continue", "else", "async", "await",
-    "pub", "use", "mod", "crate", "super", "self", "let", "mut", "const", "static", "type",
-    "struct", "enum", "trait", "impl", "fn", "where", "unsafe", "format", "vec", "println",
-    "eprintln", "write", "writeln", "panic", "assert", "todo", "unimplemented", "unreachable",
-    "some", "none", "ok", "err", "true", "false", "box", "drop", "sizeof", "typeof", "new",
-    "import", "from", "function", "class", "def", "print", "len", "range", "super", "this",
-    "console", "require", "export", "switch", "case", "try", "catch", "throw", "yield",
+    "if",
+    "for",
+    "while",
+    "loop",
+    "match",
+    "return",
+    "break",
+    "continue",
+    "else",
+    "async",
+    "await",
+    "pub",
+    "use",
+    "mod",
+    "crate",
+    "super",
+    "self",
+    "let",
+    "mut",
+    "const",
+    "static",
+    "type",
+    "struct",
+    "enum",
+    "trait",
+    "impl",
+    "fn",
+    "where",
+    "unsafe",
+    "format",
+    "vec",
+    "println",
+    "eprintln",
+    "write",
+    "writeln",
+    "panic",
+    "assert",
+    "todo",
+    "unimplemented",
+    "unreachable",
+    "some",
+    "none",
+    "ok",
+    "err",
+    "true",
+    "false",
+    "box",
+    "drop",
+    "sizeof",
+    "typeof",
+    "new",
+    "import",
+    "from",
+    "function",
+    "class",
+    "def",
+    "print",
+    "len",
+    "range",
+    "super",
+    "this",
+    "console",
+    "require",
+    "export",
+    "switch",
+    "case",
+    "try",
+    "catch",
+    "throw",
+    "yield",
 ];
 
 /// Extract call-like identifiers from a line of source belonging to `caller`.
 pub fn extract_calls_from_line(caller: &str, line: &str, result: &mut AstAnalysisResult) {
+    extract_calls_from_line_ctx(caller, line, result, None);
+}
+
+pub fn extract_calls_from_line_ctx(
+    caller: &str,
+    line: &str,
+    result: &mut AstAnalysisResult,
+    impl_parent: Option<&str>,
+) {
     static CALL_RE: OnceLock<Regex> = OnceLock::new();
     let call_re = CALL_RE.get_or_init(|| {
         Regex::new(r"(?:(?P<recv>[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\.)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\(")
@@ -27,60 +99,82 @@ pub fn extract_calls_from_line(caller: &str, line: &str, result: &mut AstAnalysi
         if !is_callable_name(name) || name == caller {
             continue;
         }
-        let qualified = if let Some(recv) = cap.name("recv") {
-            let recv = recv.as_str();
-            if recv == "self" || recv == "this" || recv == "Super" {
-                name.to_string()
-            } else if let Some(last) = recv.split("::").last() {
-                if last.chars().next().is_some_and(|c| c.is_uppercase()) {
-                    name.to_string()
-                } else {
-                    name.to_string()
-                }
-            } else {
-                name.to_string()
+        if cap
+            .get(0)
+            .is_some_and(|m| trimmed[..m.start()].ends_with("::"))
+        {
+            continue;
+        }
+        let recv = cap.name("recv").map(|m| m.as_str());
+        let receiver_hint = match recv {
+            Some("self") | Some("this") | Some("Super") => {
+                impl_parent.map(|p| format!("impl:{p}"))
             }
-        } else {
-            name.to_string()
+            Some(recv) => recv
+                .split("::")
+                .last()
+                .filter(|last| last.chars().next().is_some_and(|c| c.is_uppercase()))
+                .map(|last| format!("type:{last}")),
+            None => impl_parent.map(|p| format!("impl:{p}")),
         };
 
-        if result
-            .relationships
-            .iter()
-            .any(|rel| rel.source_symbol == caller && rel.target_symbol == qualified && rel.relationship == EdgeType::Calls)
-        {
+        if result.relationships.iter().any(|rel| {
+            rel.source_symbol == caller
+                && rel.target_symbol == name
+                && rel.relationship == EdgeType::Calls
+        }) {
             continue;
         }
 
         result.relationships.push(ParsedRelationship {
             source_symbol: caller.to_string(),
-            target_symbol: qualified,
+            target_symbol: name.to_string(),
             relationship: EdgeType::Calls,
             target_file_hint: None,
+            receiver_hint,
         });
     }
 
     static PATH_CALL_RE: OnceLock<Regex> = OnceLock::new();
-    let path_re = PATH_CALL_RE
-        .get_or_init(|| Regex::new(r"\b([A-Za-z_][A-Za-z0-9_]*::)+([A-Za-z_][A-Za-z0-9_]*)\s*\(").unwrap());
+    let path_re = PATH_CALL_RE.get_or_init(|| {
+        Regex::new(r"\b([A-Za-z_][A-Za-z0-9_]*::)+([A-Za-z_][A-Za-z0-9_]*)\s*\(").unwrap()
+    });
     for cap in path_re.captures_iter(trimmed) {
         if let Some(name) = cap.get(2) {
             let name = name.as_str();
             if !is_callable_name(name) || name == caller {
                 continue;
             }
-            if result.relationships.iter().any(|rel| {
+            if let Some(existing) = result.relationships.iter_mut().find(|rel| {
                 rel.source_symbol == caller
                     && rel.target_symbol == name
                     && rel.relationship == EdgeType::Calls
             }) {
+                if existing.receiver_hint.is_none() {
+                    let type_name = cap
+                        .get(1)
+                        .map(|m| m.as_str().trim_end_matches(':').to_string())
+                        .unwrap_or_default();
+                    if !type_name.is_empty() {
+                        existing.receiver_hint = Some(format!("type:{type_name}"));
+                    }
+                }
                 continue;
             }
+            let type_name = cap
+                .get(1)
+                .map(|m| m.as_str().trim_end_matches(':').to_string())
+                .unwrap_or_default();
             result.relationships.push(ParsedRelationship {
                 source_symbol: caller.to_string(),
                 target_symbol: name.to_string(),
                 relationship: EdgeType::Calls,
                 target_file_hint: None,
+                receiver_hint: if type_name.is_empty() {
+                    None
+                } else {
+                    Some(format!("type:{type_name}"))
+                },
             });
         }
     }

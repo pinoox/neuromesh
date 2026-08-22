@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use neuromesh_core::{ContextEdge, NodeId};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Configuration for Spike-Timing-Dependent Plasticity (STDP)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,6 +140,10 @@ impl SynapticPlasticityEngine {
     pub fn clear_spikes(&mut self) {
         self.spike_history.clear();
     }
+
+    pub fn spiked_nodes(&self) -> HashSet<NodeId> {
+        self.spike_history.keys().cloned().collect()
+    }
 }
 
 #[cfg(test)]
@@ -171,6 +175,7 @@ mod tests {
             reinforcement_count: 0,
             failure_count: 0,
             last_reinforced: Utc::now(),
+            confidence: neuromesh_core::EdgeConfidence::Proven,
         };
         let initial_weight = edge.pheromone_weight;
 

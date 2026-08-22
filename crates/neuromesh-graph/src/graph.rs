@@ -7,7 +7,10 @@ use crate::query::{
     NeighborView, SearchHit, TraceDirection, TraceHop, TraceResult,
 };
 use crate::synapse::{StdpConfig, SynapticPlasticityEngine};
-use neuromesh_core::{ContextEdge, ContextNode, EdgeId, EdgeType, NodeId, NodeType, ProjectId};
+use neuromesh_core::{
+    ContextEdge, ContextNode, EdgeConfidence, EdgeId, EdgeType, IndexMeta, NodeId, NodeType,
+    ProjectId, UnresolvedRef,
+};
 use neuromesh_index::IndexedFile;
 use neuromesh_parser::AstAnalysisResult;
 use parking_lot::RwLock;
@@ -29,6 +32,10 @@ pub struct GraphStats {
     pub resolved_calls: usize,
     #[serde(default)]
     pub resolved_imports: usize,
+    #[serde(default)]
+    pub unresolved_count: usize,
+    #[serde(default)]
+    pub generation: u64,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]
@@ -41,6 +48,15 @@ struct GraphData {
     file_to_nodes: HashMap<PathBuf, Vec<NodeId>>,
     token_to_nodes: HashMap<String, Vec<NodeId>>,
     pending: Vec<PendingRel>,
+    unresolved: Vec<UnresolvedRef>,
+    impl_index: HashMap<String, Vec<NodeId>>,
+    #[serde(default)]
+    export_index: HashMap<String, Vec<NodeId>>,
+    file_hashes: HashMap<String, String>,
+    generation: u64,
+    indexed_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    stale_files: Vec<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -50,6 +66,8 @@ struct PendingRel {
     target_symbol: String,
     relationship: EdgeType,
     target_file_hint: Option<String>,
+    #[serde(default)]
+    receiver_hint: Option<String>,
 }
 
 #[derive(Clone)]
@@ -99,6 +117,13 @@ impl NeuralProjectGraph {
         data.file_to_nodes.clear();
         data.token_to_nodes.clear();
         data.pending.clear();
+        data.unresolved.clear();
+        data.impl_index.clear();
+        data.export_index.clear();
+        data.file_hashes.clear();
+        data.stale_files.clear();
+        data.generation = data.generation.saturating_add(1);
+        data.indexed_at = Some(chrono::Utc::now());
     }
 
     pub fn add_file_node(&self, file: &IndexedFile, content: Option<String>) -> ContextNode {
@@ -138,6 +163,27 @@ impl NeuralProjectGraph {
         line_range: std::ops::Range<usize>,
         token_cost: usize,
     ) -> ContextNode {
+        self.add_symbol_node_with_parent(
+            file_path,
+            symbol_name,
+            node_type,
+            signature,
+            line_range,
+            token_cost,
+            None,
+        )
+    }
+
+    pub fn add_symbol_node_with_parent(
+        &self,
+        file_path: &Path,
+        symbol_name: &str,
+        node_type: NodeType,
+        signature: Option<String>,
+        line_range: std::ops::Range<usize>,
+        token_cost: usize,
+        parent: Option<String>,
+    ) -> ContextNode {
         let current_pid = self.project_id.read().clone();
         let node = NodeFactory::create_symbol_node(
             current_pid,
@@ -147,6 +193,7 @@ impl NeuralProjectGraph {
             signature,
             line_range,
             token_cost,
+            parent.clone(),
         );
 
         let mut data = self.inner.write();
@@ -160,23 +207,42 @@ impl NeuralProjectGraph {
             .or_default()
             .push(node.id.clone());
         index_tokens(&mut data, &node.id, symbol_name);
+        if let Some(parent) = parent {
+            let key = format!("{}::{}", parent.to_lowercase(), symbol_name.to_lowercase());
+            data.impl_index.entry(key).or_default().push(node.id.clone());
+        }
 
         node
     }
 
     pub fn add_edge(&self, source: NodeId, target: NodeId, edge_type: EdgeType) -> ContextEdge {
+        self.add_edge_with_confidence(source, target, edge_type, EdgeConfidence::Proven)
+    }
+
+    pub fn add_edge_with_confidence(
+        &self,
+        source: NodeId,
+        target: NodeId,
+        edge_type: EdgeType,
+        confidence: EdgeConfidence,
+    ) -> ContextEdge {
         if source == target {
             let current_pid = self.project_id.read().clone();
-            return self
-                .pheromone_engine
-                .create_edge(current_pid, source, target, edge_type);
+            return self.pheromone_engine.create_edge_with_confidence(
+                current_pid,
+                source,
+                target,
+                edge_type,
+                confidence,
+            );
         }
         let current_pid = self.project_id.read().clone();
-        let edge = self.pheromone_engine.create_edge(
+        let edge = self.pheromone_engine.create_edge_with_confidence(
             current_pid,
             source.clone(),
             target.clone(),
             edge_type,
+            confidence,
         );
 
         let mut data = self.inner.write();
@@ -200,7 +266,18 @@ impl NeuralProjectGraph {
     }
 
     pub fn ingest_file(&self, file: &IndexedFile, ast: &AstAnalysisResult, content: Option<&str>) {
+        let rel = file.relative_path.to_string_lossy().replace('\\', "/");
+        if self.file_hash_matches(&rel, &file.blake3_hash) {
+            return;
+        }
+        self.remove_file_nodes(&file.relative_path);
+
         let file_node = self.add_file_node(file, content.map(|c| c.to_string()));
+        {
+            let mut data = self.inner.write();
+            data.file_hashes.insert(rel, file.blake3_hash.clone());
+            data.indexed_at = Some(chrono::Utc::now());
+        }
         let mut local_symbols: HashMap<String, NodeId> = HashMap::new();
 
         for sym in &ast.symbols {
@@ -210,20 +287,41 @@ impl NeuralProjectGraph {
                 .saturating_sub(sym.line_range.start)
                 .max(1)
                 * 8;
-            let sym_node = self.add_symbol_node(
+            let sym_node = self.add_symbol_node_with_parent(
                 &file.relative_path,
                 &sym.name,
                 sym.symbol_type,
                 sym.signature.clone(),
                 sym.line_range.clone(),
                 token_cost,
+                sym.parent.clone(),
             );
             local_symbols.insert(sym.name.to_lowercase(), sym_node.id.clone());
+            if sym.exported {
+                let mut data = self.inner.write();
+                data.export_index
+                    .entry(sym.name.to_lowercase())
+                    .or_default()
+                    .push(sym_node.id.clone());
+            }
             self.add_edge(
                 file_node.id.clone(),
                 sym_node.id.clone(),
                 EdgeType::Contains,
             );
+        }
+
+        for export_name in &ast.exports {
+            if let Some(id) = local_symbols.get(&export_name.to_lowercase()) {
+                let mut data = self.inner.write();
+                let entry = data
+                    .export_index
+                    .entry(export_name.to_lowercase())
+                    .or_default();
+                if !entry.iter().any(|existing| existing == id) {
+                    entry.push(id.clone());
+                }
+            }
         }
 
         for token in &ast.design_tokens {
@@ -257,6 +355,7 @@ impl NeuralProjectGraph {
                     target_symbol: rel.target_symbol.clone(),
                     relationship: rel.relationship,
                     target_file_hint: rel.target_file_hint.clone(),
+                    receiver_hint: rel.receiver_hint.clone(),
                 });
             }
         }
@@ -267,56 +366,102 @@ impl NeuralProjectGraph {
     pub fn finalize_links(&self) {
         let pending = {
             let mut data = self.inner.write();
+            data.unresolved.clear();
             std::mem::take(&mut data.pending)
         };
 
         let mut leftover = Vec::new();
+        let mut unresolved = Vec::new();
+        let mut imports = Vec::new();
+        let mut rest = Vec::new();
         for rel in pending {
-            let file_id = NodeId::from_file_path(&rel.source_file.to_string_lossy().replace('\\', "/"));
+            if rel.relationship == EdgeType::Imports || rel.relationship == EdgeType::DependsOn {
+                imports.push(rel);
+            } else {
+                rest.push(rel);
+            }
+        }
+        for rel in imports.into_iter().chain(rest) {
+            let file_id =
+                NodeId::from_file_path(&rel.source_file.to_string_lossy().replace('\\', "/"));
             let imported_files = self.imported_files_of(&file_id);
 
             let linked = match rel.relationship {
                 EdgeType::Imports => {
-                    if let Some(target) =
-                        self.resolve_unique(&rel.target_symbol, rel.target_file_hint.as_deref())
-                    {
-                        if target != file_id {
-                            self.add_edge(file_id.clone(), target, EdgeType::Imports);
-                        }
-                        true
-                    } else if let Some(hint) = &rel.target_file_hint {
-                        if let Some(target_file) = self.resolve_file_hint(hint) {
-                            self.add_edge(file_id, target_file, EdgeType::DependsOn);
+                    match self.resolve_ranked(
+                        &rel.target_symbol,
+                        rel.target_file_hint.as_deref(),
+                        None,
+                    ) {
+                        Some((target, confidence)) if target != file_id => {
+                            self.add_edge_with_confidence(
+                                file_id.clone(),
+                                target,
+                                EdgeType::Imports,
+                                confidence,
+                            );
                             true
-                        } else {
-                            false
                         }
-                    } else {
-                        false
+                        Some(_) => true,
+                        None => {
+                            if let Some(hint) = &rel.target_file_hint {
+                                if let Some(target_file) = self.resolve_file_hint(hint) {
+                                    self.add_edge_with_confidence(
+                                        file_id,
+                                        target_file,
+                                        EdgeType::DependsOn,
+                                        EdgeConfidence::Likely,
+                                    );
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        }
                     }
                 }
                 EdgeType::Calls => {
                     let source = self
-                        .resolve_unique(&rel.source_symbol, Some(&rel.source_file.to_string_lossy()))
+                        .resolve_unique(
+                            &rel.source_symbol,
+                            Some(&rel.source_file.to_string_lossy()),
+                        )
                         .unwrap_or_else(|| file_id.clone());
-                    if let Some(target) = self.resolve_call_target(
+                    if let Some((target, confidence)) = self.resolve_call_ranked(
                         &rel.target_symbol,
                         &rel.source_file,
                         &imported_files,
+                        rel.receiver_hint.as_deref(),
                     ) {
                         if target != source {
-                            self.add_edge(source, target, EdgeType::Calls);
+                            self.add_edge_with_confidence(
+                                source,
+                                target,
+                                EdgeType::Calls,
+                                confidence,
+                            );
                         }
                         true
                     } else {
+                        unresolved.push(UnresolvedRef {
+                            name: rel.target_symbol.clone(),
+                            from: rel.source_symbol.clone(),
+                            from_file: rel.source_file.clone(),
+                            reason: "no unique or impl-scoped target".into(),
+                            relationship: EdgeType::Calls,
+                        });
                         false
                     }
                 }
                 other => {
-                    if let Some(target) =
-                        self.resolve_unique(&rel.target_symbol, rel.target_file_hint.as_deref())
-                    {
-                        self.add_edge(file_id, target, other);
+                    if let Some((target, confidence)) = self.resolve_ranked(
+                        &rel.target_symbol,
+                        rel.target_file_hint.as_deref(),
+                        None,
+                    ) {
+                        self.add_edge_with_confidence(file_id, target, other, confidence);
                         true
                     } else {
                         false
@@ -324,12 +469,16 @@ impl NeuralProjectGraph {
                 }
             };
 
-            if !linked {
+            if !linked && rel.relationship != EdgeType::Calls {
                 leftover.push(rel);
             }
         }
 
-        self.inner.write().pending = leftover;
+        let mut data = self.inner.write();
+        data.pending = leftover;
+        data.unresolved = unresolved;
+        data.generation = data.generation.saturating_add(1);
+        data.indexed_at = Some(chrono::Utc::now());
     }
 
     fn imported_files_of(&self, file_id: &NodeId) -> HashSet<PathBuf> {
@@ -342,6 +491,24 @@ impl NeuralProjectGraph {
             }
         }
         files
+    }
+
+    pub fn file_id_for_path(&self, path: &Path) -> Option<NodeId> {
+        let normalized = path.to_string_lossy().replace('\\', "/");
+        let data = self.inner.read();
+        for (stored, ids) in &data.file_to_nodes {
+            if stored.to_string_lossy().replace('\\', "/") != normalized {
+                continue;
+            }
+            if let Some(id) = ids.iter().find(|id| {
+                data.nodes
+                    .get(*id)
+                    .is_some_and(|n| n.node_type == NodeType::File)
+            }) {
+                return Some(id.clone());
+            }
+        }
+        None
     }
 
     pub fn get_node(&self, id: &NodeId) -> Option<ContextNode> {
@@ -475,7 +642,11 @@ impl NeuralProjectGraph {
     pub fn resolve_unique(&self, name: &str, file_hint: Option<&str>) -> Option<NodeId> {
         let name_lower = name.to_lowercase();
         let data = self.inner.read();
-        let ids = data.name_to_nodes.get(&name_lower).cloned().unwrap_or_default();
+        let ids = data
+            .name_to_nodes
+            .get(&name_lower)
+            .cloned()
+            .unwrap_or_default();
         if ids.is_empty() {
             return None;
         }
@@ -533,7 +704,11 @@ impl NeuralProjectGraph {
     ) -> Option<NodeId> {
         let name_lower = name.to_lowercase();
         let data = self.inner.read();
-        let ids = data.name_to_nodes.get(&name_lower).cloned().unwrap_or_default();
+        let ids = data
+            .name_to_nodes
+            .get(&name_lower)
+            .cloned()
+            .unwrap_or_default();
         if ids.is_empty() {
             return None;
         }
@@ -568,6 +743,365 @@ impl NeuralProjectGraph {
             return ids.into_iter().next();
         }
         None
+    }
+
+    pub fn resolve_ranked(
+        &self,
+        name: &str,
+        file_hint: Option<&str>,
+        imported_files: Option<&HashSet<PathBuf>>,
+    ) -> Option<(NodeId, EdgeConfidence)> {
+        if let Some(hint) = file_hint {
+            if let Some(found) = self.resolve_export(name, hint) {
+                return Some(found);
+            }
+        }
+        if let Some(id) = self.resolve_unique(name, file_hint) {
+            return Some((id, EdgeConfidence::Proven));
+        }
+        let name_lower = name.to_lowercase();
+        let data = self.inner.read();
+        let ids = data
+            .name_to_nodes
+            .get(&name_lower)
+            .cloned()
+            .unwrap_or_default();
+        if ids.is_empty() {
+            return None;
+        }
+        if let Some(imported) = imported_files {
+            let hinted: Vec<NodeId> = ids
+                .iter()
+                .filter(|id| {
+                    data.nodes
+                        .get(*id)
+                        .is_some_and(|n| imported.contains(&n.file_path))
+                })
+                .cloned()
+                .collect();
+            if hinted.len() == 1 {
+                return Some((hinted.into_iter().next().unwrap(), EdgeConfidence::Proven));
+            }
+            if hinted.len() > 1 {
+                drop(data);
+                return self.pick_dominant_candidate(&hinted);
+            }
+        }
+        if let Some(hint) = file_hint {
+            let hinted: Vec<NodeId> = ids
+                .iter()
+                .filter(|id| {
+                    data.nodes
+                        .get(*id)
+                        .is_some_and(|n| path_hint_matches(&n.file_path, hint))
+                })
+                .cloned()
+                .collect();
+            if !hinted.is_empty() {
+                drop(data);
+                return self.pick_dominant_candidate(&hinted);
+            }
+        }
+        if !ids.is_empty() {
+            drop(data);
+            return self.pick_dominant_candidate(&ids);
+        }
+        None
+    }
+
+    fn pick_dominant_candidate(&self, ids: &[NodeId]) -> Option<(NodeId, EdgeConfidence)> {
+        if ids.is_empty() {
+            return None;
+        }
+        if ids.len() == 1 {
+            return Some((ids[0].clone(), EdgeConfidence::Proven));
+        }
+        let mut ranked: Vec<(f32, NodeId)> = ids
+            .iter()
+            .map(|id| {
+                let mut score = 0.0;
+                if let Some(node) = self.get_node(id) {
+                    if !is_fixture_path(&node.file_path) {
+                        score += 24.0;
+                    }
+                    if node
+                        .signature
+                        .as_deref()
+                        .is_some_and(|sig| sig.contains("pub "))
+                    {
+                        score += 6.0;
+                    }
+                    if let Some(range) = &node.line_range {
+                        score += range.end.saturating_sub(range.start) as f32;
+                    }
+                    score += self.get_connected_neighbors(id).len() as f32 * 4.0;
+                }
+                (score, id.clone())
+            })
+            .collect();
+        ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        let best = ranked[0].1.clone();
+        let dominant = ranked.len() == 1 || ranked[0].0 >= ranked[1].0 + 8.0;
+        Some((
+            best,
+            if dominant {
+                EdgeConfidence::Proven
+            } else {
+                EdgeConfidence::Likely
+            },
+        ))
+    }
+
+    fn resolve_call_ranked(
+        &self,
+        name: &str,
+        source_file: &Path,
+        imported_files: &HashSet<PathBuf>,
+        receiver_hint: Option<&str>,
+    ) -> Option<(NodeId, EdgeConfidence)> {
+        if let Some(hint) = receiver_hint {
+            let type_name = hint
+                .strip_prefix("impl:")
+                .or_else(|| hint.strip_prefix("type:"))
+                .unwrap_or(hint);
+            let key = format!("{}::{}", type_name.to_lowercase(), name.to_lowercase());
+            let data = self.inner.read();
+            if let Some(ids) = data.impl_index.get(&key) {
+                if ids.len() == 1 {
+                    return Some((ids[0].clone(), EdgeConfidence::Proven));
+                }
+                if let Some(id) = ids.iter().find(|id| {
+                    data.nodes
+                        .get(*id)
+                        .is_some_and(|n| n.file_path == source_file)
+                }) {
+                    return Some((id.clone(), EdgeConfidence::Proven));
+                }
+                if !ids.is_empty() {
+                    return Some((ids[0].clone(), EdgeConfidence::Likely));
+                }
+            }
+        }
+
+        if let Some(id) = self.resolve_call_target(name, source_file, imported_files) {
+            return Some((id, EdgeConfidence::Proven));
+        }
+        self.resolve_ranked(name, Some(&source_file.to_string_lossy()), Some(imported_files))
+    }
+
+    fn resolve_export(&self, name: &str, file_hint: &str) -> Option<(NodeId, EdgeConfidence)> {
+        let name_lower = name.to_lowercase();
+        let data = self.inner.read();
+        let ids = data.export_index.get(&name_lower)?;
+        let hinted: Vec<NodeId> = ids
+            .iter()
+            .filter(|id| {
+                data.nodes
+                    .get(*id)
+                    .is_some_and(|n| path_hint_matches(&n.file_path, file_hint))
+            })
+            .cloned()
+            .collect();
+        match hinted.len() {
+            1 => Some((hinted.into_iter().next().unwrap(), EdgeConfidence::Proven)),
+            n if n > 1 => Some((hinted.into_iter().next().unwrap(), EdgeConfidence::Likely)),
+            _ => None,
+        }
+    }
+
+    pub fn unresolved_refs(&self) -> Vec<UnresolvedRef> {
+        self.inner.read().unresolved.clone()
+    }
+
+    pub fn index_meta(&self) -> IndexMeta {
+        let data = self.inner.read();
+        let file_count = data
+            .nodes
+            .values()
+            .filter(|n| n.node_type == NodeType::File)
+            .count();
+        IndexMeta {
+            generation: data.generation,
+            file_count,
+            indexed_at: data.indexed_at.unwrap_or_else(chrono::Utc::now),
+            stale_files: data.stale_files.clone(),
+        }
+    }
+
+    pub fn file_hash_matches(&self, rel: &str, hash: &str) -> bool {
+        self.inner
+            .read()
+            .file_hashes
+            .get(rel)
+            .is_some_and(|stored| stored == hash)
+    }
+
+    pub fn remove_file_nodes(&self, path: &Path) {
+        let normalized = path.to_string_lossy().replace('\\', "/");
+        let mut data = self.inner.write();
+        let keys: Vec<PathBuf> = data
+            .file_to_nodes
+            .keys()
+            .filter(|p| p.to_string_lossy().replace('\\', "/") == normalized)
+            .cloned()
+            .collect();
+        if keys.is_empty() {
+            data.file_hashes.remove(&normalized);
+            return;
+        }
+        for key in keys {
+            let Some(ids) = data.file_to_nodes.remove(&key) else {
+                continue;
+            };
+            for id in ids {
+                if let Some(node) = data.nodes.remove(&id) {
+                    if let Some(list) = data.name_to_nodes.get_mut(&node.name.to_lowercase()) {
+                        list.retain(|existing| existing != &id);
+                    }
+                    if let Some(parent) = &node.parent {
+                        let key =
+                            format!("{}::{}", parent.to_lowercase(), node.name.to_lowercase());
+                        if let Some(list) = data.impl_index.get_mut(&key) {
+                            list.retain(|existing| existing != &id);
+                        }
+                    }
+                    if let Some(list) = data.export_index.get_mut(&node.name.to_lowercase()) {
+                        list.retain(|existing| existing != &id);
+                    }
+                }
+                data.outgoing.remove(&id);
+                data.incoming.remove(&id);
+            }
+        }
+        data.file_hashes.remove(&normalized);
+        let alive: HashSet<NodeId> = data.nodes.keys().cloned().collect();
+        data.edges
+            .retain(|_, e| alive.contains(&e.source) && alive.contains(&e.target));
+    }
+
+    pub fn persist_path(workspace: &Path) -> PathBuf {
+        workspace.join(".neuromesh").join("graph.json")
+    }
+
+    pub fn load_persisted(&self, workspace: &Path) -> bool {
+        self.load_from(&Self::persist_path(workspace))
+            .unwrap_or(false)
+    }
+
+    pub fn save_persisted(&self, workspace: &Path) -> neuromesh_core::Result<()> {
+        self.save_to(&Self::persist_path(workspace))
+    }
+
+    pub fn ingest_workspace(&self, scanned: &[(IndexedFile, String)]) {
+        let present: HashSet<String> = scanned
+            .iter()
+            .map(|(file, _)| file.relative_path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        self.prune_absent_files(&present);
+        for (file, content) in scanned {
+            let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
+                &file.relative_path,
+                content,
+                file.language,
+            );
+            self.ingest_file(file, &ast, Some(content));
+        }
+        self.finalize_links();
+    }
+
+    pub fn prune_absent_files(&self, present_rels: &HashSet<String>) {
+        let stale: Vec<String> = {
+            let data = self.inner.read();
+            data.file_hashes
+                .keys()
+                .filter(|key| !present_rels.contains(*key))
+                .cloned()
+                .collect()
+        };
+        for rel in &stale {
+            self.remove_file_nodes(&PathBuf::from(rel));
+        }
+        let mut data = self.inner.write();
+        data.stale_files = stale;
+    }
+
+    pub fn save_to(&self, path: &Path) -> neuromesh_core::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let snapshot = {
+            let data = self.inner.read();
+            serde_json::to_string(&*data)?
+        };
+        std::fs::write(path, snapshot)?;
+        Ok(())
+    }
+
+    pub fn load_from(&self, path: &Path) -> neuromesh_core::Result<bool> {
+        if !path.exists() {
+            return Ok(false);
+        }
+        let raw = std::fs::read_to_string(path)?;
+        let loaded: GraphData = serde_json::from_str(&raw)?;
+        *self.inner.write() = loaded;
+        Ok(true)
+    }
+
+    pub fn apply_stdp_on_path(&self, node_ids: &[NodeId]) {
+        let id_set: HashSet<NodeId> = node_ids.iter().cloned().collect();
+        let mut data = self.inner.write();
+        let engine = self.synaptic_engine.read();
+        for edge in data.edges.values_mut() {
+            if id_set.contains(&edge.source) && id_set.contains(&edge.target) {
+                engine.apply_stdp(edge);
+            }
+        }
+    }
+
+    pub fn shortest_path(&self, start: &NodeId, goal: &NodeId) -> Option<Vec<NodeId>> {
+        if start == goal {
+            return Some(vec![start.clone()]);
+        }
+        let mut prev: HashMap<NodeId, NodeId> = HashMap::new();
+        let mut q = VecDeque::from([start.clone()]);
+        let mut seen = HashSet::from([start.clone()]);
+        while let Some(id) = q.pop_front() {
+            for (neighbor, _) in self.get_connected_neighbors(&id) {
+                if seen.insert(neighbor.clone()) {
+                    prev.insert(neighbor.clone(), id.clone());
+                    if neighbor == *goal {
+                        let mut path = vec![goal.clone()];
+                        let mut cur = goal.clone();
+                        while let Some(p) = prev.get(&cur) {
+                            path.push(p.clone());
+                            if p == start {
+                                break;
+                            }
+                            cur = p.clone();
+                        }
+                        path.reverse();
+                        return Some(path);
+                    }
+                    q.push_back(neighbor);
+                }
+            }
+        }
+        None
+    }
+
+    pub fn steiner_union(&self, seeds: &HashSet<NodeId>) -> HashSet<NodeId> {
+        let mut selected = seeds.clone();
+        let list: Vec<NodeId> = seeds.iter().cloned().collect();
+        if list.len() < 2 {
+            return selected;
+        }
+        let origin = &list[0];
+        for other in list.iter().skip(1) {
+            if let Some(path) = self.shortest_path(origin, other) {
+                selected.extend(path);
+            }
+        }
+        selected
     }
 
     pub fn get_connected_neighbors(&self, node_id: &NodeId) -> Vec<(NodeId, ContextEdge)> {
@@ -605,7 +1139,11 @@ impl NeuralProjectGraph {
                         "incoming"
                     };
                     NeighborView {
-                        node: SearchHit::from_node(&node, edge.pheromone_weight, format!("{:?}", edge.edge_type)),
+                        node: SearchHit::from_node(
+                            &node,
+                            edge.pheromone_weight,
+                            format!("{:?}", edge.edge_type),
+                        ),
                         edge,
                         direction: direction.into(),
                     }
@@ -650,7 +1188,12 @@ impl NeuralProjectGraph {
         (node_map, edge_map)
     }
 
-    pub fn trace_symbol(&self, query: &str, direction: TraceDirection, depth: usize) -> TraceResult {
+    pub fn trace_symbol(
+        &self,
+        query: &str,
+        direction: TraceDirection,
+        depth: usize,
+    ) -> TraceResult {
         let origin_node = self.resolve_best(query);
         let Some(origin) = origin_node else {
             return TraceResult {
@@ -678,9 +1221,17 @@ impl NeuralProjectGraph {
                 let is_call = matches!(edge.edge_type, EdgeType::Calls | EdgeType::UsedBy);
                 let outbound = edge.source == id;
                 let include = match direction {
-                    TraceDirection::Outbound => outbound && (is_call || edge.edge_type == EdgeType::Imports),
-                    TraceDirection::Inbound => !outbound && (is_call || edge.edge_type == EdgeType::Imports),
-                    TraceDirection::Both => is_call || edge.edge_type == EdgeType::Imports || edge.edge_type == EdgeType::Contains,
+                    TraceDirection::Outbound => {
+                        outbound && (is_call || edge.edge_type == EdgeType::Imports)
+                    }
+                    TraceDirection::Inbound => {
+                        !outbound && (is_call || edge.edge_type == EdgeType::Imports)
+                    }
+                    TraceDirection::Both => {
+                        is_call
+                            || edge.edge_type == EdgeType::Imports
+                            || edge.edge_type == EdgeType::Contains
+                    }
                 };
                 if !include {
                     continue;
@@ -690,7 +1241,11 @@ impl NeuralProjectGraph {
                 }
                 if let Some(neighbor) = self.get_node(&neighbor_id) {
                     if let Some(from) = self.get_node(&id) {
-                        let to_hit = SearchHit::from_node(&neighbor, 1.0 - hop as f32 * 0.12, format!("{:?}", edge.edge_type));
+                        let to_hit = SearchHit::from_node(
+                            &neighbor,
+                            1.0 - hop as f32 * 0.12,
+                            format!("{:?}", edge.edge_type),
+                        );
                         if outbound {
                             callees.push(to_hit.clone());
                         } else {
@@ -783,9 +1338,21 @@ impl NeuralProjectGraph {
                 *lang_counts.entry(ext).or_insert(0) += 1;
                 let pkg = package_name(&node.file_path);
                 *package_files.entry(pkg).or_insert(0) += 1;
-                let name = node.file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if matches!(name, "main.rs" | "lib.rs" | "mod.rs" | "index.ts" | "index.js" | "main.py" | "main.go")
-                {
+                let name = node
+                    .file_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+                if matches!(
+                    name,
+                    "main.rs"
+                        | "lib.rs"
+                        | "mod.rs"
+                        | "index.ts"
+                        | "index.js"
+                        | "main.py"
+                        | "main.go"
+                ) {
                     entry_points.push(SearchHit::from_node(node, 1.0, "entry"));
                 }
             } else {
@@ -812,7 +1379,9 @@ impl NeuralProjectGraph {
         let mut hotspots: Vec<SearchHit> = degree
             .into_iter()
             .filter_map(|(id, deg)| {
-                data.nodes.get(&id).map(|n| SearchHit::from_node(n, deg as f32, "degree"))
+                data.nodes
+                    .get(&id)
+                    .map(|n| SearchHit::from_node(n, deg as f32, "degree"))
             })
             .collect();
         hotspots.sort_by(|a, b| {
@@ -845,7 +1414,11 @@ impl NeuralProjectGraph {
         self.solve_physarum_local(seed_nodes, 3)
     }
 
-    pub fn solve_physarum_local(&self, seed_nodes: &HashSet<NodeId>, hops: usize) -> PhysarumResult {
+    pub fn solve_physarum_local(
+        &self,
+        seed_nodes: &HashSet<NodeId>,
+        hops: usize,
+    ) -> PhysarumResult {
         let neighborhood = self.neighborhood(seed_nodes, hops);
         let (nodes_map, edges_map) = self.subgraph_maps(&neighborhood);
         self.physarum_solver
@@ -859,21 +1432,16 @@ impl NeuralProjectGraph {
             .record_spike(node_id, was_modified, was_useful);
     }
 
-    /// Applies Spike-Timing-Dependent Plasticity (STDP) across active paths
+    /// Applies STDP only on edges whose endpoints have recorded spikes.
     pub fn apply_stdp_learning(&self) {
-        let mut data = self.inner.write();
-        let engine = self.synaptic_engine.read();
-
-        for edge in data.edges.values_mut() {
-            engine.apply_stdp(edge);
+        let spiked: HashSet<NodeId> = {
+            let engine = self.synaptic_engine.read();
+            engine.spiked_nodes()
+        };
+        if spiked.is_empty() {
+            return;
         }
-
-        // Apply homeostasis
-        let mut edge_vec: Vec<ContextEdge> = data.edges.values().cloned().collect();
-        engine.apply_homeostasis(&mut edge_vec);
-        for edge in edge_vec {
-            data.edges.insert(edge.id.clone(), edge);
-        }
+        self.apply_stdp_on_path(&spiked.into_iter().collect::<Vec<_>>());
     }
 
     pub fn reinforce_path(&self, node_ids: &[NodeId], success: bool) {
@@ -949,6 +1517,8 @@ impl NeuralProjectGraph {
             atrophied_synapses,
             resolved_calls,
             resolved_imports,
+            unresolved_count: data.unresolved.len(),
+            generation: data.generation,
         }
     }
 
@@ -971,12 +1541,23 @@ fn index_tokens(data: &mut GraphData, id: &NodeId, name: &str) {
     }
 }
 
+fn is_fixture_path(path: &Path) -> bool {
+    let lower = path.to_string_lossy().replace('\\', "/").to_lowercase();
+    lower.contains("/tests/")
+        || lower.contains("_tests.rs")
+        || lower.contains("/test/")
+        || lower.ends_with("/tests.rs")
+        || lower.contains("quality_tests")
+}
+
 fn package_name(path: &Path) -> String {
     let parts: Vec<String> = path
         .iter()
         .map(|s| s.to_string_lossy().into_owned())
         .collect();
-    if let Some(idx) = parts.iter().position(|p| p == "crates" || p == "packages" || p == "apps")
+    if let Some(idx) = parts
+        .iter()
+        .position(|p| p == "crates" || p == "packages" || p == "apps")
     {
         if let Some(name) = parts.get(idx + 1) {
             return name.clone();
