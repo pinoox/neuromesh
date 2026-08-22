@@ -126,8 +126,47 @@ impl TypeScriptParser {
                         target_symbol: sym,
                         relationship: EdgeType::Imports,
                         target_file_hint: Some(source_path.to_string()),
+                        receiver_hint: None,
                     });
                 }
+            }
+        }
+
+        let reexport_regex = Regex::new(
+            r#"(?m)^\s*export\s*\{([^}]+)\}(?:\s*from\s*['"]([^'"]+)['"])?"#,
+        )
+        .unwrap();
+        for cap in reexport_regex.captures_iter(content) {
+            if let Some(names) = cap.get(1) {
+                for part in names.as_str().split(',') {
+                    let export_name = part
+                        .split_whitespace()
+                        .last()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
+                    if export_name.is_empty() {
+                        continue;
+                    }
+                    if !result.exports.contains(&export_name) {
+                        result.exports.push(export_name.clone());
+                    }
+                    if let Some(from) = cap.get(2) {
+                        result.relationships.push(ParsedRelationship {
+                            source_symbol: filename.to_string(),
+                            target_symbol: export_name,
+                            relationship: EdgeType::Imports,
+                            target_file_hint: Some(from.as_str().to_string()),
+                            receiver_hint: None,
+                        });
+                    }
+                }
+            }
+        }
+
+        for sym in &result.symbols {
+            if sym.exported && !result.exports.contains(&sym.name) {
+                result.exports.push(sym.name.clone());
             }
         }
 

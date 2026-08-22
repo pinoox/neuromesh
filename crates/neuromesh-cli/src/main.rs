@@ -132,21 +132,15 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             let bg_graph = graph.clone();
             let bg_dir = current_dir.clone();
             let bg_pid = project_id.clone();
+            let _ = graph.load_persisted(&current_dir);
             tokio::spawn(async move {
                 if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
                     return;
                 }
-                let walker = neuromesh_index::ProjectWalker::new(bg_dir, bg_pid);
+                let walker = neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid);
                 if let Ok(scanned) = walker.scan() {
-                    for (file, content) in &scanned {
-                        let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
-                            &file.relative_path,
-                            content,
-                            file.language,
-                        );
-                        bg_graph.ingest_file(file, &ast, Some(content));
-                    }
-                    bg_graph.finalize_links();
+                    bg_graph.ingest_workspace(&scanned);
+                    let _ = bg_graph.save_persisted(&bg_dir);
                 }
             });
 

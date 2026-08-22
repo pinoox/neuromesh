@@ -25,7 +25,16 @@ pub struct SkeletonResult {
     pub folds: Vec<FoldedIntron>,
 }
 
-/// Bio-Genetic Exon/Intron Code Skeletonizer
+fn is_seed_exon(sym_name: &str, active_symbols: &HashSet<String>) -> bool {
+    let lower = sym_name.to_lowercase();
+    active_symbols.contains(sym_name)
+        || active_symbols.contains(&lower)
+        || active_symbols
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case(sym_name) || s.rsplit("::").next() == Some(sym_name))
+}
+
+/// Seed functions stay open (exons). Sibling functions fold. Import lines are kept as-is.
 pub struct CodeSkeletonizer;
 
 impl CodeSkeletonizer {
@@ -100,10 +109,7 @@ impl CodeSkeletonizer {
 
             if let Some(caps) = fn_regex.captures(line) {
                 let sym_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-                let is_active = active_symbols.contains(sym_name)
-                    || active_symbols
-                        .iter()
-                        .any(|s| s.contains(sym_name) || sym_name.contains(s));
+                let is_active = is_seed_exon(sym_name, active_symbols);
 
                 // Find brace body
                 let mut brace_count = 0;
@@ -216,10 +222,7 @@ impl CodeSkeletonizer {
                 let indent_len = indent_str.len();
                 let sym_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
 
-                let is_active = active_symbols.contains(sym_name)
-                    || active_symbols
-                        .iter()
-                        .any(|s| s.contains(sym_name) || sym_name.contains(s));
+                let is_active = is_seed_exon(sym_name, active_symbols);
 
                 // Find end of indentation block
                 let mut body_end = i;

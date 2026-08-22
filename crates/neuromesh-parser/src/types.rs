@@ -52,6 +52,8 @@ pub struct ParsedRelationship {
     pub target_symbol: String,
     pub relationship: EdgeType,
     pub target_file_hint: Option<String>,
+    #[serde(default)]
+    pub receiver_hint: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

@@ -74,6 +74,7 @@ impl PythonParser {
                             target_symbol: sym,
                             relationship: EdgeType::Imports,
                             target_file_hint: Some(source.clone()),
+                            receiver_hint: None,
                         });
                     }
                 } else if let Some(direct_mod) = cap.get(3) {
@@ -90,6 +91,7 @@ impl PythonParser {
                         target_symbol: source.clone(),
                         relationship: EdgeType::Imports,
                         target_file_hint: Some(source),
+                        receiver_hint: None,
                     });
                 }
             }

@@ -110,18 +110,12 @@ impl McpServer {
                             let bg_graph = self.handler.graph().clone();
                             let bg_dir = p_buf.clone();
                             let bg_pid = pid.clone();
+                            let _ = self.handler.graph().load_persisted(&p_buf);
                             tokio::spawn(async move {
-                                let walker = neuromesh_index::ProjectWalker::new(bg_dir, bg_pid);
+                                let walker = neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid);
                                 if let Ok(scanned) = walker.scan() {
-                                    for (file, content) in &scanned {
-                                        let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
-                                            &file.relative_path,
-                                            content,
-                                            file.language,
-                                        );
-                                        bg_graph.ingest_file(file, &ast, Some(content));
-                                    }
-                                    bg_graph.finalize_links();
+                                    bg_graph.ingest_workspace(&scanned);
+                                    let _ = bg_graph.save_persisted(&bg_dir);
                                 }
                             });
                         }
@@ -155,7 +149,7 @@ impl McpServer {
                         },
                         "serverInfo": {
                             "name": "neuromesh",
-                            "version": "0.3.0"
+                            "version": "0.4.0"
                         }
                     }
                 })
@@ -177,7 +171,7 @@ impl McpServer {
                     "tools": [
                         {
                             "name": "neuromesh_get_context",
-                            "description": "Return a task-conditioned evidence packet: resolved identifiers, skeletonized files, and ranked symbols. Use this before reading whole files.",
+                            "description": "Return one evidence packet: seeds, skeletonized files, unresolved gaps, coverage (no_recorded_gap|partial), budget, and next_actions. Never treats silence as completeness.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {

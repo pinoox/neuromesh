@@ -22,6 +22,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let total_files = scanned_files.len();
 
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
+    let _ = graph.load_persisted(&current_dir);
     let db_dir = current_dir.join(".neuromesh");
     fs::create_dir_all(&db_dir)?;
     let memory_db = Arc::new(MemoryDatabase::open(&db_dir.join("neuromesh.json"))?);
@@ -52,6 +53,12 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
         }
     }
     graph.finalize_links();
+    let present: std::collections::HashSet<String> = scanned_files
+        .iter()
+        .map(|(file, _)| file.relative_path.to_string_lossy().replace('\\', "/"))
+        .collect();
+    graph.prune_absent_files(&present);
+    graph.save_persisted(&current_dir)?;
 
     if has_html {
         memory_db.save_project_fact(&ProjectFact::new(

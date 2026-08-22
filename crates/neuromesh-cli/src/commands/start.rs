@@ -3,7 +3,6 @@ use neuromesh_core::{Config, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
 use neuromesh_memory::MemoryDatabase;
-use neuromesh_parser::CodeIntelligenceEngine;
 use neuromesh_provider::ProviderFactory;
 use std::fs;
 use std::sync::Arc;
@@ -34,11 +33,9 @@ pub async fn execute() -> Result<()> {
     let scanned = walker.scan().unwrap_or_default();
 
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
-    for (file, content) in &scanned {
-        let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
-        graph.ingest_ast(file, &ast);
-    }
-    graph.finalize_links();
+    let _ = graph.load_persisted(&current_dir);
+    graph.ingest_workspace(&scanned);
+    let _ = graph.save_persisted(&current_dir);
 
     let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
     let memory_db = Arc::new(MemoryDatabase::open(&db_path)?);

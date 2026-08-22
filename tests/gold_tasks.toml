@@ -1,0 +1,19 @@
+# NeuroMesh v0.4 gold tasks — measured on this repo, not claimed completeness.
+
+[[task]]
+id = "handle_tool_call_intent"
+prompt = "How does handle_tool_call extract intent?"
+gold_files = ["tools.rs", "signature.rs", "activator.rs"]
+expect_seeds_missed = false
+
+[[task]]
+id = "physarum_usage"
+prompt = "Where is Physarum used?"
+gold_files = ["physarum.rs", "graph.rs"]
+expect_seeds_missed = false
+
+[[task]]
+id = "missing_seed"
+prompt = "What does `__no_such_symbol_xyz__` do?"
+gold_files = []
+expect_seeds_missed = true

@@ -66,6 +66,7 @@ impl ScssParser {
                         target_symbol: source_path.clone(),
                         relationship: EdgeType::References,
                         target_file_hint: Some(source_path),
+                        receiver_hint: None,
                     });
                 }
             }

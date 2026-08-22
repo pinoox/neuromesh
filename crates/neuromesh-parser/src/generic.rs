@@ -55,6 +55,7 @@ impl GenericParser {
                         target_symbol: imported,
                         relationship: EdgeType::Imports,
                         target_file_hint: Some(source),
+                        receiver_hint: None,
                     });
                 }
             }

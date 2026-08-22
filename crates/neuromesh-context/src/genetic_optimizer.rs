@@ -1,3 +1,6 @@
+//! Offline chromosome search. Not on the `get_context` hot path.
+//! Fitness must be a measurable Utility (gold coverage / token budget), not random noise.
+use neuromesh_core::CoverageReport;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,6 +115,31 @@ impl GeneticContextOptimizer {
             }
         }
 
+        score
+    }
+
+    /// Gold-aligned Utility: seed coverage minus token-budget overflow. Offline only.
+    pub fn evaluate_gold_utility(
+        &mut self,
+        index: usize,
+        coverage: &CoverageReport,
+        tokens: usize,
+        budget: usize,
+    ) -> f32 {
+        let total = coverage.seeds_hit.len() + coverage.seeds_missed.len();
+        let recall = if total == 0 {
+            1.0
+        } else {
+            coverage.seeds_hit.len() as f32 / total as f32
+        };
+        let overflow = tokens.saturating_sub(budget) as f32 / budget.max(1) as f32;
+        let score = (recall - overflow).clamp(0.0, 1.0);
+        if index < self.population.len() {
+            self.population[index].fitness_score = score;
+            if score > self.best_chromosome.fitness_score {
+                self.best_chromosome = self.population[index].clone();
+            }
+        }
         score
     }
 

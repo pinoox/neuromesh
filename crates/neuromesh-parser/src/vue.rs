@@ -63,6 +63,7 @@ impl VueParser {
                         target_symbol: sym,
                         relationship: EdgeType::Imports,
                         target_file_hint: Some(source_path.to_string()),
+                        receiver_hint: None,
                     });
                 }
             }
@@ -79,6 +80,7 @@ impl VueParser {
                     target_symbol: store_hook.as_str().to_string(),
                     relationship: EdgeType::DependsOn,
                     target_file_hint: None,
+                    receiver_hint: None,
                 });
             }
         }
@@ -92,6 +94,7 @@ impl VueParser {
                         target_symbol: name.to_string(),
                         relationship: EdgeType::Calls,
                         target_file_hint: None,
+                        receiver_hint: None,
                     });
                 }
             }
@@ -108,6 +111,7 @@ impl VueParser {
                         target_symbol: child_component.to_string(),
                         relationship: EdgeType::Contains,
                         target_file_hint: Some(format!("{}.vue", child_component)),
+                        receiver_hint: None,
                     });
                 }
             }
@@ -129,6 +133,7 @@ impl VueParser {
                     target_symbol: source.as_str().to_string(),
                     relationship: EdgeType::References,
                     target_file_hint: Some(source.as_str().to_string()),
+                    receiver_hint: None,
                 });
             }
         }

@@ -115,6 +115,7 @@ pub fn record_import(
         target_symbol: imported,
         relationship: EdgeType::Imports,
         target_file_hint: Some(source_path),
+        receiver_hint: None,
     });
 }
 
