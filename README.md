@@ -31,22 +31,24 @@ Instead of blindly dumping thousands of lines of raw files into an LLM's context
 
 ## 💥 The Problem vs. The NeuroMesh Solution
 
+| ❌ Traditional Naive Context Injection | 🌿 NeuroMesh v2.0 Biomimetic Engine |
+| :--- | :--- |
+| 🔴 **Brute-force File Dumping:** Reads and concatenates dozens of full source files blindly. | 🟢 **Task-Driven Intent:** Extracts exact active symbol signatures and requirements. |
+| 🔴 **Massive Context Bloat:** Injects **25,000+ to 120,000+ raw tokens** per instruction. | 🟢 **Physarum Steiner Routing:** Discovers the minimal connecting AST subgraph in RAM. |
+| 🔴 **Attention Degradation:** Suffers severe *Lost in the Middle* distractions & hallucinations. | 🟢 **Genetic AST Slicing:** Expresses active exons and folds untargeted introns into reversible markers. |
+| 🔴 **High TTFT Latency:** Sluggish **3,000 ms – 5,000 ms** response preparation time. | 🟢 **Sub-50ms Context Delivery:** Traverses in-memory graph and slices code in **<25 ms**. |
+| 🔴 **Expensive Token Bills:** Costs **~$75.00+ per 1,000 prompts** (Claude 3.7 / GPT-4.5). | 🟢 **99.6% Cost Savings:** Costs **~$0.29 per 1,000 prompts** (**$74.70+ saved per 1k calls**). |
+
 ```mermaid
 flowchart LR
-    subgraph Traditional["❌ Traditional Context Injection"]
-        A1[User Prompt] --> B1["Read All Workspace Files"]
-        B1 --> C1["Inject 25,000+ Raw Tokens"]
-        C1 --> D1["High Latency (3-5s TTFT)"]
-        D1 --> E1["Attention Saturation & Hallucination"]
-        E1 --> F1["Expensive API Bills ($0.075 / prompt)"]
+    subgraph Bad["❌ Traditional Workflow"]
+        direction TB
+        B1["User Prompt"] --> B2["Inject All Raw Files (25k+ Tokens)"] --> B3["Attention Degradation & High Bills ($75/1k)"]
     end
 
-    subgraph NeuroMesh["✅ NeuroMesh v2.0 Engine"]
-        A2[User Prompt] --> B2["Physarum Polycephalum Solver"]
-        B2 --> C2["Genetic AST Slicing (Intron Folding)"]
-        C2 --> D2["Cellular Osmotic Gate Membrane"]
-        D2 --> E2["Minimal Subgraph (0 - 484 Tokens)"]
-        E2 --> F2["Instant Sub-50ms Response & 99.6% Cost Savings"]
+    subgraph Good["🌿 NeuroMesh v2.0 Workflow"]
+        direction TB
+        G1["User Prompt"] --> G2["Physarum Routing & Genetic AST Slicing"] --> G3["Hyper-Lean Context & 99.6% Token Savings"]
     end
 ```
 
