@@ -42,11 +42,7 @@ impl ProjectWalker {
                 None => break,
             }
         }
-        if Self::is_safe_workspace(start) {
-            start.to_path_buf()
-        } else {
-            start.to_path_buf()
-        }
+        start.to_path_buf()
     }
 
     pub fn is_safe_workspace(path: &Path) -> bool {

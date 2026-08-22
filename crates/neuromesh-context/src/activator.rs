@@ -75,7 +75,10 @@ impl ContextActivator {
         }
 
         for (query, energy, reason) in queries {
-            if seed_resolutions.iter().any(|s: &SeedResolution| s.query == query) {
+            if seed_resolutions
+                .iter()
+                .any(|s: &SeedResolution| s.query == query)
+            {
                 continue;
             }
             if let Some((id, confidence)) = graph.resolve_ranked(&query, None, None) {
@@ -96,11 +99,17 @@ impl ContextActivator {
                     resolved_id: Some(id),
                     confidence: conf,
                 });
-            } else if let Some(hit) = graph.search_symbols(&query, 1).into_iter().next().filter(|hit| {
-                let q = query.to_lowercase();
-                let n = hit.name.to_lowercase();
-                hit.score >= 86.0 && (n == q || n.starts_with(&q) || q.starts_with(&n))
-            }) {
+            } else if let Some(hit) =
+                graph
+                    .search_symbols(&query, 1)
+                    .into_iter()
+                    .next()
+                    .filter(|hit| {
+                        let q = query.to_lowercase();
+                        let n = hit.name.to_lowercase();
+                        hit.score >= 86.0 && (n == q || n.starts_with(&q) || q.starts_with(&n))
+                    })
+            {
                 seed_energies
                     .entry(hit.id.clone())
                     .and_modify(|e| *e = (*e).max(energy * 0.8))
@@ -308,9 +317,13 @@ fn build_next_actions(
     }
     if let Some(fold_id) = fold_ids.first() {
         let on_call_path = active.iter().any(|n| {
-            graph.get_connected_neighbors(&n.node.id).iter().any(|(_, e)| {
-                e.edge_type == EdgeType::Calls && e.confidence != neuromesh_core::EdgeConfidence::Unresolved
-            })
+            graph
+                .get_connected_neighbors(&n.node.id)
+                .iter()
+                .any(|(_, e)| {
+                    e.edge_type == EdgeType::Calls
+                        && e.confidence != neuromesh_core::EdgeConfidence::Unresolved
+                })
         });
         if on_call_path {
             actions.push(NextAction {

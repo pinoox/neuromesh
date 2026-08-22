@@ -132,10 +132,8 @@ impl TypeScriptParser {
             }
         }
 
-        let reexport_regex = Regex::new(
-            r#"(?m)^\s*export\s*\{([^}]+)\}(?:\s*from\s*['"]([^'"]+)['"])?"#,
-        )
-        .unwrap();
+        let reexport_regex =
+            Regex::new(r#"(?m)^\s*export\s*\{([^}]+)\}(?:\s*from\s*['"]([^'"]+)['"])?"#).unwrap();
         for cap in reexport_regex.captures_iter(content) {
             if let Some(names) = cap.get(1) {
                 for part in names.as_str().split(',') {

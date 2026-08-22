@@ -112,7 +112,8 @@ impl McpServer {
                             let bg_pid = pid.clone();
                             let _ = self.handler.graph().load_persisted(&p_buf);
                             tokio::spawn(async move {
-                                let walker = neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid);
+                                let walker =
+                                    neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid);
                                 if let Ok(scanned) = walker.scan() {
                                     bg_graph.ingest_workspace(&scanned);
                                     let _ = bg_graph.save_persisted(&bg_dir);

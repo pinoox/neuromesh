@@ -38,6 +38,7 @@ impl NodeFactory {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create_symbol_node(
         project_id: ProjectId,
         file_path: PathBuf,

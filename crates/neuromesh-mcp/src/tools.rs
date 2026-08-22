@@ -408,7 +408,8 @@ impl McpToolHandler {
                 let mut path: Vec<NodeId> = Vec::new();
                 for node_name in &touched_nodes {
                     let node_id = NodeId::new(node_name);
-                    self.graph.record_neural_spike(node_id.clone(), true, success);
+                    self.graph
+                        .record_neural_spike(node_id.clone(), true, success);
                     path.push(node_id);
                 }
                 self.graph.apply_stdp_on_path(&path);

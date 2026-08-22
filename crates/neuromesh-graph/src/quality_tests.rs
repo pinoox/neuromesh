@@ -163,7 +163,9 @@ pub fn bar() {}
         graph.save_persisted(&dir).expect("save");
         let loaded = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
         assert!(loaded.load_persisted(&dir));
-        assert!(loaded.resolve_unique("persist_me", Some("persist.rs")).is_some());
+        assert!(loaded
+            .resolve_unique("persist_me", Some("persist.rs"))
+            .is_some());
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -171,7 +173,8 @@ pub fn bar() {}
     fn typescript_export_table_resolves_import() {
         let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
         let lib = "export function extractIntent() { return 1; }\n";
-        let app = "import { extractIntent } from './lib';\nexport function run() { extractIntent(); }\n";
+        let app =
+            "import { extractIntent } from './lib';\nexport function run() { extractIntent(); }\n";
         let lib_file = IndexedFile {
             project_id: ProjectId::new("neuromesh"),
             relative_path: PathBuf::from("src/lib.ts"),
@@ -208,9 +211,6 @@ pub fn bar() {}
         assert!(graph.stats().resolved_imports >= 1);
         let resolved = graph.resolve_ranked("extractIntent", Some("./lib"), None);
         assert!(resolved.is_some());
-        assert_eq!(
-            resolved.unwrap().1,
-            neuromesh_core::EdgeConfidence::Proven
-        );
+        assert_eq!(resolved.unwrap().1, neuromesh_core::EdgeConfidence::Proven);
     }
 }

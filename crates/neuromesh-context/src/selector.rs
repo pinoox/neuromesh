@@ -159,6 +159,7 @@ pub fn select(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn include_node(
     graph: &NeuralProjectGraph,
     id: &NodeId,
@@ -204,7 +205,7 @@ fn node_cost(node: &neuromesh_core::ContextNode) -> usize {
         // Packet files are skeletonized; charge an exon-aware estimate, not raw size.
         (node.token_cost / 4).clamp(48, 900)
     } else {
-        node.token_cost.min(48).max(1)
+        node.token_cost.clamp(1, 48)
     }
 }
 
@@ -340,7 +341,9 @@ pub fn target() {
         );
         graph.finalize_links();
 
-        let start = graph.resolve_unique("start", Some("seed.rs")).expect("start");
+        let start = graph
+            .resolve_unique("start", Some("seed.rs"))
+            .expect("start");
         let mut seeds = HashSet::new();
         seeds.insert(start.clone());
         let neighborhood = graph.neighborhood(&seeds, 3);

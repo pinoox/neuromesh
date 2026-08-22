@@ -116,7 +116,7 @@ pub fn path_hint_matches(path: &std::path::Path, hint: &str) -> bool {
     if path.contains(&hint) {
         return true;
     }
-    hint.split(|c: char| c == ':' || c == '/' || c == '.')
+    hint.split([':', '/', '.'])
         .filter(|part| part.len() > 2)
         .any(|part| path.contains(part))
 }

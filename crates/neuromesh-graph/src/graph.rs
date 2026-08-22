@@ -174,6 +174,7 @@ impl NeuralProjectGraph {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn add_symbol_node_with_parent(
         &self,
         file_path: &Path,
@@ -209,7 +210,10 @@ impl NeuralProjectGraph {
         index_tokens(&mut data, &node.id, symbol_name);
         if let Some(parent) = parent {
             let key = format!("{}::{}", parent.to_lowercase(), symbol_name.to_lowercase());
-            data.impl_index.entry(key).or_default().push(node.id.clone());
+            data.impl_index
+                .entry(key)
+                .or_default()
+                .push(node.id.clone());
         }
 
         node
@@ -886,7 +890,11 @@ impl NeuralProjectGraph {
         if let Some(id) = self.resolve_call_target(name, source_file, imported_files) {
             return Some((id, EdgeConfidence::Proven));
         }
-        self.resolve_ranked(name, Some(&source_file.to_string_lossy()), Some(imported_files))
+        self.resolve_ranked(
+            name,
+            Some(&source_file.to_string_lossy()),
+            Some(imported_files),
+        )
     }
 
     fn resolve_export(&self, name: &str, file_hint: &str) -> Option<(NodeId, EdgeConfidence)> {
@@ -1363,7 +1371,7 @@ impl NeuralProjectGraph {
         }
 
         let mut languages: Vec<(String, usize)> = lang_counts.into_iter().collect();
-        languages.sort_by(|a, b| b.1.cmp(&a.1));
+        languages.sort_by_key(|b| std::cmp::Reverse(b.1));
 
         let mut packages: Vec<ArchitecturePackage> = package_files
             .into_iter()
@@ -1373,7 +1381,7 @@ impl NeuralProjectGraph {
                 file_count,
             })
             .collect();
-        packages.sort_by(|a, b| b.file_count.cmp(&a.file_count));
+        packages.sort_by_key(|b| std::cmp::Reverse(b.file_count));
         packages.truncate(16);
 
         let mut hotspots: Vec<SearchHit> = degree

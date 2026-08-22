@@ -107,9 +107,7 @@ pub fn extract_calls_from_line_ctx(
         }
         let recv = cap.name("recv").map(|m| m.as_str());
         let receiver_hint = match recv {
-            Some("self") | Some("this") | Some("Super") => {
-                impl_parent.map(|p| format!("impl:{p}"))
-            }
+            Some("self") | Some("this") | Some("Super") => impl_parent.map(|p| format!("impl:{p}")),
             Some(recv) => recv
                 .split("::")
                 .last()

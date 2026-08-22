@@ -157,7 +157,7 @@ pub struct PromptAnchors {
 pub fn tokenize_ident(name: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     for chunk in name
-        .split(|c: char| c == '_' || c == '-' || c == '/' || c == '\\' || c == '.' || c == ':')
+        .split(['_', '-', '/', '\\', '.', ':'])
         .filter(|s| !s.is_empty())
     {
         let mut current = String::new();
@@ -167,11 +167,10 @@ pub fn tokenize_ident(name: &str) -> Vec<String> {
                 && i > 0
                 && (chars[i - 1].is_lowercase()
                     || (i + 1 < chars.len() && chars[i + 1].is_lowercase()))
+                && !current.is_empty()
             {
-                if !current.is_empty() {
-                    tokens.push(current.to_lowercase());
-                    current.clear();
-                }
+                tokens.push(current.to_lowercase());
+                current.clear();
             }
             current.push(ch);
         }
