@@ -35,22 +35,33 @@ impl TaskSignatureExtractor {
             TaskIntent::Optimize
         } else if lower.contains("test") || lower.contains("spec") || lower.contains("typecheck") {
             TaskIntent::Test
-        } else if lower.contains("explain") || lower.contains("what is") || lower.contains("how does") {
+        } else if lower.contains("explain")
+            || lower.contains("what is")
+            || lower.contains("how does")
+        {
             TaskIntent::Explain
-        } else if lower.contains("make") || lower.contains("update") || lower.contains("change") || lower.contains("add") {
+        } else if lower.contains("make")
+            || lower.contains("update")
+            || lower.contains("change")
+            || lower.contains("add")
+        {
             TaskIntent::Modify
         } else {
             TaskIntent::Query
         };
 
         // 2. Detect Technology & Framework
-        let technology = if lower.contains("vue 3") || lower.contains("vue3") || lower.contains("vue") {
+        let technology = if lower.contains("vue 3")
+            || lower.contains("vue3")
+            || lower.contains("vue")
+        {
             "Vue".to_string()
         } else if lower.contains("react") || lower.contains("next") {
             "React".to_string()
         } else if lower.contains("rust") || lower.contains("cargo") {
             "Rust".to_string()
-        } else if lower.contains("python") || lower.contains("django") || lower.contains("fastapi") {
+        } else if lower.contains("python") || lower.contains("django") || lower.contains("fastapi")
+        {
             "Python".to_string()
         } else if lower.contains("typescript") || lower.contains("ts") {
             "TypeScript".to_string()
@@ -72,9 +83,13 @@ impl TaskSignatureExtractor {
         };
 
         // 4. Detect Domain
-        let domain = if lower.contains("ecommerce") || lower.contains("store") || lower.contains("shop") {
+        let domain = if lower.contains("ecommerce")
+            || lower.contains("store")
+            || lower.contains("shop")
+        {
             "ecommerce".to_string()
-        } else if lower.contains("frontend") || lower.contains("ui") || lower.contains("responsive") {
+        } else if lower.contains("frontend") || lower.contains("ui") || lower.contains("responsive")
+        {
             "frontend".to_string()
         } else if lower.contains("backend") || lower.contains("api") || lower.contains("database") {
             "backend".to_string()
@@ -107,7 +122,10 @@ impl TaskSignatureExtractor {
             || lower.contains("drop table")
         {
             TaskRisk::Critical
-        } else if lower.contains("refactor") || lower.contains("delete") || lower.contains("architecture") {
+        } else if lower.contains("refactor")
+            || lower.contains("delete")
+            || lower.contains("architecture")
+        {
             TaskRisk::High
         } else if lower.contains("state") || lower.contains("api") || lower.contains("database") {
             TaskRisk::Medium
@@ -117,16 +135,25 @@ impl TaskSignatureExtractor {
 
         // 8. Related Concepts
         let mut related_concepts = Vec::new();
-        if lower.contains("responsive") || lower.contains("mobile") || lower.contains("breakpoint") {
+        if lower.contains("responsive") || lower.contains("mobile") || lower.contains("breakpoint")
+        {
             related_concepts.push("layout".to_string());
             related_concepts.push("breakpoints".to_string());
             related_concepts.push("responsive".to_string());
         }
-        if lower.contains("state") || lower.contains("pinia") || lower.contains("store") || lower.contains("cart") {
+        if lower.contains("state")
+            || lower.contains("pinia")
+            || lower.contains("store")
+            || lower.contains("cart")
+        {
             related_concepts.push("state".to_string());
             related_concepts.push("reactivity".to_string());
         }
-        if lower.contains("scss") || lower.contains("color") || lower.contains("typography") || lower.contains("spacing") {
+        if lower.contains("scss")
+            || lower.contains("color")
+            || lower.contains("typography")
+            || lower.contains("spacing")
+        {
             related_concepts.push("design tokens".to_string());
             related_concepts.push("variables".to_string());
         }

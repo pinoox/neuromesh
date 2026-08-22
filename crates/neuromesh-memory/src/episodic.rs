@@ -18,6 +18,7 @@ pub struct EpisodicRecord {
 }
 
 impl EpisodicRecord {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         project_id: ProjectId,
         task_hash: String,

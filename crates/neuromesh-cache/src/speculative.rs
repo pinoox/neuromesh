@@ -80,7 +80,9 @@ impl SpeculativePrefetcher {
     }
 
     pub fn prewarm(&self, node_id: &NodeId, skeleton_content: String) {
-        self.l1_cache.write().insert(node_id.clone(), skeleton_content);
+        self.l1_cache
+            .write()
+            .insert(node_id.clone(), skeleton_content);
     }
 
     pub fn get_prewarmed(&self, node_id: &NodeId) -> Option<String> {

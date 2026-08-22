@@ -17,7 +17,9 @@ async fn async_main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let is_terminal = std::io::stdin().is_terminal();
 
-    let is_mcp = args.iter().any(|a| a == "mcp" || a.ends_with("mcp") || a.contains("mcp"));
+    let is_mcp = args
+        .iter()
+        .any(|a| a == "mcp" || a.ends_with("mcp") || a.contains("mcp"));
     let command = if is_mcp {
         "mcp"
     } else if let Some(cmd) = args.get(1) {
@@ -64,7 +66,9 @@ async fn async_main() -> Result<()> {
         "logs" => {
             println!("\n📜 Recent NeuroMesh Audit Logs:");
             println!("  [2026-08-22T00:00:00Z] MCP Server initialized in Pure MCP Mode.");
-            println!("  [2026-08-22T00:00:15Z] Indexed workspace files with Physarum & Genetic Slicing.");
+            println!(
+                "  [2026-08-22T00:00:15Z] Indexed workspace files with Physarum & Genetic Slicing."
+            );
             println!("  [2026-08-22T00:01:02Z] Tool call neuromesh_get_context: 92.4% token reduction achieved.\n");
         }
         "mcp" => {
@@ -89,7 +93,9 @@ async fn async_main() -> Result<()> {
             let registry = Arc::new(neuromesh_context::ReversibleContextRegistry::new());
             let activator = Arc::new(neuromesh_context::ContextActivator::new(registry.clone()));
             let expansion_engine = Arc::new(neuromesh_context::ExpansionEngine::new(registry));
-            let working_memory = Arc::new(parking_lot::RwLock::new(neuromesh_memory::WorkingMemory::default()));
+            let working_memory = Arc::new(parking_lot::RwLock::new(
+                neuromesh_memory::WorkingMemory::default(),
+            ));
 
             let handler = Arc::new(neuromesh_mcp::McpToolHandler::new(
                 graph.clone(),
@@ -107,7 +113,11 @@ async fn async_main() -> Result<()> {
                 let walker = neuromesh_index::ProjectWalker::new(bg_dir, bg_pid);
                 if let Ok(scanned) = walker.scan() {
                     for (file, content) in &scanned {
-                        let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
+                        let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
+                            &file.relative_path,
+                            content,
+                            file.language,
+                        );
                         bg_graph.ingest_ast(file, &ast);
                     }
                 }

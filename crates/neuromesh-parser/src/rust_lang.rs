@@ -14,15 +14,17 @@ impl RustParser {
             .unwrap_or("module");
 
         // 1. Structs, Enums, Traits
-        let item_regex = Regex::new(
-            r#"(?m)^\s*(?:pub(?:\([^)]+\))?\s+)?(struct|enum|trait)\s+([A-Za-z0-9_]+)"#,
-        )
-        .unwrap();
+        let item_regex =
+            Regex::new(r#"(?m)^\s*(?:pub(?:\([^)]+\))?\s+)?(struct|enum|trait)\s+([A-Za-z0-9_]+)"#)
+                .unwrap();
 
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = item_regex.captures(line) {
                 let kind = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-                let name = cap.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+                let name = cap
+                    .get(2)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
 
                 let node_type = match kind {
                     "trait" => NodeType::Symbol,
@@ -41,10 +43,9 @@ impl RustParser {
         }
 
         // 2. Functions
-        let fn_regex = Regex::new(
-            r#"(?m)^\s*(?:pub(?:\([^)]+\))?\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)"#,
-        )
-        .unwrap();
+        let fn_regex =
+            Regex::new(r#"(?m)^\s*(?:pub(?:\([^)]+\))?\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)"#)
+                .unwrap();
 
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = fn_regex.captures(line) {

@@ -66,7 +66,8 @@ mod tests {
             new_code,
             "hash1",
             "hash2",
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(diff.added_lines.len(), 1);
         assert_eq!(diff.removed_lines.len(), 1);

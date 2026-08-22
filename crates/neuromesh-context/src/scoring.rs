@@ -69,7 +69,8 @@ impl ActivationScorer {
         // Match with related concepts
         for concept in &signature.related_concepts {
             let concept_lower = concept.to_lowercase();
-            if node_name_lower.contains(&concept_lower) || concept_lower.contains(&node_name_lower) {
+            if node_name_lower.contains(&concept_lower) || concept_lower.contains(&node_name_lower)
+            {
                 return 0.85;
             }
         }
@@ -113,6 +114,8 @@ impl ActivationScorer {
         let half_life_seconds = self.weights.recency_half_life_days * 86400.0;
 
         // Exponential decay: e^(-lambda * t)
-        (-0.693 * (age_seconds / half_life_seconds)).exp().clamp(0.2, 1.0)
+        (-0.693 * (age_seconds / half_life_seconds))
+            .exp()
+            .clamp(0.2, 1.0)
     }
 }

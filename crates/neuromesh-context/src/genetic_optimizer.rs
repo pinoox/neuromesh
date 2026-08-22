@@ -38,10 +38,12 @@ impl ContextChromosome {
 
     pub fn mutate(&mut self, mutation_rate: f32, seed: u64) {
         if (seed % 100) as f32 / 100.0 < mutation_rate {
-            let delta = if seed % 2 == 0 { 1 } else { -1 };
-            self.fold_threshold_lines = (self.fold_threshold_lines as isize + delta).max(2).min(15) as usize;
-            self.docstring_retention = (self.docstring_retention + (delta as f32 * 0.05)).max(0.1).min(1.0);
-            self.interface_boost = (self.interface_boost + (delta as f32 * 0.1)).max(0.5).min(3.0);
+            let delta = if seed.is_multiple_of(2) { 1 } else { -1 };
+            self.fold_threshold_lines =
+                (self.fold_threshold_lines as isize + delta).clamp(2, 15) as usize;
+            self.docstring_retention =
+                (self.docstring_retention + (delta as f32 * 0.05)).clamp(0.1, 1.0);
+            self.interface_boost = (self.interface_boost + (delta as f32 * 0.1)).clamp(0.5, 3.0);
         }
     }
 
@@ -95,9 +97,10 @@ impl GeneticContextOptimizer {
             return 0.0;
         }
 
-        let compression_ratio = (original_tokens.saturating_sub(skeleton_tokens)) as f32 / original_tokens as f32;
+        let compression_ratio =
+            (original_tokens.saturating_sub(skeleton_tokens)) as f32 / original_tokens as f32;
         let syntax_factor = if is_syntactically_sound { 1.0 } else { 0.0 };
-        let type_factor = type_safety_score.max(0.0).min(1.0);
+        let type_factor = type_safety_score.clamp(0.0, 1.0);
 
         // Multi-objective fitness function
         let score = (0.50 * compression_ratio) + (0.35 * syntax_factor) + (0.15 * type_factor);
@@ -113,7 +116,11 @@ impl GeneticContextOptimizer {
     }
 
     pub fn evolve_generation(&mut self) {
-        self.population.sort_by(|a, b| b.fitness_score.partial_cmp(&a.fitness_score).unwrap_or(std::cmp::Ordering::Equal));
+        self.population.sort_by(|a, b| {
+            b.fitness_score
+                .partial_cmp(&a.fitness_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         self.generation += 1;
 
         let mut next_gen = Vec::with_capacity(self.population.len());

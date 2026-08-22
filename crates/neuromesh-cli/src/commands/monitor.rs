@@ -33,7 +33,10 @@ pub async fn execute() -> Result<()> {
     let walker = ProjectWalker::new(current_dir.clone(), project_id.clone());
     let scanned = walker.scan().unwrap_or_default();
 
-    println!("Indexing {} files for Neural Project Graph...", scanned.len());
+    println!(
+        "Indexing {} files for Neural Project Graph...",
+        scanned.len()
+    );
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     for (file, content) in &scanned {
         let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);

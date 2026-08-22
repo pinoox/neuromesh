@@ -27,7 +27,9 @@ pub fn execute() -> Result<()> {
     let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
     let memory_entries = if db_path.exists() {
         if let Ok(db) = MemoryDatabase::open(&db_path) {
-            db.get_project_facts(&project_id).map(|f| f.len()).unwrap_or(0)
+            db.get_project_facts(&project_id)
+                .map(|f| f.len())
+                .unwrap_or(0)
         } else {
             0
         }

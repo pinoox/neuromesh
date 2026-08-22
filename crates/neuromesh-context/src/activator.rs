@@ -2,8 +2,7 @@ use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
 use crate::skeleton::CodeSkeletonizer;
 use neuromesh_core::{
-    ActivatedNodeView, ContextStatus, ContextView, NodeId, OptimizationMode,
-    TaskSignature,
+    ActivatedNodeView, ContextStatus, ContextView, NodeId, OptimizationMode, TaskSignature,
 };
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::{HashMap, HashSet};

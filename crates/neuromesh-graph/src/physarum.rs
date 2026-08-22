@@ -107,12 +107,16 @@ impl PhysarumSolver {
             let initial_d = (edge.pheromone_weight * 2.0).clamp(0.2, 1.0);
             conductance.insert(edge_id.clone(), initial_d);
 
-            adj.entry(edge.source.clone())
-                .or_default()
-                .push((edge.target.clone(), edge_id.clone(), length));
-            adj.entry(edge.target.clone())
-                .or_default()
-                .push((edge.source.clone(), edge_id.clone(), length));
+            adj.entry(edge.source.clone()).or_default().push((
+                edge.target.clone(),
+                edge_id.clone(),
+                length,
+            ));
+            adj.entry(edge.target.clone()).or_default().push((
+                edge.source.clone(),
+                edge_id.clone(),
+                length,
+            ));
         }
 
         let seed_list: Vec<NodeId> = seed_nodes.iter().cloned().collect();
@@ -215,7 +219,11 @@ impl PhysarumSolver {
         let mut active_edges = HashSet::new();
         let mut active_nodes = HashSet::new();
 
-        let max_edge_flux = edge_flux.values().cloned().fold(0.0f32, f32::max).max(0.001);
+        let max_edge_flux = edge_flux
+            .values()
+            .cloned()
+            .fold(0.0f32, f32::max)
+            .max(0.001);
 
         // Always include all seed nodes
         for seed in seed_nodes {
@@ -287,7 +295,10 @@ mod tests {
         nodes.insert(n1.clone(), make_node(&n1, "a.rs"));
         nodes.insert(n2.clone(), make_node(&n2, "intermediate.rs"));
         nodes.insert(n3.clone(), make_node(&n3, "b.rs"));
-        nodes.insert(n_irrelevant.clone(), make_node(&n_irrelevant, "irrelevant.rs"));
+        nodes.insert(
+            n_irrelevant.clone(),
+            make_node(&n_irrelevant, "irrelevant.rs"),
+        );
 
         let make_edge = |src: &NodeId, tgt: &NodeId, edge_type: EdgeType| ContextEdge {
             id: EdgeId::new(src, tgt, &edge_type),

@@ -80,7 +80,10 @@ impl Provider for AnthropicProvider {
             })?;
 
             let id = json["id"].as_str().unwrap_or("msg-unknown").to_string();
-            let content = json["content"][0]["text"].as_str().unwrap_or("").to_string();
+            let content = json["content"][0]["text"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
 
             let prompt_tokens = json["usage"]["input_tokens"].as_u64().unwrap_or(0) as usize;
             let completion_tokens = json["usage"]["output_tokens"].as_u64().unwrap_or(0) as usize;

@@ -35,16 +35,15 @@ impl GenericParser {
         }
 
         // Generic import / include / require
-        let generic_import_regex = Regex::new(
-            r#"(?m)^\s*(?:import|include|require|using)\s+['"<]?([^'">;\s]+)['">]?"#,
-        )
-        .unwrap();
+        let generic_import_regex =
+            Regex::new(r#"(?m)^\s*(?:import|include|require|using)\s+['"<]?([^'">;\s]+)['">]?"#)
+                .unwrap();
 
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = generic_import_regex.captures(line) {
                 if let Some(src) = cap.get(1) {
                     let source = src.as_str().to_string();
-                    let imported = source.split('/').last().unwrap_or(&source).to_string();
+                    let imported = source.split('/').next_back().unwrap_or(&source).to_string();
                     result.imports.push(ParsedImport {
                         source_path: source.clone(),
                         imported_symbols: vec![imported.clone()],

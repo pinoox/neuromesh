@@ -126,9 +126,8 @@ impl MyceliumCache {
             let result = content.clone();
             data.stats.prefetch_hits += 1;
             if data.stats.total_prefetches > 0 {
-                data.stats.hit_rate_pct = (data.stats.prefetch_hits as f32
-                    / data.stats.total_prefetches as f32)
-                    * 100.0;
+                data.stats.hit_rate_pct =
+                    (data.stats.prefetch_hits as f32 / data.stats.total_prefetches as f32) * 100.0;
             }
             Some(result)
         } else {
@@ -148,7 +147,8 @@ impl MyceliumCache {
             targets.retain(|_, &mut v| v > 0.05);
         }
 
-        data.nutrient_matrix.retain(|_, targets| !targets.is_empty());
+        data.nutrient_matrix
+            .retain(|_, targets| !targets.is_empty());
     }
 
     pub fn stats(&self) -> MyceliumStats {

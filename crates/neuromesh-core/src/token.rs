@@ -37,7 +37,7 @@ impl TokenCounter {
         }
 
         // Clamp to realistic lower bound: at least char_count / 4
-        let char_based = (text.len() + 3) / 4;
+        let char_based = text.len().div_ceil(4);
         std::cmp::max(token_count, char_based)
     }
 
@@ -57,6 +57,6 @@ mod tests {
     fn test_token_counting() {
         let sample = "const productCard = defineComponent({ name: 'ProductCard' });";
         let tokens = TokenCounter::count_tokens(sample);
-        assert!(tokens >= 10 && tokens <= 25);
+        assert!((10..=25).contains(&tokens));
     }
 }

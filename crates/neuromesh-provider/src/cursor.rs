@@ -85,7 +85,11 @@ impl Provider for CursorProvider {
                 full_text.push_str(&chunk.delta);
             }
 
-            let prompt_text: String = request.messages.iter().map(|m| m.content.as_str()).collect();
+            let prompt_text: String = request
+                .messages
+                .iter()
+                .map(|m| m.content.as_str())
+                .collect();
             let prompt_tokens = TokenCounter::count_tokens(&prompt_text);
             let completion_tokens = TokenCounter::count_tokens(&full_text);
 
@@ -151,7 +155,10 @@ impl Provider for CursorProvider {
                 .header("Content-Type", "application/connect+json")
                 .header("Connect-Protocol-Version", "1")
                 .header("Authorization", format!("Bearer {}", effective_token))
-                .header("Cookie", format!("WorkosCursorSessionToken={}", effective_token))
+                .header(
+                    "Cookie",
+                    format!("WorkosCursorSessionToken={}", effective_token),
+                )
                 .header("x-cursor-client-version", "0.45.0")
                 .header("x-ghost-mode", "false")
                 .body(framed_body)

@@ -6,13 +6,20 @@ pub fn execute() -> Result<()> {
     println!("===============================================");
 
     // 1. Check OS & Architecture
-    println!("✓ OS: {} ({})", std::env::consts::OS, std::env::consts::ARCH);
+    println!(
+        "✓ OS: {} ({})",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
 
     // 2. Check Port Availability
     let port = 8765;
     match TcpListener::bind(format!("127.0.0.1:{}", port)) {
         Ok(_) => println!("✓ Port {}: Available", port),
-        Err(_) => println!("⚠ Port {}: Already in use by another instance or service", port),
+        Err(_) => println!(
+            "⚠ Port {}: Already in use by another instance or service",
+            port
+        ),
     }
 
     // 3. Check Embedded Persistence Engine

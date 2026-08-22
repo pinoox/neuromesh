@@ -25,13 +25,15 @@ impl HttpServer {
             let cfg = self.state.config.read();
             (cfg.host.clone(), cfg.port)
         };
-        let addr: SocketAddr = format!("{}:{}", host, port)
-            .parse()
-            .map_err(|e| neuromesh_core::NeuroMeshError::Config(format!("Invalid address: {}", e)))?;
+        let addr: SocketAddr = format!("{}:{}", host, port).parse().map_err(|e| {
+            neuromesh_core::NeuroMeshError::Config(format!("Invalid address: {}", e))
+        })?;
 
         let listener = TcpListener::bind(addr).await?;
         println!("\n╔═══════════════════════════════════════════════════════════════════════════════════╗");
-        println!("║               🌿 NEUROMESH V2 — UI MONITOR & MCP DASHBOARD ACTIVE                 ║");
+        println!(
+            "║               🌿 NEUROMESH V2 — UI MONITOR & MCP DASHBOARD ACTIVE                 ║"
+        );
         println!("║   Open in browser: \x1b[1;36mhttp://{}\x1b[0m                                      ║", addr);
         println!("╚═══════════════════════════════════════════════════════════════════════════════════╝\n");
 
@@ -120,7 +122,13 @@ impl HttpServer {
             // Web UI Dashboard Root
             ("GET", "/") | ("GET", "/index.html") => {
                 let html = crate::ui::INDEX_HTML;
-                Self::send_response(&mut stream, 200, "text/html; charset=utf-8", html.as_bytes()).await?;
+                Self::send_response(
+                    &mut stream,
+                    200,
+                    "text/html; charset=utf-8",
+                    html.as_bytes(),
+                )
+                .await?;
             }
 
             // System & Biomimetic Status
@@ -139,29 +147,46 @@ impl HttpServer {
                 } else {
                     let pid_lower = current_pid.0.to_lowercase();
                     let ws_lower = current_ws.to_lowercase().replace('\\', "/");
-                    history.iter().filter(|h| {
-                        let h_pid = h.project_id.0.to_lowercase();
-                        h_pid == pid_lower 
-                            || h_pid.contains(&pid_lower) 
-                            || pid_lower.contains(&h_pid)
-                            || ws_lower.ends_with(&format!("/{}", h_pid))
-                            || ws_lower.ends_with(&h_pid)
-                    }).cloned().collect()
+                    history
+                        .iter()
+                        .filter(|h| {
+                            let h_pid = h.project_id.0.to_lowercase();
+                            h_pid == pid_lower
+                                || h_pid.contains(&pid_lower)
+                                || pid_lower.contains(&h_pid)
+                                || ws_lower.ends_with(&format!("/{}", h_pid))
+                                || ws_lower.ends_with(&h_pid)
+                        })
+                        .cloned()
+                        .collect()
                 };
 
                 let total_requests = project_history.len();
-                let total_tokens_before: usize = project_history.iter().map(|m| m.tokens_before).sum();
-                let total_tokens_after: usize = project_history.iter().map(|m| m.tokens_after).sum();
-                let total_tokens_saved: usize = project_history.iter().map(|m| m.tokens_before.saturating_sub(m.tokens_after)).sum();
+                let total_tokens_before: usize =
+                    project_history.iter().map(|m| m.tokens_before).sum();
+                let total_tokens_after: usize =
+                    project_history.iter().map(|m| m.tokens_after).sum();
+                let total_tokens_saved: usize = project_history
+                    .iter()
+                    .map(|m| m.tokens_before.saturating_sub(m.tokens_after))
+                    .sum();
                 let overall_reduction_pct: f32 = if !project_history.is_empty() {
-                    project_history.iter().map(|m| m.token_reduction_pct).sum::<f32>() / project_history.len() as f32
+                    project_history
+                        .iter()
+                        .map(|m| m.token_reduction_pct)
+                        .sum::<f32>()
+                        / project_history.len() as f32
                 } else if stats.file_nodes > 0 {
                     (92.4 + ((stats.file_nodes * 3) % 45) as f32 / 10.0).min(98.8)
                 } else {
                     0.0
                 };
                 let avg_latency_ms: f64 = if !project_history.is_empty() {
-                    project_history.iter().map(|m| m.latency_ms as f64).sum::<f64>() / project_history.len() as f64
+                    project_history
+                        .iter()
+                        .map(|m| m.latency_ms as f64)
+                        .sum::<f64>()
+                        / project_history.len() as f64
                 } else {
                     0.0
                 };
@@ -216,45 +241,59 @@ impl HttpServer {
                     let p_path_norm = p_path.replace('\\', "/").to_lowercase();
 
                     // Find latest timestamp from telemetry history
-                    let history_last = history.iter().filter(|h| {
-                        let h_pid = h.project_id.0.to_lowercase();
-                        h_pid == p_name_lower
-                            || h_pid.contains(&p_name_lower)
-                            || p_name_lower.contains(&h_pid)
-                            || p_path_norm.ends_with(&format!("/{}", h_pid))
-                            || p_path_norm.ends_with(&h_pid)
-                    }).map(|h| h.timestamp.timestamp_millis() as u64).max();
+                    let history_last = history
+                        .iter()
+                        .filter(|h| {
+                            let h_pid = h.project_id.0.to_lowercase();
+                            h_pid == p_name_lower
+                                || h_pid.contains(&p_name_lower)
+                                || p_name_lower.contains(&h_pid)
+                                || p_path_norm.ends_with(&format!("/{}", h_pid))
+                                || p_path_norm.ends_with(&h_pid)
+                        })
+                        .map(|h| h.timestamp.timestamp_millis() as u64)
+                        .max();
 
                     let access_path = access_times.get(p_path).copied();
                     let access_name = access_times.get(p_name).copied();
 
                     let mut candidates = Vec::new();
-                    if let Some(t) = history_last { candidates.push(t); }
-                    if let Some(t) = access_path { candidates.push(t); }
-                    if let Some(t) = access_name { candidates.push(t); }
+                    if let Some(t) = history_last {
+                        candidates.push(t);
+                    }
+                    if let Some(t) = access_path {
+                        candidates.push(t);
+                    }
+                    if let Some(t) = access_name {
+                        candidates.push(t);
+                    }
 
                     candidates.into_iter().max().unwrap_or(0)
                 };
 
                 // Helper to calculate avg reduction % for a project
-                let calc_project_reduction = |p_name: &str, p_path: &str, files_cnt: usize| -> f32 {
-                    let p_name_lower = p_name.to_lowercase();
-                    let p_path_norm = p_path.replace('\\', "/").to_lowercase();
-                    let matching: Vec<_> = history.iter().filter(|h| {
-                        let h_pid = h.project_id.0.to_lowercase();
-                        h_pid == p_name_lower
-                            || h_pid.contains(&p_name_lower)
-                            || p_name_lower.contains(&h_pid)
-                            || p_path_norm.ends_with(&format!("/{}", h_pid))
-                            || p_path_norm.ends_with(&h_pid)
-                    }).collect();
-                    if !matching.is_empty() {
-                        let sum: f32 = matching.iter().map(|m| m.token_reduction_pct).sum();
-                        sum / matching.len() as f32
-                    } else {
-                        (92.4 + ((files_cnt * 3) % 45) as f32 / 10.0).min(98.8)
-                    }
-                };
+                let calc_project_reduction =
+                    |p_name: &str, p_path: &str, files_cnt: usize| -> f32 {
+                        let p_name_lower = p_name.to_lowercase();
+                        let p_path_norm = p_path.replace('\\', "/").to_lowercase();
+                        let matching: Vec<_> = history
+                            .iter()
+                            .filter(|h| {
+                                let h_pid = h.project_id.0.to_lowercase();
+                                h_pid == p_name_lower
+                                    || h_pid.contains(&p_name_lower)
+                                    || p_name_lower.contains(&h_pid)
+                                    || p_path_norm.ends_with(&format!("/{}", h_pid))
+                                    || p_path_norm.ends_with(&h_pid)
+                            })
+                            .collect();
+                        if !matching.is_empty() {
+                            let sum: f32 = matching.iter().map(|m| m.token_reduction_pct).sum();
+                            sum / matching.len() as f32
+                        } else {
+                            (92.4 + ((files_cnt * 3) % 45) as f32 / 10.0).min(98.8)
+                        }
+                    };
 
                 // Add active project
                 let active_name = current_ws
@@ -263,13 +302,16 @@ impl HttpServer {
                     .unwrap_or_else(|| "default".to_string());
 
                 let stats = state.graph.stats();
-                let current_canonical = current_ws.canonicalize().unwrap_or_else(|_| current_ws.clone());
+                let current_canonical = current_ws
+                    .canonicalize()
+                    .unwrap_or_else(|_| current_ws.clone());
                 let current_path_str = current_ws.display().to_string();
                 seen_paths.insert(current_canonical);
 
                 // Helper to count files in an inactive project quickly
                 let scan_inactive_counts = |proj_path: &std::path::Path| -> (usize, usize, usize) {
-                    let walker = ProjectWalker::new(proj_path.to_path_buf(), ProjectId::new("probe"));
+                    let walker =
+                        ProjectWalker::new(proj_path.to_path_buf(), ProjectId::new("probe"));
                     if let Ok(scanned) = walker.scan() {
                         let file_count = scanned.len();
                         if file_count > 0 {
@@ -287,7 +329,15 @@ impl HttpServer {
                 let is_collective = state.graph.project_id().0 == "collective_mesh";
                 let (act_files, act_nodes, act_edges) = scan_inactive_counts(&current_ws);
                 let act_last = get_project_last_active(&active_name, &current_path_str);
-                let act_red = calc_project_reduction(&active_name, &current_path_str, if !is_collective { stats.file_nodes } else { act_files });
+                let act_red = calc_project_reduction(
+                    &active_name,
+                    &current_path_str,
+                    if !is_collective {
+                        stats.file_nodes
+                    } else {
+                        act_files
+                    },
+                );
 
                 if !deleted.contains(&current_path_str) {
                     projects.push(json!({
@@ -310,9 +360,13 @@ impl HttpServer {
                                 if ft.is_dir() {
                                     let path = entry.path();
                                     let path_str = path.display().to_string();
-                                    let path_canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
-                                    
-                                    if !deleted.contains(&path_str) && !deleted.contains(&path_canonical.display().to_string()) && !seen_paths.contains(&path_canonical) {
+                                    let path_canonical =
+                                        path.canonicalize().unwrap_or_else(|_| path.clone());
+
+                                    if !deleted.contains(&path_str)
+                                        && !deleted.contains(&path_canonical.display().to_string())
+                                        && !seen_paths.contains(&path_canonical)
+                                    {
                                         let has_manifest = path.join(".neuromesh").exists()
                                             || path.join("Cargo.toml").exists()
                                             || path.join("package.json").exists()
@@ -320,11 +374,18 @@ impl HttpServer {
 
                                         if has_manifest {
                                             seen_paths.insert(path_canonical);
-                                            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                                            let (files_cnt, nodes_cnt, edges_cnt) = scan_inactive_counts(&path);
+                                            let name = path
+                                                .file_name()
+                                                .map(|n| n.to_string_lossy().into_owned())
+                                                .unwrap_or_default();
+                                            let (files_cnt, nodes_cnt, edges_cnt) =
+                                                scan_inactive_counts(&path);
                                             if files_cnt > 0 {
-                                                let last_acc = get_project_last_active(&name, &path_str);
-                                                let red_pct = calc_project_reduction(&name, &path_str, files_cnt);
+                                                let last_acc =
+                                                    get_project_last_active(&name, &path_str);
+                                                let red_pct = calc_project_reduction(
+                                                    &name, &path_str, files_cnt,
+                                                );
                                                 projects.push(json!({
                                                     "name": name,
                                                     "path": path_str,
@@ -351,21 +412,29 @@ impl HttpServer {
                     b_last.cmp(&a_last)
                 });
 
-                Self::send_json(&mut stream, 200, &json!({ "projects": projects, "is_collective": is_collective })).await?;
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({ "projects": projects, "is_collective": is_collective }),
+                )
+                .await?;
             }
 
             // Switch Active Workspace Project
             ("POST", "/api/project/switch") => {
                 if let Some(target_path_str) = body_json["path"].as_str() {
                     let now_ts = chrono::Utc::now().timestamp_millis() as u64;
-                    state.project_access_times.write().insert(target_path_str.to_string(), now_ts);
+                    state
+                        .project_access_times
+                        .write()
+                        .insert(target_path_str.to_string(), now_ts);
 
                     if target_path_str == "__all__" || target_path_str == "all" {
                         let current_ws = state.workspace_path.read().clone();
                         let parent = current_ws.parent().unwrap_or(&current_ws).to_path_buf();
                         let new_project_id = ProjectId::new("collective_mesh");
                         state.graph.clear(Some(new_project_id.clone()));
-                        
+
                         let mut indexed_count = 0;
                         let mut project_names = Vec::new();
                         if let Ok(entries) = std::fs::read_dir(&parent) {
@@ -378,13 +447,21 @@ impl HttpServer {
                                             || p.join("package.json").exists()
                                             || p.join("pyproject.toml").exists();
                                         if has_manifest {
-                                            let p_name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                                            let p_name = p
+                                                .file_name()
+                                                .map(|n| n.to_string_lossy().into_owned())
+                                                .unwrap_or_default();
                                             project_names.push(p_name.clone());
-                                            let walker = ProjectWalker::new(p, ProjectId::new(&p_name));
+                                            let walker =
+                                                ProjectWalker::new(p, ProjectId::new(&p_name));
                                             if let Ok(scanned) = walker.scan() {
                                                 indexed_count += scanned.len();
                                                 for (file, content) in &scanned {
-                                                    let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
+                                                    let ast = CodeIntelligenceEngine::analyze(
+                                                        &file.relative_path,
+                                                        content,
+                                                        file.language,
+                                                    );
                                                     state.graph.ingest_ast(file, &ast);
                                                 }
                                             }
@@ -395,15 +472,20 @@ impl HttpServer {
                         }
 
                         let stats = state.graph.stats();
-                        Self::send_json(&mut stream, 200, &json!({
-                            "success": true,
-                            "is_all": true,
-                            "project_name": "All Projects (Collective Mesh)",
-                            "project_path": "__all__",
-                            "projects_included": project_names,
-                            "indexed_files": indexed_count,
-                            "stats": stats
-                        })).await?;
+                        Self::send_json(
+                            &mut stream,
+                            200,
+                            &json!({
+                                "success": true,
+                                "is_all": true,
+                                "project_name": "All Projects (Collective Mesh)",
+                                "project_path": "__all__",
+                                "projects_included": project_names,
+                                "indexed_files": indexed_count,
+                                "stats": stats
+                            }),
+                        )
+                        .await?;
                     } else {
                         let target_path = PathBuf::from(target_path_str);
                         if target_path.exists() {
@@ -420,27 +502,53 @@ impl HttpServer {
                             if let Ok(scanned) = walker.scan() {
                                 indexed_count = scanned.len();
                                 for (file, content) in &scanned {
-                                    let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
+                                    let ast = CodeIntelligenceEngine::analyze(
+                                        &file.relative_path,
+                                        content,
+                                        file.language,
+                                    );
                                     state.graph.ingest_ast(file, &ast);
                                 }
                             }
 
                             let stats = state.graph.stats();
-                            state.log("SUCCESS", "PROJECT", &format!("Switched workspace to '{}' ({} files, {} nodes)", project_name, indexed_count, stats.total_nodes));
-                            Self::send_json(&mut stream, 200, &json!({
-                                "success": true,
-                                "is_all": false,
-                                "project_name": project_name,
-                                "project_path": target_path_str,
-                                "indexed_files": indexed_count,
-                                "stats": stats
-                            })).await?;
+                            state.log(
+                                "SUCCESS",
+                                "PROJECT",
+                                &format!(
+                                    "Switched workspace to '{}' ({} files, {} nodes)",
+                                    project_name, indexed_count, stats.total_nodes
+                                ),
+                            );
+                            Self::send_json(
+                                &mut stream,
+                                200,
+                                &json!({
+                                    "success": true,
+                                    "is_all": false,
+                                    "project_name": project_name,
+                                    "project_path": target_path_str,
+                                    "indexed_files": indexed_count,
+                                    "stats": stats
+                                }),
+                            )
+                            .await?;
                         } else {
-                            Self::send_json(&mut stream, 404, &json!({ "error": "Project path not found" })).await?;
+                            Self::send_json(
+                                &mut stream,
+                                404,
+                                &json!({ "error": "Project path not found" }),
+                            )
+                            .await?;
                         }
                     }
                 } else {
-                    Self::send_json(&mut stream, 400, &json!({ "error": "Missing path parameter" })).await?;
+                    Self::send_json(
+                        &mut stream,
+                        400,
+                        &json!({ "error": "Missing path parameter" }),
+                    )
+                    .await?;
                 }
             }
 
@@ -448,10 +556,18 @@ impl HttpServer {
             ("POST", "/api/project/delete") => {
                 if let Some(target_path_str) = body_json["path"].as_str() {
                     let target_path = PathBuf::from(target_path_str);
-                    let canonical = target_path.canonicalize().unwrap_or_else(|_| target_path.clone());
-                    
-                    state.deleted_project_paths.write().insert(target_path_str.to_string());
-                    state.deleted_project_paths.write().insert(canonical.display().to_string());
+                    let canonical = target_path
+                        .canonicalize()
+                        .unwrap_or_else(|_| target_path.clone());
+
+                    state
+                        .deleted_project_paths
+                        .write()
+                        .insert(target_path_str.to_string());
+                    state
+                        .deleted_project_paths
+                        .write()
+                        .insert(canonical.display().to_string());
 
                     // Delete .neuromesh directory if it exists
                     let dot_neuromesh = target_path.join(".neuromesh");
@@ -459,31 +575,54 @@ impl HttpServer {
                         let _ = std::fs::remove_dir_all(&dot_neuromesh);
                     }
 
-                    state.log("WARN", "PROJECT", &format!("Purged project data: {}", target_path_str));
+                    state.log(
+                        "WARN",
+                        "PROJECT",
+                        &format!("Purged project data: {}", target_path_str),
+                    );
 
                     // If currently active, switch back to main/current_dir
-                    let is_active = state.workspace_path.read().to_string_lossy() == target_path_str;
+                    let is_active =
+                        state.workspace_path.read().to_string_lossy() == target_path_str;
                     if is_active {
-                        let fallback_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+                        let fallback_dir =
+                            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
                         *state.workspace_path.write() = fallback_dir.clone();
-                        let fallback_name = fallback_dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "project".to_string());
+                        let fallback_name = fallback_dir
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| "project".to_string());
                         let new_pid = ProjectId::new(&fallback_name);
                         state.graph.clear(Some(new_pid.clone()));
                         let walker = ProjectWalker::new(fallback_dir, new_pid);
                         if let Ok(scanned) = walker.scan() {
                             for (file, content) in &scanned {
-                                let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
+                                let ast = CodeIntelligenceEngine::analyze(
+                                    &file.relative_path,
+                                    content,
+                                    file.language,
+                                );
                                 state.graph.ingest_ast(file, &ast);
                             }
                         }
                     }
 
-                    Self::send_json(&mut stream, 200, &json!({
-                        "success": true,
-                        "message": "Project data completely removed from NeuroMesh"
-                    })).await?;
+                    Self::send_json(
+                        &mut stream,
+                        200,
+                        &json!({
+                            "success": true,
+                            "message": "Project data completely removed from NeuroMesh"
+                        }),
+                    )
+                    .await?;
                 } else {
-                    Self::send_json(&mut stream, 400, &json!({ "error": "Missing path parameter" })).await?;
+                    Self::send_json(
+                        &mut stream,
+                        400,
+                        &json!({ "error": "Missing path parameter" }),
+                    )
+                    .await?;
                 }
             }
 
@@ -496,23 +635,46 @@ impl HttpServer {
                 let scanned = walker.scan().unwrap_or_default();
 
                 for (file, content) in &scanned {
-                    let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
+                    let ast = CodeIntelligenceEngine::analyze(
+                        &file.relative_path,
+                        content,
+                        file.language,
+                    );
                     state.graph.ingest_ast(file, &ast);
                 }
 
                 let stats = state.graph.stats();
-                state.log("INFO", "REINDEX", &format!("Re-indexed {} files (Total nodes: {}, edges: {})", scanned.len(), stats.total_nodes, stats.total_edges));
-                Self::send_json(&mut stream, 200, &json!({
-                    "success": true,
-                    "indexed_files": scanned.len(),
-                    "graph_stats": stats
-                })).await?;
+                state.log(
+                    "INFO",
+                    "REINDEX",
+                    &format!(
+                        "Re-indexed {} files (Total nodes: {}, edges: {})",
+                        scanned.len(),
+                        stats.total_nodes,
+                        stats.total_edges
+                    ),
+                );
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({
+                        "success": true,
+                        "indexed_files": scanned.len(),
+                        "graph_stats": stats
+                    }),
+                )
+                .await?;
             }
 
             // Configuration Management
             ("GET", "/api/config") => {
                 let cfg = state.config.read().clone();
-                Self::send_json(&mut stream, 200, &serde_json::to_value(&cfg).unwrap_or_default()).await?;
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &serde_json::to_value(&cfg).unwrap_or_default(),
+                )
+                .await?;
             }
 
             ("POST", "/api/config") => {
@@ -525,7 +687,8 @@ impl HttpServer {
                     state.config.write().mode = new_mode;
                 }
                 let cfg = state.config.read().clone();
-                Self::send_json(&mut stream, 200, &json!({ "success": true, "config": cfg })).await?;
+                Self::send_json(&mut stream, 200, &json!({ "success": true, "config": cfg }))
+                    .await?;
             }
 
             // Neural Project Graph Data (for 2D visualizer)
@@ -574,7 +737,8 @@ impl HttpServer {
                 let tokens_before = if total_raw > 0 { total_raw } else { 16000 };
                 let tokens_after = view.active_tokens;
                 let reduction = if tokens_before > 0 {
-                    ((tokens_before.saturating_sub(tokens_after)) as f32 / tokens_before as f32) * 100.0
+                    ((tokens_before.saturating_sub(tokens_after)) as f32 / tokens_before as f32)
+                        * 100.0
                 } else {
                     90.0
                 };
@@ -599,7 +763,17 @@ impl HttpServer {
                     timestamp: chrono::Utc::now(),
                 });
 
-                state.log("OPTIMIZATION", "SIMULATE", &format!("Context optimization: '{}' (Saved {} tokens, {:.1}% drop in {}ms)", prompt, tokens_before.saturating_sub(tokens_after), reduction, latency_ms));
+                state.log(
+                    "OPTIMIZATION",
+                    "SIMULATE",
+                    &format!(
+                        "Context optimization: '{}' (Saved {} tokens, {:.1}% drop in {}ms)",
+                        prompt,
+                        tokens_before.saturating_sub(tokens_after),
+                        reduction,
+                        latency_ms
+                    ),
+                );
 
                 let resp = json!({
                     "signature": signature,
@@ -621,7 +795,14 @@ impl HttpServer {
                     .expansion_engine
                     .expand_node(&NodeId::new(node_id), reason)
                 {
-                    state.log("OPTIMIZATION", "EXPAND", &format!("Reversibly expanded fold for node '{}' (Reason: {})", node_id, reason));
+                    state.log(
+                        "OPTIMIZATION",
+                        "EXPAND",
+                        &format!(
+                            "Reversibly expanded fold for node '{}' (Reason: {})",
+                            node_id, reason
+                        ),
+                    );
                     let resp = json!({
                         "success": true,
                         "expanded_node": view,
@@ -659,22 +840,46 @@ impl HttpServer {
                 let tool_name = body_json["name"].as_str().unwrap_or("");
                 let args = &body_json["arguments"];
 
-                state.log("MCP", "TOOL_CALL", &format!("Invoking tool '{}'", tool_name));
+                state.log(
+                    "MCP",
+                    "TOOL_CALL",
+                    &format!("Invoking tool '{}'", tool_name),
+                );
                 match state.mcp_handler.handle_tool_call(tool_name, args).await {
                     Ok(result) => {
-                        state.log("SUCCESS", "MCP", &format!("Tool '{}' executed successfully", tool_name));
-                        Self::send_json(&mut stream, 200, &json!({ "success": true, "result": result })).await?;
+                        state.log(
+                            "SUCCESS",
+                            "MCP",
+                            &format!("Tool '{}' executed successfully", tool_name),
+                        );
+                        Self::send_json(
+                            &mut stream,
+                            200,
+                            &json!({ "success": true, "result": result }),
+                        )
+                        .await?;
                     }
                     Err(e) => {
-                        state.log("WARN", "MCP", &format!("Tool '{}' failed: {}", tool_name, e));
-                        Self::send_json(&mut stream, 400, &json!({ "success": false, "error": e.to_string() })).await?;
+                        state.log(
+                            "WARN",
+                            "MCP",
+                            &format!("Tool '{}' failed: {}", tool_name, e),
+                        );
+                        Self::send_json(
+                            &mut stream,
+                            400,
+                            &json!({ "success": false, "error": e.to_string() }),
+                        )
+                        .await?;
                     }
                 }
             }
 
             // Universal HTTP MCP JSON-RPC Endpoint (POST /mcp or POST /api/mcp or POST /messages)
             ("POST", "/mcp") | ("POST", "/api/mcp") | ("POST", "/messages") => {
-                if let Ok(rpc_req) = serde_json::from_value::<neuromesh_mcp::JsonRpcRequest>(body_json.clone()) {
+                if let Ok(rpc_req) =
+                    serde_json::from_value::<neuromesh_mcp::JsonRpcRequest>(body_json.clone())
+                {
                     let server = neuromesh_mcp::McpServer::new(state.mcp_handler.clone());
                     let resp = server.process_request(rpc_req).await;
                     Self::send_json(&mut stream, 200, &resp).await?;
@@ -694,7 +899,8 @@ impl HttpServer {
                                    Connection: keep-alive\r\n\
                                    Access-Control-Allow-Origin: *\r\n\r\n";
                 stream.write_all(sse_headers.as_bytes()).await?;
-                let init_msg = "event: endpoint\r\ndata: /messages?session_id=neuromesh-mcp-session\r\n\r\n";
+                let init_msg =
+                    "event: endpoint\r\ndata: /messages?session_id=neuromesh-mcp-session\r\n\r\n";
                 let _ = stream.write_all(init_msg.as_bytes()).await;
                 let _ = stream.flush().await;
                 return Ok(());
@@ -702,22 +908,45 @@ impl HttpServer {
 
             // Ingest Telemetry from External MCP Clients (Cursor, Claude Desktop, CLI)
             ("POST", "/api/telemetry/record") => {
-                if let Ok(meta) = serde_json::from_value::<neuromesh_core::OptimizationMetadata>(body_json.clone()) {
+                if let Ok(meta) = serde_json::from_value::<neuromesh_core::OptimizationMetadata>(
+                    body_json.clone(),
+                ) {
                     let tokens_saved = meta.tokens_before.saturating_sub(meta.tokens_after);
                     let now_ts = meta.timestamp.timestamp_millis() as u64;
-                    
+
                     // Update access times for this project
-                    state.project_access_times.write().insert(meta.project_id.0.clone(), now_ts);
+                    state
+                        .project_access_times
+                        .write()
+                        .insert(meta.project_id.0.clone(), now_ts);
                     if let Some(parent) = state.workspace_path.read().parent() {
                         let proj_path = parent.join(&meta.project_id.0);
-                        state.project_access_times.write().insert(proj_path.display().to_string(), now_ts);
+                        state
+                            .project_access_times
+                            .write()
+                            .insert(proj_path.display().to_string(), now_ts);
                     }
 
-                    state.log("OPTIMIZATION", "MCP_TELEMETRY", &format!("Tool call on '{}': {} tokens saved ({:.1}% drop in {}ms)", meta.project_id.0, tokens_saved, meta.token_reduction_pct, meta.latency_ms));
+                    state.log(
+                        "OPTIMIZATION",
+                        "MCP_TELEMETRY",
+                        &format!(
+                            "Tool call on '{}': {} tokens saved ({:.1}% drop in {}ms)",
+                            meta.project_id.0,
+                            tokens_saved,
+                            meta.token_reduction_pct,
+                            meta.latency_ms
+                        ),
+                    );
                     state.metrics.record(meta);
                     Self::send_json(&mut stream, 200, &json!({ "success": true })).await?;
                 } else {
-                    Self::send_json(&mut stream, 400, &json!({ "error": "Invalid metadata payload" })).await?;
+                    Self::send_json(
+                        &mut stream,
+                        400,
+                        &json!({ "error": "Invalid metadata payload" }),
+                    )
+                    .await?;
                 }
             }
 
@@ -725,22 +954,35 @@ impl HttpServer {
             ("GET", "/api/memory") => {
                 let pid = state.graph.project_id();
                 let facts = state.memory_db.get_project_facts(&pid).unwrap_or_default();
-                let episodes = state.memory_db.find_similar_episodes(&pid, "").unwrap_or_default();
+                let episodes = state
+                    .memory_db
+                    .find_similar_episodes(&pid, "")
+                    .unwrap_or_default();
                 let wm = state.working_memory.read().clone();
 
-                Self::send_json(&mut stream, 200, &json!({
-                    "project_id": pid.0,
-                    "facts": facts,
-                    "episodes": episodes,
-                    "working_memory": wm
-                })).await?;
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({
+                        "project_id": pid.0,
+                        "facts": facts,
+                        "episodes": episodes,
+                        "working_memory": wm
+                    }),
+                )
+                .await?;
             }
 
             // Clear Memory
             ("POST", "/api/memory/clear") => {
                 *state.working_memory.write() = neuromesh_memory::WorkingMemory::default();
                 state.log("WARN", "MEMORY", "Working memory cache cleared");
-                Self::send_json(&mut stream, 200, &json!({ "success": true, "message": "Memory cache cleared" })).await?;
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({ "success": true, "message": "Memory cache cleared" }),
+                )
+                .await?;
             }
 
             // Usage & Request History endpoint
@@ -755,47 +997,70 @@ impl HttpServer {
                 } else {
                     let pid_lower = current_pid.0.to_lowercase();
                     let ws_lower = current_ws.to_lowercase().replace('\\', "/");
-                    history.into_iter().filter(|h| {
-                        let h_pid = h.project_id.0.to_lowercase();
-                        h_pid == pid_lower 
-                            || h_pid.contains(&pid_lower) 
-                            || pid_lower.contains(&h_pid)
-                            || ws_lower.ends_with(&format!("/{}", h_pid))
-                            || ws_lower.ends_with(&h_pid)
-                    }).collect()
+                    history
+                        .into_iter()
+                        .filter(|h| {
+                            let h_pid = h.project_id.0.to_lowercase();
+                            h_pid == pid_lower
+                                || h_pid.contains(&pid_lower)
+                                || pid_lower.contains(&h_pid)
+                                || ws_lower.ends_with(&format!("/{}", h_pid))
+                                || ws_lower.ends_with(&h_pid)
+                        })
+                        .collect()
                 };
 
                 let req_count = filtered_history.len();
-                let total_saved: usize = filtered_history.iter().map(|m| m.tokens_before.saturating_sub(m.tokens_after)).sum();
+                let total_saved: usize = filtered_history
+                    .iter()
+                    .map(|m| m.tokens_before.saturating_sub(m.tokens_after))
+                    .sum();
                 let total_raw: usize = filtered_history.iter().map(|m| m.tokens_before).sum();
                 let avg_red: f32 = if !filtered_history.is_empty() {
-                    filtered_history.iter().map(|m| m.token_reduction_pct).sum::<f32>() / req_count as f32
+                    filtered_history
+                        .iter()
+                        .map(|m| m.token_reduction_pct)
+                        .sum::<f32>()
+                        / req_count as f32
                 } else {
                     0.0
                 };
                 let avg_lat: f64 = if !filtered_history.is_empty() {
-                    filtered_history.iter().map(|m| m.latency_ms as f64).sum::<f64>() / req_count as f64
+                    filtered_history
+                        .iter()
+                        .map(|m| m.latency_ms as f64)
+                        .sum::<f64>()
+                        / req_count as f64
                 } else {
                     0.0
                 };
                 let cache_count = filtered_history.iter().filter(|m| m.cache_hit).count();
-                let cache_rate: f64 = if req_count > 0 { (cache_count as f64 / req_count as f64) * 100.0 } else { 0.0 };
+                let cache_rate: f64 = if req_count > 0 {
+                    (cache_count as f64 / req_count as f64) * 100.0
+                } else {
+                    0.0
+                };
 
-                Self::send_json(&mut stream, 200, &json!({
-                    "success": true,
-                    "project_id": current_pid.0,
-                    "is_collective": is_collective,
-                    "summary": {
-                        "total_requests": req_count,
-                        "total_tokens_saved": total_saved,
-                        "total_raw_tokens": total_raw,
-                        "overall_reduction_pct": avg_red,
-                        "average_latency_ms": avg_lat,
-                        "cache_hit_rate": cache_rate,
-                        "cache_hits": cache_count
-                    },
-                    "history": filtered_history
-                })).await?;
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({
+                        "success": true,
+                        "project_id": current_pid.0,
+                        "is_collective": is_collective,
+                        "summary": {
+                            "total_requests": req_count,
+                            "total_tokens_saved": total_saved,
+                            "total_raw_tokens": total_raw,
+                            "overall_reduction_pct": avg_red,
+                            "average_latency_ms": avg_lat,
+                            "cache_hit_rate": cache_rate,
+                            "cache_hits": cache_count
+                        },
+                        "history": filtered_history
+                    }),
+                )
+                .await?;
             }
 
             // Audit Logs
@@ -808,7 +1073,12 @@ impl HttpServer {
             ("POST", "/api/logs/clear") => {
                 state.audit_logs.write().clear();
                 state.log("INFO", "SYSTEM", "Audit log stream cleared by user");
-                Self::send_json(&mut stream, 200, &json!({ "success": true, "message": "Audit logs cleared" })).await?;
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({ "success": true, "message": "Audit logs cleared" }),
+                )
+                .await?;
             }
 
             // CORS Preflight

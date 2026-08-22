@@ -5,10 +5,10 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct SpreadingActivationConfig {
-    pub decay_factor: f32,       // gamma (e.g. 0.65)
-    pub max_hops: usize,         // max propagation depth (e.g. 3 or 4)
-    pub min_energy_cutoff: f32,  // energy below which propagation halts (e.g. 0.05)
-    pub enable_physarum: bool,   // enable Physarum slime mold network optimization
+    pub decay_factor: f32,      // gamma (e.g. 0.65)
+    pub max_hops: usize,        // max propagation depth (e.g. 3 or 4)
+    pub min_energy_cutoff: f32, // energy below which propagation halts (e.g. 0.05)
+    pub enable_physarum: bool,  // enable Physarum slime mold network optimization
     pub physarum_config: PhysarumConfig,
 }
 
@@ -89,7 +89,9 @@ impl SpreadingActivation {
             let nodes_map = graph.get_nodes_map();
             let edges_map = graph.get_edges_map();
 
-            let physarum_res = self.physarum_solver.optimize_subgraph(&nodes_map, &edges_map, &seed_set);
+            let physarum_res = self
+                .physarum_solver
+                .optimize_subgraph(&nodes_map, &edges_map, &seed_set);
 
             // Modulate energies by Physarum flux intensity & prune atrophied branches
             let mut modulated_energies = HashMap::new();
@@ -117,6 +119,7 @@ impl SpreadingActivation {
     ) -> PhysarumResult {
         let nodes_map = graph.get_nodes_map();
         let edges_map = graph.get_edges_map();
-        self.physarum_solver.optimize_subgraph(&nodes_map, &edges_map, seed_nodes)
+        self.physarum_solver
+            .optimize_subgraph(&nodes_map, &edges_map, seed_nodes)
     }
 }

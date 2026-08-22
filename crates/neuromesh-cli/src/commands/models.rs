@@ -10,7 +10,10 @@ pub fn execute() -> Result<()> {
     println!("\n🤖 Configured Models");
     println!("===============================================");
 
-    println!("{:<30} {:<25} {:<18} {:<10}", "Model ID", "Provider / Engine", "Context Window", "Streaming");
+    println!(
+        "{:<30} {:<25} {:<18} {:<10}",
+        "Model ID", "Provider / Engine", "Context Window", "Streaming"
+    );
     println!("{:-<85}", "");
 
     for m in models {

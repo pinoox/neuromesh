@@ -14,10 +14,8 @@ impl TypeScriptParser {
             .unwrap_or("module");
 
         // 1. Extract interfaces & types
-        let type_regex = Regex::new(
-            r#"(?m)^\s*(?:export\s+)?(?:interface|type)\s+([A-Za-z0-9_]+)"#,
-        )
-        .unwrap();
+        let type_regex =
+            Regex::new(r#"(?m)^\s*(?:export\s+)?(?:interface|type)\s+([A-Za-z0-9_]+)"#).unwrap();
 
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = type_regex.captures(line) {
@@ -51,8 +49,6 @@ impl TypeScriptParser {
                 if let Some(symbol_name) = name {
                     let node_type = if line.contains("class ") {
                         NodeType::Class
-                    } else if symbol_name.starts_with("use") {
-                        NodeType::Function
                     } else {
                         NodeType::Function
                     };
@@ -80,7 +76,10 @@ impl TypeScriptParser {
                 result.symbols.push(ParsedSymbol {
                     name: store_name.as_str().to_string(),
                     symbol_type: NodeType::Component,
-                    signature: Some(format!("defineStore('{}')", cap.get(2).map(|m| m.as_str()).unwrap_or(""))),
+                    signature: Some(format!(
+                        "defineStore('{}')",
+                        cap.get(2).map(|m| m.as_str()).unwrap_or("")
+                    )),
                     line_range: 1..content.lines().count() + 1,
                     docstring: None,
                     exported: true,
@@ -108,7 +107,7 @@ impl TypeScriptParser {
                 }
                 if let Some(named) = named_imports {
                     for sym in named.split(',') {
-                        let clean = sym.trim().split_whitespace().last().unwrap_or("").trim();
+                        let clean = sym.split_whitespace().next_back().unwrap_or("").trim();
                         if !clean.is_empty() {
                             imported_symbols.push(clean.to_string());
                         }

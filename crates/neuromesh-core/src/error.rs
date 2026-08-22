@@ -21,10 +21,7 @@ pub enum NeuroMeshError {
     NodeNotFound(String),
 
     #[error("Provider error ({provider}): {message}")]
-    Provider {
-        provider: String,
-        message: String,
-    },
+    Provider { provider: String, message: String },
 
     #[error("Local AI inference error: {0}")]
     LocalAi(String),

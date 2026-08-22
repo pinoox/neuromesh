@@ -30,7 +30,11 @@ impl HtmlParser {
         for script_match in script_regex.captures_iter(content) {
             let script_body = &script_match[1];
             for fn_cap in fn_regex.captures_iter(script_body) {
-                let fn_name = fn_cap.get(1).or_else(|| fn_cap.get(2)).map(|m| m.as_str().to_string()).unwrap_or_default();
+                let fn_name = fn_cap
+                    .get(1)
+                    .or_else(|| fn_cap.get(2))
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
                 if !fn_name.is_empty() {
                     result.symbols.push(ParsedSymbol {
                         name: fn_name.clone(),

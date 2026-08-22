@@ -37,7 +37,7 @@ impl OpenAIProvider {
         }
     }
 
-    fn resolve_endpoint_and_model<'a>(&self, model: &'a str, api_key: &str) -> (String, String) {
+    fn resolve_endpoint_and_model(&self, model: &str, api_key: &str) -> (String, String) {
         let target_model = if model == "neuromesh-auto"
             || model == "auto"
             || model == "default"
@@ -144,8 +144,7 @@ impl Provider for OpenAIProvider {
     fn send<'a>(&'a self, request: &'a ProviderRequest) -> BoxFuture<'a, Result<ProviderResponse>> {
         Box::pin(async move {
             let incoming = request.api_key.as_deref().unwrap_or("");
-            let (url, effective_model) =
-                self.resolve_endpoint_and_model(&request.model, incoming);
+            let (url, effective_model) = self.resolve_endpoint_and_model(&request.model, incoming);
 
             let effective_key = self.select_effective_key(request.api_key.as_deref(), &url);
 
@@ -188,7 +187,10 @@ impl Provider for OpenAIProvider {
                 message: e.to_string(),
             })?;
 
-            let id = json["id"].as_str().unwrap_or("chatcmpl-unknown").to_string();
+            let id = json["id"]
+                .as_str()
+                .unwrap_or("chatcmpl-unknown")
+                .to_string();
             let model = json["model"].as_str().unwrap_or(&request.model).to_string();
             let content = json["choices"][0]["message"]["content"]
                 .as_str()
@@ -199,7 +201,8 @@ impl Provider for OpenAIProvider {
                 .map(|s| s.to_string());
 
             let prompt_tokens = json["usage"]["prompt_tokens"].as_u64().unwrap_or(0) as usize;
-            let completion_tokens = json["usage"]["completion_tokens"].as_u64().unwrap_or(0) as usize;
+            let completion_tokens =
+                json["usage"]["completion_tokens"].as_u64().unwrap_or(0) as usize;
 
             Ok(ProviderResponse {
                 id,
@@ -218,8 +221,7 @@ impl Provider for OpenAIProvider {
     fn stream<'a>(&'a self, request: &'a ProviderRequest) -> BoxFuture<'a, Result<ChunkStream>> {
         Box::pin(async move {
             let incoming = request.api_key.as_deref().unwrap_or("");
-            let (url, effective_model) =
-                self.resolve_endpoint_and_model(&request.model, incoming);
+            let (url, effective_model) = self.resolve_endpoint_and_model(&request.model, incoming);
 
             let effective_key = self.select_effective_key(request.api_key.as_deref(), &url);
 
@@ -255,42 +257,42 @@ impl Provider for OpenAIProvider {
             }
 
             let byte_stream = resp.bytes_stream();
-            let mapped = byte_stream.map(|item| {
-                match item {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        let mut full_delta = String::new();
-                        let mut finish = None;
+            let mapped = byte_stream.map(|item| match item {
+                Ok(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes);
+                    let mut full_delta = String::new();
+                    let mut finish = None;
 
-                        for line in text.lines() {
-                            let trimmed = line.trim();
-                            if let Some(data) = trimmed.strip_prefix("data: ") {
-                                if data == "[DONE]" {
-                                    finish = Some("stop".to_string());
-                                    break;
+                    for line in text.lines() {
+                        let trimmed = line.trim();
+                        if let Some(data) = trimmed.strip_prefix("data: ") {
+                            if data == "[DONE]" {
+                                finish = Some("stop".to_string());
+                                break;
+                            }
+                            if let Ok(v) = serde_json::from_str::<Value>(data) {
+                                if let Some(delta_str) =
+                                    v["choices"][0]["delta"]["content"].as_str()
+                                {
+                                    full_delta.push_str(delta_str);
                                 }
-                                if let Ok(v) = serde_json::from_str::<Value>(data) {
-                                    if let Some(delta_str) = v["choices"][0]["delta"]["content"].as_str() {
-                                        full_delta.push_str(delta_str);
-                                    }
-                                    if let Some(fr) = v["choices"][0]["finish_reason"].as_str() {
-                                        finish = Some(fr.to_string());
-                                    }
+                                if let Some(fr) = v["choices"][0]["finish_reason"].as_str() {
+                                    finish = Some(fr.to_string());
                                 }
                             }
                         }
-
-                        Ok(CompletionChunk {
-                            id: "chunk".to_string(),
-                            delta: full_delta,
-                            finish_reason: finish,
-                        })
                     }
-                    Err(e) => Err(NeuroMeshError::Provider {
-                        provider: "openai".to_string(),
-                        message: e.to_string(),
-                    }),
+
+                    Ok(CompletionChunk {
+                        id: "chunk".to_string(),
+                        delta: full_delta,
+                        finish_reason: finish,
+                    })
                 }
+                Err(e) => Err(NeuroMeshError::Provider {
+                    provider: "openai".to_string(),
+                    message: e.to_string(),
+                }),
             });
 
             Ok(Box::pin(mapped) as ChunkStream)

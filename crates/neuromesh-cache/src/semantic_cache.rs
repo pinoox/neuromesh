@@ -47,6 +47,7 @@ impl SemanticCache {
         None
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn put(
         &self,
         project_id: &ProjectId,

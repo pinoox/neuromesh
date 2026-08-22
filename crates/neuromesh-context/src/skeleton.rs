@@ -101,7 +101,9 @@ impl CodeSkeletonizer {
             if let Some(caps) = fn_regex.captures(line) {
                 let sym_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
                 let is_active = active_symbols.contains(sym_name)
-                    || active_symbols.iter().any(|s| s.contains(sym_name) || sym_name.contains(s));
+                    || active_symbols
+                        .iter()
+                        .any(|s| s.contains(sym_name) || sym_name.contains(s));
 
                 // Find brace body
                 let mut brace_count = 0;
@@ -109,8 +111,7 @@ impl CodeSkeletonizer {
                 let body_start = i;
                 let mut body_end = i;
 
-                for j in i..lines.len() {
-                    let l = lines[j];
+                for (j, l) in lines.iter().enumerate().skip(i) {
                     for ch in l.chars() {
                         if ch == '{' {
                             brace_count += 1;
@@ -134,12 +135,15 @@ impl CodeSkeletonizer {
                     let body_content = lines[body_start..=body_end].join("\n");
                     let saved_tokens = TokenCounter::count_tokens(&body_content);
 
-                    let indent = line.chars().take_while(|c| c.is_whitespace()).collect::<String>();
+                    let indent = line
+                        .chars()
+                        .take_while(|c| c.is_whitespace())
+                        .collect::<String>();
                     let header = line.trim_end();
 
                     // If header contains '{', strip trailing '{'
-                    let clean_header = if header.ends_with('{') {
-                        header[..header.len() - 1].trim_end()
+                    let clean_header = if let Some(stripped) = header.strip_suffix('{') {
+                        stripped.trim_end()
                     } else {
                         header
                     };
@@ -213,12 +217,13 @@ impl CodeSkeletonizer {
                 let sym_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
 
                 let is_active = active_symbols.contains(sym_name)
-                    || active_symbols.iter().any(|s| s.contains(sym_name) || sym_name.contains(s));
+                    || active_symbols
+                        .iter()
+                        .any(|s| s.contains(sym_name) || sym_name.contains(s));
 
                 // Find end of indentation block
                 let mut body_end = i;
-                for j in (i + 1)..lines.len() {
-                    let l = lines[j];
+                for (j, l) in lines.iter().enumerate().skip(i + 1) {
                     if l.trim().is_empty() {
                         continue;
                     }
@@ -324,7 +329,9 @@ export function untargetedHeavyHelper2() {
         assert!(res.introns_folded >= 2);
         assert!(res.skeleton_code.contains("activeTarget"));
         assert!(res.skeleton_code.contains("return x * 2;"));
-        assert!(res.skeleton_code.contains("neuromesh:fold:fold_untargetedHeavyHelper"));
+        assert!(res
+            .skeleton_code
+            .contains("neuromesh:fold:fold_untargetedHeavyHelper"));
         assert!(res.token_reduction_pct > 30.0);
     }
 }

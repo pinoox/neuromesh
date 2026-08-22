@@ -104,7 +104,7 @@ impl MemoryDatabase {
             .cloned()
             .collect();
 
-        matching.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        matching.sort_by_key(|b| std::cmp::Reverse(b.created_at));
         matching.truncate(10);
         Ok(matching)
     }

@@ -22,7 +22,8 @@ impl SemanticTypeExtractor {
     pub fn extract(file_path: &str, content: &str) -> SemanticTypeMap {
         let mut map = SemanticTypeMap::default();
 
-        if file_path.ends_with(".ts") || file_path.ends_with(".tsx") || file_path.ends_with(".vue") {
+        if file_path.ends_with(".ts") || file_path.ends_with(".tsx") || file_path.ends_with(".vue")
+        {
             Self::extract_typescript_types(content, &mut map);
         } else if file_path.ends_with(".rs") {
             Self::extract_rust_types(content, &mut map);
@@ -34,7 +35,8 @@ impl SemanticTypeExtractor {
     }
 
     fn extract_typescript_types(content: &str, map: &mut SemanticTypeMap) {
-        let type_regex = Regex::new(r"(?m)^\s*(?:export\s+)?(interface|type|enum)\s+([A-Za-z0-9_$]+)").unwrap();
+        let type_regex =
+            Regex::new(r"(?m)^\s*(?:export\s+)?(interface|type|enum)\s+([A-Za-z0-9_$]+)").unwrap();
         for cap in type_regex.captures_iter(content) {
             let kind = cap[1].to_string();
             let name = cap[2].to_string();
@@ -55,7 +57,8 @@ impl SemanticTypeExtractor {
     }
 
     fn extract_rust_types(content: &str, map: &mut SemanticTypeMap) {
-        let rust_regex = Regex::new(r"(?m)^\s*(?:pub\s+)?(struct|enum|trait|type)\s+([A-Za-z0-9_]+)").unwrap();
+        let rust_regex =
+            Regex::new(r"(?m)^\s*(?:pub\s+)?(struct|enum|trait|type)\s+([A-Za-z0-9_]+)").unwrap();
         for cap in rust_regex.captures_iter(content) {
             let kind = cap[1].to_string();
             let name = cap[2].to_string();

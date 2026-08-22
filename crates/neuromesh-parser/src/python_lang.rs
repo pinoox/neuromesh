@@ -18,7 +18,10 @@ impl PythonParser {
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = def_regex.captures(line) {
                 let kind = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-                let name = cap.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+                let name = cap
+                    .get(2)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
 
                 let node_type = if kind == "class" {
                     NodeType::Class

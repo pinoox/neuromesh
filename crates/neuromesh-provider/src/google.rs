@@ -40,7 +40,11 @@ impl Provider for GoogleGeminiProvider {
 
             let mut contents = Vec::new();
             for m in &request.messages {
-                let role = if m.role == "assistant" { "model" } else { "user" };
+                let role = if m.role == "assistant" {
+                    "model"
+                } else {
+                    "user"
+                };
                 contents.push(serde_json::json!({
                     "role": role,
                     "parts": [{"text": m.content}]
@@ -80,8 +84,12 @@ impl Provider for GoogleGeminiProvider {
                 .unwrap_or("")
                 .to_string();
 
-            let prompt_tokens = json["usageMetadata"]["promptTokenCount"].as_u64().unwrap_or(0) as usize;
-            let completion_tokens = json["usageMetadata"]["candidatesTokenCount"].as_u64().unwrap_or(0) as usize;
+            let prompt_tokens = json["usageMetadata"]["promptTokenCount"]
+                .as_u64()
+                .unwrap_or(0) as usize;
+            let completion_tokens = json["usageMetadata"]["candidatesTokenCount"]
+                .as_u64()
+                .unwrap_or(0) as usize;
 
             Ok(ProviderResponse {
                 id: "gemini-resp".to_string(),

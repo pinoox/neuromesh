@@ -33,7 +33,8 @@ impl ScssParser {
         }
 
         // 2. Extract SCSS Mixins: @mixin responsive($breakpoint) { ... }
-        let mixin_regex = Regex::new(r#"(?m)^\s*@mixin\s+([-a-zA-Z0-9_]+)(?:\(([^)]*)\))?"#).unwrap();
+        let mixin_regex =
+            Regex::new(r#"(?m)^\s*@mixin\s+([-a-zA-Z0-9_]+)(?:\(([^)]*)\))?"#).unwrap();
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = mixin_regex.captures(line) {
                 if let Some(mixin_name) = cap.get(1) {

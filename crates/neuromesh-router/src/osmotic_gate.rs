@@ -26,7 +26,10 @@ pub struct OsmoticQualityGate;
 
 impl OsmoticQualityGate {
     /// Evaluates osmotic pressure and determines membrane permeability
-    pub fn regulate_membrane(signature: &TaskSignature, requested_mode: OptimizationMode) -> OsmoticMembraneState {
+    pub fn regulate_membrane(
+        signature: &TaskSignature,
+        requested_mode: OptimizationMode,
+    ) -> OsmoticMembraneState {
         // 1. Calculate Internal Osmotic Pressure (Complexity & Risk)
         let risk_factor = match signature.risk {
             TaskRisk::Critical => 1.0,
@@ -36,7 +39,10 @@ impl OsmoticQualityGate {
         };
 
         let domain_lower = signature.domain.to_lowercase();
-        let domain_factor = if domain_lower.contains("security") || domain_lower.contains("auth") || domain_lower.contains("database") {
+        let domain_factor = if domain_lower.contains("security")
+            || domain_lower.contains("auth")
+            || domain_lower.contains("database")
+        {
             0.85
         } else if domain_lower.contains("backend") || domain_lower.contains("devops") {
             0.65
@@ -66,7 +72,9 @@ impl OsmoticQualityGate {
         let net_gradient = internal_pressure - external_pressure;
 
         // 3. Determine Membrane Permeability
-        let (permeability, recommended_mode, rationale) = if signature.requires_conservative_mode() || internal_pressure > 0.75 {
+        let (permeability, recommended_mode, rationale) = if signature.requires_conservative_mode()
+            || internal_pressure > 0.75
+        {
             (
                 MembranePermeability::FullyPermeable,
                 OptimizationMode::MaxQuality,
@@ -117,8 +125,12 @@ mod tests {
         crit_sig.risk = TaskRisk::Critical;
         crit_sig.domain = "security".into();
 
-        let crit_state = OsmoticQualityGate::regulate_membrane(&crit_sig, OptimizationMode::MaxSavings);
-        assert_eq!(crit_state.permeability, MembranePermeability::FullyPermeable);
+        let crit_state =
+            OsmoticQualityGate::regulate_membrane(&crit_sig, OptimizationMode::MaxSavings);
+        assert_eq!(
+            crit_state.permeability,
+            MembranePermeability::FullyPermeable
+        );
         assert_eq!(crit_state.recommended_mode, OptimizationMode::MaxQuality);
     }
 }

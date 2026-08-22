@@ -1,18 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum OptimizationMode {
     MaxQuality,
+    #[default]
     Balanced,
     MaxSavings,
-}
-
-impl Default for OptimizationMode {
-    fn default() -> Self {
-        Self::Balanced
-    }
 }
 
 impl std::fmt::Display for OptimizationMode {
@@ -25,9 +20,10 @@ impl std::fmt::Display for OptimizationMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderType {
+    #[default]
     OpenAI,
     Anthropic,
     Google,
@@ -35,12 +31,6 @@ pub enum ProviderType {
     Cursor,
     Local,
     Mock,
-}
-
-impl Default for ProviderType {
-    fn default() -> Self {
-        Self::OpenAI
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

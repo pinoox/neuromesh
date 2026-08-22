@@ -35,7 +35,9 @@ pub fn execute() -> Result<()> {
     println!("  ├── ⚡ Synaptic STDP Plasticity      : Causal LTP / LTD Hebbian learning engaged");
     println!("  ├── 🧬 Bio-Genetic Code Slicing     : Exon preservation / Intron folding active");
     println!("  ├── 🍄 Mycelial Hyphal Prefetcher   : Predictive nutrient gradient routing active");
-    println!("  └── 🛡️ Cellular Membrane Gate       : Dynamic homeostatic osmotic pressure tuning\n");
+    println!(
+        "  └── 🛡️ Cellular Membrane Gate       : Dynamic homeostatic osmotic pressure tuning\n"
+    );
 
     // -------------------------------------------------------------
     // SUITE 1: Real-World Small to Mid-Sized Componentized Web App
@@ -91,9 +93,18 @@ pub fn execute() -> Result<()> {
     let activator_1 = ContextActivator::new(registry_1);
 
     let scenarios_1 = vec![
-        ("Make ProductCard responsive across mobile and tablet using design tokens.", "Physarum Steiner"),
-        ("Connect CartDrawer component to Pinia cartStore with persistent local storage.", "Synaptic STDP"),
-        ("Add currency switcher in Header that updates price in ProductCard and CartDrawer.", "Physarum + Gene Slicing"),
+        (
+            "Make ProductCard responsive across mobile and tablet using design tokens.",
+            "Physarum Steiner",
+        ),
+        (
+            "Connect CartDrawer component to Pinia cartStore with persistent local storage.",
+            "Synaptic STDP",
+        ),
+        (
+            "Add currency switcher in Header that updates price in ProductCard and CartDrawer.",
+            "Physarum + Gene Slicing",
+        ),
     ];
 
     let mut all_results = Vec::new();
@@ -137,7 +148,9 @@ pub fn execute() -> Result<()> {
     // SUITE 2: Large-Scale Enterprise Distributed Micro-Modules (Big Repo)
     // -------------------------------------------------------------
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("📊 Workload 2: Enterprise Multi-Service Repository (Large Scale / 45,000 Tokens Corpus)");
+    println!(
+        "📊 Workload 2: Enterprise Multi-Service Repository (Large Scale / 45,000 Tokens Corpus)"
+    );
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let project_id_2 = ProjectId::new("enterprise_monorepo");
@@ -148,7 +161,7 @@ pub fn execute() -> Result<()> {
     for mod_idx in 0..40 {
         let path_str = format!("src/services/service_{}/handler.ts", mod_idx);
         let path = std::path::PathBuf::from(&path_str);
-        
+
         let content = format!(
             "export interface ServicePayload{} {{ id: string; timestamp: number; payload: Record<string, any>; }}\n\
              export class ServiceHandler{} {{\n\
@@ -183,7 +196,11 @@ pub fn execute() -> Result<()> {
             chrono::Utc::now(),
         );
 
-        let ast = CodeIntelligenceEngine::analyze(&path, &content, neuromesh_index::SourceLanguage::TypeScript);
+        let ast = CodeIntelligenceEngine::analyze(
+            &path,
+            &content,
+            neuromesh_index::SourceLanguage::TypeScript,
+        );
         graph_2.ingest_ast(&indexed_file, &ast);
     }
 
@@ -191,9 +208,18 @@ pub fn execute() -> Result<()> {
     let activator_2 = ContextActivator::new(registry_2);
 
     let scenarios_2 = vec![
-        ("Refactor ServiceHandler12 executeTask payload signature across micro-services.", "Genetic Code Slicing"),
-        ("Optimize database cache layer in ServiceHandler5 with Mycelial predictive warming.", "Mycelial Cache + Physarum"),
-        ("Audit cryptographic token handling in ServiceHandler0 security checkpoint.", "Cellular Membrane Gate"),
+        (
+            "Refactor ServiceHandler12 executeTask payload signature across micro-services.",
+            "Genetic Code Slicing",
+        ),
+        (
+            "Optimize database cache layer in ServiceHandler5 with Mycelial predictive warming.",
+            "Mycelial Cache + Physarum",
+        ),
+        (
+            "Audit cryptographic token handling in ServiceHandler0 security checkpoint.",
+            "Cellular Membrane Gate",
+        ),
     ];
 
     for (task_prompt, bio_name) in scenarios_2 {
@@ -233,8 +259,16 @@ pub fn execute() -> Result<()> {
     // -------------------------------------------------------------
     // Display Comparative Results Table
     // -------------------------------------------------------------
-    println!("{:<20} {:<32} {:<10} {:<10} {:<10} {:<10} {:<12} {:<18}", 
-        "Workload Scope", "Task Scenario", "Base Tok", "NM Tok", "Reduction", "NM Cost", "Latency", "Bio Algorithm"
+    println!(
+        "{:<20} {:<32} {:<10} {:<10} {:<10} {:<10} {:<12} {:<18}",
+        "Workload Scope",
+        "Task Scenario",
+        "Base Tok",
+        "NM Tok",
+        "Reduction",
+        "NM Cost",
+        "Latency",
+        "Bio Algorithm"
     );
     println!("{:-<125}", "");
 
@@ -257,13 +291,17 @@ pub fn execute() -> Result<()> {
             r.neuromesh_tokens,
             format!("{:.1}%", r.token_reduction_pct),
             format!("${:.4}", r.neuromesh_cost_usd),
-            format!("{}ms (base: {}ms)", r.neuromesh_latency_ms, r.baseline_latency_ms),
+            format!(
+                "{}ms (base: {}ms)",
+                r.neuromesh_latency_ms, r.baseline_latency_ms
+            ),
             r.bio_algorithm
         );
     }
     println!("{:-<125}", "");
 
-    let total_reduction = ((sum_base_tokens - sum_nm_tokens) as f32 / sum_base_tokens as f32) * 100.0;
+    let total_reduction =
+        ((sum_base_tokens - sum_nm_tokens) as f32 / sum_base_tokens as f32) * 100.0;
     let total_saved_usd = sum_base_cost - sum_nm_cost;
 
     println!("\n╔═══════════════════════════════════════════════════════════════════════════════════════════╗");

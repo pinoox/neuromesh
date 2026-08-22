@@ -35,8 +35,12 @@ impl ReversibleContextRegistry {
             parent_node,
         };
 
-        self.inactive_nodes.write().insert(node.id.clone(), descriptor);
-        self.node_store.write().insert(node.id.clone(), node.clone());
+        self.inactive_nodes
+            .write()
+            .insert(node.id.clone(), descriptor);
+        self.node_store
+            .write()
+            .insert(node.id.clone(), node.clone());
     }
 
     pub fn get_inactive_descriptors(&self) -> Vec<InactiveContextDescriptor> {

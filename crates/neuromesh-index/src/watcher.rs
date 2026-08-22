@@ -53,7 +53,8 @@ impl WorkspaceWatcher {
         let walker = ProjectWalker::new(root.clone(), project_id.clone());
         if let Ok(initial_files) = walker.scan() {
             for (file, _) in initial_files {
-                self.known_hashes.insert(file.full_path.clone(), file.blake3_hash.clone());
+                self.known_hashes
+                    .insert(file.full_path.clone(), file.blake3_hash.clone());
             }
         }
 

@@ -12,7 +12,10 @@ pub struct QualityGateDecision {
 pub struct QualityGate;
 
 impl QualityGate {
-    pub fn evaluate(signature: &TaskSignature, requested_mode: OptimizationMode) -> QualityGateDecision {
+    pub fn evaluate(
+        signature: &TaskSignature,
+        requested_mode: OptimizationMode,
+    ) -> QualityGateDecision {
         let membrane = OsmoticQualityGate::regulate_membrane(signature, requested_mode);
 
         // Low Confidence (< 0.50) -> Bypass Optimization

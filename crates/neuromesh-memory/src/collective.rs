@@ -46,7 +46,9 @@ impl CollectiveMemory {
 
         if file_path.exists() {
             if let Ok(content) = fs::read_to_string(&file_path) {
-                if let Ok(loaded) = serde_json::from_str::<HashMap<String, CollectivePattern>>(&content) {
+                if let Ok(loaded) =
+                    serde_json::from_str::<HashMap<String, CollectivePattern>>(&content)
+                {
                     patterns = loaded;
                 }
             }
@@ -90,7 +92,11 @@ impl CollectiveMemory {
     }
 
     pub fn record_pattern(&self, domain: &str, intent: &str, solution_template: &str) {
-        let id = format!("{}-{}", domain.to_lowercase().replace(' ', "-"), intent.to_lowercase().replace(' ', "-"));
+        let id = format!(
+            "{}-{}",
+            domain.to_lowercase().replace(' ', "-"),
+            intent.to_lowercase().replace(' ', "-")
+        );
         let mut lock = self.patterns.write();
         let entry = lock.entry(id.clone()).or_insert_with(|| CollectivePattern {
             id,
@@ -108,7 +114,9 @@ impl CollectiveMemory {
         let q = query.to_lowercase();
         let lock = self.patterns.read();
         lock.values()
-            .filter(|p| p.domain.to_lowercase().contains(&q) || p.intent.to_lowercase().contains(&q))
+            .filter(|p| {
+                p.domain.to_lowercase().contains(&q) || p.intent.to_lowercase().contains(&q)
+            })
             .cloned()
             .collect()
     }

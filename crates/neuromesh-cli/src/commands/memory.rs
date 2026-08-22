@@ -27,7 +27,10 @@ pub fn execute() -> Result<()> {
     if facts.is_empty() {
         println!("  No project facts recorded yet.");
     } else {
-        println!("{:<15} {:<20} {:<40} {:<10}", "Category", "Key", "Content", "Confidence");
+        println!(
+            "{:<15} {:<20} {:<40} {:<10}",
+            "Category", "Key", "Content", "Confidence"
+        );
         println!("{:-<90}", "");
         for f in facts {
             println!(
@@ -45,7 +48,10 @@ pub fn execute() -> Result<()> {
     if episodes.is_empty() {
         println!("  No episodic traces recorded yet.");
     } else {
-        println!("{:<15} {:<35} {:<10} {:<12}", "Intent", "Summary", "Success", "Tokens Saved");
+        println!(
+            "{:<15} {:<35} {:<10} {:<12}",
+            "Intent", "Summary", "Success", "Tokens Saved"
+        );
         println!("{:-<75}", "");
         for ep in episodes {
             println!(

@@ -65,7 +65,10 @@ impl AppState {
 
         let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let mut access_times = std::collections::HashMap::new();
-        access_times.insert(current_dir.display().to_string(), chrono::Utc::now().timestamp_millis() as u64);
+        access_times.insert(
+            current_dir.display().to_string(),
+            chrono::Utc::now().timestamp_millis() as u64,
+        );
 
         let initial_logs = vec![
             AuditLogEntry {
@@ -91,7 +94,7 @@ impl AppState {
                 level: "SUCCESS".to_string(),
                 category: "STDP".to_string(),
                 message: "Synaptic STDP Plasticity learning pipeline armed".to_string(),
-            }
+            },
         ];
 
         Self {

@@ -37,7 +37,10 @@ impl McpServer {
 
             if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(trimmed) {
                 // Per JSON-RPC 2.0 & MCP specs: Notifications have no id and must NEVER receive a response
-                if req.id.is_none() || req.method == "initialized" || req.method.starts_with("notifications/") {
+                if req.id.is_none()
+                    || req.method == "initialized"
+                    || req.method.starts_with("notifications/")
+                {
                     line.clear();
                     continue;
                 }
@@ -65,13 +68,21 @@ impl McpServer {
                     if let Some(folders) = p.get("workspaceFolders").and_then(|f| f.as_array()) {
                         if let Some(first) = folders.first() {
                             if let Some(uri) = first.get("uri").and_then(|u| u.as_str()) {
-                                detected_path = Some(uri.trim_start_matches("file://").trim_start_matches("file:///").to_string());
+                                detected_path = Some(
+                                    uri.trim_start_matches("file://")
+                                        .trim_start_matches("file:///")
+                                        .to_string(),
+                                );
                             }
                         }
                     }
                     if detected_path.is_none() {
                         if let Some(uri) = p.get("rootUri").and_then(|u| u.as_str()) {
-                            detected_path = Some(uri.trim_start_matches("file://").trim_start_matches("file:///").to_string());
+                            detected_path = Some(
+                                uri.trim_start_matches("file://")
+                                    .trim_start_matches("file:///")
+                                    .to_string(),
+                            );
                         } else if let Some(path) = p.get("rootPath").and_then(|u| u.as_str()) {
                             detected_path = Some(path.to_string());
                         }
@@ -85,7 +96,10 @@ impl McpServer {
 
                         let p_buf = std::path::PathBuf::from(&clean_path);
                         if p_buf.exists() {
-                            let p_name = p_buf.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "project".to_string());
+                            let p_name = p_buf
+                                .file_name()
+                                .map(|n| n.to_string_lossy().into_owned())
+                                .unwrap_or_else(|| "project".to_string());
                             let pid = neuromesh_core::ProjectId::new(&p_name);
                             self.handler.graph().clear(Some(pid.clone()));
                             let bg_graph = self.handler.graph().clone();
@@ -95,7 +109,11 @@ impl McpServer {
                                 let walker = neuromesh_index::ProjectWalker::new(bg_dir, bg_pid);
                                 if let Ok(scanned) = walker.scan() {
                                     for (file, content) in &scanned {
-                                        let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
+                                        let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
+                                            &file.relative_path,
+                                            content,
+                                            file.language,
+                                        );
                                         bg_graph.ingest_ast(file, &ast);
                                     }
                                 }
@@ -275,11 +293,13 @@ impl McpServer {
             }),
             "tools/call" => {
                 let params = req.params.unwrap_or(Value::Null);
-                let tool_name = params["name"].as_str()
+                let tool_name = params["name"]
+                    .as_str()
                     .or_else(|| params["tool"].as_str())
                     .unwrap_or("");
 
-                let mut args = params.get("arguments")
+                let mut args = params
+                    .get("arguments")
                     .or_else(|| params.get("args"))
                     .or_else(|| params.get("parameters"))
                     .cloned()

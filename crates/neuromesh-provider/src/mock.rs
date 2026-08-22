@@ -31,7 +31,11 @@ impl Provider for MockProvider {
 
     fn send<'a>(&'a self, request: &'a ProviderRequest) -> BoxFuture<'a, Result<ProviderResponse>> {
         Box::pin(async move {
-            let prompt_text: String = request.messages.iter().map(|m| m.content.as_str()).collect();
+            let prompt_text: String = request
+                .messages
+                .iter()
+                .map(|m| m.content.as_str())
+                .collect();
             let prompt_tokens = TokenCounter::count_tokens(&prompt_text);
             let completion_tokens = TokenCounter::count_tokens(&self.response_template);
 

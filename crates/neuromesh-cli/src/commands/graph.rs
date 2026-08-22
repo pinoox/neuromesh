@@ -25,18 +25,33 @@ pub fn execute() -> Result<()> {
     let nodes = graph.get_all_nodes();
 
     println!("\n🕸 ══════════════════════════════════════════════════════════════");
-    println!("   NEURAL PROJECT GRAPH & SYNAPTIC TOPOLOGY — [{}]", project_name);
+    println!(
+        "   NEURAL PROJECT GRAPH & SYNAPTIC TOPOLOGY — [{}]",
+        project_name
+    );
     println!("══════════════════════════════════════════════════════════════════\n");
     println!("📊 Graph Density & Synaptic Health:");
     println!("  • Total Graph Nodes         : {}", stats.total_nodes);
     println!("  • File Nodes                : {}", stats.file_nodes);
     println!("  • Symbol / Token Nodes      : {}", stats.symbol_nodes);
     println!("  • Total Synapses (Edges)    : {}", stats.total_edges);
-    println!("  • Average Pheromone Weight  : {:.2}", stats.average_pheromone_weight);
-    println!("  • High Conductance Synapses : {} (LTP Potentiated)", stats.high_conductance_synapses);
-    println!("  • Atrophied Synapses        : {} (Pruned by Physarum/LTD)", stats.atrophied_synapses);
+    println!(
+        "  • Average Pheromone Weight  : {:.2}",
+        stats.average_pheromone_weight
+    );
+    println!(
+        "  • High Conductance Synapses : {} (LTP Potentiated)",
+        stats.high_conductance_synapses
+    );
+    println!(
+        "  • Atrophied Synapses        : {} (Pruned by Physarum/LTD)",
+        stats.atrophied_synapses
+    );
     println!();
-    println!("{:<32} {:<14} {:<24} {:<8}", "Node ID", "Type", "Name", "Tokens");
+    println!(
+        "{:<32} {:<14} {:<24} {:<8}",
+        "Node ID", "Type", "Name", "Tokens"
+    );
     println!("{:-<84}", "");
 
     for n in nodes.iter().take(15) {

@@ -85,7 +85,8 @@ impl SynapticPlasticityEngine {
 
                     if dt > 0.0 {
                         // Pre fired before Post: Causal connection -> Long-Term Potentiation (LTP)
-                        let ltp = self.config.ltp_amplitude * (-dt / self.config.tau_plus_seconds).exp();
+                        let ltp =
+                            self.config.ltp_amplitude * (-dt / self.config.tau_plus_seconds).exp();
                         let boost = if post.was_useful || post.was_modified {
                             ltp * 1.5
                         } else {
@@ -94,14 +95,17 @@ impl SynapticPlasticityEngine {
                         total_delta += boost;
                     } else if dt < 0.0 {
                         // Post fired before Pre: Anti-causal connection -> Long-Term Depression (LTD)
-                        let ltd = self.config.ltd_amplitude * (dt / self.config.tau_minus_seconds).exp();
+                        let ltd =
+                            self.config.ltd_amplitude * (dt / self.config.tau_minus_seconds).exp();
                         total_delta -= ltd;
                     }
                 }
             }
 
-            edge.pheromone_weight = (edge.pheromone_weight + total_delta)
-                .clamp(self.config.min_synaptic_weight, self.config.max_synaptic_weight);
+            edge.pheromone_weight = (edge.pheromone_weight + total_delta).clamp(
+                self.config.min_synaptic_weight,
+                self.config.max_synaptic_weight,
+            );
             if total_delta > 0.0 {
                 edge.reinforcement_count += 1;
             } else if total_delta < 0.0 {
@@ -124,8 +128,10 @@ impl SynapticPlasticityEngine {
             if let Some(&sum) = node_incoming_sum.get(&edge.target) {
                 if sum > self.config.homeostatic_target_sum && sum > 0.0 {
                     let scale = self.config.homeostatic_target_sum / sum;
-                    edge.pheromone_weight = (edge.pheromone_weight * scale)
-                        .clamp(self.config.min_synaptic_weight, self.config.max_synaptic_weight);
+                    edge.pheromone_weight = (edge.pheromone_weight * scale).clamp(
+                        self.config.min_synaptic_weight,
+                        self.config.max_synaptic_weight,
+                    );
                 }
             }
         }
@@ -169,6 +175,9 @@ mod tests {
         let initial_weight = edge.pheromone_weight;
 
         engine.apply_stdp(&mut edge);
-        assert!(edge.pheromone_weight > initial_weight, "Causal firing must potentiate edge (LTP)");
+        assert!(
+            edge.pheromone_weight > initial_weight,
+            "Causal firing must potentiate edge (LTP)"
+        );
     }
 }

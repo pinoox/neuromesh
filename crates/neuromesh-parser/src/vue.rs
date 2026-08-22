@@ -43,7 +43,7 @@ impl VueParser {
                 }
                 if let Some(named) = named_imports {
                     for sym in named.split(',') {
-                        let clean = sym.trim().split_whitespace().last().unwrap_or("").trim();
+                        let clean = sym.split_whitespace().next_back().unwrap_or("").trim();
                         if !clean.is_empty() {
                             imported_symbols.push(clean.to_string());
                         }

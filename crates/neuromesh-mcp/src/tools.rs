@@ -46,7 +46,7 @@ impl McpToolHandler {
                     .as_str()
                     .or_else(|| arguments["prompt"].as_str())
                     .unwrap_or("");
-                
+
                 let mode_str = arguments["mode"].as_str().unwrap_or("balanced");
                 let requested_mode = match mode_str {
                     "max_quality" => OptimizationMode::MaxQuality,
@@ -62,11 +62,16 @@ impl McpToolHandler {
 
                 // Record neural spikes for active nodes
                 for active in &view.active_nodes {
-                    self.graph.record_neural_spike(active.node.id.clone(), false, true);
+                    self.graph
+                        .record_neural_spike(active.node.id.clone(), false, true);
                 }
 
                 let elapsed_ms = start_time.elapsed().as_millis() as u64;
-                let raw_tokens = if view.total_raw_tokens > 0 { view.total_raw_tokens } else { self.graph.total_tokens().max(16000) };
+                let raw_tokens = if view.total_raw_tokens > 0 {
+                    view.total_raw_tokens
+                } else {
+                    self.graph.total_tokens().max(16000)
+                };
                 let opt_tokens = view.active_tokens;
                 let red_pct = if raw_tokens > 0 {
                     (raw_tokens.saturating_sub(opt_tokens) as f32 / raw_tokens as f32) * 100.0
@@ -74,24 +79,26 @@ impl McpToolHandler {
                     view.reduction_percentage
                 };
 
-                neuromesh_observability::record_global_telemetry(neuromesh_core::OptimizationMetadata {
-                    request_id: format!("mcp-{}", chrono::Utc::now().timestamp_millis()),
-                    task_id: Some(task_desc.chars().take(50).collect()),
-                    project_id: self.graph.project_id(),
-                    mode: gate.effective_mode.to_string(),
-                    tokens_before: raw_tokens,
-                    tokens_after: opt_tokens,
-                    token_reduction_pct: red_pct,
-                    nodes_before: self.graph.stats().total_nodes,
-                    nodes_after: view.active_nodes.len(),
-                    expansions_count: 0,
-                    cache_hit: false,
-                    provider: "Cursor / Claude MCP".to_string(),
-                    model: "Frontier Model".to_string(),
-                    latency_ms: elapsed_ms,
-                    success: true,
-                    timestamp: chrono::Utc::now(),
-                });
+                neuromesh_observability::record_global_telemetry(
+                    neuromesh_core::OptimizationMetadata {
+                        request_id: format!("mcp-{}", chrono::Utc::now().timestamp_millis()),
+                        task_id: Some(task_desc.chars().take(50).collect()),
+                        project_id: self.graph.project_id(),
+                        mode: gate.effective_mode.to_string(),
+                        tokens_before: raw_tokens,
+                        tokens_after: opt_tokens,
+                        token_reduction_pct: red_pct,
+                        nodes_before: self.graph.stats().total_nodes,
+                        nodes_after: view.active_nodes.len(),
+                        expansions_count: 0,
+                        cache_hit: false,
+                        provider: "Cursor / Claude MCP".to_string(),
+                        model: "Frontier Model".to_string(),
+                        latency_ms: elapsed_ms,
+                        success: true,
+                        timestamp: chrono::Utc::now(),
+                    },
+                );
 
                 Ok(json!({
                     "task_signature": signature,
@@ -123,7 +130,10 @@ impl McpToolHandler {
                     .unwrap_or_default();
 
                 let node_id = NodeId::from_file_path(file_path);
-                let content_opt = self.graph.get_node(&node_id).and_then(|n| n.content.clone())
+                let content_opt = self
+                    .graph
+                    .get_node(&node_id)
+                    .and_then(|n| n.content.clone())
                     .or_else(|| std::fs::read_to_string(file_path).ok())
                     .or_else(|| {
                         let candidate = std::path::Path::new(file_path);
@@ -138,24 +148,29 @@ impl McpToolHandler {
                     let res = CodeSkeletonizer::skeletonize(file_path, &content, &active_symbols);
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
-                    neuromesh_observability::record_global_telemetry(neuromesh_core::OptimizationMetadata {
-                        request_id: format!("mcp-skel-{}", chrono::Utc::now().timestamp_millis()),
-                        task_id: Some(format!("Skeleton: {}", file_path)),
-                        project_id: self.graph.project_id(),
-                        mode: "Genetic Slicing".to_string(),
-                        tokens_before: res.original_tokens,
-                        tokens_after: res.skeleton_tokens,
-                        token_reduction_pct: res.token_reduction_pct,
-                        nodes_before: 1,
-                        nodes_after: 1,
-                        expansions_count: 0,
-                        cache_hit: false,
-                        provider: "Cursor / Claude MCP".to_string(),
-                        model: "Frontier Model".to_string(),
-                        latency_ms: elapsed_ms,
-                        success: true,
-                        timestamp: chrono::Utc::now(),
-                    });
+                    neuromesh_observability::record_global_telemetry(
+                        neuromesh_core::OptimizationMetadata {
+                            request_id: format!(
+                                "mcp-skel-{}",
+                                chrono::Utc::now().timestamp_millis()
+                            ),
+                            task_id: Some(format!("Skeleton: {}", file_path)),
+                            project_id: self.graph.project_id(),
+                            mode: "Genetic Slicing".to_string(),
+                            tokens_before: res.original_tokens,
+                            tokens_after: res.skeleton_tokens,
+                            token_reduction_pct: res.token_reduction_pct,
+                            nodes_before: 1,
+                            nodes_after: 1,
+                            expansions_count: 0,
+                            cache_hit: false,
+                            provider: "Cursor / Claude MCP".to_string(),
+                            model: "Frontier Model".to_string(),
+                            latency_ms: elapsed_ms,
+                            success: true,
+                            timestamp: chrono::Utc::now(),
+                        },
+                    );
 
                     Ok(json!({
                         "file_path": file_path,
@@ -178,7 +193,9 @@ impl McpToolHandler {
                     .as_str()
                     .or_else(|| arguments["fold_id"].as_str())
                     .unwrap_or("");
-                let reason = arguments["reason"].as_str().unwrap_or("Agent requested expansion");
+                let reason = arguments["reason"]
+                    .as_str()
+                    .unwrap_or("Agent requested expansion");
 
                 if let Some((view, audit)) = self
                     .expansion_engine
@@ -186,24 +203,29 @@ impl McpToolHandler {
                 {
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
-                    neuromesh_observability::record_global_telemetry(neuromesh_core::OptimizationMetadata {
-                        request_id: format!("mcp-exp-{}", chrono::Utc::now().timestamp_millis()),
-                        task_id: Some(format!("Expand: {}", node_id_str)),
-                        project_id: self.graph.project_id(),
-                        mode: "Reversible Expansion".to_string(),
-                        tokens_before: 4800,
-                        tokens_after: 1200,
-                        token_reduction_pct: 75.0,
-                        nodes_before: 1,
-                        nodes_after: 1,
-                        expansions_count: 1,
-                        cache_hit: false,
-                        provider: "Cursor / Claude MCP".to_string(),
-                        model: "Frontier Model".to_string(),
-                        latency_ms: elapsed_ms,
-                        success: true,
-                        timestamp: chrono::Utc::now(),
-                    });
+                    neuromesh_observability::record_global_telemetry(
+                        neuromesh_core::OptimizationMetadata {
+                            request_id: format!(
+                                "mcp-exp-{}",
+                                chrono::Utc::now().timestamp_millis()
+                            ),
+                            task_id: Some(format!("Expand: {}", node_id_str)),
+                            project_id: self.graph.project_id(),
+                            mode: "Reversible Expansion".to_string(),
+                            tokens_before: 4800,
+                            tokens_after: 1200,
+                            token_reduction_pct: 75.0,
+                            nodes_before: 1,
+                            nodes_after: 1,
+                            expansions_count: 1,
+                            cache_hit: false,
+                            provider: "Cursor / Claude MCP".to_string(),
+                            model: "Frontier Model".to_string(),
+                            latency_ms: elapsed_ms,
+                            success: true,
+                            timestamp: chrono::Utc::now(),
+                        },
+                    );
 
                     Ok(json!({
                         "success": true,
@@ -230,24 +252,26 @@ impl McpToolHandler {
                 let est_raw = nodes.iter().map(|n| n.token_cost).sum::<usize>().max(2400);
                 let est_opt = (est_raw / 10).max(180);
 
-                neuromesh_observability::record_global_telemetry(neuromesh_core::OptimizationMetadata {
-                    request_id: format!("mcp-sym-{}", chrono::Utc::now().timestamp_millis()),
-                    task_id: Some(format!("Search: {}", query)),
-                    project_id: self.graph.project_id(),
-                    mode: "Symbol Index".to_string(),
-                    tokens_before: est_raw,
-                    tokens_after: est_opt,
-                    token_reduction_pct: 92.5,
-                    nodes_before: self.graph.stats().total_nodes,
-                    nodes_after: nodes.len(),
-                    expansions_count: 0,
-                    cache_hit: true,
-                    provider: "Cursor / Claude MCP".to_string(),
-                    model: "Frontier Model".to_string(),
-                    latency_ms: elapsed_ms,
-                    success: true,
-                    timestamp: chrono::Utc::now(),
-                });
+                neuromesh_observability::record_global_telemetry(
+                    neuromesh_core::OptimizationMetadata {
+                        request_id: format!("mcp-sym-{}", chrono::Utc::now().timestamp_millis()),
+                        task_id: Some(format!("Search: {}", query)),
+                        project_id: self.graph.project_id(),
+                        mode: "Symbol Index".to_string(),
+                        tokens_before: est_raw,
+                        tokens_after: est_opt,
+                        token_reduction_pct: 92.5,
+                        nodes_before: self.graph.stats().total_nodes,
+                        nodes_after: nodes.len(),
+                        expansions_count: 0,
+                        cache_hit: true,
+                        provider: "Cursor / Claude MCP".to_string(),
+                        model: "Frontier Model".to_string(),
+                        latency_ms: elapsed_ms,
+                        success: true,
+                        timestamp: chrono::Utc::now(),
+                    },
+                );
 
                 Ok(json!({
                     "query": query,
@@ -262,8 +286,9 @@ impl McpToolHandler {
                     .as_str()
                     .or_else(|| arguments["file_path"].as_str())
                     .unwrap_or("");
-                
-                let node_id = if symbol_or_path.contains('.') && !symbol_or_path.starts_with("sym:") {
+
+                let node_id = if symbol_or_path.contains('.') && !symbol_or_path.starts_with("sym:")
+                {
                     NodeId::from_file_path(symbol_or_path)
                 } else {
                     NodeId::new(symbol_or_path)
@@ -322,9 +347,7 @@ impl McpToolHandler {
                     .or_else(|| arguments["task_similarity_query"].as_str())
                     .unwrap_or("");
                 let pid = self.graph.project_id();
-                let episodes = self
-                    .memory_db
-                    .find_similar_episodes(&pid, query)?;
+                let episodes = self.memory_db.find_similar_episodes(&pid, query)?;
                 Ok(json!({
                     "query": query,
                     "episodes_count": episodes.len(),

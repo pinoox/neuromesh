@@ -80,11 +80,7 @@ impl NeuralProjectGraph {
         data.file_to_nodes.clear();
     }
 
-    pub fn add_file_node(
-        &self,
-        file: &IndexedFile,
-        content: Option<String>,
-    ) -> ContextNode {
+    pub fn add_file_node(&self, file: &IndexedFile, content: Option<String>) -> ContextNode {
         let current_pid = self.project_id.read().clone();
         let node = NodeFactory::create_file_node(
             current_pid,
@@ -144,9 +140,12 @@ impl NeuralProjectGraph {
 
     pub fn add_edge(&self, source: NodeId, target: NodeId, edge_type: EdgeType) -> ContextEdge {
         let current_pid = self.project_id.read().clone();
-        let edge = self
-            .pheromone_engine
-            .create_edge(current_pid, source.clone(), target.clone(), edge_type);
+        let edge = self.pheromone_engine.create_edge(
+            current_pid,
+            source.clone(),
+            target.clone(),
+            edge_type,
+        );
 
         let mut data = self.inner.write();
         data.edges.insert(edge.id.clone(), edge.clone());
@@ -178,7 +177,11 @@ impl NeuralProjectGraph {
             );
 
             // File contains symbol
-            self.add_edge(file_node.id.clone(), sym_node.id.clone(), EdgeType::Contains);
+            self.add_edge(
+                file_node.id.clone(),
+                sym_node.id.clone(),
+                EdgeType::Contains,
+            );
         }
 
         // 2. Add design tokens as nodes
@@ -287,12 +290,15 @@ impl NeuralProjectGraph {
     pub fn solve_physarum_context(&self, seed_nodes: &HashSet<NodeId>) -> PhysarumResult {
         let nodes_map = self.get_nodes_map();
         let edges_map = self.get_edges_map();
-        self.physarum_solver.optimize_subgraph(&nodes_map, &edges_map, seed_nodes)
+        self.physarum_solver
+            .optimize_subgraph(&nodes_map, &edges_map, seed_nodes)
     }
 
     /// Record a neural firing event (e.g. symbol read or written by AI agent)
     pub fn record_neural_spike(&self, node_id: NodeId, was_modified: bool, was_useful: bool) {
-        self.synaptic_engine.write().record_spike(node_id, was_modified, was_useful);
+        self.synaptic_engine
+            .write()
+            .record_spike(node_id, was_modified, was_useful);
     }
 
     /// Applies Spike-Timing-Dependent Plasticity (STDP) across active paths
@@ -354,8 +360,16 @@ impl NeuralProjectGraph {
             0.5
         };
 
-        let high_conductance_synapses = data.edges.values().filter(|e| e.pheromone_weight >= 0.70).count();
-        let atrophied_synapses = data.edges.values().filter(|e| e.pheromone_weight <= 0.15).count();
+        let high_conductance_synapses = data
+            .edges
+            .values()
+            .filter(|e| e.pheromone_weight >= 0.70)
+            .count();
+        let atrophied_synapses = data
+            .edges
+            .values()
+            .filter(|e| e.pheromone_weight <= 0.15)
+            .count();
 
         GraphStats {
             total_nodes,
