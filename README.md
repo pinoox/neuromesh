@@ -29,6 +29,36 @@ Instead of blindly dumping thousands of lines of raw files into an LLM's context
 
 ---
 
+## 📑 Table of Contents
+
+- [💡 What is NeuroMesh?](#-what-is-neuromesh)
+- [💥 The Problem vs. The NeuroMesh Solution](#-the-problem-vs-the-neuromesh-solution)
+- [🌟 Key Features](#-key-features)
+- [🔬 Biomimetic Architecture](#-biomimetic-architecture)
+- [🚀 Quick Start (Zero Prerequisites)](#-quick-start-zero-prerequisites)
+  - [📦 1-Line Automated Installers](#-1-line-automated-installers)
+  - [🦀 Install via Cargo](#-alternative-install-via-cargo-rust-developers)
+  - [🛠️ Build from Source](#️-alternative-build-from-source)
+- [🔌 Connect Any AI Agent (Universal MCP Setup)](#-connect-any-ai-agent-universal-mcp-setup)
+  - [🔷 Cursor IDE](#-cursor-ide)
+  - [💻 VS Code / GitHub Copilot](#-vs-code--github-copilot)
+  - [🟣 Claude Desktop](#-claude-desktop)
+  - [🤖 Claude Code CLI](#-claude-code-cli-anthropic-terminal-agent)
+  - [🚀 Cline](#-cline-vs-code-autonomous-coding-agent)
+  - [🦘 Roo Code / Roo Clinic](#-roo-code--roo-clinic)
+  - [🌊 Windsurf IDE (Codeium)](#-windsurf-ide-codeium)
+  - [⚡ Continue.dev](#-continuedev-vs-code--jetbrains)
+  - [📐 Zed Editor](#-zed-editor)
+  - [🦅 Aider, Codex, Gemini CLI & Custom HTTP SSE Agents](#-aider-codex-gemini-cli--custom-agents-remote-http-sse)
+- [🛠️ MCP Tools Reference](#️-mcp-tools-reference)
+- [🖥️ CLI Commands](#️-cli-commands)
+- [📊 Empirical Benchmarks](#-empirical-benchmarks)
+- [🌌 Embedded Web UI Monitor](#-embedded-web-ui-monitor)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+
+---
+
 ## 💥 The Problem vs. The NeuroMesh Solution
 
 | ❌ Traditional Naive Context Injection | 🌿 NeuroMesh v2.0 Biomimetic Engine |
