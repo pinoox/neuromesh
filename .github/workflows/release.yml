@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -71,7 +71,7 @@ jobs:
           Get-FileHash -Path ${{ matrix.asset_name }} -Algorithm SHA256 | ForEach-Object { $_.Hash + "  " + $_.Path } | Out-File "${{ matrix.asset_name }}.sha256" -Encoding ascii
 
       - name: Upload Artifacts to Workflow
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.asset_name }}
           path: |
