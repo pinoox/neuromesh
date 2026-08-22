@@ -35,7 +35,10 @@ pub fn execute() -> Result<()> {
     println!("\nNeuroMesh status");
     println!("Project        : {}", project_name);
     println!("Workspace      : {}", current_dir.display());
-    println!("Persisted graph: {}", if loaded { "yes" } else { "rebuilt" });
+    println!(
+        "Persisted graph: {}",
+        if loaded { "yes" } else { "rebuilt" }
+    );
     println!("Indexed files  : {}", scanned.len());
     println!("Graph nodes    : {}", stats.total_nodes);
     println!("Graph edges    : {}", stats.total_edges);

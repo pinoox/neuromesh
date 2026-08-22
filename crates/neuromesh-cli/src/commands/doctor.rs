@@ -5,7 +5,11 @@ use std::net::TcpListener;
 
 pub fn execute() -> Result<()> {
     println!("\nNeuroMesh doctor");
-    println!("OS             : {} ({})", env::consts::OS, env::consts::ARCH);
+    println!(
+        "OS             : {} ({})",
+        env::consts::OS,
+        env::consts::ARCH
+    );
     println!("Version        : {}", env!("CARGO_PKG_VERSION"));
 
     match TcpListener::bind("127.0.0.1:8765") {

@@ -96,9 +96,7 @@ pub fn execute() -> Result<()> {
         }
     }
 
-    println!(
-        "\nFill caps: max_savings=0 extra · balanced=8000 extra · max_quality=16000 extra."
-    );
+    println!("\nFill caps: max_savings=0 extra · balanced=8000 extra · max_quality=16000 extra.");
     println!("Seeds always ship (a large target function can exceed the fill cap).");
     println!("Reduction is vs the indexed workspace, not vs a fake 25k corpus.\n");
     Ok(())

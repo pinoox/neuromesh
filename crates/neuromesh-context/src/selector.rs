@@ -238,7 +238,9 @@ pub fn select(
 }
 
 fn is_noise_node(graph: &NeuralProjectGraph, id: &NodeId) -> bool {
-    graph.get_node(id).is_some_and(|n| is_noise_path(&n.file_path))
+    graph
+        .get_node(id)
+        .is_some_and(|n| is_noise_path(&n.file_path))
 }
 
 fn crate_dir(path: &Path) -> String {
@@ -554,7 +556,9 @@ pub fn target() {
             Some(helper_src),
         );
         graph.finalize_links();
-        let start = graph.resolve_unique("start", Some("seed.rs")).expect("start");
+        let start = graph
+            .resolve_unique("start", Some("seed.rs"))
+            .expect("start");
         let mut seeds = HashSet::new();
         seeds.insert(start.clone());
         let neighborhood = graph.neighborhood(&seeds, 2);
