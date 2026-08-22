@@ -17,12 +17,7 @@ async fn async_main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let is_terminal = std::io::stdin().is_terminal();
 
-    let is_mcp = args
-        .iter()
-        .any(|a| a == "mcp" || a.ends_with("mcp") || a.contains("mcp"));
-    let command = if is_mcp {
-        "mcp"
-    } else if let Some(cmd) = args.get(1) {
+    let command = if let Some(cmd) = args.get(1) {
         cmd.as_str()
     } else if !is_terminal {
         // Piped or subprocess invocation (e.g. Cursor / Claude Desktop stdio MCP)

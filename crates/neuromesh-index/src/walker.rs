@@ -24,19 +24,33 @@ impl ProjectWalker {
     pub fn is_ignored(path: &Path) -> bool {
         for component in path.components() {
             let s = component.as_os_str().to_string_lossy();
-            if s == "node_modules"
-                || s == "target"
-                || s == ".git"
-                || s == ".neuromesh"
-                || s == "dist"
-                || s == "build"
-                || s == ".next"
-                || s == ".nuxt"
-                || s == "vendor"
-                || s == ".venv"
-                || s == "venv"
-                || s == "__pycache__"
-                || s == ".cache"
+            let s_lower = s.to_lowercase();
+            if s_lower == "node_modules"
+                || s_lower == "target"
+                || s_lower == ".git"
+                || s_lower == ".neuromesh"
+                || s_lower == "dist"
+                || s_lower == "build"
+                || s_lower == ".next"
+                || s_lower == ".nuxt"
+                || s_lower == "vendor"
+                || s_lower == ".venv"
+                || s_lower == "venv"
+                || s_lower == "__pycache__"
+                || s_lower == ".cache"
+                || s_lower == "appdata"
+                || s_lower == ".cargo"
+                || s_lower == ".rustup"
+                || s_lower == ".gemini"
+                || s_lower == ".npm"
+                || s_lower == ".nuget"
+                || s_lower == ".gradle"
+                || s_lower == ".m2"
+                || s_lower == ".local"
+                || s_lower == ".vscode"
+                || s_lower == ".idea"
+                || s_lower == "local settings"
+                || s_lower == "application data"
             {
                 return true;
             }
@@ -48,6 +62,7 @@ impl ProjectWalker {
         let mut results = Vec::new();
 
         for entry in WalkDir::new(&self.root_path)
+            .max_depth(10)
             .follow_links(false)
             .into_iter()
             .filter_entry(|e| !Self::is_ignored(e.path()))
