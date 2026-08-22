@@ -28,10 +28,19 @@ async fn async_main() -> Result<()> {
         // Piped or subprocess invocation (e.g. Cursor / Claude Desktop stdio MCP)
         "mcp"
     } else {
-        "monitor" // Interactive terminal invocation -> Default to Web UI Monitor
+        "list" // Default to list when running just `neuromesh` in interactive terminal
     };
 
     match command {
+        "-v" | "--version" | "version" | "-V" => {
+            println!(
+                "🌿 NeuroMesh v{} — Biomimetic MCP Context Engine & Visual Runtime",
+                env!("CARGO_PKG_VERSION")
+            );
+        }
+        "list" | "" => {
+            print_help();
+        }
         "init" => commands::init::execute()?,
         "index" => {
             let _ = commands::index::execute()?;
@@ -139,7 +148,10 @@ async fn async_main() -> Result<()> {
 }
 
 fn print_help() {
-    println!("\n🌿 NeuroMesh V2 — Nature-Inspired MCP Context Intelligence Engine & UI Monitor");
+    println!(
+        "\n🌿 NeuroMesh v{} — Biomimetic MCP Context Engine & Visual Runtime",
+        env!("CARGO_PKG_VERSION")
+    );
     println!("Usage: neuromesh <COMMAND> [OPTIONS]\n");
     println!("Commands:");
     println!("  monitor    Launch the interactive local Web UI Monitor Dashboard (Default)");
@@ -153,5 +165,11 @@ fn print_help() {
     println!("  benchmark  Run end-to-end benchmark comparison on small & enterprise workloads");
     println!("  connect    Display 1-click MCP setup for Cursor, Claude Desktop, Cline, etc.");
     println!("  doctor     Run diagnostic checks for ports, SQLite WAL, and parsers");
-    println!("  help       Print this help message\n");
+    println!("  projects   List registered workspace projects");
+    println!("  list       List all available CLI commands");
+    println!("  version    Display NeuroMesh version information (-v, --version)");
+    println!("  help       Print this help message (-h, --help)\n");
+    println!("Quick Start:");
+    println!("  neuromesh monitor     # Open http://127.0.0.1:8765");
+    println!("  neuromesh connect     # Get 1-click MCP configuration for your IDE\n");
 }
