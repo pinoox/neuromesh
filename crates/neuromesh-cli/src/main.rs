@@ -7,36 +7,43 @@ use std::env;
 use std::sync::Arc;
 
 fn main() -> Result<()> {
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async_main())
-}
-
-async fn async_main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let command = args.get(1).map(|s| s.as_str()).unwrap_or("list");
 
+    // Fast-path synchronous execution (instant 0ms response)
     match command {
         "-v" | "--version" | "version" | "-V" => {
             println!(
                 "🌿 NeuroMesh v{} — Biomimetic MCP Context Engine & Visual Runtime",
                 env!("CARGO_PKG_VERSION")
             );
+            return Ok(());
         }
-        "list" | "" => {
+        "list" | "" | "help" | "-h" | "--help" => {
             print_help();
+            return Ok(());
         }
-        "init" => commands::init::execute()?,
-        "index" => {
-            let _ = commands::index::execute()?;
+        "status" | "stats" => {
+            return commands::status::execute();
         }
-        "start" => commands::start::execute().await?,
-        "monitor" | "ui" | "dashboard" => commands::monitor::execute().await?,
-        "stop" => {
-            println!("✓ NeuroMesh server stopped.");
+        "connect" => {
+            return commands::connect::execute();
         }
-        "status" => commands::status::execute()?,
-        "connect" => commands::connect::execute()?,
-        "models" => commands::models::execute()?,
+        "init" => {
+            return commands::init::execute();
+        }
+        "graph" => {
+            return commands::graph::execute();
+        }
+        "memory" => {
+            return commands::memory::execute();
+        }
+        "doctor" => {
+            return commands::doctor::execute();
+        }
+        "models" => {
+            return commands::models::execute();
+        }
         "projects" => {
             let current = env::current_dir()?;
             let name = current
@@ -45,17 +52,8 @@ async fn async_main() -> Result<()> {
                 .unwrap_or_else(|| "default".to_string());
             println!("\n📁 Registered Projects:");
             println!("  • {} ({})\n", name, current.display());
+            return Ok(());
         }
-        "graph" => commands::graph::execute()?,
-        "memory" => commands::memory::execute()?,
-        "optimize" => {
-            let prompt = args.get(2).cloned();
-            commands::optimize::execute(prompt)?;
-        }
-        "eval" | "evaluate" => commands::evaluate::execute()?,
-        "benchmark" => commands::benchmark::execute()?,
-        "stats" => commands::status::execute()?,
-        "doctor" => commands::doctor::execute()?,
         "logs" => {
             println!("\n📜 Recent NeuroMesh Audit Logs:");
             println!("  [2026-08-22T00:00:00Z] MCP Server initialized in Pure MCP Mode.");
@@ -63,7 +61,32 @@ async fn async_main() -> Result<()> {
                 "  [2026-08-22T00:00:15Z] Indexed workspace files with Physarum & Genetic Slicing."
             );
             println!("  [2026-08-22T00:01:02Z] Tool call neuromesh_get_context: 92.4% token reduction achieved.\n");
+            return Ok(());
         }
+        "stop" => {
+            println!("✓ NeuroMesh server stopped.");
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async_main(command, &args))
+}
+
+async fn async_main(command: &str, args: &[String]) -> Result<()> {
+    match command {
+        "index" => {
+            let _ = commands::index::execute()?;
+        }
+        "start" => commands::start::execute().await?,
+        "monitor" | "ui" | "dashboard" => commands::monitor::execute().await?,
+        "optimize" => {
+            let prompt = args.get(2).cloned();
+            commands::optimize::execute(prompt)?;
+        }
+        "eval" | "evaluate" => commands::evaluate::execute()?,
+        "benchmark" => commands::benchmark::execute()?,
         "mcp" => {
             // Instant 0ms startup for MCP handshake over stdio (Cursor / Claude / Cline)
             let current_dir = env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));

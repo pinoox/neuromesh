@@ -58,19 +58,25 @@ Start-Sleep -Milliseconds 400
 
 Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $BinPath -Force
 
+# Also update .cargo/bin if user previously installed via cargo
+$CargoBin = Join-Path $env:USERPROFILE ".cargo\bin\neuromesh.exe"
+if (Test-Path (Join-Path $env:USERPROFILE ".cargo\bin")) {
+    Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $CargoBin -Force -ErrorAction SilentlyContinue
+}
+
 # Clean up temp
 Remove-Item -Path $TempZip -Force -ErrorAction SilentlyContinue
 Remove-Item -Path $TempExtract -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "`n[OK] NeuroMesh installed successfully to: $BinPath" -ForegroundColor Green
 
-# 3. Add to User PATH if not present
+# 3. Add to User PATH if not present (Prepend so it takes priority)
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($UserPath -notlike ("*" + $InstallDir + "*")) {
     Write-Host "Adding $InstallDir to User PATH..." -ForegroundColor Cyan
-    $NewPath = $UserPath + ";" + $InstallDir
+    $NewPath = $InstallDir + ";" + $UserPath
     [Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
-    $env:Path = $env:Path + ";" + $InstallDir
+    $env:Path = $InstallDir + ";" + $env:Path
     Write-Host "[OK] Added to PATH successfully!" -ForegroundColor Green
 }
 
