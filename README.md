@@ -4,6 +4,8 @@
 ### The Biomimetic Context Engine & Neural Runtime for AI Coding Assistants
 
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
+[![CI](https://github.com/pinoox/neuromesh/actions/workflows/ci.yml/badge.svg)](https://github.com/pinoox/neuromesh/actions/workflows/ci.yml)
+[![Benchmark](https://github.com/pinoox/neuromesh/actions/workflows/benchmark.yml/badge.svg)](https://github.com/pinoox/neuromesh/actions/workflows/benchmark.yml)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-2024--11--05-green.svg?style=flat-square&logo=anthropic)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Pass@1 Rate](https://img.shields.io/badge/Pass%401-100%25-brightgreen.svg?style=flat-square)]()

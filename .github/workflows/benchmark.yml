@@ -1,0 +1,44 @@
+﻿name: Continuous Empirical Benchmarking
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0' # Weekly run
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run Dual-Track Empirical Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Optimized Release Binary
+        run: cargo build --release --bin neuromesh
+
+      - name: Run Built-in Dual Track Benchmark
+        run: |
+          ./target/release/neuromesh benchmark | tee benchmark_output.txt
+
+      - name: Publish Benchmark Summary to GitHub
+        run: |
+          echo "## 📊 Continuous Benchmark Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Run on commit \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat benchmark_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
