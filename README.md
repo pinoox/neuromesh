@@ -1,8 +1,9 @@
 <div align="center">
 
-# 🌿 NeuroMesh V2.0
+# 🌿 NeuroMesh v0.2.7
 ### The Biomimetic Context Engine & Neural Runtime for AI Coding Assistants
 
+[![Latest Release](https://img.shields.io/github/v/release/pinoox/neuromesh?style=flat-square&color=brightgreen&label=Release)](https://github.com/pinoox/neuromesh/releases/latest)
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![CI](https://github.com/pinoox/neuromesh/actions/workflows/ci.yml/badge.svg)](https://github.com/pinoox/neuromesh/actions/workflows/ci.yml)
 [![Benchmark](https://github.com/pinoox/neuromesh/actions/workflows/benchmark.yml/badge.svg)](https://github.com/pinoox/neuromesh/actions/workflows/benchmark.yml)
