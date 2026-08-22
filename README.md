@@ -1,6 +1,6 @@
 <div align="center">
 
-# NeuroMesh v0.3.0
+# NeuroMesh v0.4.0
 ### Task-conditioned context engine for AI coding agents
 
 [![Latest Release](https://img.shields.io/github/v/release/pinoox/neuromesh?style=flat-square&color=brightgreen&label=Release)](https://github.com/pinoox/neuromesh/releases/latest)
@@ -64,6 +64,36 @@ All processing is local. No API key. Transport is MCP stdio (recommended) or the
 | Index safety | Project-scoped store | Refuses home/drive roots; prefers git/cargo workspace; caps file count |
 
 NeuroMesh does **not** claim 158 languages, Linux-kernel index times, or Cypher. Those are CBM’s strengths. NeuroMesh’s bet is: **fewer tokens, higher precision, one tool for the common path**.
+
+---
+
+## What v0.4 ships
+
+v0.3 made the graph structural. v0.4 decides **which of those nodes actually fit in the packet**.
+
+`neuromesh_get_context` no longer dumps a neighborhood. It:
+
+1. Resolves prompt identifiers to seeds (and records misses instead of hiding them).
+2. Takes a Steiner union of proven `Calls` / `Imports` connectors around those seeds.
+3. Greedy-fills remaining neighborhood nodes under a **token budget** by mode:
+
+| Mode | Token cap |
+| :--- | ---: |
+| `MaxSavings` | 900 |
+| `Balanced` | 2,500 |
+| `MaxQuality` | 6,000 |
+
+Physarum is off this hot path. Every packet reports `budget.used` / `budget.cap`, seed resolutions, and a coverage claim (`no_recorded_gap` or `partial` when seeds were missed).
+
+Quality is locked by a gold harness on this repository (`tests/gold_tasks.toml`):
+
+- Known prompts must recall ≥ 80% of gold files (`handle_tool_call` → `tools.rs` / `signature.rs` / `activator.rs`).
+- A missing symbol must surface as `seeds_missed`, not a silent empty packet.
+- Context activation stays under **50 ms** in the debug gold test.
+
+```bash
+cargo test -p neuromesh-context gold_harness_on_neuromesh_repo -- --nocapture
+```
 
 ---
 
@@ -190,7 +220,7 @@ neuromesh_get_context(task_description)
 
 These numbers come from `cargo test -p neuromesh-graph indexes_real_neuromesh_repo_with_usable_graph` on this repository (debug build, Windows). They are not marketing estimates.
 
-| Metric | Before (live MCP on a home-scoped index) | After v0.3 (this repo) |
+| Metric | Before (live MCP on a home-scoped index) | After v0.3–v0.4 (this repo) |
 | :--- | ---: | ---: |
 | Indexed files | 11,564 (user profile) | **139** (workspace, `target/` ignored) |
 | Graph nodes | 34,450 | **872** |
@@ -199,7 +229,7 @@ These numbers come from `cargo test -p neuromesh-graph indexes_real_neuromesh_re
 | Resolved `Imports` | exploded fuzzy matches | **444** |
 | `search_symbols("handle_tool_call")` | timed out | **<1 ms**, exact hit |
 | `get_dependencies("neuromesh_get_context")` | 0 neighbors | name resolves; structural neighbors exist |
-| `get_context` | timed out (full-graph + Physarum on 1.2M edges) | neighborhood packet, capped inactive list |
+| `get_context` | timed out (full-graph + Physarum on 1.2M edges) | token-budget packet (`steiner_greedy`), coverage claim |
 | Full workspace index | unbounded | **519 ms** in the measured debug run |
 
 Unit tests that lock this in:
@@ -209,6 +239,8 @@ Unit tests that lock this in:
 - Unique resolution does not explode edges
 - Ranked search does not treat `"get_context"` as a match for every name contained in the query
 - Context activator keeps the seed symbol and stays under a small node budget
+- Steiner-greedy selector beats “first five files” under a token cap
+- Gold harness: recall ≥ 0.8, missing seeds reported, packet under 50 ms
 - Real-repo index + search + trace + architecture
 
 ```bash
@@ -252,7 +284,7 @@ Evidence packet → MCP client
 | `neuromesh-parser` | Structural extractors + prompt anchors |
 | `neuromesh-graph` | Two-pass ingest, ranked search, trace, impact, architecture |
 | `neuromesh-task` | Intent + identifier extraction |
-| `neuromesh-context` | Neighborhood activation + skeletonizer |
+| `neuromesh-context` | Neighborhood activation, token-budget selector, gold harness, skeletonizer |
 | `neuromesh-memory` | Project facts seeded from the repo |
 | `neuromesh-mcp` | MCP JSON-RPC 2.0 over stdio |
 | `neuromesh-cli` | `mcp`, `monitor`, `index`, `doctor`, `connect` |

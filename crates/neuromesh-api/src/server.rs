@@ -32,7 +32,7 @@ impl HttpServer {
         let listener = TcpListener::bind(addr).await?;
         println!("\n╔═══════════════════════════════════════════════════════════════════════════════════╗");
         println!(
-            "║               🌿 NEUROMESH V2 — UI MONITOR & MCP DASHBOARD ACTIVE                 ║"
+            "║             🌿 NEUROMESH v0.4.0 — UI MONITOR & MCP DASHBOARD ACTIVE               ║"
         );
         println!("║   Open in browser: \x1b[1;36mhttp://{}\x1b[0m                                      ║", addr);
         println!("╚═══════════════════════════════════════════════════════════════════════════════════╝\n");
