@@ -12,19 +12,8 @@ fn main() -> Result<()> {
 }
 
 async fn async_main() -> Result<()> {
-    use std::io::IsTerminal;
-
     let args: Vec<String> = env::args().collect();
-    let is_terminal = std::io::stdin().is_terminal();
-
-    let command = if let Some(cmd) = args.get(1) {
-        cmd.as_str()
-    } else if !is_terminal {
-        // Piped or subprocess invocation (e.g. Cursor / Claude Desktop stdio MCP)
-        "mcp"
-    } else {
-        "list" // Default to list when running just `neuromesh` in interactive terminal
-    };
+    let command = args.get(1).map(|s| s.as_str()).unwrap_or("list");
 
     match command {
         "-v" | "--version" | "version" | "-V" => {
