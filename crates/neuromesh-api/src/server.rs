@@ -464,6 +464,7 @@ impl HttpServer {
                                                     );
                                                     state.graph.ingest_ast(file, &ast);
                                                 }
+                                                state.graph.finalize_links();
                                             }
                                         }
                                     }
@@ -509,6 +510,7 @@ impl HttpServer {
                                     );
                                     state.graph.ingest_ast(file, &ast);
                                 }
+                                state.graph.finalize_links();
                             }
 
                             let stats = state.graph.stats();
@@ -604,6 +606,7 @@ impl HttpServer {
                                 );
                                 state.graph.ingest_ast(file, &ast);
                             }
+                            state.graph.finalize_links();
                         }
                     }
 
@@ -642,6 +645,7 @@ impl HttpServer {
                     );
                     state.graph.ingest_ast(file, &ast);
                 }
+                state.graph.finalize_links();
 
                 let stats = state.graph.stats();
                 state.log(

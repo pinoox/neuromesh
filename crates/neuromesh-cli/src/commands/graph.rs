@@ -20,6 +20,7 @@ pub fn execute() -> Result<()> {
         let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
         graph.ingest_ast(file, &ast);
     }
+    graph.finalize_links();
 
     let stats = graph.stats();
     let nodes = graph.get_all_nodes();

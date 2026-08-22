@@ -89,7 +89,9 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
         "benchmark" => commands::benchmark::execute()?,
         "mcp" => {
             // Instant 0ms startup for MCP handshake over stdio (Cursor / Claude / Cline)
-            let current_dir = env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let current_dir = neuromesh_index::ProjectWalker::discover_workspace(
+                &env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            );
             let project_name = current_dir
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -105,6 +107,11 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                     .or_else(|_| MemoryDatabase::open_in_memory())
                     .unwrap_or_else(|_| MemoryDatabase::open_in_memory().unwrap()),
             );
+            if neuromesh_index::ProjectWalker::is_safe_workspace(&current_dir) {
+                for fact in neuromesh_memory::extract_project_facts(&current_dir, &project_id) {
+                    let _ = memory_db.save_project_fact(&fact);
+                }
+            }
 
             let registry = Arc::new(neuromesh_context::ReversibleContextRegistry::new());
             let activator = Arc::new(neuromesh_context::ContextActivator::new(registry.clone()));
@@ -126,6 +133,9 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             let bg_dir = current_dir.clone();
             let bg_pid = project_id.clone();
             tokio::spawn(async move {
+                if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
+                    return;
+                }
                 let walker = neuromesh_index::ProjectWalker::new(bg_dir, bg_pid);
                 if let Ok(scanned) = walker.scan() {
                     for (file, content) in &scanned {
@@ -134,8 +144,9 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                             content,
                             file.language,
                         );
-                        bg_graph.ingest_ast(file, &ast);
+                        bg_graph.ingest_file(file, &ast, Some(content));
                     }
+                    bg_graph.finalize_links();
                 }
             });
 

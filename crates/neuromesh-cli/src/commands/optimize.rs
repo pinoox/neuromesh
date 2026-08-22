@@ -28,6 +28,7 @@ pub fn execute(task_prompt: Option<String>) -> Result<()> {
         let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
         graph.ingest_ast(file, &ast);
     }
+    graph.finalize_links();
 
     let signature = TaskSignatureExtractor::extract(&prompt);
     let task_graph = TaskDecomposer::decompose(&prompt);

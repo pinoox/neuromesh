@@ -94,14 +94,19 @@ impl McpServer {
                         #[cfg(not(windows))]
                         let clean_path = raw_p;
 
-                        let p_buf = std::path::PathBuf::from(&clean_path);
-                        if p_buf.exists() {
+                        let p_buf = neuromesh_index::ProjectWalker::discover_workspace(
+                            &std::path::PathBuf::from(&clean_path),
+                        );
+                        if p_buf.exists()
+                            && neuromesh_index::ProjectWalker::is_safe_workspace(&p_buf)
+                            && self.handler.graph().stats().total_nodes == 0
+                        {
                             let p_name = p_buf
                                 .file_name()
                                 .map(|n| n.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| "project".to_string());
                             let pid = neuromesh_core::ProjectId::new(&p_name);
-                            self.handler.graph().clear(Some(pid.clone()));
+                            self.handler.graph().set_project_id(pid.clone());
                             let bg_graph = self.handler.graph().clone();
                             let bg_dir = p_buf.clone();
                             let bg_pid = pid.clone();
@@ -114,8 +119,9 @@ impl McpServer {
                                             content,
                                             file.language,
                                         );
-                                        bg_graph.ingest_ast(file, &ast);
+                                        bg_graph.ingest_file(file, &ast, Some(content));
                                     }
+                                    bg_graph.finalize_links();
                                 }
                             });
                         }
@@ -149,7 +155,7 @@ impl McpServer {
                         },
                         "serverInfo": {
                             "name": "neuromesh",
-                            "version": "0.2.0"
+                            "version": "0.3.0"
                         }
                     }
                 })
@@ -171,7 +177,7 @@ impl McpServer {
                     "tools": [
                         {
                             "name": "neuromesh_get_context",
-                            "description": "CRITICAL / MUST USE: Activate minimal, bio-genetically skeletonized context using Physarum Steiner optimization for any coding task or question.",
+                            "description": "Return a task-conditioned evidence packet: resolved identifiers, skeletonized files, and ranked symbols. Use this before reading whole files.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -234,6 +240,10 @@ impl McpServer {
                                     "query": {
                                         "type": "string",
                                         "description": "Symbol name or keyword to search"
+                                    },
+                                    "limit": {
+                                        "type": "integer",
+                                        "description": "Max results (default 20)"
                                     }
                                 },
                                 "required": ["query"]
@@ -270,6 +280,55 @@ impl McpServer {
                                     }
                                 },
                                 "required": ["task_success", "touched_nodes"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_trace",
+                            "description": "Trace inbound/outbound call and import chains for a symbol.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "Function, type, or file to trace"
+                                    },
+                                    "direction": {
+                                        "type": "string",
+                                        "enum": ["inbound", "outbound", "both"],
+                                        "description": "Traversal direction (default both)"
+                                    },
+                                    "depth": {
+                                        "type": "integer",
+                                        "description": "Max hops, 1-6 (default 3)"
+                                    }
+                                },
+                                "required": ["query"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_analyze_impact",
+                            "description": "Compute the blast radius of changing a symbol or file.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "Symbol or file path"
+                                    },
+                                    "depth": {
+                                        "type": "integer",
+                                        "description": "Max hops (default 3)"
+                                    }
+                                },
+                                "required": ["query"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_get_architecture",
+                            "description": "Summarize languages, packages, entry points, and graph hotspots from the live index.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {}
                             }
                         },
                         {

@@ -1,3 +1,4 @@
+use crate::calls::extract_calls_from_line;
 use crate::types::{AstAnalysisResult, ParsedImport, ParsedRelationship, ParsedSymbol};
 use neuromesh_core::{EdgeType, NodeType};
 use regex::Regex;
@@ -29,14 +30,13 @@ impl PythonParser {
                     NodeType::Function
                 };
 
-                result.symbols.push(ParsedSymbol {
+                result.symbols.push(ParsedSymbol::new(
                     name,
-                    symbol_type: node_type,
-                    signature: Some(line.trim().to_string()),
-                    line_range: (line_idx + 1)..(line_idx + 2),
-                    docstring: None,
-                    exported: !line.trim_start().starts_with('_'),
-                });
+                    node_type,
+                    Some(line.trim().to_string()),
+                    (line_idx + 1)..(line_idx + 2),
+                    !line.trim_start().starts_with('_'),
+                ));
             }
         }
 
@@ -91,6 +91,23 @@ impl PythonParser {
                         relationship: EdgeType::Imports,
                         target_file_hint: Some(source),
                     });
+                }
+            }
+        }
+
+        let mut current_fn: Option<(String, usize)> = None;
+        for line in content.lines() {
+            if let Some(cap) = def_regex.captures(line) {
+                if cap.get(1).map(|m| m.as_str()) == Some("def") {
+                    let indent = line.chars().take_while(|c| c.is_whitespace()).count();
+                    current_fn = cap.get(2).map(|m| (m.as_str().to_string(), indent));
+                }
+            } else if let Some((caller, indent)) = current_fn.as_ref() {
+                let line_indent = line.chars().take_while(|c| c.is_whitespace()).count();
+                if !line.trim().is_empty() && line_indent <= *indent {
+                    current_fn = None;
+                } else {
+                    extract_calls_from_line(caller, line, &mut result);
                 }
             }
         }

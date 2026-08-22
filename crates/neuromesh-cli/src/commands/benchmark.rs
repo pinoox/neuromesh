@@ -88,6 +88,7 @@ pub fn execute() -> Result<()> {
         let ast = CodeIntelligenceEngine::analyze(&path, content, lang);
         graph_1.ingest_ast(&indexed_file, &ast);
     }
+    graph_1.finalize_links();
 
     let registry_1 = Arc::new(ReversibleContextRegistry::new());
     let activator_1 = ContextActivator::new(registry_1);
@@ -203,6 +204,7 @@ pub fn execute() -> Result<()> {
         );
         graph_2.ingest_ast(&indexed_file, &ast);
     }
+    graph_2.finalize_links();
 
     let registry_2 = Arc::new(ReversibleContextRegistry::new());
     let activator_2 = ContextActivator::new(registry_2);

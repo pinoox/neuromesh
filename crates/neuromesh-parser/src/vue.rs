@@ -14,14 +14,13 @@ impl VueParser {
             .unwrap_or("AnonymousComponent");
 
         // 1. Register the component itself
-        result.symbols.push(ParsedSymbol {
-            name: filename.to_string(),
-            symbol_type: NodeType::Component,
-            signature: Some(format!("<{} />", filename)),
-            line_range: 1..content.lines().count() + 1,
-            docstring: None,
-            exported: true,
-        });
+        result.symbols.push(ParsedSymbol::new(
+            filename,
+            NodeType::Component,
+            Some(format!("<{} />", filename)),
+            1..content.lines().count() + 1,
+            true,
+        ));
 
         // 2. Extract imports from <script> blocks
         let import_regex = Regex::new(

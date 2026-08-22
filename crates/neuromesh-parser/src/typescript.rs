@@ -1,3 +1,4 @@
+use crate::calls::{brace_delta, extract_calls_from_line};
 use crate::types::{AstAnalysisResult, ParsedImport, ParsedRelationship, ParsedSymbol};
 use neuromesh_core::{EdgeType, NodeType};
 use regex::Regex;
@@ -20,14 +21,13 @@ impl TypeScriptParser {
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = type_regex.captures(line) {
                 if let Some(type_name) = cap.get(1) {
-                    result.symbols.push(ParsedSymbol {
-                        name: type_name.as_str().to_string(),
-                        symbol_type: NodeType::Symbol,
-                        signature: Some(line.trim().to_string()),
-                        line_range: (line_idx + 1)..(line_idx + 2),
-                        docstring: None,
-                        exported: line.contains("export"),
-                    });
+                    result.symbols.push(ParsedSymbol::new(
+                        type_name.as_str(),
+                        NodeType::Symbol,
+                        Some(line.trim().to_string()),
+                        (line_idx + 1)..(line_idx + 2),
+                        line.contains("export"),
+                    ));
                 }
             }
         }
@@ -53,14 +53,13 @@ impl TypeScriptParser {
                         NodeType::Function
                     };
 
-                    result.symbols.push(ParsedSymbol {
-                        name: symbol_name,
-                        symbol_type: node_type,
-                        signature: Some(line.trim().to_string()),
-                        line_range: (line_idx + 1)..(line_idx + 2),
-                        docstring: None,
-                        exported: line.contains("export"),
-                    });
+                    result.symbols.push(ParsedSymbol::new(
+                        symbol_name,
+                        node_type,
+                        Some(line.trim().to_string()),
+                        (line_idx + 1)..(line_idx + 2),
+                        line.contains("export"),
+                    ));
                 }
             }
         }
@@ -73,17 +72,16 @@ impl TypeScriptParser {
 
         for cap in pinia_regex.captures_iter(content) {
             if let Some(store_name) = cap.get(1) {
-                result.symbols.push(ParsedSymbol {
-                    name: store_name.as_str().to_string(),
-                    symbol_type: NodeType::Component,
-                    signature: Some(format!(
+                result.symbols.push(ParsedSymbol::new(
+                    store_name.as_str(),
+                    NodeType::Component,
+                    Some(format!(
                         "defineStore('{}')",
                         cap.get(2).map(|m| m.as_str()).unwrap_or("")
                     )),
-                    line_range: 1..content.lines().count() + 1,
-                    docstring: None,
-                    exported: true,
-                });
+                    1..content.lines().count() + 1,
+                    true,
+                ));
             }
         }
 
@@ -130,6 +128,26 @@ impl TypeScriptParser {
                         target_file_hint: Some(source_path.to_string()),
                     });
                 }
+            }
+        }
+
+        let mut current_fn: Option<String> = None;
+        let mut depth = 0i32;
+        let mut fn_start = 0i32;
+        for line in content.lines() {
+            if let Some(cap) = fn_regex.captures(line) {
+                current_fn = cap
+                    .get(1)
+                    .or_else(|| cap.get(2))
+                    .or_else(|| cap.get(3))
+                    .map(|m| m.as_str().to_string());
+                fn_start = depth;
+            } else if let Some(caller) = current_fn.as_deref() {
+                extract_calls_from_line(caller, line, &mut result);
+            }
+            depth += brace_delta(line);
+            if current_fn.is_some() && depth <= fn_start && line.contains('}') {
+                current_fn = None;
             }
         }
 

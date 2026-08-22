@@ -44,6 +44,7 @@ pub fn execute() -> Result<()> {
             file.token_count,
         ));
     }
+    graph.finalize_links();
 
     let registry = Arc::new(ReversibleContextRegistry::new());
     let activator = ContextActivator::new(registry);

@@ -19,14 +19,13 @@ impl ScssParser {
             if let Some(cap) = var_regex.captures(line) {
                 if let Some(var_name) = cap.get(1) {
                     let name = var_name.as_str().to_string();
-                    result.symbols.push(ParsedSymbol {
-                        name: name.clone(),
-                        symbol_type: NodeType::StyleToken,
-                        signature: Some(line.trim().to_string()),
-                        line_range: (line_idx + 1)..(line_idx + 2),
-                        docstring: None,
-                        exported: true,
-                    });
+                    result.symbols.push(ParsedSymbol::new(
+                        name.clone(),
+                        NodeType::StyleToken,
+                        Some(line.trim().to_string()),
+                        (line_idx + 1)..(line_idx + 2),
+                        true,
+                    ));
                     result.design_tokens.push(name);
                 }
             }
@@ -38,14 +37,13 @@ impl ScssParser {
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = mixin_regex.captures(line) {
                 if let Some(mixin_name) = cap.get(1) {
-                    result.symbols.push(ParsedSymbol {
-                        name: format!("@mixin {}", mixin_name.as_str()),
-                        symbol_type: NodeType::Function,
-                        signature: Some(line.trim().to_string()),
-                        line_range: (line_idx + 1)..(line_idx + 2),
-                        docstring: None,
-                        exported: true,
-                    });
+                    result.symbols.push(ParsedSymbol::new(
+                        format!("@mixin {}", mixin_name.as_str()),
+                        NodeType::Function,
+                        Some(line.trim().to_string()),
+                        (line_idx + 1)..(line_idx + 2),
+                        true,
+                    ));
                 }
             }
         }

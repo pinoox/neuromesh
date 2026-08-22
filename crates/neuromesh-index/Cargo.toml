@@ -14,3 +14,4 @@ sha2.workspace = true
 walkdir.workspace = true
 tracing.workspace = true
 chrono.workspace = true
+dirs.workspace = true

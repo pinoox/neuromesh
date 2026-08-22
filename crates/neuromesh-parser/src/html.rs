@@ -13,14 +13,13 @@ impl HtmlParser {
         let id_regex = Regex::new(r#"(?i)<(?:section|div|form|main|header|footer|aside|table|button)\s+[^>]*id=["']([^"']+)["']"#).unwrap();
         for cap in id_regex.captures_iter(content) {
             let id_name = cap[1].to_string();
-            result.symbols.push(ParsedSymbol {
-                name: format!("#{}", id_name),
-                symbol_type: NodeType::Component,
-                line_range: 1..2,
-                signature: Some(format!("<div id=\"{}\">", id_name)),
-                docstring: None,
-                exported: true,
-            });
+            result.symbols.push(ParsedSymbol::new(
+                format!("#{}", id_name),
+                NodeType::Component,
+                Some(format!("<div id=\"{}\">", id_name)),
+                1..2,
+                true,
+            ));
         }
 
         // 2. Extract Embedded JavaScript Functions inside <script>
@@ -36,14 +35,13 @@ impl HtmlParser {
                     .map(|m| m.as_str().to_string())
                     .unwrap_or_default();
                 if !fn_name.is_empty() {
-                    result.symbols.push(ParsedSymbol {
-                        name: fn_name.clone(),
-                        symbol_type: NodeType::Function,
-                        line_range: 1..2,
-                        signature: Some(format!("function {}()", fn_name)),
-                        docstring: None,
-                        exported: true,
-                    });
+                    result.symbols.push(ParsedSymbol::new(
+                        fn_name.clone(),
+                        NodeType::Function,
+                        Some(format!("function {}()", fn_name)),
+                        1..2,
+                        true,
+                    ));
                 }
             }
         }
@@ -58,14 +56,13 @@ impl HtmlParser {
                 let class_name = class_cap[1].to_string();
                 let token_name = format!(".{}", class_name);
                 result.design_tokens.push(token_name.clone());
-                result.symbols.push(ParsedSymbol {
-                    name: token_name.clone(),
-                    symbol_type: NodeType::StyleToken,
-                    line_range: 1..2,
-                    signature: Some(format!(".{} {{", class_name)),
-                    docstring: None,
-                    exported: false,
-                });
+                result.symbols.push(ParsedSymbol::new(
+                    token_name.clone(),
+                    NodeType::StyleToken,
+                    Some(format!(".{} {{", class_name)),
+                    1..2,
+                    false,
+                ));
             }
         }
 

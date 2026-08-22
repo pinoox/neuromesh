@@ -35,7 +35,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     for (file, content) in &scanned_files {
         total_tokens += file.token_count;
         let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
-        graph.ingest_ast(file, &ast);
+        graph.ingest_file(file, &ast, Some(content));
 
         let path_str = file.relative_path.to_string_lossy().to_lowercase();
         if path_str.ends_with(".html") || path_str.ends_with(".htm") {
@@ -51,6 +51,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             has_ts = true;
         }
     }
+    graph.finalize_links();
 
     if has_html {
         memory_db.save_project_fact(&ProjectFact::new(
@@ -83,6 +84,10 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             "type_system",
             "TypeScript strict mode with interface definitions",
         ))?;
+    }
+
+    for fact in neuromesh_memory::extract_project_facts(&current_dir, &project_id) {
+        memory_db.save_project_fact(&fact)?;
     }
 
     let stats = graph.stats();

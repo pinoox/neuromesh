@@ -1,6 +1,9 @@
+pub mod calls;
 pub mod engine;
 pub mod generic;
 pub mod html;
+pub mod identifiers;
+pub mod imports;
 pub mod python_lang;
 pub mod rust_lang;
 pub mod scss;
@@ -11,5 +14,6 @@ pub mod vue;
 
 pub use engine::CodeIntelligenceEngine;
 pub use html::HtmlParser;
+pub use identifiers::{extract_prompt_anchors, tokenize_ident, PromptAnchors};
 pub use semantic::{SemanticTypeExtractor, SemanticTypeMap, TypeDefinition};
 pub use types::{AstAnalysisResult, ParsedImport, ParsedRelationship, ParsedSymbol};

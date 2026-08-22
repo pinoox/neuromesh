@@ -10,6 +10,7 @@ pub struct ProjectWalker {
     root_path: PathBuf,
     project_id: ProjectId,
     max_file_size: u64,
+    max_files: usize,
 }
 
 impl ProjectWalker {
@@ -18,7 +19,55 @@ impl ProjectWalker {
             root_path,
             project_id,
             max_file_size: 2 * 1024 * 1024, // 2MB max text file
+            max_files: 6_000,
         }
+    }
+
+    /// Walk up from `start` to a git/cargo root, refusing home and drive roots.
+    pub fn discover_workspace(start: &Path) -> PathBuf {
+        let mut current = start.to_path_buf();
+        loop {
+            if !Self::is_safe_workspace(&current) {
+                break;
+            }
+            if current.join(".git").exists()
+                || current.join("Cargo.toml").exists()
+                || current.join("package.json").exists()
+                || current.join("pyproject.toml").exists()
+            {
+                return current;
+            }
+            match current.parent() {
+                Some(parent) => current = parent.to_path_buf(),
+                None => break,
+            }
+        }
+        if Self::is_safe_workspace(start) {
+            start.to_path_buf()
+        } else {
+            start.to_path_buf()
+        }
+    }
+
+    pub fn is_safe_workspace(path: &Path) -> bool {
+        if let Some(home) = dirs::home_dir() {
+            if path == home {
+                return false;
+            }
+        }
+        let name = path
+            .file_name()
+            .map(|s| s.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+        !matches!(
+            name.as_str(),
+            "" | "users"
+                | "windows"
+                | "program files"
+                | "program files (x86)"
+                | "appdata"
+                | "/"
+        )
     }
 
     pub fn is_ignored(path: &Path) -> bool {
@@ -114,6 +163,9 @@ impl ProjectWalker {
             );
 
             results.push((indexed_file, content));
+            if results.len() >= self.max_files {
+                break;
+            }
         }
 
         Ok(results)

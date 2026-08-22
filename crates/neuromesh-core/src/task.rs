@@ -35,6 +35,8 @@ pub struct TaskSignature {
     pub goal: String,
     pub risk: TaskRisk,
     pub related_concepts: Vec<String>,
+    pub identifiers: Vec<String>,
+    pub file_hints: Vec<String>,
     pub confidence: f32,
     pub raw_prompt: String,
 }
@@ -52,6 +54,8 @@ impl TaskSignature {
             goal: "execute task".into(),
             risk: TaskRisk::Low,
             related_concepts: Vec::new(),
+            identifiers: Vec::new(),
+            file_hints: Vec::new(),
             confidence: 0.85,
             raw_prompt: prompt,
         }

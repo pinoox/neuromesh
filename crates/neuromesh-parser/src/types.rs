@@ -10,6 +10,31 @@ pub struct ParsedSymbol {
     pub line_range: Range<usize>,
     pub docstring: Option<String>,
     pub exported: bool,
+    #[serde(default)]
+    pub parent: Option<String>,
+    #[serde(default)]
+    pub calls: Vec<String>,
+}
+
+impl ParsedSymbol {
+    pub fn new(
+        name: impl Into<String>,
+        symbol_type: NodeType,
+        signature: Option<String>,
+        line_range: Range<usize>,
+        exported: bool,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            symbol_type,
+            signature,
+            line_range,
+            docstring: None,
+            exported,
+            parent: None,
+            calls: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

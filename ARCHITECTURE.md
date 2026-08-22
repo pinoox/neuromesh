@@ -72,7 +72,8 @@ Agent Request / Tool Action
 
 ## 3. Runtime Guarantees
 
-1. **Token Reduction**: 85% to 98% reduction on small and massive codebases.
-2. **Speed & Latency**: Sub-millisecond graph and prefetch operations, accelerating overall streaming by up to 6.2x.
-3. **Soundness & Reversibility**: 100% syntactically valid code skeletons with instant sensory reversible expansion.
-4. **Pure Native Rust Binary**: High-performance standalone native binary without external daemon or container dependencies.
+1. **Structural honesty**: Import and call edges are created only when the target resolves uniquely (same file, imported files, or a single global definition). Ambiguous names stay unlinked.
+2. **Bounded activation**: `get_context` walks a neighborhood of seed identifiers. Physarum never runs on the full edge set of a large repo.
+3. **Reversible folds**: Untargeted function bodies become `[neuromesh:fold]` markers and can be expanded by id.
+4. **Safe workspace**: Indexing prefers a git/cargo root and refuses `$HOME` / drive roots.
+5. **Native Rust MCP binary**: stdio JSON-RPC, no hosted service.

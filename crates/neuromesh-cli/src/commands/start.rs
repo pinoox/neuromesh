@@ -38,6 +38,7 @@ pub async fn execute() -> Result<()> {
         let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
         graph.ingest_ast(file, &ast);
     }
+    graph.finalize_links();
 
     let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
     let memory_db = Arc::new(MemoryDatabase::open(&db_path)?);

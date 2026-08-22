@@ -22,14 +22,13 @@ impl GenericParser {
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = class_regex.captures(line) {
                 if let Some(name) = cap.get(2) {
-                    result.symbols.push(ParsedSymbol {
-                        name: name.as_str().to_string(),
-                        symbol_type: NodeType::Class,
-                        signature: Some(line.trim().to_string()),
-                        line_range: (line_idx + 1)..(line_idx + 2),
-                        docstring: None,
-                        exported: true,
-                    });
+                    result.symbols.push(ParsedSymbol::new(
+                        name.as_str(),
+                        NodeType::Class,
+                        Some(line.trim().to_string()),
+                        (line_idx + 1)..(line_idx + 2),
+                        true,
+                    ));
                 }
             }
         }

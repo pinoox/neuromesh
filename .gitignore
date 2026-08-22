@@ -31,6 +31,7 @@ package-lock.json
 
 # IDE & Editor files
 .idea/
+.cursor
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json

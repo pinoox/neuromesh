@@ -60,17 +60,40 @@ impl ActivationScorer {
     fn compute_relevance(&self, node: &ContextNode, signature: &TaskSignature) -> f32 {
         let node_name_lower = node.name.to_lowercase();
         let entity_lower = signature.entity.to_lowercase();
+        let path_lower = node.file_path.to_string_lossy().replace('\\', "/").to_lowercase();
+
+        for ident in &signature.identifiers {
+            let ident_lower = ident.to_lowercase();
+            if node_name_lower == ident_lower {
+                return 1.0;
+            }
+            if node_name_lower.contains(&ident_lower) && ident_lower.len() >= 4 {
+                return 0.92;
+            }
+        }
+
+        for hint in &signature.file_hints {
+            let hint_lower = hint.replace('\\', "/").to_lowercase();
+            if path_lower.ends_with(&hint_lower) || path_lower.contains(&hint_lower) {
+                return 0.96;
+            }
+        }
 
         // Exact match with task entity
-        if node_name_lower == entity_lower || node_name_lower.contains(&entity_lower) {
+        if !entity_lower.is_empty()
+            && entity_lower != "workspace"
+            && (node_name_lower == entity_lower || node_name_lower.contains(&entity_lower))
+        {
             return 1.0;
         }
 
-        // Match with related concepts
+        // Match with related concepts (identifier-sized only)
         for concept in &signature.related_concepts {
             let concept_lower = concept.to_lowercase();
-            if node_name_lower.contains(&concept_lower) || concept_lower.contains(&node_name_lower)
-            {
+            if concept_lower.len() < 4 {
+                continue;
+            }
+            if node_name_lower == concept_lower || node_name_lower.contains(&concept_lower) {
                 return 0.85;
             }
         }

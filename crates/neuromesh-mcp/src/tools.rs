@@ -60,7 +60,6 @@ impl McpToolHandler {
                     .activator
                     .activate(&self.graph, &signature, gate.effective_mode);
 
-                // Record neural spikes for active nodes
                 for active in &view.active_nodes {
                     self.graph
                         .record_neural_spike(active.node.id.clone(), false, true);
@@ -70,7 +69,7 @@ impl McpToolHandler {
                 let raw_tokens = if view.total_raw_tokens > 0 {
                     view.total_raw_tokens
                 } else {
-                    self.graph.total_tokens().max(16000)
+                    self.graph.total_tokens().max(1)
                 };
                 let opt_tokens = view.active_tokens;
                 let red_pct = if raw_tokens > 0 {
@@ -78,6 +77,40 @@ impl McpToolHandler {
                 } else {
                     view.reduction_percentage
                 };
+
+                let files: Vec<Value> = view
+                    .active_nodes
+                    .iter()
+                    .filter(|n| n.node.node_type == neuromesh_core::NodeType::File)
+                    .map(|n| {
+                        json!({
+                            "id": n.node.id,
+                            "path": n.node.file_path,
+                            "score": n.activation_score,
+                            "reason": n.expansion_reason,
+                            "tokens": n.node.token_cost,
+                            "skeleton": n.node.content,
+                        })
+                    })
+                    .collect();
+
+                let symbols: Vec<Value> = view
+                    .active_nodes
+                    .iter()
+                    .filter(|n| n.node.node_type != neuromesh_core::NodeType::File)
+                    .map(|n| {
+                        json!({
+                            "id": n.node.id,
+                            "name": n.node.name,
+                            "kind": n.node.node_type,
+                            "path": n.node.file_path,
+                            "signature": n.node.signature,
+                            "lines": n.node.line_range,
+                            "score": n.activation_score,
+                            "reason": n.expansion_reason,
+                        })
+                    })
+                    .collect();
 
                 neuromesh_observability::record_global_telemetry(
                     neuromesh_core::OptimizationMetadata {
@@ -101,18 +134,29 @@ impl McpToolHandler {
                 );
 
                 Ok(json!({
-                    "task_signature": signature,
+                    "task": {
+                        "intent": signature.intent,
+                        "entity": signature.entity,
+                        "identifiers": signature.identifiers,
+                        "file_hints": signature.file_hints,
+                        "confidence": signature.confidence,
+                    },
                     "membrane_state": gate.membrane_state,
                     "effective_mode": format!("{:?}", gate.effective_mode),
-                    "context_view": {
-                        "active_nodes_count": view.active_nodes.len(),
-                        "inactive_nodes_count": view.inactive_descriptors.len(),
-                        "total_raw_tokens": raw_tokens,
+                    "latency_ms": elapsed_ms,
+                    "evidence_packet": {
+                        "files": files,
+                        "symbols": symbols,
+                        "inactive_hints": view.inactive_descriptors,
+                        "raw_tokens": raw_tokens,
                         "active_tokens": opt_tokens,
                         "token_reduction_pct": format!("{:.1}%", red_pct),
-                        "active_nodes": view.active_nodes,
-                        "inactive_descriptors": view.inactive_descriptors
-                    }
+                    },
+                    "follow_up": [
+                        "neuromesh_trace for inbound/outbound call chains",
+                        "neuromesh_expand_fold to unskeletonize a specific body",
+                        "neuromesh_analyze_impact for blast radius"
+                    ]
                 }))
             }
 
@@ -247,10 +291,11 @@ impl McpToolHandler {
                     .as_str()
                     .or_else(|| arguments["name"].as_str())
                     .unwrap_or("");
-                let nodes = self.graph.find_nodes_by_name(query);
+                let limit = arguments["limit"].as_u64().unwrap_or(20) as usize;
+                let nodes = self.graph.search_symbols(query, limit);
                 let elapsed_ms = start_time.elapsed().as_millis() as u64;
-                let est_raw = nodes.iter().map(|n| n.token_cost).sum::<usize>().max(2400);
-                let est_opt = (est_raw / 10).max(180);
+                let est_raw = 2400;
+                let est_opt = 180;
 
                 neuromesh_observability::record_global_telemetry(
                     neuromesh_core::OptimizationMetadata {
@@ -287,19 +332,55 @@ impl McpToolHandler {
                     .or_else(|| arguments["file_path"].as_str())
                     .unwrap_or("");
 
-                let node_id = if symbol_or_path.contains('.') && !symbol_or_path.starts_with("sym:")
-                {
-                    NodeId::from_file_path(symbol_or_path)
-                } else {
-                    NodeId::new(symbol_or_path)
+                let resolved = self.graph.resolve_best(symbol_or_path);
+                let Some(node) = resolved else {
+                    return Ok(json!({
+                        "target": symbol_or_path,
+                        "connected_neighbors_count": 0,
+                        "dependencies": [],
+                        "error": "Symbol or file not found in the project graph"
+                    }));
                 };
 
-                let neighbors = self.graph.get_connected_neighbors(&node_id);
+                let neighbors = self.graph.get_neighbor_views(&node.id);
                 Ok(json!({
-                    "target_node": node_id.0,
+                    "target": {
+                        "id": node.id,
+                        "name": node.name,
+                        "path": node.file_path,
+                        "kind": node.node_type,
+                        "signature": node.signature,
+                    },
                     "connected_neighbors_count": neighbors.len(),
                     "dependencies": neighbors
                 }))
+            }
+
+            "neuromesh_trace" => {
+                let query = arguments["query"]
+                    .as_str()
+                    .or_else(|| arguments["symbol"].as_str())
+                    .or_else(|| arguments["function_name"].as_str())
+                    .unwrap_or("");
+                let direction = neuromesh_graph::TraceDirection::parse(
+                    arguments["direction"].as_str().unwrap_or("both"),
+                );
+                let depth = arguments["depth"].as_u64().unwrap_or(3) as usize;
+                let result = self.graph.trace_symbol(query, direction, depth);
+                Ok(json!(result))
+            }
+
+            "neuromesh_analyze_impact" => {
+                let query = arguments["query"]
+                    .as_str()
+                    .or_else(|| arguments["symbol_or_path"].as_str())
+                    .unwrap_or("");
+                let depth = arguments["depth"].as_u64().unwrap_or(3) as usize;
+                Ok(json!(self.graph.analyze_impact(query, depth)))
+            }
+
+            "neuromesh_get_architecture" => {
+                Ok(json!(self.graph.architecture_summary()))
             }
 
             // 6. Record Feedback & Trigger Synaptic STDP Plasticity Learning

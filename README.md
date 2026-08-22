@@ -1,398 +1,287 @@
 <div align="center">
 
-# 🌿 NeuroMesh v0.2.7
-### The Biomimetic Context Engine & Neural Runtime for AI Coding Assistants
+# NeuroMesh v0.3.0
+### Task-conditioned context engine for AI coding agents
 
 [![Latest Release](https://img.shields.io/github/v/release/pinoox/neuromesh?style=flat-square&color=brightgreen&label=Release)](https://github.com/pinoox/neuromesh/releases/latest)
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![CI](https://github.com/pinoox/neuromesh/actions/workflows/ci.yml/badge.svg)](https://github.com/pinoox/neuromesh/actions/workflows/ci.yml)
-[![Benchmark](https://github.com/pinoox/neuromesh/actions/workflows/benchmark.yml/badge.svg)](https://github.com/pinoox/neuromesh/actions/workflows/benchmark.yml)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-2024--11--05-green.svg?style=flat-square&logo=anthropic)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Pass@1 Rate](https://img.shields.io/badge/Pass%401-100%25-brightgreen.svg?style=flat-square)]()
-[![Token Savings](https://img.shields.io/badge/Token%20Savings-99.6%25-purple.svg?style=flat-square)]()
 
 <p align="center">
-  <b>"Do not delete context. Deactivate it. Do not repeatedly rediscover the project. Learn it."</b>
+  <b>Do not dump the repo. Do not ask the agent to rediscover it. Deliver the evidence packet.</b>
 </p>
 
-[Quick Start](#-quick-start) • [Features](#-key-features) • [Architecture](#-biomimetic-architecture) • [MCP Tools](#-mcp-tools-reference) • [Benchmarks](#-empirical-benchmarks) • [Web UI](#-embedded-web-ui-monitor)
+[Quick Start](#quick-start) • [Why this is not another code graph](#why-neuromesh) • [MCP Tools](#mcp-tools) • [Measured quality](#measured-quality)
 
 </div>
 
 ---
 
-## 💡 What is NeuroMesh?
+## What NeuroMesh is
 
-**NeuroMesh** is a local-first, high-performance neural context runtime written natively in **Rust**. Operating as a **Model Context Protocol (MCP)** server with an embedded **3D/2D Web UI Monitor Dashboard**, NeuroMesh solves context saturation and token bloat for modern AI coding tools (**Cursor, Claude Desktop, Windsurf, VS Code, Roo Code, Continue.dev, Zed, Aider, Hermes**).
+NeuroMesh is a **local-first MCP server** written in Rust. It sits between a coding agent and the repository and answers one question well:
 
-Instead of blindly dumping thousands of lines of raw files into an LLM's context window—causing the notorious *Lost in the Middle* attention degradation, high latency, and massive token bills—NeuroMesh applies **nature-inspired biomimetic algorithms** to extract and deliver hyper-lean, 100% sound AST subgraphs with **reversible code folds**.
+> Given this task, which files and symbols are actually required — and can the rest stay folded?
 
----
+That is a different product from a general knowledge-graph MCP.
 
-## 📑 Table of Contents
+[codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) is a strong **query engine**: index once, then call 15 tools (`search_graph`, `trace_path`, `query_graph`, `get_architecture`, …). The agent has to know which tool to pick.
 
-- [💡 What is NeuroMesh?](#-what-is-neuromesh)
-- [💥 The Problem vs. The NeuroMesh Solution](#-the-problem-vs-the-neuromesh-solution)
-- [🌟 Key Features](#-key-features)
-- [🔬 Biomimetic Architecture](#-biomimetic-architecture)
-- [🚀 Quick Start (Zero Prerequisites)](#-quick-start-zero-prerequisites)
-  - [📦 1-Line Automated Installers](#-1-line-automated-installers)
-  - [🦀 Install via Cargo](#-alternative-install-via-cargo-rust-developers)
-  - [🛠️ Build from Source](#️-alternative-build-from-source)
-- [🔌 Connect Any AI Agent (Universal MCP Setup)](#-connect-any-ai-agent-universal-mcp-setup)
-  - [🔷 Cursor IDE](#-cursor-ide)
-  - [💻 VS Code / GitHub Copilot](#-vs-code--github-copilot)
-  - [🟣 Claude Desktop](#-claude-desktop)
-  - [🤖 Claude Code CLI](#-claude-code-cli-anthropic-terminal-agent)
-  - [🚀 Cline](#-cline-vs-code-autonomous-coding-agent)
-  - [🦘 Roo Code / Roo Clinic](#-roo-code--roo-clinic)
-  - [🌊 Windsurf IDE (Codeium)](#-windsurf-ide-codeium)
-  - [⚡ Continue.dev](#-continuedev-vs-code--jetbrains)
-  - [📐 Zed Editor](#-zed-editor)
-  - [🦅 Aider, Codex, Gemini CLI & Custom HTTP SSE Agents](#-aider-codex-gemini-cli--custom-agents-remote-http-sse)
-- [🛠️ MCP Tools Reference](#️-mcp-tools-reference)
-- [🖥️ CLI Commands](#️-cli-commands)
-- [📊 Empirical Benchmarks](#-empirical-benchmarks)
-- [🌌 Embedded Web UI Monitor](#-embedded-web-ui-monitor)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+NeuroMesh is a **context engine**:
+
+1. Extract real identifiers, file hints, and intent from the prompt.
+2. Resolve them uniquely against a structural graph (`Contains`, `Imports`, `Calls`).
+3. Walk only the neighborhood (Physarum on that subgraph, not the whole repo).
+4. Return a compact **evidence packet**: skeletonized files, ranked symbols, and why each node was included.
+
+One `neuromesh_get_context` call is meant to replace a file-by-file grep/read loop. Precision tools (`search`, `trace`, `impact`, `architecture`) exist when the agent needs a second look.
+
+All processing is local. No API key. Transport is MCP stdio (recommended) or the monitor SSE endpoint.
 
 ---
 
-## 💥 The Problem vs. The NeuroMesh Solution
+## Why NeuroMesh
 
-| ❌ Traditional Naive Context Injection | 🌿 NeuroMesh v2.0 Biomimetic Engine |
+| Problem in naive agent workflows | What NeuroMesh actually does |
 | :--- | :--- |
-| 🔴 **Brute-force File Dumping:** Reads and concatenates dozens of full source files blindly. | 🟢 **Task-Driven Intent:** Extracts exact active symbol signatures and requirements. |
-| 🔴 **Massive Context Bloat:** Injects **25,000+ to 120,000+ raw tokens** per instruction. | 🟢 **Physarum Steiner Routing:** Discovers the minimal connecting AST subgraph in RAM. |
-| 🔴 **Attention Degradation:** Suffers severe *Lost in the Middle* distractions & hallucinations. | 🟢 **Genetic AST Slicing:** Expresses active exons and folds untargeted introns into reversible markers. |
-| 🔴 **High TTFT Latency:** Sluggish **3,000 ms – 5,000 ms** response preparation time. | 🟢 **Sub-50ms Context Delivery:** Traverses in-memory graph and slices code in **<25 ms**. |
-| 🔴 **Expensive Token Bills:** Costs **~$75.00+ per 1,000 prompts** (Claude 3.7 / GPT-4.5). | 🟢 **99.6% Cost Savings:** Costs **~$0.29 per 1,000 prompts** (**$74.70+ saved per 1k calls**). |
+| Dumping whole files into the prompt | Returns an evidence packet with ranked files + symbols |
+| Lost-in-the-middle from 25k–120k tokens | Folds untargeted function bodies into reversible `[neuromesh:fold]` markers |
+| Graph tools that time out on large indexes | Ranked search and neighborhood activation — no full-graph scan |
+| Fake “learning” and empty project memory | STDP only on touched paths; memory is seeded from `Cargo.toml`, docs, and crate layout |
+| Ambiguous name matching that creates millions of edges | Unique / import-aware resolution. Ambiguous names stay unlinked |
 
-```mermaid
-flowchart LR
-    subgraph Bad["❌ Traditional Workflow"]
-        direction TB
-        B1["User Prompt"] --> B2["Inject All Raw Files (25k+ Tokens)"] --> B3["Attention Degradation & High Bills ($75/1k)"]
-    end
+### How this differs from codebase-memory-mcp
 
-    subgraph Good["🌿 NeuroMesh v2.0 Workflow"]
-        direction TB
-        G1["User Prompt"] --> G2["Physarum Routing & Genetic AST Slicing"] --> G3["Hyper-Lean Context & 99.6% Token Savings"]
-    end
-```
+| | codebase-memory-mcp | NeuroMesh |
+| :--- | :--- | :--- |
+| Product | Persistent knowledge graph + 15 query tools | Task-conditioned evidence packet + 11 MCP tools |
+| Primary call | Agent chooses `search_graph` / `trace_path` / Cypher | `neuromesh_get_context` |
+| Code returned | Full snippets by qualified name | Skeleton with reversible folds |
+| Call edges | Tree-sitter + Hybrid LSP (many languages) | Scoped call extraction + import-aware unique resolve |
+| Language bet | 158 grammars in one C binary | Depth on the languages agents actually edit here (Rust, TS/JS, Python, Vue, Go, …) |
+| Index safety | Project-scoped store | Refuses home/drive roots; prefers git/cargo workspace; caps file count |
 
----
-
-## 🌟 Key Features
-
-- **⚡ 99.6% Average Token Reduction**: Slices away inactive boilerplate, imports, and untargeted function bodies into single-line reversible folds (`/* [neuromesh:fold] */`), keeping only the exact exons needed.
-- **🧬 Pure Native Rust**: High-performance standalone native binary with embedded Tree-Sitter AST parsers and an in-memory Hebbian neural graph.
-- **🔌 Universal Multi-Client MCP Compatibility**: Seamless 1-click integration with **Cursor, Claude Desktop, Windsurf, VS Code, Roo Code, Continue.dev, Zed**, plus remote **HTTP SSE (`/sse`)** and JSON-RPC 2.0 endpoints.
-- **🌌 Interactive 3D/2D Galaxy Monitor**: Real-time visual constellation of your codebase running on `http://127.0.0.1:8765` with cluster drilldowns, AST inspection, and live telemetry.
-- **🍄 Mycelial Hyphal Predictive Cache**: Models symbol access as nutrient gradients, pre-warming downstream dependencies for sub-millisecond context delivery.
-- **🛡️ Cellular Membrane Osmotic Quality Gate**: Dynamically tunes context permeability based on task risk and architectural complexity.
-- **🔄 Reversible Lazy Context Materialization**: If the AI model needs the full body of a folded method, it expands that specific fold on demand via `neuromesh_expand_fold`.
+NeuroMesh does **not** claim 158 languages, Linux-kernel index times, or Cypher. Those are CBM’s strengths. NeuroMesh’s bet is: **fewer tokens, higher precision, one tool for the common path**.
 
 ---
 
-## 🔬 Biomimetic Architecture
+## What v0.3 changed in the core
 
-```mermaid
-flowchart TD
-    Prompt[User Coding Instruction] --> TaskSig["1. Task Signature & Intent Extractor"]
-    TaskSig --> Physarum["2. Physarum Polycephalum Solver<br/>(Discover Minimal Steiner Subgraph)"]
-    Physarum --> Hebb["3. Synaptic Hebbian STDP Learning<br/>(Reinforce Active Co-Access Edges)"]
-    Hebb --> Slicer["4. Bio-Genetic Code Slicing<br/>(Exon Preservation & Intron Folding)"]
-    Slicer --> Membrane["5. Cellular Osmotic Gate Membrane<br/>(Permeability & Risk Tuning)"]
-    Membrane --> Registry["6. Reversible Context Registry"]
-    Registry --> Output["7. Hyper-Lean Context View to LLM"]
-```
+The previous core looked biomimetic on paper and failed on a live MCP session:
+
+- `neuromesh_get_context` and `neuromesh_search_symbols` timed out.
+- `neuromesh_get_dependencies("neuromesh_get_context")` returned **0 neighbors**.
+- Search used bidirectional `contains`, so short tokens matched almost every node.
+- Import/call ingest linked every fuzzy name match → **1.2M edges** on a home-directory index, **0** high-conductance synapses.
+- Task intent was hardcoded to ecommerce entities (`Cart`, `ProductCard`) and lowercased the prompt before looking for PascalCase — so real identifiers never survived.
+- File bodies were not stored, so skeletonization never ran on graph nodes.
+- Project memory was empty unless the repo happened to be a Vue shop.
+
+v0.3 replaces that with a two-pass structural index:
+
+1. **Extract** symbols, grouped `use`/`import` trees, and calls scoped to the current function.
+2. **Link once** after every file exists: unique name, else unique-in-imported-files, else no edge.
+
+Activation no longer scores the entire graph. It seeds from prompt anchors, walks a bounded neighborhood, and optionally runs Physarum on that subgraph only.
 
 ---
 
-## 🚀 Quick Start (Zero Prerequisites)
+## Quick Start
 
-You can install and run **NeuroMesh** in seconds on any operating system without installing compilers or build dependencies:
+### Installers
 
-### 📦 1-Line Automated Installers
-
-#### 🍎 macOS & 🐧 Linux (Bash / Zsh)
 ```bash
+# macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/pinoox/neuromesh/main/install.sh | bash
 ```
 
-#### 🪟 Windows (PowerShell)
 ```powershell
+# Windows
 irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex
 ```
 
----
-
-### 🦀 Alternative: Install via Cargo (Rust Developers)
 ```bash
-cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh
-```
-
-### 🛠️ Alternative: Build from Source
-```bash
+# From source
 git clone https://github.com/pinoox/neuromesh.git
 cd neuromesh
 cargo build --release --bin neuromesh
 ```
 
----
-
-### ⚡ Launch & Explore
 ```bash
-# Start the interactive 3D Web UI Monitor and MCP Server
-neuromesh monitor
+# Cargo
+cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh
 ```
 
-Open **`http://127.0.0.1:8765`** in your browser to inspect the 3D Neural Galaxy, real-time telemetry, and connect any AI agent!
-
----
-
-## 🔌 Connect Any AI Agent (Universal MCP Setup)
-
-NeuroMesh is 100% compliant with the open standard **Model Context Protocol (MCP)**. It works seamlessly with **any** AI coding assistant, IDE, agentic CLI, or custom workflow through two standard communication transports:
-
-1. **Stdio Transport (Standard & Recommended)**: Launches `neuromesh mcp` directly as a local subprocess communicating over JSON-RPC 2.0 via standard input/output.
-2. **HTTP Server-Sent Events (SSE) Transport**: Connects to the embedded monitor server at `http://127.0.0.1:8765/sse` for remote, browser-based, or multi-agent setups.
-
-> 💡 **Quick Helper**: Run `neuromesh connect` in your terminal to instantly print the ready-to-paste JSON snippet for your preferred editor!
-
----
-
-### 🛠️ Client Configuration Guides
-
-#### 🔷 Cursor IDE
-Add to `.cursor/mcp.json` in your workspace root, or go to **Cursor Settings > Features > MCP > Add New MCP Server**:
-```json
-{
-  "mcpServers": {
-    "neuromesh": {
-      "command": "neuromesh",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-#### 💻 VS Code / GitHub Copilot
-Add to `.vscode/mcp.json` (or use Claude Dev / Cline / MCP Extension for VS Code):
-```json
-{
-  "mcpServers": {
-    "neuromesh": {
-      "command": "neuromesh",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-*(Or install our native companion extension from `./editors/vscode-neuromesh`)*
-
-#### 🟣 Claude Desktop
-Add to your `claude_desktop_config.json`:
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "neuromesh": {
-      "command": "neuromesh",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-#### 🤖 Claude Code CLI (Anthropic Terminal Agent)
-Register NeuroMesh directly in the Claude Code terminal:
-```bash
-claude mcp add neuromesh -- neuromesh mcp
-```
-
-#### 🚀 Cline (VS Code Autonomous Coding Agent)
-In **Cline Settings > MCP Servers** (`cline_mcp_settings.json`):
-```json
-{
-  "mcpServers": {
-    "neuromesh": {
-      "command": "neuromesh",
-      "args": ["mcp"],
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
-
-#### 🦘 Roo Code / Roo Clinic
-In **Roo Code Settings > MCP Servers** (`~/.roo/mcp.json`):
-```json
-{
-  "mcpServers": {
-    "neuromesh": {
-      "command": "neuromesh",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-#### 🌊 Windsurf IDE (Codeium)
-Add to `~/.codeium/windsurf/mcp_config.json`:
-```json
-{
-  "mcpServers": {
-    "neuromesh": {
-      "command": "neuromesh",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-#### ⚡ Continue.dev (VS Code & JetBrains)
-Add to `~/.continue/config.json`:
-```json
-{
-  "experimental": {
-    "modelContextProtocolServers": [
-      {
-        "transport": {
-          "type": "stdio",
-          "command": "neuromesh",
-          "args": ["mcp"]
-        }
-      }
-    ]
-  }
-}
-```
-
-#### 📐 Zed Editor
-Add to `~/.config/zed/settings.json`:
-```json
-{
-  "context_servers": {
-    "neuromesh": {
-      "command": {
-        "path": "neuromesh",
-        "args": ["mcp"]
-      }
-    }
-  }
-}
-```
-
-#### 🦅 Aider, Codex, Gemini CLI & Custom Agents (Remote HTTP SSE)
-Start the background daemon with `neuromesh monitor`, then connect your tool to:
-- **SSE Event Stream**: `GET http://127.0.0.1:8765/sse`
-- **JSON-RPC Messages**: `POST http://127.0.0.1:8765/mcp`
-
----
-
-## 🛠️ MCP Tools Reference
-
-NeuroMesh exposes a suite of high-performance tools natively over the standard Model Context Protocol:
-
-| Tool Name | Parameters | Purpose & Output |
-| :--- | :--- | :--- |
-| **`neuromesh_get_context`** | `task_description`, `mode` (`balanced`/`strict`/`comprehensive`) | Analyzes task intent, runs Physarum Steiner routing, and returns the minimal active AST subgraph. |
-| **`neuromesh_get_file_skeleton`** | `file_path`, `active_symbols` | Returns genetic code skeleton with active methods unfolded and inactive methods folded into reversible markers. |
-| **`neuromesh_expand_fold`** | `node_id` or `fold_id`, `reason` | Reversibly expands a folded intron or inactive node on demand without losing context history. |
-| **`neuromesh_search_symbols`** | `query`, `node_type`, `limit` | High-speed AST fuzzy symbol lookup across files, functions, classes, and types. |
-| **`neuromesh_get_dependencies`** | `target_id`, `direction` (`upstream`/`downstream`/`both`) | Traces synaptic call graphs, imports, and cross-file dependencies. |
-| **`neuromesh_record_feedback`** | `task_id`, `success`, `latency_ms` | Feeds reinforcement signals into Hebbian synaptic weights (STDP Plasticity). |
-| **`neuromesh_get_system_status`** | _(none)_ | Reports project health, indexed nodes, synaptic conductance, and token savings. |
-| **`neuromesh_switch_project`** | `project_path` | Dynamically switches active workspace and indexes new codebase in memory. |
-
----
-
-## 🖥️ CLI Commands
+### Run
 
 ```bash
-# Launch interactive local Web UI Monitor Dashboard on port 8765
-neuromesh monitor
+neuromesh mcp          # stdio MCP server (what Cursor / Claude / Cline launch)
+neuromesh monitor      # Web UI + SSE on http://127.0.0.1:8765
+neuromesh index        # build the graph + seed project memory
+neuromesh doctor       # local diagnostics
+neuromesh connect      # print ready-to-paste MCP JSON
+```
 
-# Run native Model Context Protocol (MCP) server over stdio
-neuromesh mcp
+The MCP process discovers the git/cargo root from its working directory and **will not index** `$HOME` or a drive root. That was the live failure mode that produced a 11k-file “yoose” graph.
 
-# Index workspace and construct Neural Project Graph
-neuromesh index
+---
 
-# Display live project health, indexed files, nodes, and token reduction
-neuromesh status
+## Connect any MCP client
 
-# Inspect Project Graph nodes, symbols, and synaptic weights
-neuromesh graph
+Stdio (recommended):
 
-# View Project Memory facts and Episodic traces
-neuromesh memory
+```json
+{
+  "mcpServers": {
+    "neuromesh": {
+      "command": "neuromesh",
+      "args": ["mcp"]
+    }
+  }
+}
+```
 
-# Simulate context activation and token compression for a prompt
-neuromesh optimize "<task_description>"
+| Client | Config path |
+| :--- | :--- |
+| Cursor | `.cursor/mcp.json` or Settings → MCP |
+| VS Code / Copilot | `.vscode/mcp.json` |
+| Claude Desktop | `claude_desktop_config.json` |
+| Claude Code | `claude mcp add neuromesh -- neuromesh mcp` |
+| Cline | `cline_mcp_settings.json` |
+| Roo Code | `~/.roo/mcp.json` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
+| Continue | `~/.continue/config.json` (`modelContextProtocolServers`) |
+| Zed | `~/.config/zed/settings.json` (`context_servers`) |
 
-# Run comprehensive empirical small & enterprise benchmarks
-neuromesh benchmark
+Remote / multi-agent: `neuromesh monitor` then `GET http://127.0.0.1:8765/sse` and `POST http://127.0.0.1:8765/mcp`.
 
-# Display 1-click MCP setup for Cursor, Claude Desktop, Cline, etc.
-neuromesh connect
+---
 
-# Run system diagnostic checks
-neuromesh doctor
+## MCP tools
+
+| Tool | What it returns |
+| :--- | :--- |
+| **`neuromesh_get_context`** | Evidence packet: intent, identifiers, skeletonized files, ranked symbols, fold hints |
+| **`neuromesh_get_file_skeleton`** | One file with untargeted functions folded |
+| **`neuromesh_expand_fold`** | Restore a folded body from the reversible registry |
+| **`neuromesh_search_symbols`** | Ranked exact / prefix / camel-snake token / path search |
+| **`neuromesh_get_dependencies`** | Resolves a name or path, then returns typed neighbors |
+| **`neuromesh_trace`** | Inbound / outbound / both call and import chains |
+| **`neuromesh_analyze_impact`** | Blast radius and risk for a symbol or file |
+| **`neuromesh_get_architecture`** | Languages, packages, entry points, degree hotspots |
+| **`neuromesh_get_project_memory`** | Facts seeded from manifests and docs |
+| **`neuromesh_record_feedback`** | STDP on the nodes the agent actually touched |
+| **`neuromesh_get_stats`** | Node/edge counts, resolved calls/imports |
+
+Typical agent loop:
+
+```
+neuromesh_get_context(task_description)
+  → if a folded body is required: neuromesh_expand_fold
+  → if you need callers: neuromesh_trace
+  → after a successful edit: neuromesh_record_feedback
 ```
 
 ---
 
-## 📊 Empirical Benchmarks
+## Measured quality
 
-Extensive peer-reviewed benchmarks conducted across 24 real-world full-stack codebase files:
+These numbers come from `cargo test -p neuromesh-graph indexes_real_neuromesh_repo_with_usable_graph` on this repository (debug build, Windows). They are not marketing estimates.
 
-| Benchmark Metric | Traditional Raw Context | NeuroMesh v2.0 | Improvement |
-| :--- | :---: | :---: | :---: |
-| **Average Input Tokens per Task** | 24,994 tokens | **96.8 tokens** | **🔥 99.61% Reduction** |
-| **Automated Test Suite Pass Rate (Pass@1)** | 90.0% | **100.0% (10/10 Passed)** | **+10.0% Precision** |
-| **Local Graph Traversal Latency** | N/A | **24.4 ms** | **Sub-50ms Context Delivery** |
-| **API Cost per 1,000 Prompts (Claude 3.7 / GPT-4.5)** | $74.98 | **$0.29** | **💰 99.6% Financial Savings** |
-| **Resident Memory Footprint (RAM)** | N/A | **~195 MB** | **Ultra-lightweight** |
-| **Concurrent Request Throughput** | N/A | **20 req in 853 ms** | **100% Zero-drop Concurrency** |
+| Metric | Before (live MCP on a home-scoped index) | After v0.3 (this repo) |
+| :--- | ---: | ---: |
+| Indexed files | 11,564 (user profile) | **139** (workspace, `target/` ignored) |
+| Graph nodes | 34,450 | **872** |
+| Graph edges | 1,230,610 | **1,555** |
+| Resolved `Calls` | not trustworthy | **344** |
+| Resolved `Imports` | exploded fuzzy matches | **444** |
+| `search_symbols("handle_tool_call")` | timed out | **<1 ms**, exact hit |
+| `get_dependencies("neuromesh_get_context")` | 0 neighbors | name resolves; structural neighbors exist |
+| `get_context` | timed out (full-graph + Physarum on 1.2M edges) | neighborhood packet, capped inactive list |
+| Full workspace index | unbounded | **519 ms** in the measured debug run |
 
-> For the full scientific methodology, Needle-In-A-Haystack resilience tests, and unit test code, see **[BENCHMARK.md](BENCHMARK.md)**.
+Unit tests that lock this in:
 
----
-
-## 🌌 Embedded Web UI Monitor
-
-NeuroMesh includes a built-in zero-dependency Web UI dashboard:
-- **3D & 2D Neural Galaxy**: Live interactive planetary constellation of your modules, files, and AST symbols.
-- **Biomimetic Telemetry & KPI Cards**: Real-time monitoring of token reduction, synaptic conductance, and memory footprint.
-- **Context Flow Simulator**: Step-by-step visual inspection of each pipeline stage (Ingestion, Physarum, Hebbian, Slicing, Osmotic Gate).
-- **Files & Symbols Explorer**: Live table of all indexed files, languages, and token costs with instant symbol inspection.
-- **Multi-Language Support**: English & Persian UI with real-time toggle.
-
----
-
-## 🤝 Contributing
-
-Contributions are warmly welcome! Please feel free to submit a Pull Request or open an Issue for bug reports, feature proposals, or new language parsers.
+- Identifier extraction from a real prompt (`neuromesh_get_context` + `tools.rs`)
+- Rust parser: functions, grouped `use`, scoped calls
+- Unique resolution does not explode edges
+- Ranked search does not treat `"get_context"` as a match for every name contained in the query
+- Context activator keeps the seed symbol and stays under a small node budget
+- Real-repo index + search + trace + architecture
 
 ```bash
-# Run tests
-cargo test --all
+cargo test --workspace
+cargo test -p neuromesh-graph indexes_real_neuromesh_repo_with_usable_graph -- --nocapture
+```
 
-# Check formatting and lints
+Skeletonization still folds untargeted helpers (see `CodeSkeletonizer` tests). Token reduction is **per file and per task**, not a universal 99.6% claim.
+
+---
+
+## Architecture
+
+```
+Prompt
+  │
+  ▼
+Task anchors (identifiers, paths, intent)
+  │
+  ▼
+Unique / import-aware graph resolve
+  │
+  ▼
+Bounded neighborhood walk
+  │
+  ├─ Physarum Steiner on the subgraph only
+  └─ Hebbian STDP on feedback, not on every edge
+  │
+  ▼
+Genetic skeleton (exons kept, introns folded)
+  │
+  ▼
+Osmotic budget gate
+  │
+  ▼
+Evidence packet → MCP client
+```
+
+| Crate | Role |
+| :--- | :--- |
+| `neuromesh-parser` | Structural extractors + prompt anchors |
+| `neuromesh-graph` | Two-pass ingest, ranked search, trace, impact, architecture |
+| `neuromesh-task` | Intent + identifier extraction |
+| `neuromesh-context` | Neighborhood activation + skeletonizer |
+| `neuromesh-memory` | Project facts seeded from the repo |
+| `neuromesh-mcp` | MCP JSON-RPC 2.0 over stdio |
+| `neuromesh-cli` | `mcp`, `monitor`, `index`, `doctor`, `connect` |
+
+Details: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## Web UI
+
+`neuromesh monitor` serves `http://127.0.0.1:8765`:
+
+- 2D/3D graph of the indexed workspace
+- Telemetry for token reduction and graph density
+- English / Persian UI toggle
+
+---
+
+## Contributing
+
+```bash
+cargo test --workspace
 cargo clippy --all-targets -- -D warnings
 ```
 
+New language support should add a scoped extractor (symbols + imports + calls) and a unique-resolve test — not a fuzzy edge dump.
+
 ---
 
-## 📄 License
+## License
 
-NeuroMesh is open-source software licensed under the **[MIT License](LICENSE)**.
+MIT. See [LICENSE](LICENSE).
