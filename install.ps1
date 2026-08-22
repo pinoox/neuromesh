@@ -53,6 +53,9 @@ if (!(Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
+Get-Process neuromesh -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 400
+
 Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $BinPath -Force
 
 # Clean up temp
