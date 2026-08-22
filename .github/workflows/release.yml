@@ -1,0 +1,92 @@
+﻿name: Release & Multi-Platform Precompiled Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: neuromesh
+            asset_name: neuromesh-linux-x86_64.tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: neuromesh
+            asset_name: neuromesh-darwin-arm64.tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact_name: neuromesh
+            asset_name: neuromesh-darwin-x86_64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: neuromesh.exe
+            asset_name: neuromesh-windows-x86_64.zip
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --bin neuromesh --target ${{ matrix.target }}
+
+      - name: Package Artifact (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/
+          cd dist
+          tar -czvf ../${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+          cd ..
+          shasum -a 256 ${{ matrix.asset_name }} > ${{ matrix.asset_name }}.sha256
+
+      - name: Package Artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force
+          Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/
+          Compress-Archive -Path dist/${{ matrix.artifact_name }} -DestinationPath ${{ matrix.asset_name }} -Force
+          Get-FileHash -Path ${{ matrix.asset_name }} -Algorithm SHA256 | ForEach-Object { $_.Hash + "  " + $_.Path } | Out-File "${{ matrix.asset_name }}.sha256" -Encoding ascii
+
+      - name: Upload Artifacts to Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            ${{ matrix.asset_name }}
+            ${{ matrix.asset_name }}.sha256
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ${{ matrix.asset_name }}
+            ${{ matrix.asset_name }}.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true

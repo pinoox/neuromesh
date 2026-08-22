@@ -77,22 +77,45 @@ flowchart TD
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Zero Prerequisites)
 
-### 1. Build and Run
+You can install and run **NeuroMesh** in seconds on any operating system without installing compilers or build dependencies:
+
+### 📦 1-Line Automated Installers
+
+#### 🍎 macOS & 🐧 Linux (Bash / Zsh)
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/neuromesh.git
-cd neuromesh
-
-# Build the optimized release binary
-cargo build --release --bin neuromesh
-
-# Launch the embedded Web UI Monitor & MCP server
-./target/release/neuromesh monitor
+curl -fsSL https://raw.githubusercontent.com/pinoox/neuromesh/main/install.sh | bash
 ```
 
-Open **`http://127.0.0.1:8765`** in your browser to explore the 3D Neural Galaxy, live telemetry, and project dashboard!
+#### 🪟 Windows (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex
+```
+
+---
+
+### 🦀 Alternative: Install via Cargo (Rust Developers)
+```bash
+cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh
+```
+
+### 🛠️ Alternative: Build from Source
+```bash
+git clone https://github.com/pinoox/neuromesh.git
+cd neuromesh
+cargo build --release --bin neuromesh
+```
+
+---
+
+### ⚡ Launch & Explore
+```bash
+# Start the interactive 3D Web UI Monitor and MCP Server
+neuromesh monitor
+```
+
+Open **`http://127.0.0.1:8765`** in your browser to inspect the 3D Neural Galaxy, real-time telemetry, and connect any AI agent!
 
 ---
 
