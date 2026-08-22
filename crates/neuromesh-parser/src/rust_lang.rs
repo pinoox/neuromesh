@@ -41,9 +41,31 @@ impl RustParser {
         let mut impl_start_depth = 0i32;
         let mut depth = 0i32;
         let mut fn_line_start = 0usize;
+        let mut pending_test_mod = false;
+        let mut skip_test_mod = false;
+        let mut test_mod_depth = 0i32;
 
         for (line_idx, line) in content.lines().enumerate() {
             let line_no = line_idx + 1;
+            let trimmed = line.trim_start();
+
+            if skip_test_mod {
+                depth += brace_delta(line);
+                if depth <= test_mod_depth && trimmed.starts_with('}') {
+                    skip_test_mod = false;
+                }
+                continue;
+            }
+            if pending_test_mod && trimmed.starts_with("mod ") {
+                skip_test_mod = true;
+                pending_test_mod = false;
+                test_mod_depth = depth;
+                depth += brace_delta(line);
+                continue;
+            }
+            if trimmed.starts_with("#[cfg(test)]") {
+                pending_test_mod = true;
+            }
 
             if let Some(cap) = use_re.captures(line) {
                 if let Some(spec) = cap.get(1) {

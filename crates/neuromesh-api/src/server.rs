@@ -176,8 +176,6 @@ impl HttpServer {
                         .map(|m| m.token_reduction_pct)
                         .sum::<f32>()
                         / project_history.len() as f32
-                } else if stats.file_nodes > 0 {
-                    (92.4 + ((stats.file_nodes * 3) % 45) as f32 / 10.0).min(98.8)
                 } else {
                     0.0
                 };
@@ -273,7 +271,7 @@ impl HttpServer {
 
                 // Helper to calculate avg reduction % for a project
                 let calc_project_reduction =
-                    |p_name: &str, p_path: &str, files_cnt: usize| -> f32 {
+                    |p_name: &str, p_path: &str, _files_cnt: usize| -> f32 {
                         let p_name_lower = p_name.to_lowercase();
                         let p_path_norm = p_path.replace('\\', "/").to_lowercase();
                         let matching: Vec<_> = history
@@ -291,7 +289,7 @@ impl HttpServer {
                             let sum: f32 = matching.iter().map(|m| m.token_reduction_pct).sum();
                             sum / matching.len() as f32
                         } else {
-                            (92.4 + ((files_cnt * 3) % 45) as f32 / 10.0).min(98.8)
+                            0.0
                         }
                     };
 

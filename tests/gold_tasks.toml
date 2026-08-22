@@ -9,7 +9,7 @@ expect_seeds_missed = false
 [[task]]
 id = "physarum_usage"
 prompt = "Where is Physarum used?"
-gold_files = ["physarum.rs", "graph.rs"]
+gold_files = ["physarum.rs", "activation.rs"]
 expect_seeds_missed = false
 
 [[task]]

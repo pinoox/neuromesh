@@ -1,105 +1,74 @@
+use neuromesh_context::gold::packet_file_names;
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{OptimizationMode, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
-use neuromesh_parser::CodeIntelligenceEngine;
-use neuromesh_task::{TaskDecomposer, TaskSignatureExtractor};
+use neuromesh_task::TaskSignatureExtractor;
 use std::sync::Arc;
+use std::time::Instant;
 
 pub fn execute(task_prompt: Option<String>) -> Result<()> {
     let prompt = task_prompt.unwrap_or_else(|| {
-        "Build a complete ecommerce template using Vue 3 and SCSS. Make it modern, responsive, componentized and production ready.".to_string()
+        "How does handle_tool_call extract intent?".to_string()
     });
 
     let current_dir = std::env::current_dir()?;
     let project_name = current_dir
         .file_name()
         .and_then(|n| n.to_str())
-        .unwrap_or("ecommerce-store")
+        .unwrap_or("project")
         .to_string();
-
     let project_id = ProjectId::new(&project_name);
     let walker = ProjectWalker::new(current_dir.clone(), project_id.clone());
     let scanned = walker.scan().unwrap_or_default();
-    let total_available_files = scanned.len().max(842);
 
-    let graph = NeuralProjectGraph::new(project_id.clone());
-    for (file, content) in &scanned {
-        let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
-        graph.ingest_ast(file, &ast);
-    }
-    graph.finalize_links();
+    let graph = NeuralProjectGraph::new(project_id);
+    graph.ingest_workspace(&scanned);
+    let workspace_tokens = graph.total_tokens().max(1);
 
     let signature = TaskSignatureExtractor::extract(&prompt);
-    let task_graph = TaskDecomposer::decompose(&prompt);
-
     let registry = Arc::new(ReversibleContextRegistry::new());
     let activator = ContextActivator::new(registry);
+    let started = Instant::now();
     let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+    let ms = started.elapsed().as_millis();
 
-    let raw_tokens = if view.total_raw_tokens > 0 {
-        view.total_raw_tokens
+    let mut files: Vec<String> = packet_file_names(&view).into_iter().collect();
+    files.sort();
+    let reduction = if workspace_tokens > 0 {
+        (workspace_tokens.saturating_sub(view.active_tokens) as f32 / workspace_tokens as f32)
+            * 100.0
     } else {
-        8420
-    };
-    let active_tokens = if view.active_tokens > 0 {
-        view.active_tokens
-    } else {
-        2930
-    };
-    let reduction_pct = if view.reduction_percentage > 0.0 {
-        view.reduction_percentage
-    } else {
-        65.2
+        0.0
     };
 
-    let activated_count = if !view.active_nodes.is_empty() {
-        view.active_nodes.len()
-    } else {
-        18
-    };
-
-    println!("\nNeuroMesh");
-    println!("────────────────────────────");
-    println!();
-    println!("Task:");
-    println!("{}", prompt);
-    println!();
-    println!("Detected:");
+    println!("\nNeuroMesh optimize");
+    println!("Prompt: {}", prompt);
+    println!("Identifiers: {}", signature.identifiers.join(", "));
     println!(
-        "{} + {}",
-        signature.technology,
-        signature.style.as_deref().unwrap_or("SCSS")
+        "Mode: {} · {} ms · coverage {}",
+        view.budget_mode,
+        ms,
+        view.coverage
+            .as_ref()
+            .map(|c| c.claim.as_str())
+            .unwrap_or("unknown")
     );
+    println!("Workspace tokens: {}", workspace_tokens);
+    println!(
+        "Packet tokens: {} (seed {} + fill {} / {})",
+        view.active_tokens, view.budget_seed_tokens, view.budget_fill_used, view.budget_fill_cap
+    );
+    println!("Reduction vs workspace: {:.1}%", reduction);
+    println!("Files ({}):", files.len());
+    for name in &files {
+        println!("  {}", name);
+    }
+    if let Some(coverage) = &view.coverage {
+        if !coverage.seeds_missed.is_empty() {
+            println!("Seeds missed: {}", coverage.seeds_missed.join(", "));
+        }
+    }
     println!();
-    println!("Task Graph:");
-    println!("{} subtasks", task_graph.subtasks.len());
-    println!();
-    println!("Activated:");
-    println!("{} files", activated_count);
-    println!();
-    println!("Available:");
-    println!("{} files", total_available_files);
-    println!();
-    println!("Context:");
-    println!("{} → {} tokens", raw_tokens, active_tokens);
-    println!();
-    println!("Reduction:");
-    println!("{:.1}%", reduction_pct);
-    println!();
-    println!("Predicted next files:");
-    println!("  ProductGrid.vue");
-    println!("  cartStore.ts");
-    println!("  design-tokens.scss");
-    println!();
-    println!("Provider:");
-    println!("OpenAI");
-    println!();
-    println!("Mode:");
-    println!("Balanced");
-    println!();
-    println!("────────────────────────────");
-    println!();
-
     Ok(())
 }

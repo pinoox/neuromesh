@@ -18,24 +18,54 @@ impl QualityGate {
     ) -> QualityGateDecision {
         let membrane = OsmoticQualityGate::regulate_membrane(signature, requested_mode);
 
-        // Low Confidence (< 0.50) -> Bypass Optimization
-        if signature.confidence < 0.50 {
-            return QualityGateDecision {
-                allow_optimization: false,
-                effective_mode: OptimizationMode::MaxQuality,
-                membrane_state: membrane,
-                reason: format!(
-                    "Low task understanding confidence ({:.2} < 0.50) triggered optimization bypass",
-                    signature.confidence
+        let (effective_mode, allow_optimization, reason) = if signature.requires_conservative_mode()
+        {
+            (
+                OptimizationMode::MaxQuality,
+                false,
+                "Critical/security task: honor safety over the requested savings mode".to_string(),
+            )
+        } else {
+            (
+                requested_mode,
+                true,
+                format!(
+                    "Honoring requested mode {:?} (osmotic recommended {:?})",
+                    requested_mode, membrane.recommended_mode
                 ),
-            };
-        }
+            )
+        };
 
         QualityGateDecision {
-            allow_optimization: true,
-            effective_mode: membrane.recommended_mode,
-            reason: membrane.rationale.clone(),
-            membrane_state: membrane,
+            allow_optimization,
+            effective_mode,
+            membrane_state: OsmoticMembraneState {
+                recommended_mode: effective_mode,
+                rationale: reason.clone(),
+                ..membrane
+            },
+            reason,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neuromesh_core::{OptimizationMode, TaskRisk, TaskSignature};
+
+    #[test]
+    fn honors_requested_max_quality() {
+        let sig = TaskSignature::new("How does handle_tool_call extract intent?");
+        let decision = QualityGate::evaluate(&sig, OptimizationMode::MaxQuality);
+        assert_eq!(decision.effective_mode, OptimizationMode::MaxQuality);
+    }
+
+    #[test]
+    fn critical_task_upgrades_savings() {
+        let mut sig = TaskSignature::new("Rotate payment credentials");
+        sig.risk = TaskRisk::Critical;
+        let decision = QualityGate::evaluate(&sig, OptimizationMode::MaxSavings);
+        assert_eq!(decision.effective_mode, OptimizationMode::MaxQuality);
     }
 }

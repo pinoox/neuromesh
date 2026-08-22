@@ -65,7 +65,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             project_id.clone(),
             "structure",
             "markup_language",
-            "HTML5 semantic layout with RTL Persian typography and responsive styling",
+            "HTML files are present in the workspace",
         ))?;
     }
     if has_vue {
@@ -73,15 +73,15 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             project_id.clone(),
             "framework",
             "frontend_framework",
-            "Vue 3 (Composition API, Single File Components)",
+            "Vue single-file components are present",
         ))?;
     }
     if has_scss {
         memory_db.save_project_fact(&ProjectFact::new(
             project_id.clone(),
             "styling",
-            "design_tokens",
-            "CSS variables (--saffron, --paper, --ink) with responsive breakpoints",
+            "stylesheets",
+            "SCSS or CSS files are present",
         ))?;
     }
     if has_ts {
@@ -89,7 +89,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             project_id.clone(),
             "language",
             "type_system",
-            "TypeScript strict mode with interface definitions",
+            "TypeScript files are present",
         ))?;
     }
 

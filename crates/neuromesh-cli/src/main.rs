@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     match command {
         "-v" | "--version" | "version" | "-V" => {
             println!(
-                "🌿 NeuroMesh v{} — Biomimetic MCP Context Engine & Visual Runtime",
+                "NeuroMesh v{} — local MCP context engine",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(());
@@ -55,12 +55,8 @@ fn main() -> Result<()> {
             return Ok(());
         }
         "logs" => {
-            println!("\n📜 Recent NeuroMesh Audit Logs:");
-            println!("  [2026-08-22T00:00:00Z] MCP Server initialized in Pure MCP Mode.");
-            println!(
-                "  [2026-08-22T00:00:15Z] Indexed workspace files with Physarum & Genetic Slicing."
-            );
-            println!("  [2026-08-22T00:01:02Z] Tool call neuromesh_get_context: 92.4% token reduction achieved.\n");
+            println!("\nNo durable audit log is written.");
+            println!("Use neuromesh_get_stats over MCP, or `neuromesh status` after `neuromesh index`.\n");
             return Ok(());
         }
         "stop" => {
@@ -161,27 +157,25 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
 
 fn print_help() {
     println!(
-        "\n🌿 NeuroMesh v{} — Biomimetic MCP Context Engine & Visual Runtime",
+        "\nNeuroMesh v{} — local MCP context engine",
         env!("CARGO_PKG_VERSION")
     );
     println!("Usage: neuromesh <COMMAND> [OPTIONS]\n");
     println!("Commands:");
-    println!("  monitor    Launch the interactive local Web UI Monitor Dashboard (Default)");
-    println!("  mcp        Run native Model Context Protocol (MCP) server over stdio");
-    println!("  index      Index workspace files and construct Neural Project Graph");
-    println!("  status     Display live runtime status and biomimetic telemetry");
-    println!("  graph      Inspect Neural Project Graph topology and synaptic weights");
-    println!("  memory     View project memory facts and episodic experience traces");
-    println!("  optimize   Simulate and visualize neural context activation on a prompt");
-    println!("  eval       Run deep empirical context & financial evaluation on CURRENT project");
-    println!("  benchmark  Run end-to-end benchmark comparison on small & enterprise workloads");
-    println!("  connect    Display 1-click MCP setup for Cursor, Claude Desktop, Cline, etc.");
-    println!("  doctor     Run diagnostic checks for ports, SQLite WAL, and parsers");
-    println!("  projects   List registered workspace projects");
-    println!("  list       List all available CLI commands");
-    println!("  version    Display NeuroMesh version information (-v, --version)");
-    println!("  help       Print this help message (-h, --help)\n");
-    println!("Quick Start:");
-    println!("  neuromesh monitor     # Open http://127.0.0.1:8765");
-    println!("  neuromesh connect     # Get 1-click MCP configuration for your IDE\n");
+    println!("  mcp        MCP server over stdio (Cursor / Claude / Cline)");
+    println!("  monitor    Web UI + SSE on http://127.0.0.1:8765");
+    println!("  index      Index the current workspace into the project graph");
+    println!("  status     Node/edge counts after index (or a fresh scan)");
+    println!("  graph      Print graph stats");
+    println!("  memory     Print project memory facts");
+    println!("  optimize   Activate one prompt and print the packet");
+    println!("  eval       Gold-task recall, packet size, and fill budget on this repo");
+    println!("  benchmark  Same as eval");
+    println!("  connect    Print MCP JSON for the current binary");
+    println!("  doctor     Workspace root, scan, persisted graph, monitor port");
+    println!("  version    Print version (-v, --version)");
+    println!("  help       Print this help (-h, --help)\n");
+    println!("Quick start:");
+    println!("  neuromesh mcp         # what IDEs launch");
+    println!("  neuromesh connect     # copy-paste MCP config\n");
 }

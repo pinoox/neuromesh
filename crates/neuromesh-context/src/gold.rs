@@ -39,7 +39,7 @@ pub fn builtin_gold_tasks() -> Vec<GoldTask> {
         GoldTask {
             id: "physarum_usage".into(),
             prompt: "Where is Physarum used?".into(),
-            gold_files: vec!["physarum.rs".into(), "graph.rs".into()],
+            gold_files: vec!["physarum.rs".into(), "activation.rs".into()],
             expect_seeds_missed: false,
         },
         GoldTask {
@@ -258,7 +258,22 @@ mod tests {
                     packet_file_names(&view),
                     task.gold_files
                 );
-                assert!(view.budget_cap >= 900);
+                assert_eq!(view.budget_fill_cap, 8_000);
+                assert!(
+                    view.budget_fill_used <= view.budget_fill_cap,
+                    "{} fill {} exceeded cap {}",
+                    task.id,
+                    view.budget_fill_used,
+                    view.budget_fill_cap
+                );
+                assert!(
+                    !packet_file_names(&view)
+                        .iter()
+                        .any(|name| name.ends_with(".md")),
+                    "{} leaked markdown into packet: {:?}",
+                    task.id,
+                    packet_file_names(&view)
+                );
                 assert_eq!(
                     view.coverage.as_ref().map(|c| c.claim.as_str()),
                     Some("no_recorded_gap")
@@ -267,5 +282,210 @@ mod tests {
             scored.push(metrics);
         }
         assert_eq!(scored.len(), 3);
+
+        let sig = TaskSignatureExtractor::extract("How does handle_tool_call extract intent?");
+        let savings = activator.activate(&graph, &sig, OptimizationMode::MaxSavings);
+        let quality = activator.activate(&graph, &sig, OptimizationMode::MaxQuality);
+        let savings_files = packet_file_names(&savings).len();
+        let quality_files = packet_file_names(&quality).len();
+        assert!(
+            savings.budget_fill_used <= savings.budget_fill_cap,
+            "max_savings fill must respect 0 extra cap"
+        );
+        assert_eq!(savings.budget_fill_cap, 0);
+        assert_eq!(quality.budget_fill_cap, 16_000);
+        assert!(
+            savings_files <= quality_files,
+            "max_savings files {savings_files} should be <= max_quality {quality_files}"
+        );
+    }
+
+    /// Honest live measurement on this workspace. Prints JSON for the v0.4 claim check.
+    /// Baselines: dump-all files, v0.3 neighborhood dump, gold-file dump. Not the fake CLI `eval`.
+    /// Run: cargo test -p neuromesh-context live_v04_measurement -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn live_v04_measurement_on_neuromesh_repo() {
+        use neuromesh_core::NodeType;
+        use std::collections::HashMap;
+
+        let Some(root) = workspace_root() else {
+            return;
+        };
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let walker = ProjectWalker::new(root.clone(), ProjectId::new("neuromesh"));
+        let scanned = walker.scan().expect("scan workspace");
+        let index_started = Instant::now();
+        graph.ingest_workspace(&scanned);
+        let index_ms = index_started.elapsed().as_millis() as u64;
+        let stats = graph.stats();
+        let dump_all_tokens = graph.total_tokens();
+
+        let mut gold_file_tokens: HashMap<String, usize> = HashMap::new();
+        for (file, content) in &scanned {
+            let name = file
+                .relative_path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let tokens = neuromesh_core::TokenCounter::count_tokens(content);
+            gold_file_tokens
+                .entry(name)
+                .and_modify(|t| *t += tokens)
+                .or_insert(tokens);
+        }
+
+        let search_started = Instant::now();
+        let hits = graph.search_symbols("handle_tool_call", 10);
+        let search_cold_ms = search_started.elapsed().as_millis() as u64;
+        let mut search_warm = Vec::new();
+        for _ in 0..20 {
+            let t = Instant::now();
+            let _ = graph.search_symbols("handle_tool_call", 10);
+            search_warm.push(t.elapsed().as_micros() as u64);
+        }
+        search_warm.sort_unstable();
+        let search_warm_us = search_warm[search_warm.len() / 2];
+
+        let deps = graph
+            .resolve_best("handle_tool_call")
+            .map(|n| graph.get_neighbor_views(&n.id).len())
+            .unwrap_or(0);
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let modes = [
+            OptimizationMode::MaxSavings,
+            OptimizationMode::Balanced,
+            OptimizationMode::MaxQuality,
+        ];
+
+        let mut extra = builtin_gold_tasks();
+        extra.push(GoldTask {
+            id: "search_ranking".into(),
+            prompt: "How does neuromesh_search_symbols rank prefix vs exact matches?".into(),
+            gold_files: vec!["graph.rs".into(), "tools.rs".into()],
+            expect_seeds_missed: false,
+        });
+        extra.push(GoldTask {
+            id: "finalize_links".into(),
+            prompt: "Where does finalize_links unique-resolve import and call edges?".into(),
+            gold_files: vec!["graph.rs".into()],
+            expect_seeds_missed: false,
+        });
+
+        let mut runs = Vec::new();
+        for task in &extra {
+            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let gold_dump: usize = task
+                .gold_files
+                .iter()
+                .map(|name| gold_file_tokens.get(name).copied().unwrap_or(0))
+                .sum();
+            for mode in modes {
+                let started = Instant::now();
+                let view = activator.activate(&graph, &signature, mode);
+                let first_ms = started.elapsed().as_millis() as u64;
+                let mut warm = Vec::new();
+                for _ in 0..8 {
+                    let t = Instant::now();
+                    let _ = activator.activate(&graph, &signature, mode);
+                    warm.push(t.elapsed().as_micros() as u64);
+                }
+                warm.sort_unstable();
+                let warm_us = warm[warm.len() / 2];
+                let hops = match mode {
+                    OptimizationMode::MaxQuality => 3,
+                    OptimizationMode::Balanced => 2,
+                    OptimizationMode::MaxSavings => 1,
+                };
+                let seed_ids: std::collections::HashSet<_> = view
+                    .seeds
+                    .iter()
+                    .filter_map(|s| s.resolved_id.clone())
+                    .collect();
+                let neighborhood = if seed_ids.is_empty() {
+                    std::collections::HashSet::new()
+                } else {
+                    graph.neighborhood(&seed_ids, hops)
+                };
+                let neighborhood_file_tokens: usize = neighborhood
+                    .iter()
+                    .filter_map(|id| graph.get_node(id))
+                    .filter(|n| n.node_type == NodeType::File)
+                    .map(|n| n.token_cost)
+                    .sum();
+                let metrics = evaluate_view(task, &view, first_ms);
+                let packet_files = packet_file_names(&view);
+                let vs_dump = if dump_all_tokens > 0 {
+                    (dump_all_tokens.saturating_sub(view.active_tokens) as f32
+                        / dump_all_tokens as f32)
+                        * 100.0
+                } else {
+                    0.0
+                };
+                let vs_neigh = if neighborhood_file_tokens > 0 {
+                    (neighborhood_file_tokens.saturating_sub(view.active_tokens) as f32
+                        / neighborhood_file_tokens as f32)
+                        * 100.0
+                } else {
+                    0.0
+                };
+                let vs_gold = if gold_dump > 0 {
+                    (gold_dump.saturating_sub(view.active_tokens) as f32 / gold_dump as f32) * 100.0
+                } else {
+                    0.0
+                };
+                runs.push(serde_json::json!({
+                    "id": task.id,
+                    "prompt": task.prompt,
+                    "mode": view.budget_mode,
+                    "recall": metrics.recall,
+                    "precision": metrics.precision,
+                    "gold_files": task.gold_files,
+                    "packet_files": packet_files.into_iter().collect::<Vec<_>>(),
+                    "packet_tokens": view.active_tokens,
+                    "budget_used": view.budget_used,
+                    "budget_cap": view.budget_cap,
+                    "coverage": metrics.coverage_claim,
+                    "seeds_missed": metrics.seeds_missed,
+                    "folds": view.fold_ids.len(),
+                    "active_nodes": view.active_nodes.len(),
+                    "neighborhood_nodes": neighborhood.len(),
+                    "neighborhood_file_tokens": neighborhood_file_tokens,
+                    "gold_file_dump_tokens": gold_dump,
+                    "dump_all_tokens": dump_all_tokens,
+                    "reduction_vs_dump_all_pct": vs_dump,
+                    "reduction_vs_neighborhood_pct": vs_neigh,
+                    "reduction_vs_gold_files_pct": vs_gold,
+                    "first_ms": first_ms,
+                    "warm_median_us": warm_us,
+                    "under_50ms_warm": warm_us < 50_000,
+                    "under_budget": view.active_tokens <= view.budget_cap,
+                }));
+            }
+        }
+
+        let report = serde_json::json!({
+            "workspace": root.display().to_string(),
+            "index_ms": index_ms,
+            "files": scanned.len(),
+            "stats": stats,
+            "dump_all_file_tokens": dump_all_tokens,
+            "search_handle_tool_call": {
+                "cold_ms": search_cold_ms,
+                "warm_median_us": search_warm_us,
+                "hit": hits.iter().any(|h| h.name == "handle_tool_call"),
+                "neighbors": deps,
+            },
+            "runs": runs,
+        });
+        eprintln!("LIVE_V04_JSON {}", report);
+        assert!(scanned.len() >= 20);
+        assert!(hits.iter().any(|h| h.name == "handle_tool_call"));
+        assert!(
+            index_ms < 30_000,
+            "index too slow for this repo: {index_ms}ms"
+        );
     }
 }

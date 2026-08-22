@@ -39,7 +39,7 @@ impl McpToolHandler {
 
     pub async fn handle_tool_call(&self, name: &str, arguments: &Value) -> Result<Value> {
         match name {
-            // 1. Get Optimized Minimal Context (Physarum + Gene Slicing + Osmotic Gate)
+            // 1. Task-conditioned evidence packet (seed files + fill-budget connectors)
             "neuromesh_get_context" | "activate_context" => {
                 let start_time = std::time::Instant::now();
                 let task_desc = arguments["task_description"]
@@ -66,16 +66,24 @@ impl McpToolHandler {
                 }
 
                 let elapsed_ms = start_time.elapsed().as_millis() as u64;
-                let raw_tokens = if view.total_raw_tokens > 0 {
-                    view.total_raw_tokens
-                } else {
-                    self.graph.total_tokens().max(1)
-                };
+                let workspace_tokens = self.graph.total_tokens().max(1);
                 let opt_tokens = view.active_tokens;
-                let red_pct = if raw_tokens > 0 {
-                    (raw_tokens.saturating_sub(opt_tokens) as f32 / raw_tokens as f32) * 100.0
+                let seeds_missed = view
+                    .coverage
+                    .as_ref()
+                    .map(|c| !c.seeds_missed.is_empty())
+                    .unwrap_or(false);
+                let vs_workspace = if seeds_missed && opt_tokens == 0 {
+                    0.0
                 } else {
-                    view.reduction_percentage
+                    (workspace_tokens.saturating_sub(opt_tokens) as f32 / workspace_tokens as f32)
+                        * 100.0
+                };
+                let selected_raw = view.total_raw_tokens.max(opt_tokens);
+                let vs_selected = if selected_raw > 0 {
+                    (selected_raw.saturating_sub(opt_tokens) as f32 / selected_raw as f32) * 100.0
+                } else {
+                    0.0
                 };
 
                 let index_meta = self.graph.index_meta();
@@ -120,9 +128,9 @@ impl McpToolHandler {
                         task_id: Some(task_desc.chars().take(50).collect()),
                         project_id: self.graph.project_id(),
                         mode: gate.effective_mode.to_string(),
-                        tokens_before: raw_tokens,
+                        tokens_before: workspace_tokens,
                         tokens_after: opt_tokens,
-                        token_reduction_pct: red_pct,
+                        token_reduction_pct: vs_workspace,
                         nodes_before: self.graph.stats().total_nodes,
                         nodes_after: view.active_nodes.len(),
                         expansions_count: 0,
@@ -163,11 +171,17 @@ impl McpToolHandler {
                             "used": view.budget_used,
                             "cap": view.budget_cap,
                             "mode": view.budget_mode,
+                            "seed_tokens": view.budget_seed_tokens,
+                            "fill_used": view.budget_fill_used,
+                            "fill_cap": view.budget_fill_cap,
+                            "over_budget": view.over_budget,
                         },
                         "inactive_hints": view.inactive_descriptors,
-                        "raw_tokens": raw_tokens,
+                        "workspace_tokens": workspace_tokens,
+                        "selected_raw_tokens": selected_raw,
                         "active_tokens": opt_tokens,
-                        "token_reduction_pct": format!("{:.1}%", red_pct),
+                        "reduction_vs_workspace_pct": format!("{:.1}%", vs_workspace),
+                        "reduction_vs_selected_pct": format!("{:.1}%", vs_selected),
                     }
                 }))
             }
@@ -267,10 +281,10 @@ impl McpToolHandler {
                             ),
                             task_id: Some(format!("Expand: {}", node_id_str)),
                             project_id: self.graph.project_id(),
-                            mode: "Reversible Expansion".to_string(),
-                            tokens_before: 4800,
-                            tokens_after: 1200,
-                            token_reduction_pct: 75.0,
+                            mode: "expand_fold".to_string(),
+                            tokens_before: 0,
+                            tokens_after: audit.added_tokens,
+                            token_reduction_pct: 0.0,
                             nodes_before: 1,
                             nodes_after: 1,
                             expansions_count: 1,
@@ -306,22 +320,20 @@ impl McpToolHandler {
                 let limit = arguments["limit"].as_u64().unwrap_or(20) as usize;
                 let nodes = self.graph.search_symbols(query, limit);
                 let elapsed_ms = start_time.elapsed().as_millis() as u64;
-                let est_raw = 2400;
-                let est_opt = 180;
 
                 neuromesh_observability::record_global_telemetry(
                     neuromesh_core::OptimizationMetadata {
                         request_id: format!("mcp-sym-{}", chrono::Utc::now().timestamp_millis()),
                         task_id: Some(format!("Search: {}", query)),
                         project_id: self.graph.project_id(),
-                        mode: "Symbol Index".to_string(),
-                        tokens_before: est_raw,
-                        tokens_after: est_opt,
-                        token_reduction_pct: 92.5,
+                        mode: "symbol_search".to_string(),
+                        tokens_before: 0,
+                        tokens_after: 0,
+                        token_reduction_pct: 0.0,
                         nodes_before: self.graph.stats().total_nodes,
                         nodes_after: nodes.len(),
                         expansions_count: 0,
-                        cache_hit: true,
+                        cache_hit: false,
                         provider: "Cursor / Claude MCP".to_string(),
                         model: "Frontier Model".to_string(),
                         latency_ms: elapsed_ms,

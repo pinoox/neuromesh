@@ -2025,7 +2025,7 @@
                         </div>
 
                         <div id="simMetricsPanel" style="display: none; margin-top: 1rem; background: rgba(0,240,180,0.08); border: 1px solid rgba(0,240,180,0.3); border-radius: 8px; padding: 0.85rem;">
-                            <div style="font-weight: 800; color: var(--accent-green);" id="simRedText">92.4% Token Reduction</div>
+                            <div style="font-weight: 800; color: var(--accent-green);" id="simRedText">— Token Reduction</div>
                             <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;" id="simTokenText">Active: 380 tokens | Raw: 4,500 tokens</div>
                         </div>
                     </div>
@@ -3771,7 +3771,7 @@
                         second: '2-digit'
                     }) : (currentLang === 'fa' ? 'هم‌اکنون' : 'Just now');
                     const projStr = item.project_id || 'neuromesh';
-                    const reduction = item.token_reduction_pct ? item.token_reduction_pct.toFixed(1) : '90.0';
+                    const reduction = item.token_reduction_pct ? item.token_reduction_pct.toFixed(1) : '0.0';
                     const mode = item.mode || 'Balanced';
                     const before = item.tokens_before || 0;
                     const after = item.tokens_after || 0;

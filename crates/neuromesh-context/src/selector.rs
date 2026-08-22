@@ -1,13 +1,19 @@
 use neuromesh_core::{EdgeConfidence, EdgeType, NodeId, NodeType, OptimizationMode};
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
+
+/// Extra tokens allowed *on top of* seed files. Seeds always ship.
+pub fn fill_budget(mode: OptimizationMode) -> usize {
+    match mode {
+        OptimizationMode::MaxSavings => 0,
+        OptimizationMode::Balanced => 8_000,
+        OptimizationMode::MaxQuality => 16_000,
+    }
+}
 
 pub fn token_budget(mode: OptimizationMode) -> usize {
-    match mode {
-        OptimizationMode::MaxSavings => 900,
-        OptimizationMode::Balanced => 2_500,
-        OptimizationMode::MaxQuality => 6_000,
-    }
+    fill_budget(mode)
 }
 
 pub fn budget_mode_name(mode: OptimizationMode) -> &'static str {
@@ -21,230 +27,357 @@ pub fn budget_mode_name(mode: OptimizationMode) -> &'static str {
 #[derive(Debug, Clone)]
 pub struct Selection {
     pub node_ids: Vec<NodeId>,
+    pub required: Vec<NodeId>,
+    pub optional: Vec<NodeId>,
     pub scores: HashMap<NodeId, f32>,
     pub budget_used: usize,
     pub budget_cap: usize,
     pub method: &'static str,
 }
 
-/// Steiner union of seed connectors, then greedy submodular fill under a token budget.
-/// Physarum is not on this path; gold compares it separately.
+/// Seed files/symbols are required. Connectors are ranked for the activator to
+/// fill under a real post-skeleton token budget. Docs and fixtures stay out of
+/// the optional list unless they themselves are seeds.
 pub fn select(
     graph: &NeuralProjectGraph,
     neighborhood: &HashSet<NodeId>,
     seeds: &HashSet<NodeId>,
     seed_energies: &HashMap<NodeId, f32>,
+    focus_terms: &HashSet<String>,
     mode: OptimizationMode,
 ) -> Selection {
-    let budget = token_budget(mode);
-    let mut selected: HashSet<NodeId> = HashSet::new();
+    let fill_cap = fill_budget(mode);
+    let _ = neighborhood;
+    let mut required: HashSet<NodeId> = HashSet::new();
     let mut scores: HashMap<NodeId, f32> = HashMap::new();
-    let mut used = 0usize;
 
     for seed in seeds {
         if let Some(node) = graph.get_node(seed) {
-            include_node(
-                graph,
-                &node.id,
+            required.insert(node.id.clone());
+            scores.insert(
+                node.id.clone(),
                 10.0 * seed_energies.get(seed).copied().unwrap_or(1.0),
-                true,
-                budget,
-                &mut selected,
-                &mut scores,
-                &mut used,
             );
-        }
-    }
-
-    let mut evidence: HashSet<NodeId> = HashSet::new();
-    let mut evidence_sources: HashSet<NodeId> = seeds.clone();
-    for seed in seeds {
-        if let Some(node) = graph.get_node(seed) {
-            if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
-                evidence_sources.insert(file_id);
+            if node.node_type != NodeType::File {
+                if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                    required.insert(file_id.clone());
+                    scores.entry(file_id).or_insert(8.5);
+                }
             }
         }
     }
-    for source in &evidence_sources {
-        for (neighbor, edge) in graph.get_connected_neighbors(source) {
-            if matches!(
-                edge.edge_type,
-                EdgeType::Calls | EdgeType::Imports | EdgeType::DependsOn
-            ) && edge.confidence != EdgeConfidence::Unresolved
-            {
-                evidence.insert(neighbor);
-            }
-        }
-    }
-    for id in &evidence {
-        include_node(
-            graph,
-            id,
-            7.5,
-            true,
-            budget,
-            &mut selected,
-            &mut scores,
-            &mut used,
-        );
-    }
 
-    let steiner = graph.steiner_union(seeds);
-    for id in &steiner {
-        if !neighborhood.contains(id) && !seeds.contains(id) {
+    let hop_limit = match mode {
+        OptimizationMode::MaxSavings => 0,
+        OptimizationMode::Balanced => 1,
+        OptimizationMode::MaxQuality => 2,
+    };
+    let max_extra_files = match mode {
+        OptimizationMode::MaxSavings => 0,
+        OptimizationMode::Balanced => 8,
+        OptimizationMode::MaxQuality => 14,
+    };
+
+    let mut file_scores: HashMap<NodeId, f32> = HashMap::new();
+    let bump_file = |scores: &mut HashMap<NodeId, f32>, id: &NodeId, amount: f32| {
+        if required.contains(id) || is_noise_node(graph, id) {
+            return;
+        }
+        if graph
+            .get_node(id)
+            .is_some_and(|n| n.node_type == NodeType::File && n.token_cost > 10_000)
+        {
+            return;
+        }
+        *scores.entry(id.clone()).or_insert(0.0) += amount;
+    };
+
+    for term in focus_terms {
+        if term.len() < 4 {
             continue;
         }
-        include_node(
-            graph,
-            id,
-            6.0,
-            seeds.contains(id),
-            budget,
-            &mut selected,
-            &mut scores,
-            &mut used,
-        );
-    }
-
-    let mut remaining: Vec<NodeId> = neighborhood
-        .iter()
-        .filter(|id| !selected.contains(*id))
-        .cloned()
-        .collect();
-
-    loop {
-        let mut best: Option<(NodeId, f32, usize)> = None;
-        for id in &remaining {
-            let Some(node) = graph.get_node(id) else {
-                continue;
-            };
-            let cost = node_cost(&node).max(1);
-            if used.saturating_add(cost) > budget {
-                continue;
-            }
-            let gain = marginal_utility(graph, &node.id, &selected, seeds, seed_energies);
-            let ratio = gain / cost as f32;
-            if best
-                .as_ref()
-                .is_none_or(|(_, best_ratio, _)| ratio > *best_ratio)
-            {
-                best = Some((id.clone(), ratio, cost));
+        if let Some((id, _)) = graph.resolve_ranked(term, None, None) {
+            if let Some(node) = graph.get_node(&id) {
+                if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                    bump_file(&mut file_scores, &file_id, 15.0);
+                }
             }
         }
-        let Some((id, ratio, cost)) = best else {
-            break;
+    }
+
+    for seed in seeds {
+        let Some(seed_node) = graph.get_node(seed) else {
+            continue;
         };
-        if ratio <= 0.0 {
-            break;
+        if seed_node.node_type != NodeType::File {
+            for (neighbor, edge) in graph.get_connected_neighbors(seed) {
+                if edge.confidence == EdgeConfidence::Unresolved {
+                    continue;
+                }
+                let outbound_call = edge.edge_type == EdgeType::Calls && edge.source == *seed;
+                let inbound_use = hop_limit > 0
+                    && (edge.edge_type == EdgeType::Calls || edge.edge_type == EdgeType::Imports)
+                    && edge.target == *seed;
+                if !outbound_call && !inbound_use {
+                    continue;
+                }
+                if let Some(node) = graph.get_node(&neighbor) {
+                    if outbound_call && is_common_call(&node.name) {
+                        continue;
+                    }
+                    if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                        bump_file(
+                            &mut file_scores,
+                            &file_id,
+                            if outbound_call { 12.0 } else { 10.0 },
+                        );
+                    }
+                    scores.entry(neighbor.clone()).or_insert(9.0);
+                }
+            }
         }
-        selected.insert(id.clone());
-        scores.insert(id.clone(), ratio * cost as f32);
-        used = used.saturating_add(cost);
-        remaining.retain(|other| other != &id);
+        if hop_limit == 0 {
+            continue;
+        }
+        if let Some(file_id) = graph.file_id_for_path(&seed_node.file_path) {
+            for (neighbor, edge) in graph.get_connected_neighbors(&file_id) {
+                if edge.edge_type != EdgeType::Imports || edge.source != file_id {
+                    continue;
+                }
+                if edge.confidence == EdgeConfidence::Unresolved {
+                    continue;
+                }
+                if let Some(node) = graph.get_node(&neighbor) {
+                    if is_common_import(&node.name) {
+                        continue;
+                    }
+                    if let Some(imported_file) = graph.file_id_for_path(&node.file_path) {
+                        bump_file(&mut file_scores, &imported_file, 8.0);
+                    }
+                }
+            }
+        }
     }
 
-    let mut node_ids: Vec<NodeId> = selected.into_iter().collect();
-    node_ids.sort_by(|a, b| {
+    if hop_limit >= 2 {
+        for id in graph.steiner_union(seeds) {
+            if let Some(node) = graph.get_node(&id) {
+                if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                    bump_file(&mut file_scores, &file_id, 1.5);
+                }
+            }
+        }
+    }
+
+    let mut optional_files: Vec<(NodeId, f32)> = file_scores.into_iter().collect();
+    optional_files.sort_by(|a, b| {
+        let score = b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal);
+        if score != std::cmp::Ordering::Equal {
+            return score;
+        }
+        let pa = graph
+            .get_node(&a.0)
+            .map(|n| n.file_path.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let pb = graph
+            .get_node(&b.0)
+            .map(|n| n.file_path.to_string_lossy().to_string())
+            .unwrap_or_default();
+        pa.cmp(&pb)
+    });
+
+    let per_crate_limit = match mode {
+        OptimizationMode::MaxSavings => 0,
+        OptimizationMode::Balanced => 2,
+        OptimizationMode::MaxQuality => 3,
+    };
+    let mut per_crate: HashMap<String, usize> = HashMap::new();
+    let mut limited = Vec::new();
+    for (id, gain) in optional_files {
+        if limited.len() >= max_extra_files {
+            break;
+        }
+        let crate_key = graph
+            .get_node(&id)
+            .map(|n| crate_dir(&n.file_path))
+            .unwrap_or_default();
+        let count = per_crate.entry(crate_key).or_insert(0);
+        if *count >= per_crate_limit {
+            continue;
+        }
+        *count += 1;
+        limited.push((id, gain));
+    }
+    optional_files = limited;
+
+    let mut optional_ids = Vec::new();
+    for (id, gain) in optional_files {
+        scores.entry(id.clone()).or_insert(gain);
+        optional_ids.push(id);
+    }
+
+    let mut required_ids: Vec<NodeId> = required.iter().cloned().collect();
+    required_ids.sort_by(|a, b| {
         let sa = scores.get(a).copied().unwrap_or(0.0);
         let sb = scores.get(b).copied().unwrap_or(0.0);
         sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    let mut node_ids = required_ids.clone();
+    node_ids.extend(optional_ids.iter().cloned());
+
     Selection {
         node_ids,
+        required: required_ids,
+        optional: optional_ids,
         scores,
-        budget_used: used.min(budget),
-        budget_cap: budget,
-        method: "steiner_greedy",
+        budget_used: 0,
+        budget_cap: fill_cap,
+        method: "seed_then_fill",
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn include_node(
-    graph: &NeuralProjectGraph,
-    id: &NodeId,
-    score: f32,
-    force: bool,
-    budget: usize,
-    selected: &mut HashSet<NodeId>,
-    scores: &mut HashMap<NodeId, f32>,
-    used: &mut usize,
-) {
-    if selected.contains(id) {
-        scores.entry(id.clone()).or_insert(score);
-        return;
-    }
-    let Some(node) = graph.get_node(id) else {
-        return;
-    };
-    let cost = node_cost(&node);
-    if !force && used.saturating_add(cost) > budget {
-        return;
-    }
-    selected.insert(id.clone());
-    scores.insert(id.clone(), score);
-    *used = used.saturating_add(cost);
-    if node.node_type != NodeType::File {
-        if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
-            include_node(
-                graph,
-                &file_id,
-                (score * 0.85).max(4.0),
-                force,
-                budget,
-                selected,
-                scores,
-                used,
-            );
-        }
-    }
+fn is_noise_node(graph: &NeuralProjectGraph, id: &NodeId) -> bool {
+    graph.get_node(id).is_some_and(|n| is_noise_path(&n.file_path))
 }
 
-fn node_cost(node: &neuromesh_core::ContextNode) -> usize {
-    if node.node_type == NodeType::File {
-        // Packet files are skeletonized; charge an exon-aware estimate, not raw size.
-        (node.token_cost / 4).clamp(48, 900)
-    } else {
-        node.token_cost.clamp(1, 48)
+fn crate_dir(path: &Path) -> String {
+    let parts: Vec<String> = path
+        .iter()
+        .map(|s| s.to_string_lossy().replace('\\', "/"))
+        .collect();
+    if let Some(idx) = parts
+        .iter()
+        .position(|p| p == "crates" || p == "packages" || p == "apps")
+    {
+        if let Some(name) = parts.get(idx + 1) {
+            if !name.is_empty() && name != "src" {
+                return name.clone();
+            }
+        }
     }
+    if let Some(src_idx) = parts.iter().rposition(|p| p == "src") {
+        if src_idx > 0 {
+            let parent = &parts[src_idx - 1];
+            if !parent.is_empty() {
+                return parent.clone();
+            }
+        }
+    }
+    path.parent()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "pkg".into())
 }
 
-fn marginal_utility(
-    graph: &NeuralProjectGraph,
-    candidate: &NodeId,
-    selected: &HashSet<NodeId>,
-    seeds: &HashSet<NodeId>,
-    seed_energies: &HashMap<NodeId, f32>,
-) -> f32 {
-    if seeds.contains(candidate) {
-        return 12.0 * seed_energies.get(candidate).copied().unwrap_or(1.0);
-    }
-    let mut utility = 0.15;
-    for (neighbor, edge) in graph.get_connected_neighbors(candidate) {
-        if !selected.contains(&neighbor) && !seeds.contains(&neighbor) {
-            continue;
-        }
-        let conf = match edge.confidence {
-            EdgeConfidence::Proven => 1.0,
-            EdgeConfidence::Likely => 0.55,
-            EdgeConfidence::Unresolved => 0.1,
-        };
-        let kind = match edge.edge_type {
-            EdgeType::Calls | EdgeType::Imports => 3.2,
-            EdgeType::DependsOn => 2.2,
-            EdgeType::Contains => 1.4,
-            EdgeType::PreviouslySuccessfulWith => 2.8,
-            _ => 0.7,
-        };
-        utility += kind * conf * (0.5 + edge.pheromone_weight);
-    }
-    if let Some(node) = graph.get_node(candidate) {
-        if node.node_type == NodeType::File {
-            utility += 0.4;
-        }
-        utility += node.base_relevance * 0.2;
-    }
-    utility
+pub fn is_noise_path(path: &Path) -> bool {
+    let lower = path.to_string_lossy().replace('\\', "/").to_lowercase();
+    lower.ends_with(".md")
+        || lower.ends_with(".txt")
+        || lower.ends_with(".rst")
+        || lower.contains("/docs/")
+        || lower.contains("/changelog")
+        || lower.ends_with("/license")
+        || lower.contains("quality_tests")
+        || lower.contains("repo_quality_tests")
+        || lower.contains("/tests/")
+        || lower.contains("_tests.rs")
+}
+
+pub fn is_common_call(name: &str) -> bool {
+    matches!(
+        name,
+        "as_str"
+            | "as_u64"
+            | "as_array"
+            | "as_ref"
+            | "as_mut"
+            | "and_then"
+            | "or_else"
+            | "unwrap_or"
+            | "unwrap_or_else"
+            | "unwrap_or_default"
+            | "unwrap"
+            | "expect"
+            | "clone"
+            | "cloned"
+            | "copied"
+            | "to_string"
+            | "to_lowercase"
+            | "to_owned"
+            | "into_owned"
+            | "into_iter"
+            | "into"
+            | "from"
+            | "insert"
+            | "push"
+            | "get"
+            | "len"
+            | "is_empty"
+            | "is_some"
+            | "is_none"
+            | "take"
+            | "next"
+            | "collect"
+            | "iter"
+            | "filter"
+            | "map"
+            | "any"
+            | "all"
+            | "find"
+            | "default"
+            | "format"
+            | "json"
+            | "ok"
+            | "err"
+            | "now"
+            | "elapsed"
+            | "as_millis"
+            | "chars"
+            | "replace"
+            | "split"
+            | "trim"
+            | "contains"
+            | "starts_with"
+            | "ends_with"
+            | "parse"
+            | "from_str"
+            | "record_global_telemetry"
+            | "max"
+            | "min"
+            | "saturating_sub"
+            | "saturating_add"
+    )
+}
+
+fn is_common_import(name: &str) -> bool {
+    matches!(
+        name,
+        "Result"
+            | "Option"
+            | "Error"
+            | "NodeId"
+            | "HashSet"
+            | "HashMap"
+            | "Arc"
+            | "Vec"
+            | "String"
+            | "Value"
+            | "Instant"
+            | "PathBuf"
+            | "Path"
+            | "OptimizationMode"
+            | "Config"
+            | "Duration"
+            | "Utc"
+            | "NeuralProjectGraph"
+            | "CodeIntelligenceEngine"
+            | "IndexedFile"
+            | "SourceLanguage"
+            | "ProjectId"
+            | "TokenCounter"
+    )
 }
 
 /// Baseline used only in tests: first N file nodes by path order.
@@ -354,6 +487,7 @@ pub fn target() {
             &neighborhood,
             &seeds,
             &energies,
+            &HashSet::new(),
             OptimizationMode::Balanced,
         );
 
@@ -386,9 +520,69 @@ pub fn target() {
 
         assert!(
             steiner_hits > baseline_hits,
-            "steiner+greedy recall {steiner_hits} should beat first-5 {baseline_hits}; selected={selected_files:?}"
+            "seed+connectors recall {steiner_hits} should beat first-5 {baseline_hits}; selected={selected_files:?}"
         );
-        assert!(selected.budget_used <= selected.budget_cap);
-        assert_eq!(selected.method, "steiner_greedy");
+        assert_eq!(selected.method, "seed_then_fill");
+        assert!(selected.required.iter().any(|id| {
+            graph
+                .get_node(id)
+                .is_some_and(|n| n.file_path.ends_with("seed.rs"))
+        }));
+    }
+
+    #[test]
+    fn max_savings_does_not_queue_connectors() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("gold"));
+        let seed_src = "pub fn start() { helper(); }\n";
+        let helper_src = "pub fn helper() {}\n";
+        graph.ingest_file(
+            &indexed("seed.rs", 20),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("seed.rs"),
+                seed_src,
+                SourceLanguage::Rust,
+            ),
+            Some(seed_src),
+        );
+        graph.ingest_file(
+            &indexed("helper.rs", 20),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("helper.rs"),
+                helper_src,
+                SourceLanguage::Rust,
+            ),
+            Some(helper_src),
+        );
+        graph.finalize_links();
+        let start = graph.resolve_unique("start", Some("seed.rs")).expect("start");
+        let mut seeds = HashSet::new();
+        seeds.insert(start.clone());
+        let neighborhood = graph.neighborhood(&seeds, 2);
+        let mut energies = HashMap::new();
+        energies.insert(start, 1.0);
+        let selected = select(
+            &graph,
+            &neighborhood,
+            &seeds,
+            &energies,
+            &HashSet::new(),
+            OptimizationMode::MaxSavings,
+        );
+        assert!(selected.optional.is_empty());
+        assert_eq!(selected.budget_cap, 0);
+    }
+
+    #[test]
+    fn crate_dir_reads_workspace_crate_name() {
+        assert_eq!(
+            crate_dir(Path::new("crates/neuromesh-context/src/activator.rs")),
+            "neuromesh-context"
+        );
+        let nested = PathBuf::from("crates")
+            .join("neuromesh-task")
+            .join("src")
+            .join("signature.rs");
+        assert_eq!(crate_dir(&nested), "neuromesh-task");
+        assert_eq!(crate_dir(Path::new("seed.rs")), "pkg");
     }
 }

@@ -14,5 +14,5 @@ pub use expansion::{ExpansionAuditRecord, ExpansionEngine};
 pub use genetic_optimizer::{ContextChromosome, GeneticContextOptimizer};
 pub use registry::ReversibleContextRegistry;
 pub use scoring::{ActivationScorer, ScoringWeights};
-pub use selector::{select, token_budget, Selection};
+pub use selector::{fill_budget, select, token_budget, Selection};
 pub use skeleton::{CodeSkeletonizer, FoldedIntron, SkeletonResult};

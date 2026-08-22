@@ -284,6 +284,18 @@ pub struct ContextView {
     pub budget_cap: usize,
     #[serde(default)]
     pub budget_mode: String,
+    /// Tokens that must ship (resolved seed files/symbols after skeletonize).
+    #[serde(default)]
+    pub budget_seed_tokens: usize,
+    /// Extra connector tokens actually filled.
+    #[serde(default)]
+    pub budget_fill_used: usize,
+    /// Extra connector allowance for this mode (0 / 8000 / 16000 on top of seeds).
+    #[serde(default)]
+    pub budget_fill_cap: usize,
+    /// True when fill exceeded fill_cap (should not happen) or seeds alone are huge.
+    #[serde(default)]
+    pub over_budget: bool,
     #[serde(default)]
     pub fold_ids: Vec<String>,
 }

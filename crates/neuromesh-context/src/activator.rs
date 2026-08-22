@@ -1,6 +1,6 @@
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
-use crate::selector::{budget_mode_name, select};
+use crate::selector::{budget_mode_name, fill_budget, is_noise_path, select};
 use crate::skeleton::CodeSkeletonizer;
 use neuromesh_core::{
     ActivatedNodeView, ContextStatus, ContextView, CoverageReport, EdgeType, NextAction, NodeId,
@@ -51,17 +51,17 @@ impl ContextActivator {
         let mut seed_reasons: HashMap<NodeId, String> = HashMap::new();
 
         let mut queries: Vec<(String, f32, &str)> = Vec::new();
-        if !signature.entity.is_empty() && signature.entity != "Workspace" {
-            queries.push((signature.entity.clone(), 1.0, "entity"));
-        }
         for ident in &signature.identifiers {
             queries.push((ident.clone(), 1.0, "identifier"));
         }
+        if !signature.entity.is_empty()
+            && signature.entity != "Workspace"
+            && !signature.identifiers.iter().any(|id| id == &signature.entity)
+        {
+            queries.push((signature.entity.clone(), 1.0, "entity"));
+        }
         for hint in &signature.file_hints {
             queries.push((hint.clone(), 0.95, "file"));
-        }
-        for concept in signature.related_concepts.iter().take(6) {
-            queries.push((concept.clone(), 0.72, "concept"));
         }
 
         if queries.is_empty() {
@@ -138,15 +138,27 @@ impl ContextActivator {
             graph.neighborhood(&seed_set, hops)
         };
 
-        if seed_set.len() >= 2 && neighborhood.len() <= 400 {
-            let physarum = graph.solve_physarum_local(&seed_set, hops);
-            for id in physarum.active_nodes {
-                if neighborhood.contains(&id) {
-                    let flux = physarum.node_flux.get(&id).copied().unwrap_or(0.0);
-                    seed_energies
-                        .entry(id)
-                        .and_modify(|energy| *energy = (*energy).max(0.35 + 0.2 * flux));
-                }
+        let mut focus_terms: HashSet<String> = HashSet::new();
+        for ident in &signature.identifiers {
+            focus_terms.insert(ident.to_lowercase());
+        }
+        for hint in &signature.file_hints {
+            if let Some(stem) = std::path::Path::new(hint)
+                .file_stem()
+                .and_then(|s| s.to_str())
+            {
+                focus_terms.insert(stem.to_lowercase());
+            }
+        }
+        for token in signature.raw_prompt.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            let t = token.to_lowercase();
+            if t.len() >= 5
+                && !matches!(
+                    t.as_str(),
+                    "where" | "about" | "does" | "using" | "should" | "would" | "could"
+                )
+            {
+                focus_terms.insert(t);
             }
         }
 
@@ -155,36 +167,10 @@ impl ContextActivator {
             &neighborhood,
             &seed_set,
             &seed_energies,
+            &focus_terms,
             effective_mode,
         );
-        let selected: HashSet<NodeId> = selection.node_ids.iter().cloned().collect();
-
-        let mut kept = Vec::new();
-        for id in &selection.node_ids {
-            let Some(node) = graph.get_node(id) else {
-                continue;
-            };
-            let rel_strength = *seed_energies.get(id).unwrap_or(&0.35);
-            let score = selection
-                .scores
-                .get(id)
-                .copied()
-                .unwrap_or_else(|| self.scorer.score_node(&node, signature, rel_strength, 1.0));
-            kept.push((node, score));
-        }
-
-        let mut inactive_count = 0usize;
-        for id in &neighborhood {
-            if selected.contains(id) || inactive_count >= MAX_INACTIVE {
-                continue;
-            }
-            if let Some(node) = graph.get_node(id) {
-                let score = self.scorer.score_node(&node, signature, 0.2, 1.0);
-                self.registry
-                    .register_inactive(&node, 0.2, signature.confidence, score, None);
-                inactive_count += 1;
-            }
-        }
+        let fill_cap = fill_budget(effective_mode);
 
         let mut active_symbol_names: HashSet<String> = HashSet::new();
         active_symbol_names.insert(signature.entity.to_lowercase());
@@ -201,38 +187,127 @@ impl ContextActivator {
         }
 
         let mut active_nodes = Vec::new();
+        let mut included: HashSet<NodeId> = HashSet::new();
         let mut active_tokens = 0;
+        let mut seed_tokens = 0;
+        let mut fill_used: usize = 0;
         let mut total_raw_tokens = 0;
         let mut fold_ids = Vec::new();
 
-        for (mut node, score) in kept {
-            if let Some(content) = node.content.clone() {
-                total_raw_tokens += neuromesh_core::TokenCounter::count_tokens(&content);
+        let materialize = |id: &NodeId,
+                           scores: &HashMap<NodeId, f32>,
+                           seed_energies: &HashMap<NodeId, f32>,
+                           seed_reasons: &HashMap<NodeId, String>,
+                           scorer: &crate::scoring::ActivationScorer|
+         -> Option<(neuromesh_core::ContextNode, f32, String, usize, Vec<String>)> {
+            let mut node = graph.get_node(id)?;
+            if is_noise_path(&node.file_path) && !seed_set.contains(id) {
+                let seed_file = seed_set.iter().any(|s| {
+                    graph
+                        .get_node(s)
+                        .is_some_and(|n| n.file_path == node.file_path)
+                });
+                if !seed_file {
+                    return None;
+                }
+            }
+            let rel_strength = *seed_energies.get(id).unwrap_or(&0.35);
+            let score = scores.get(id).copied().unwrap_or_else(|| {
+                scorer.score_node(&node, signature, rel_strength, 1.0)
+            });
+            let reason = seed_reasons.get(id).cloned().unwrap_or_else(|| {
+                scores
+                    .get(id)
+                    .map(|s| format!("utility:{s:.2}"))
+                    .unwrap_or_else(|| "connector".into())
+            });
+            let mut folds = Vec::new();
+            let raw = if let Some(content) = node.content.clone() {
+                let raw = neuromesh_core::TokenCounter::count_tokens(&content);
                 let skeleton_res = CodeSkeletonizer::skeletonize(
                     &node.file_path.to_string_lossy(),
                     &content,
                     &active_symbol_names,
                 );
-                fold_ids.extend(skeleton_res.folds.iter().map(|f| f.fold_id.clone()));
+                folds.extend(skeleton_res.folds.iter().map(|f| f.fold_id.clone()));
                 node.content = Some(skeleton_res.skeleton_code);
                 node.token_cost = skeleton_res.skeleton_tokens;
+                raw
             } else {
-                total_raw_tokens += node.token_cost;
-            }
+                node.token_cost
+            };
+            Some((node, score, reason, raw, folds))
+        };
 
+        for id in &selection.required {
+            if included.contains(id) {
+                continue;
+            }
+            let Some((node, score, reason, raw, folds)) = materialize(
+                id,
+                &selection.scores,
+                &seed_energies,
+                &seed_reasons,
+                &self.scorer,
+            ) else {
+                continue;
+            };
+            included.insert(id.clone());
+            total_raw_tokens += raw;
+            seed_tokens += node.token_cost;
             active_tokens += node.token_cost;
-            let reason = seed_reasons.get(&node.id).cloned().or_else(|| {
-                selection
-                    .scores
-                    .get(&node.id)
-                    .map(|s| format!("utility:{s:.2}"))
-            });
+            fold_ids.extend(folds);
             active_nodes.push(ActivatedNodeView {
                 node,
                 activation_score: score,
                 status: ContextStatus::Active,
-                expansion_reason: reason,
+                expansion_reason: Some(reason),
             });
+        }
+
+        for id in &selection.optional {
+            if included.contains(id) {
+                continue;
+            }
+            let Some((node, score, reason, raw, folds)) = materialize(
+                id,
+                &selection.scores,
+                &seed_energies,
+                &seed_reasons,
+                &self.scorer,
+            ) else {
+                continue;
+            };
+            let cost = node.token_cost.max(1);
+            if cost > fill_cap || (fill_used > 0 && fill_used.saturating_add(cost) > fill_cap) {
+                self.registry
+                    .register_inactive(&node, 0.2, signature.confidence, score, None);
+                continue;
+            }
+            included.insert(id.clone());
+            total_raw_tokens += raw;
+            fill_used += cost;
+            active_tokens += cost;
+            fold_ids.extend(folds);
+            active_nodes.push(ActivatedNodeView {
+                node,
+                activation_score: score,
+                status: ContextStatus::Active,
+                expansion_reason: Some(reason),
+            });
+        }
+
+        let mut inactive_count = 0usize;
+        for id in &neighborhood {
+            if included.contains(id) || inactive_count >= MAX_INACTIVE {
+                continue;
+            }
+            if let Some(node) = graph.get_node(id) {
+                let score = self.scorer.score_node(&node, signature, 0.2, 1.0);
+                self.registry
+                    .register_inactive(&node, 0.2, signature.confidence, score, None);
+                inactive_count += 1;
+            }
         }
 
         let mut inactive_descriptors = self.registry.get_inactive_descriptors();
@@ -243,13 +318,14 @@ impl ContextActivator {
         });
         inactive_descriptors.truncate(MAX_INACTIVE);
 
+        let workspace_tokens = graph.total_tokens().max(1);
         if total_raw_tokens == 0 {
-            total_raw_tokens = graph.total_tokens().max(active_tokens);
+            total_raw_tokens = workspace_tokens.max(active_tokens);
         }
 
-        let reduction_percentage = if total_raw_tokens > 0 {
-            let saved = total_raw_tokens.saturating_sub(active_tokens);
-            (saved as f32 / total_raw_tokens as f32) * 100.0
+        let reduction_percentage = if workspace_tokens > 0 {
+            let saved = workspace_tokens.saturating_sub(active_tokens);
+            (saved as f32 / workspace_tokens as f32) * 100.0
         } else {
             0.0
         };
@@ -272,7 +348,7 @@ impl ContextActivator {
         let next_actions = build_next_actions(
             graph,
             &active_nodes,
-            &selected,
+            &included,
             &coverage,
             &fold_ids,
             &unresolved,
@@ -291,9 +367,13 @@ impl ContextActivator {
             unresolved,
             coverage: Some(coverage),
             next_actions,
-            budget_used: selection.budget_used.max(active_tokens),
-            budget_cap: selection.budget_cap,
+            budget_used: active_tokens,
+            budget_cap: seed_tokens.saturating_add(fill_cap),
             budget_mode: budget_mode_name(effective_mode).to_string(),
+            budget_seed_tokens: seed_tokens,
+            budget_fill_used: fill_used,
+            budget_fill_cap: fill_cap,
+            over_budget: fill_used > fill_cap,
             fold_ids,
         }
     }

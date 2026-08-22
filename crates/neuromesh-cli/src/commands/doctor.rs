@@ -1,38 +1,42 @@
 use neuromesh_core::Result;
+use neuromesh_index::ProjectWalker;
+use std::env;
 use std::net::TcpListener;
 
 pub fn execute() -> Result<()> {
-    println!("\n🩺 NeuroMesh Doctor Diagnostic Report");
-    println!("===============================================");
+    println!("\nNeuroMesh doctor");
+    println!("OS             : {} ({})", env::consts::OS, env::consts::ARCH);
+    println!("Version        : {}", env!("CARGO_PKG_VERSION"));
 
-    // 1. Check OS & Architecture
-    println!(
-        "✓ OS: {} ({})",
-        std::env::consts::OS,
-        std::env::consts::ARCH
-    );
-
-    // 2. Check Port Availability
-    let port = 8765;
-    match TcpListener::bind(format!("127.0.0.1:{}", port)) {
-        Ok(_) => println!("✓ Port {}: Available", port),
-        Err(_) => println!(
-            "⚠ Port {}: Already in use by another instance or service",
-            port
-        ),
+    match TcpListener::bind("127.0.0.1:8765") {
+        Ok(_) => println!("Monitor port   : 8765 available"),
+        Err(_) => println!("Monitor port   : 8765 in use"),
     }
 
-    // 3. Check Embedded Persistence Engine
-    println!("✓ Persistence Engine: High-Performance JSON/WAL Storage Operational");
+    let cwd = env::current_dir()?;
+    let root = ProjectWalker::discover_workspace(&cwd);
+    println!("Workspace      : {}", root.display());
+    if !ProjectWalker::is_safe_workspace(&root) {
+        println!("Safety         : refused (home or drive root)");
+        return Ok(());
+    }
+    println!("Safety         : ok");
 
-    // 4. Check Tree-sitter Code Parsers
-    println!("✓ AST Parsers: Vue 3 SFC, TypeScript, SCSS, Rust, Python, Go, PHP, Java, C# active");
+    let walker = ProjectWalker::new(root.clone(), neuromesh_core::ProjectId::new("doctor"));
+    match walker.scan() {
+        Ok(files) => println!("Scan           : {} source files", files.len()),
+        Err(e) => println!("Scan           : failed ({e})"),
+    }
 
-    // 5. Check Local AI Engine
-    println!("✓ Local AI Inference: GGUF Native Ready (0.6B / 1.5B / 3B)");
-
-    println!("===============================================");
-    println!("All core subsystems healthy.\n");
-
+    let graph_path = root.join(".neuromesh").join("graph.json");
+    println!(
+        "Persisted graph: {}",
+        if graph_path.exists() {
+            "present"
+        } else {
+            "missing (run neuromesh index)"
+        }
+    );
+    println!();
     Ok(())
 }

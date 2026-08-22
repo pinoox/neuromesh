@@ -33,7 +33,7 @@ NeuroMesh is a **context engine**:
 
 1. Extract real identifiers, file hints, and intent from the prompt.
 2. Resolve them uniquely against a structural graph (`Contains`, `Imports`, `Calls`).
-3. Walk only the neighborhood (Physarum on that subgraph, not the whole repo).
+3. Always ship the seed files, then fill outbound callees / inbound usages / imports under a **real fill budget**.
 4. Return a compact **evidence packet**: skeletonized files, ranked symbols, and why each node was included.
 
 One `neuromesh_get_context` call is meant to replace a file-by-file grep/read loop. Precision tools (`search`, `trace`, `impact`, `architecture`) exist when the agent needs a second look.
@@ -74,16 +74,16 @@ v0.3 made the graph structural. v0.4 decides **which of those nodes actually fit
 `neuromesh_get_context` no longer dumps a neighborhood. It:
 
 1. Resolves prompt identifiers to seeds (and records misses instead of hiding them).
-2. Takes a Steiner union of proven `Calls` / `Imports` connectors around those seeds.
-3. Greedy-fills remaining neighborhood nodes under a **token budget** by mode:
+2. Always includes those seed files (after skeletonization). Seeds are not truncated to a fake packet cap.
+3. Fills connectors on top of seeds — outbound `Calls`, inbound usages, and outbound `Imports` — under a **fill budget** by mode:
 
-| Mode | Token cap |
-| :--- | ---: |
-| `MaxSavings` | 900 |
-| `Balanced` | 2,500 |
-| `MaxQuality` | 6,000 |
+| Mode | Extra tokens on top of seeds | Extra files (per crate) |
+| :--- | ---: | ---: |
+| `MaxSavings` | 0 | 0 |
+| `Balanced` | 8,000 | 2 |
+| `MaxQuality` | 16,000 | 3 |
 
-Physarum is off this hot path. Every packet reports `budget.used` / `budget.cap`, seed resolutions, and a coverage claim (`no_recorded_gap` or `partial` when seeds were missed).
+Docs, fixtures, and giant files (>10k raw tokens) stay out of the fill list. Physarum is off this hot path (it remains available as `solve_physarum_context` / spreading activation, not inside `get_context`). Every packet reports `budget.seed_tokens`, `fill_used` / `fill_cap`, seed resolutions, and a coverage claim (`no_recorded_gap` or `partial` when seeds were missed). QualityGate honors the requested mode unless the task is critical (auth / payment / secret).
 
 Quality is locked by a gold harness on this repository (`tests/gold_tasks.toml`):
 
@@ -114,7 +114,7 @@ v0.3 replaces that with a two-pass structural index:
 1. **Extract** symbols, grouped `use`/`import` trees, and calls scoped to the current function.
 2. **Link once** after every file exists: unique name, else unique-in-imported-files, else no edge.
 
-Activation no longer scores the entire graph. It seeds from prompt anchors, walks a bounded neighborhood, and optionally runs Physarum on that subgraph only.
+Activation no longer scores the entire graph. It seeds from prompt anchors, walks a bounded neighborhood, and fills connectors under the mode's fill budget.
 
 ---
 
@@ -150,6 +150,7 @@ cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin 
 neuromesh mcp          # stdio MCP server (what Cursor / Claude / Cline launch)
 neuromesh monitor      # Web UI + SSE on http://127.0.0.1:8765
 neuromesh index        # build the graph + seed project memory
+neuromesh eval         # gold-task recall / packet size / fill budget on this repo
 neuromesh doctor       # local diagnostics
 neuromesh connect      # print ready-to-paste MCP JSON
 ```
@@ -222,15 +223,15 @@ These numbers come from `cargo test -p neuromesh-graph indexes_real_neuromesh_re
 
 | Metric | Before (live MCP on a home-scoped index) | After v0.3–v0.4 (this repo) |
 | :--- | ---: | ---: |
-| Indexed files | 11,564 (user profile) | **139** (workspace, `target/` ignored) |
-| Graph nodes | 34,450 | **872** |
-| Graph edges | 1,230,610 | **1,555** |
-| Resolved `Calls` | not trustworthy | **344** |
-| Resolved `Imports` | exploded fuzzy matches | **444** |
+| Indexed files | 11,564 (user profile) | **141** (workspace, `target/` ignored) |
+| Graph nodes | 34,450 | **893** |
+| Graph edges | 1,230,610 | **1,635** |
+| Resolved `Calls` | not trustworthy | **440** |
+| Resolved `Imports` | exploded fuzzy matches | **411** |
 | `search_symbols("handle_tool_call")` | timed out | **<1 ms**, exact hit |
-| `get_dependencies("neuromesh_get_context")` | 0 neighbors | name resolves; structural neighbors exist |
-| `get_context` | timed out (full-graph + Physarum on 1.2M edges) | token-budget packet (`steiner_greedy`), coverage claim |
-| Full workspace index | unbounded | **519 ms** in the measured debug run |
+| `get_dependencies("handle_tool_call")` | 0 neighbors | **29** structural neighbors |
+| `get_context` | timed out (full-graph + Physarum on 1.2M edges) | seed-then-fill packet, coverage claim, modes differ |
+| Full workspace index | unbounded | **592 ms** in the measured debug run |
 
 Unit tests that lock this in:
 
@@ -239,8 +240,8 @@ Unit tests that lock this in:
 - Unique resolution does not explode edges
 - Ranked search does not treat `"get_context"` as a match for every name contained in the query
 - Context activator keeps the seed symbol and stays under a small node budget
-- Steiner-greedy selector beats “first five files” under a token cap
-- Gold harness: recall ≥ 0.8, missing seeds reported, packet under 50 ms
+- Seed-then-fill selector: seeds always ship; connectors respect crate caps
+- Gold harness: recall ≥ 0.8, missing seeds reported, fill cap enforced, packet under 50 ms
 - Real-repo index + search + trace + architecture
 
 ```bash
@@ -264,16 +265,14 @@ Task anchors (identifiers, paths, intent)
 Unique / import-aware graph resolve
   │
   ▼
-Bounded neighborhood walk
-  │
-  ├─ Physarum Steiner on the subgraph only
-  └─ Hebbian STDP on feedback, not on every edge
+Seed files always ship (skeletonized)
   │
   ▼
-Genetic skeleton (exons kept, introns folded)
+Fill callees / usages / imports under fill_cap
   │
-  ▼
-Osmotic budget gate
+  ├─ MaxSavings: seeds only
+  ├─ Balanced: +8k extra
+  └─ MaxQuality: +16k extra
   │
   ▼
 Evidence packet → MCP client

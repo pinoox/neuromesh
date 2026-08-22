@@ -63,18 +63,16 @@ impl TaskSignature {
 
     /// Determines whether the task requires strict conservative optimization due to risk
     pub fn requires_conservative_mode(&self) -> bool {
-        match self.risk {
-            TaskRisk::Critical | TaskRisk::High => true,
-            _ => {
-                let lower = self.raw_prompt.to_lowercase();
-                lower.contains("auth")
-                    || lower.contains("security")
-                    || lower.contains("payment")
-                    || lower.contains("migration")
-                    || lower.contains("secret")
-                    || lower.contains("credential")
-            }
+        if matches!(self.risk, TaskRisk::Critical) {
+            return true;
         }
+        let lower = self.raw_prompt.to_lowercase();
+        lower.contains("auth")
+            || lower.contains("security")
+            || lower.contains("payment")
+            || lower.contains("migration")
+            || lower.contains("secret")
+            || lower.contains("credential")
     }
 }
 
