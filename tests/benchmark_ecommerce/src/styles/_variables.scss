@@ -1,0 +1,42 @@
+// Color Palette
+$color-primary: #2563eb;
+$color-primary-dark: #1d4ed8;
+$color-secondary: #475569;
+$color-bg: #ffffff;
+$color-bg-alt: #f1f5f9;
+$color-surface: #ffffff;
+$color-text-main: #0f172a;
+$color-text-muted: #64748b;
+$color-border: #e2e8f0;
+
+// Spacing scale
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+$spacing-2xl: 48px;
+
+// Border Radii
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 16px;
+$radius-full: 9999px;
+
+// Shadows
+$shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+$shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+$shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+// Layout Tokens
+$header-height: 72px;
+$container-max-width: 1280px;
+
+// Typography Tokens
+$font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+$font-size-xs: 0.75rem;
+$font-size-sm: 0.875rem;
+$font-size-base: 1rem;
+$font-size-lg: 1.125rem;
+$font-size-xl: 1.25rem;
+$font-size-2xl: 1.5rem;

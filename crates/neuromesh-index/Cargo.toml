@@ -1,0 +1,16 @@
+[package]
+name = "neuromesh-index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+neuromesh-core = { path = "../neuromesh-core" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+walkdir.workspace = true
+tracing.workspace = true
+chrono.workspace = true

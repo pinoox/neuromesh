@@ -1,0 +1,375 @@
+use crate::tools::McpToolHandler;
+use neuromesh_core::Result;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JsonRpcRequest {
+    pub jsonrpc: String,
+    pub id: Option<Value>,
+    pub method: String,
+    pub params: Option<Value>,
+}
+
+pub struct McpServer {
+    handler: Arc<McpToolHandler>,
+}
+
+impl McpServer {
+    pub fn new(handler: Arc<McpToolHandler>) -> Self {
+        Self { handler }
+    }
+
+    pub async fn run_stdio(&self) -> Result<()> {
+        let stdin = tokio::io::stdin();
+        let mut stdout = tokio::io::stdout();
+        let mut reader = BufReader::new(stdin);
+        let mut line = String::new();
+
+        while reader.read_line(&mut line).await? > 0 {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                line.clear();
+                continue;
+            }
+
+            if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(trimmed) {
+                // Per JSON-RPC 2.0 & MCP specs: Notifications have no id and must NEVER receive a response
+                if req.id.is_none() || req.method == "initialized" || req.method.starts_with("notifications/") {
+                    line.clear();
+                    continue;
+                }
+
+                let response = self.process_request(req).await;
+                let out_bytes = serde_json::to_vec(&response).unwrap_or_default();
+                stdout.write_all(&out_bytes).await?;
+                stdout.write_all(b"\n").await?;
+                stdout.flush().await?;
+            }
+
+            line.clear();
+        }
+
+        Ok(())
+    }
+
+    pub async fn process_request(&self, req: JsonRpcRequest) -> Value {
+        match req.method.as_str() {
+            "initialize" => {
+                let params = req.params.as_ref();
+                // Extract workspace root from initialize params if provided
+                if let Some(p) = params {
+                    let mut detected_path: Option<String> = None;
+                    if let Some(folders) = p.get("workspaceFolders").and_then(|f| f.as_array()) {
+                        if let Some(first) = folders.first() {
+                            if let Some(uri) = first.get("uri").and_then(|u| u.as_str()) {
+                                detected_path = Some(uri.trim_start_matches("file://").trim_start_matches("file:///").to_string());
+                            }
+                        }
+                    }
+                    if detected_path.is_none() {
+                        if let Some(uri) = p.get("rootUri").and_then(|u| u.as_str()) {
+                            detected_path = Some(uri.trim_start_matches("file://").trim_start_matches("file:///").to_string());
+                        } else if let Some(path) = p.get("rootPath").and_then(|u| u.as_str()) {
+                            detected_path = Some(path.to_string());
+                        }
+                    }
+
+                    if let Some(raw_p) = detected_path {
+                        #[cfg(windows)]
+                        let clean_path = raw_p.trim_start_matches('/').replace('/', "\\");
+                        #[cfg(not(windows))]
+                        let clean_path = raw_p;
+
+                        let p_buf = std::path::PathBuf::from(&clean_path);
+                        if p_buf.exists() {
+                            let p_name = p_buf.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "project".to_string());
+                            let pid = neuromesh_core::ProjectId::new(&p_name);
+                            self.handler.graph().clear(Some(pid.clone()));
+                            let bg_graph = self.handler.graph().clone();
+                            let bg_dir = p_buf.clone();
+                            let bg_pid = pid.clone();
+                            tokio::spawn(async move {
+                                let walker = neuromesh_index::ProjectWalker::new(bg_dir, bg_pid);
+                                if let Ok(scanned) = walker.scan() {
+                                    for (file, content) in &scanned {
+                                        let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
+                                        bg_graph.ingest_ast(file, &ast);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+
+                let protocol_version = req
+                    .params
+                    .as_ref()
+                    .and_then(|p| p.get("protocolVersion"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("2024-11-05");
+
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": req.id,
+                    "result": {
+                        "protocolVersion": protocol_version,
+                        "capabilities": {
+                            "tools": {
+                                "listChanged": false
+                            },
+                            "prompts": {
+                                "listChanged": false
+                            },
+                            "resources": {
+                                "subscribe": false,
+                                "listChanged": false
+                            },
+                            "logging": {}
+                        },
+                        "serverInfo": {
+                            "name": "neuromesh",
+                            "version": "0.2.0"
+                        }
+                    }
+                })
+            }
+            "ping" => json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "result": {}
+            }),
+            "logging/setLevel" => json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "result": {}
+            }),
+            "tools/list" => json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "result": {
+                    "tools": [
+                        {
+                            "name": "neuromesh_get_context",
+                            "description": "CRITICAL / MUST USE: Activate minimal, bio-genetically skeletonized context using Physarum Steiner optimization for any coding task or question.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "task_description": {
+                                        "type": "string",
+                                        "description": "The user's prompt or coding task description"
+                                    },
+                                    "mode": {
+                                        "type": "string",
+                                        "enum": ["balanced", "max_quality", "max_savings"],
+                                        "description": "Optimization mode (default: 'balanced')"
+                                    }
+                                },
+                                "required": ["task_description"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_get_file_skeleton",
+                            "description": "Get the AST-aware skeleton of a code file with untargeted helper methods folded into reversible folds (reduces tokens by 85-98%).",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "file_path": {
+                                        "type": "string",
+                                        "description": "Relative file path in workspace (e.g. 'src/components/Header.vue')"
+                                    },
+                                    "active_symbols": {
+                                        "type": "array",
+                                        "items": { "type": "string" },
+                                        "description": "List of symbol/function names to keep unfolded"
+                                    }
+                                },
+                                "required": ["file_path"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_expand_fold",
+                            "description": "Reversibly expand a folded intron or inactive node to retrieve full source code.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "node_id": {
+                                        "type": "string",
+                                        "description": "The ID of the fold or inactive node to expand"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "description": "Reason for expansion"
+                                    }
+                                },
+                                "required": ["node_id"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_search_symbols",
+                            "description": "Search the Neural Project Graph for symbol definitions, function signatures, classes, and types.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "Symbol name or keyword to search"
+                                    }
+                                },
+                                "required": ["query"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_get_dependencies",
+                            "description": "Get weighted graph dependencies, synaptic connections, and imports for a symbol or file.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "symbol_or_path": {
+                                        "type": "string",
+                                        "description": "Symbol name or relative file path"
+                                    }
+                                },
+                                "required": ["symbol_or_path"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_record_feedback",
+                            "description": "Record task execution feedback to trigger Synaptic STDP Plasticity learning and reinforce optimal pathways.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "task_success": {
+                                        "type": "boolean",
+                                        "description": "Whether the code change succeeded without errors"
+                                    },
+                                    "touched_nodes": {
+                                        "type": "array",
+                                        "items": { "type": "string" },
+                                        "description": "List of node or symbol IDs modified or verified"
+                                    }
+                                },
+                                "required": ["task_success", "touched_nodes"]
+                            }
+                        },
+                        {
+                            "name": "neuromesh_get_project_memory",
+                            "description": "Retrieve project architectural rules, tech stack decisions, and framework conventions.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {}
+                            }
+                        },
+                        {
+                            "name": "neuromesh_get_stats",
+                            "description": "Retrieve real-time graph density, synaptic health, and biomimetic telemetry.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {}
+                            }
+                        }
+                    ]
+                }
+            }),
+            "tools/call" => {
+                let params = req.params.unwrap_or(Value::Null);
+                let tool_name = params["name"].as_str()
+                    .or_else(|| params["tool"].as_str())
+                    .unwrap_or("");
+
+                let mut args = params.get("arguments")
+                    .or_else(|| params.get("args"))
+                    .or_else(|| params.get("parameters"))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+
+                // If arguments was passed as a JSON string, parse it into an Object
+                if let Some(s) = args.as_str() {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(s) {
+                        args = parsed;
+                    }
+                }
+
+                match self.handler.handle_tool_call(tool_name, &args).await {
+                    Ok(val) => json!({
+                        "jsonrpc": "2.0",
+                        "id": req.id,
+                        "result": { "content": [{ "type": "text", "text": serde_json::to_string_pretty(&val).unwrap_or_else(|_| val.to_string()) }] }
+                    }),
+                    Err(e) => json!({
+                        "jsonrpc": "2.0",
+                        "id": req.id,
+                        "error": { "code": -32603, "message": e.to_string() }
+                    }),
+                }
+            }
+            "prompts/list" => json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "result": {
+                    "prompts": [
+                        {
+                            "name": "activate_context",
+                            "description": "Extract and inject optimized neural context for a task",
+                            "arguments": [
+                                {
+                                    "name": "task",
+                                    "description": "Task description or user prompt",
+                                    "required": true
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }),
+            "prompts/get" => {
+                let params = req.params.unwrap_or(Value::Null);
+                let prompt_name = params["name"].as_str().unwrap_or("");
+                let task_arg = params["arguments"]["task"].as_str().unwrap_or("");
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": req.id,
+                    "result": {
+                        "description": format!("Optimized prompt for {}", prompt_name),
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": {
+                                    "type": "text",
+                                    "text": format!("Please activate NeuroMesh context and solve: {}", task_arg)
+                                }
+                            }
+                        ]
+                    }
+                })
+            }
+            "resources/list" => json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "result": { "resources": [] }
+            }),
+            "resources/templates/list" => json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "result": { "resourceTemplates": [] }
+            }),
+            "completion/complete" => json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "result": {
+                    "completion": {
+                        "values": [],
+                        "hasMore": false
+                    }
+                }
+            }),
+            _ => json!({
+                "jsonrpc": "2.0",
+                "id": req.id,
+                "error": { "code": -32601, "message": format!("Method '{}' not implemented", req.method) }
+            }),
+        }
+    }
+}

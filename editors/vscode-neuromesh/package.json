@@ -1,0 +1,42 @@
+{
+  "name": "vscode-neuromesh",
+  "displayName": "NeuroMesh — Neural Context Runtime & 3D Monitor",
+  "description": "Biomimetic MCP Neural Context Engine & Webview Monitor for Cursor & VS Code",
+  "version": "0.2.0",
+  "publisher": "neuromesh",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "neuromesh.openMonitor",
+        "title": "NeuroMesh: Open 3D Neural Monitor Dashboard",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "neuromesh.reindexProject",
+        "title": "NeuroMesh: Re-index Active Workspace",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "neuromesh.activateContext",
+        "title": "NeuroMesh: Activate Minimal Context for Selection"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "neuromesh.activateContext",
+          "group": "neuromesh"
+        }
+      ]
+    }
+  }
+}

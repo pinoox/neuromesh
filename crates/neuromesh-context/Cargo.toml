@@ -1,0 +1,17 @@
+[package]
+name = "neuromesh-context"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+neuromesh-core = { path = "../neuromesh-core" }
+neuromesh-graph = { path = "../neuromesh-graph" }
+neuromesh-task = { path = "../neuromesh-task" }
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+regex.workspace = true

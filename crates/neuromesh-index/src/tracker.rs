@@ -1,0 +1,139 @@
+use chrono::{DateTime, Utc};
+use neuromesh_core::{ProjectId, TokenCounter};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SourceLanguage {
+    Vue,
+    TypeScript,
+    JavaScript,
+    SCSS,
+    CSS,
+    Rust,
+    Python,
+    Go,
+    PHP,
+    Java,
+    CSharp,
+    C,
+    Cpp,
+    JSON,
+    YAML,
+    Markdown,
+    HTML,
+    SQL,
+    Unknown,
+}
+
+impl SourceLanguage {
+    pub fn from_path(path: &Path) -> Self {
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let filename = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if filename == "cargo.toml" || filename == "cargo.lock" {
+            return SourceLanguage::Rust;
+        }
+        if filename == "package.json" || filename == "tsconfig.json" {
+            return SourceLanguage::JSON;
+        }
+
+        match extension.as_str() {
+            "vue" => SourceLanguage::Vue,
+            "ts" | "tsx" | "mts" | "cts" => SourceLanguage::TypeScript,
+            "js" | "jsx" | "mjs" | "cjs" => SourceLanguage::JavaScript,
+            "scss" | "sass" => SourceLanguage::SCSS,
+            "css" => SourceLanguage::CSS,
+            "rs" => SourceLanguage::Rust,
+            "py" | "pyw" => SourceLanguage::Python,
+            "go" => SourceLanguage::Go,
+            "php" => SourceLanguage::PHP,
+            "java" => SourceLanguage::Java,
+            "cs" => SourceLanguage::CSharp,
+            "c" | "h" => SourceLanguage::C,
+            "cpp" | "hpp" | "cc" | "cxx" => SourceLanguage::Cpp,
+            "json" => SourceLanguage::JSON,
+            "yaml" | "yml" => SourceLanguage::YAML,
+            "md" | "markdown" => SourceLanguage::Markdown,
+            "html" | "htm" => SourceLanguage::HTML,
+            "sql" => SourceLanguage::SQL,
+            _ => SourceLanguage::Unknown,
+        }
+    }
+
+    pub fn is_code(&self) -> bool {
+        !matches!(self, SourceLanguage::Unknown | SourceLanguage::Markdown)
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Vue => "vue",
+            Self::TypeScript => "typescript",
+            Self::JavaScript => "javascript",
+            Self::SCSS => "scss",
+            Self::CSS => "css",
+            Self::Rust => "rust",
+            Self::Python => "python",
+            Self::Go => "go",
+            Self::PHP => "php",
+            Self::Java => "java",
+            Self::CSharp => "csharp",
+            Self::C => "c",
+            Self::Cpp => "cpp",
+            Self::JSON => "json",
+            Self::YAML => "yaml",
+            Self::Markdown => "markdown",
+            Self::HTML => "html",
+            Self::SQL => "sql",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexedFile {
+    pub project_id: ProjectId,
+    pub relative_path: PathBuf,
+    pub full_path: PathBuf,
+    pub blake3_hash: String,
+    pub byte_size: u64,
+    pub token_count: usize,
+    pub language: SourceLanguage,
+    pub last_modified: DateTime<Utc>,
+}
+
+impl IndexedFile {
+    pub fn new(
+        project_id: ProjectId,
+        relative_path: PathBuf,
+        full_path: PathBuf,
+        content: &str,
+        hash: String,
+        byte_size: u64,
+        last_modified: DateTime<Utc>,
+    ) -> Self {
+        let language = SourceLanguage::from_path(&relative_path);
+        let token_count = TokenCounter::count_tokens(content);
+
+        Self {
+            project_id,
+            relative_path,
+            full_path,
+            blake3_hash: hash,
+            byte_size,
+            token_count,
+            language,
+            last_modified,
+        }
+    }
+}

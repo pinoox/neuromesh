@@ -1,0 +1,33 @@
+[package]
+name = "neuromesh-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "neuromesh"
+path = "src/main.rs"
+
+[dependencies]
+neuromesh-core = { path = "../neuromesh-core" }
+neuromesh-index = { path = "../neuromesh-index" }
+neuromesh-parser = { path = "../neuromesh-parser" }
+neuromesh-graph = { path = "../neuromesh-graph" }
+neuromesh-task = { path = "../neuromesh-task" }
+neuromesh-context = { path = "../neuromesh-context" }
+neuromesh-memory = { path = "../neuromesh-memory" }
+neuromesh-cache = { path = "../neuromesh-cache" }
+neuromesh-router = { path = "../neuromesh-router" }
+neuromesh-provider = { path = "../neuromesh-provider" }
+neuromesh-api = { path = "../neuromesh-api" }
+neuromesh-mcp = { path = "../neuromesh-mcp" }
+neuromesh-local-ai = { path = "../neuromesh-local-ai" }
+neuromesh-observability = { path = "../neuromesh-observability" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+parking_lot.workspace = true
+dirs.workspace = true

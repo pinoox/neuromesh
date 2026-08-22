@@ -1,0 +1,49 @@
+﻿# Rust Cargo build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Local SQLite databases & cache
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.log
+
+# Local machine Neuromesh state
+.neuromesh/
+!.neuromesh/config.example.json
+
+# Node & Frontend dependencies
+node_modules/
+dist/
+out/
+package-lock.json
+
+# IDE & Editor files
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Extension packages
+*.vsix
