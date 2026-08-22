@@ -1,11 +1,9 @@
-﻿name: Release & Multi-Platform Precompiled Binaries
+name: Release & Multi-Platform Precompiled Binaries
 
 on:
   push:
     tags:
       - 'v*'
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -27,7 +25,7 @@ jobs:
             target: aarch64-apple-darwin
             artifact_name: neuromesh
             asset_name: neuromesh-darwin-arm64.tar.gz
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: neuromesh
             asset_name: neuromesh-darwin-x86_64.tar.gz
