@@ -77,7 +77,12 @@ impl CodeSkeletonizer {
         }
 
         if !spans.is_empty() {
-            return Self::skeletonize_from_spans(content, active_symbol_names, original_tokens, spans);
+            return Self::skeletonize_from_spans(
+                content,
+                active_symbol_names,
+                original_tokens,
+                spans,
+            );
         }
 
         let is_python = file_path.ends_with(".py");

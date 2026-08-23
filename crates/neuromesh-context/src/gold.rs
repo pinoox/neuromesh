@@ -219,7 +219,9 @@ pub fn packet_paths(view: &ContextView) -> HashSet<String> {
 fn gold_file_hit(gold: &str, names: &HashSet<String>, paths: &HashSet<String>) -> bool {
     let gold = gold.replace('\\', "/");
     if gold.contains('/') {
-        paths.iter().any(|p| p.ends_with(&gold) || p.contains(&gold))
+        paths
+            .iter()
+            .any(|p| p.ends_with(&gold) || p.contains(&gold))
     } else {
         names.contains(&gold)
     }
@@ -350,7 +352,9 @@ mod tests {
                 })
                 .collect();
             assert!(
-                calls.iter().any(|c| c.contains("activator.rs") && c.contains("activate")),
+                calls
+                    .iter()
+                    .any(|c| c.contains("activator.rs") && c.contains("activate")),
                 "handle_tool_call calls should include ContextActivator::activate, got {calls:?}"
             );
         }

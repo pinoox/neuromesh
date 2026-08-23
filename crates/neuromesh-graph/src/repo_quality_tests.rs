@@ -79,7 +79,11 @@ mod tests {
         let trace = graph.trace_symbol("handle_tool_call", crate::TraceDirection::Both, 3);
         assert!(trace.origin.is_some());
 
-        let tools_path = root.join("crates").join("neuromesh-mcp").join("src").join("tools.rs");
+        let tools_path = root
+            .join("crates")
+            .join("neuromesh-mcp")
+            .join("src")
+            .join("tools.rs");
         if let Ok(tools_src) = std::fs::read_to_string(&tools_path) {
             let ast = CodeIntelligenceEngine::analyze(
                 &tools_path,
@@ -97,7 +101,10 @@ mod tests {
                 handle.calls
             );
             assert!(
-                handle.calls.iter().any(|c| c == "evaluate" || c == "activate"),
+                handle
+                    .calls
+                    .iter()
+                    .any(|c| c == "evaluate" || c == "activate"),
                 "evaluate/activate missing: {:?}",
                 handle.calls
             );

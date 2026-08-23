@@ -79,7 +79,10 @@ fn visit(node: Node, ctx: &mut Walk, is_rust: bool) {
         }
         "use_declaration" if is_rust => {
             let text = node.utf8_text(ctx.src).unwrap_or("");
-            let spec = text.trim().trim_start_matches("pub ").trim_start_matches("use ");
+            let spec = text
+                .trim()
+                .trim_start_matches("pub ")
+                .trim_start_matches("use ");
             for (imported, full) in expand_rust_use(spec) {
                 record_import(
                     ctx.result,
@@ -96,13 +99,19 @@ fn visit(node: Node, ctx: &mut Walk, is_rust: bool) {
         "call_expression" => {
             record_call(node, ctx);
         }
-        "struct_item" | "enum_item" | "trait_item" | "type_item" | "class_declaration"
-        | "interface_declaration" | "type_alias_declaration" => {
+        "struct_item"
+        | "enum_item"
+        | "trait_item"
+        | "type_item"
+        | "class_declaration"
+        | "interface_declaration"
+        | "type_alias_declaration" => {
             if let Some(name) = field_text(node, "name", ctx.src) {
                 let kind = match node.kind() {
-                    "trait_item" | "type_item" | "interface_declaration" | "type_alias_declaration" => {
-                        NodeType::Symbol
-                    }
+                    "trait_item"
+                    | "type_item"
+                    | "interface_declaration"
+                    | "type_alias_declaration" => NodeType::Symbol,
                     _ => NodeType::Class,
                 };
                 let exported = node.utf8_text(ctx.src).unwrap_or("").contains("pub ")
@@ -257,10 +266,7 @@ fn is_cfg_test_mod(node: Node, src: &[u8]) -> bool {
     let mut prev = node.prev_named_sibling();
     while let Some(p) = prev {
         if p.kind() == "attribute_item" || p.kind() == "inner_attribute_item" {
-            if p.utf8_text(src)
-                .unwrap_or("")
-                .contains("test")
-            {
+            if p.utf8_text(src).unwrap_or("").contains("test") {
                 return true;
             }
         } else {

@@ -53,10 +53,9 @@ impl ReversibleContextRegistry {
     }
 
     pub fn register_fold(&self, file_path: PathBuf, fold: FoldedIntron) {
-        self.folds.write().insert(
-            fold.fold_id.clone(),
-            StoredFold { fold, file_path },
-        );
+        self.folds
+            .write()
+            .insert(fold.fold_id.clone(), StoredFold { fold, file_path });
     }
 
     pub fn get_fold(&self, fold_id: &str) -> Option<StoredFold> {

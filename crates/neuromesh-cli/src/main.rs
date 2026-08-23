@@ -169,7 +169,9 @@ fn print_help() {
     println!("  graph      Print graph stats");
     println!("  memory     Print project memory facts");
     println!("  optimize   Activate one prompt and print the packet");
-    println!("  eval       Gold-task recall / precision / fill budget on this repo and tests/fixtures");
+    println!(
+        "  eval       Gold-task recall / precision / fill budget on this repo and tests/fixtures"
+    );
     println!("  benchmark  Same as eval");
     println!("  connect    Print MCP JSON for the current binary");
     println!("  doctor     Workspace root, scan, persisted graph, monitor port");

@@ -137,8 +137,7 @@ pub fn execute() -> Result<()> {
                 };
                 for task in tasks {
                     let signature = TaskSignatureExtractor::extract(&task.prompt);
-                    let view =
-                        activator.activate(&graph, &signature, OptimizationMode::Balanced);
+                    let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
                     let metrics = evaluate_view(&task, &view, 0);
                     println!(
                         "    {} recall={:.2} prec={:.2} files={:?}",

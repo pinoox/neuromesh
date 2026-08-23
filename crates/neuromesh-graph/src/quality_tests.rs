@@ -191,7 +191,9 @@ impl SpreadingActivation {
         let neighbors = graph.get_neighbor_views(&handle);
         let activate = neighbors
             .iter()
-            .find(|n| n.node.name == "activate" && n.edge.edge_type == neuromesh_core::EdgeType::Calls)
+            .find(|n| {
+                n.node.name == "activate" && n.edge.edge_type == neuromesh_core::EdgeType::Calls
+            })
             .expect("activate call");
         assert!(
             activate
