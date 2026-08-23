@@ -99,9 +99,9 @@ impl McpToolHandler {
                             "why": n.expansion_reason,
                             "line_range": n.node.line_range,
                             "folded_symbols": n.folded_symbols,
-                            "folds": n.folded_symbols.iter().map(|sym| {
+                            "folds": n.folded_symbols.iter().flat_map(|sym| {
                                 view.fold_ids.iter().filter(|id| id.contains(sym)).cloned().collect::<Vec<_>>()
-                            }).flatten().collect::<Vec<_>>(),
+                            }).collect::<Vec<_>>(),
                         })
                     })
                     .collect();

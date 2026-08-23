@@ -12,6 +12,15 @@ use std::sync::Arc;
 
 const MAX_INACTIVE: usize = 12;
 
+struct MaterializedNode {
+    node: neuromesh_core::ContextNode,
+    score: f32,
+    reason: String,
+    raw_tokens: usize,
+    folds: Vec<String>,
+    folded_symbols: Vec<String>,
+}
+
 pub struct ContextActivator {
     scorer: ActivationScorer,
     registry: Arc<ReversibleContextRegistry>,
@@ -210,14 +219,7 @@ impl ContextActivator {
                            seed_energies: &HashMap<NodeId, f32>,
                            seed_reasons: &HashMap<NodeId, String>,
                            scorer: &crate::scoring::ActivationScorer|
-         -> Option<(
-            neuromesh_core::ContextNode,
-            f32,
-            String,
-            usize,
-            Vec<String>,
-            Vec<String>,
-        )> {
+         -> Option<MaterializedNode> {
             let mut node = graph.get_node(id)?;
             if is_noise_path(&node.file_path) && !seed_set.contains(id) {
                 let seed_file = seed_set.iter().any(|s| {
@@ -262,14 +264,21 @@ impl ContextActivator {
             } else {
                 node.token_cost
             };
-            Some((node, score, reason, raw, folds, folded_symbols))
+            Some(MaterializedNode {
+                node,
+                score,
+                reason,
+                raw_tokens: raw,
+                folds,
+                folded_symbols,
+            })
         };
 
         for id in &selection.required {
             if included.contains(id) {
                 continue;
             }
-            let Some((node, score, reason, raw, folds, folded_symbols)) = materialize(
+            let Some(item) = materialize(
                 id,
                 &selection.scores,
                 &seed_energies,
@@ -279,16 +288,16 @@ impl ContextActivator {
                 continue;
             };
             included.insert(id.clone());
-            total_raw_tokens += raw;
-            seed_tokens += node.token_cost;
-            active_tokens += node.token_cost;
-            fold_ids.extend(folds);
+            total_raw_tokens += item.raw_tokens;
+            seed_tokens += item.node.token_cost;
+            active_tokens += item.node.token_cost;
+            fold_ids.extend(item.folds);
             active_nodes.push(ActivatedNodeView {
-                node,
-                activation_score: score,
+                node: item.node,
+                activation_score: item.score,
                 status: ContextStatus::Active,
-                expansion_reason: Some(reason),
-                folded_symbols,
+                expansion_reason: Some(item.reason),
+                folded_symbols: item.folded_symbols,
             });
         }
 
@@ -296,7 +305,7 @@ impl ContextActivator {
             if included.contains(id) {
                 continue;
             }
-            let Some((node, score, reason, raw, folds, folded_symbols)) = materialize(
+            let Some(item) = materialize(
                 id,
                 &selection.scores,
                 &seed_energies,
@@ -305,23 +314,28 @@ impl ContextActivator {
             ) else {
                 continue;
             };
-            let cost = node.token_cost.max(1);
+            let cost = item.node.token_cost.max(1);
             if fill_cap == 0 || (fill_used > 0 && fill_used.saturating_add(cost) > fill_cap) {
-                self.registry
-                    .register_inactive(&node, 0.2, signature.confidence, score, None);
+                self.registry.register_inactive(
+                    &item.node,
+                    0.2,
+                    signature.confidence,
+                    item.score,
+                    None,
+                );
                 continue;
             }
             included.insert(id.clone());
-            total_raw_tokens += raw;
+            total_raw_tokens += item.raw_tokens;
             fill_used += cost;
             active_tokens += cost;
-            fold_ids.extend(folds);
+            fold_ids.extend(item.folds);
             active_nodes.push(ActivatedNodeView {
-                node,
-                activation_score: score,
+                node: item.node,
+                activation_score: item.score,
                 status: ContextStatus::Active,
-                expansion_reason: Some(reason),
-                folded_symbols,
+                expansion_reason: Some(item.reason),
+                folded_symbols: item.folded_symbols,
             });
         }
 
