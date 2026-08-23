@@ -36,6 +36,9 @@ Show or persist the galaxy monitor HTTP port (default {}).
   neuromesh port 9000      write <cwd>/.neuromesh/config.json
   neuromesh monitor --port 9000   one run only, does not save
 
+`neuromesh mcp` is stdio — it does not bind a port.
+HTTP/SSE MCP uses this monitor port (`/sse`, `/mcp`).
+
 VS Code / Cursor: Settings → neuromesh.port
 ",
         Config::DEFAULT_PORT

@@ -207,6 +207,10 @@ neuromesh monitor --port 9000  # this process only (`-p` works too)
 
 Priority: `--port` / `-p` → `NEUROMESH_PORT` → `.neuromesh/config.json` → `~/.neuromesh/config.json` → 8765.
 
+**`neuromesh mcp` has no TCP port.** Cursor / Claude talk JSON-RPC over stdin/stdout (`args: ["mcp"]`). Do not put `--port` on that command.
+
+HTTP / SSE MCP (`GET /sse`, `POST /mcp`) rides on the **monitor** process. Change that port the same way, then open `http://127.0.0.1:<port>/sse`.
+
 VS Code / Cursor: Settings → `neuromesh.port` must match the running monitor. After `neuromesh port 9000`, restart `neuromesh monitor` and set the editor to 9000.
 
 ---

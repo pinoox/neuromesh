@@ -44,3 +44,5 @@ neuromesh monitor --port 9000  # one run (`-p 9000` or `--port=9000`)
 Priority: `--port` / `-p` → env `NEUROMESH_PORT` → project `.neuromesh/config.json` → `~/.neuromesh/config.json` → 8765.
 
 `neuromesh start` honors the same flag. VS Code / Cursor setting `neuromesh.port` must match the process that is actually listening.
+
+`neuromesh mcp` does **not** bind a port (stdio only). Remote MCP is the monitor: `neuromesh monitor --port 9000`, then `http://127.0.0.1:9000/sse`.

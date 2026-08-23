@@ -1,8 +1,8 @@
 # MCP tools
 
-Transport: **stdio JSON-RPC** (`neuromesh mcp`). That is what Cursor, Claude, Cline, and similar clients launch.
+Transport: **stdio JSON-RPC** (`neuromesh mcp`). That is what Cursor, Claude, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing.
 
-Remote / multi-agent: `neuromesh monitor`, then SSE and HTTP as in [api.md](api.md).
+Remote / multi-agent: `neuromesh monitor` (optionally `--port 9000` / `neuromesh port 9000`), then SSE and HTTP as in [api.md](api.md).
 
 ## Agent loop
 
