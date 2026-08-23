@@ -58,10 +58,10 @@ pub fn execute() -> Result<()> {
         index_ms
     );
     println!(
-        "{:<28} {:<12} {:>8} {:>8} {:>8} {:>8} {:>7} {:>7} {:>8}",
-        "Task", "Mode", "WS tok", "Packet", "Fill", "Cap", "Recall", "Prec", "ms"
+        "{:<28} {:<12} {:>8} {:>8} {:>8} {:>7} {:>7} {:>7} {:>7} {:>5} {:>6}",
+        "Task", "Mode", "WS tok", "Selected", "Packet", "vsWS%", "vsSel%", "Recall", "Prec", "Grep", "ms"
     );
-    println!("{}", "-".repeat(110));
+    println!("{}", "-".repeat(118));
 
     for task in &tasks {
         let signature = TaskSignatureExtractor::extract(&task.prompt);
@@ -76,19 +76,21 @@ pub fn execute() -> Result<()> {
             let metrics = evaluate_view(task, &view, ms as u64);
             let files = packet_file_names(&view);
             println!(
-                "{:<28} {:<12} {:>8} {:>8} {:>8} {:>8} {:>7.2} {:>7.2} {:>8}",
+                "{:<28} {:<12} {:>8} {:>8} {:>8} {:>6.1}% {:>6.1}% {:>7.2} {:>7.2} {:>5} {:>6}",
                 if task.id.len() > 27 {
                     format!("{}…", &task.id[..26])
                 } else {
                     task.id.clone()
                 },
                 view.budget_mode,
-                workspace_tokens,
-                view.active_tokens,
-                view.budget_fill_used,
-                view.budget_fill_cap,
+                metrics.workspace_tokens,
+                metrics.selected_raw,
+                metrics.packet_tokens,
+                metrics.reduction_vs_workspace,
+                metrics.reduction_vs_selected,
                 metrics.recall,
                 metrics.precision,
+                metrics.grep_still_needed,
                 ms
             );
             if mode == OptimizationMode::Balanced && !files.is_empty() {
@@ -101,7 +103,8 @@ pub fn execute() -> Result<()> {
 
     println!("\nFill caps: max_savings=0 extra · balanced=8000 extra · max_quality=16000 extra.");
     println!("Seeds always ship (a large target function can exceed the fill cap).");
-    println!("Reduction is vs the indexed workspace, not vs a fake 25k corpus.");
+    println!("WS tok = indexed workspace. Selected = raw tokens of packet files before fold. Packet = after fold.");
+    println!("Grep = 0 when gold files are already in the packet (recall 1.0); 1 otherwise.");
 
     let fixtures = current_dir.join("tests").join("fixtures");
     if fixtures.is_dir() {
@@ -140,10 +143,13 @@ pub fn execute() -> Result<()> {
                     let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
                     let metrics = evaluate_view(&task, &view, 0);
                     println!(
-                        "    {} recall={:.2} prec={:.2} files={:?}",
+                        "    {} recall={:.2} prec={:.2} vsWS={:.1}% vsSel={:.1}% grep={} files={:?}",
                         task.id,
                         metrics.recall,
                         metrics.precision,
+                        metrics.reduction_vs_workspace,
+                        metrics.reduction_vs_selected,
+                        metrics.grep_still_needed,
                         packet_paths(&view)
                     );
                 }

@@ -20,16 +20,18 @@ cargo test -p neuromesh-context gold_harness_on_fixture_repos -- --nocapture
 neuromesh eval
 ```
 
+`neuromesh eval` prints **workspace / selected / packet** tokens, reduction vs both, recall, precision, **Grep still needed**, and latency. README numbers must come from that table — not from a padded corpus or a global 99% claim.
+
 ## Grep after get_context
 
-On this workspace (debug, 2026-08-23), two real prompts already contained their gold files in the packet:
+From `neuromesh eval` on this workspace (debug, 2026-08-23, balanced):
 
-| Prompt | Recall | Grep still needed |
-| :--- | ---: | ---: |
-| How does `handle_tool_call` extract intent? | 1.0 | **0** |
-| Where is Physarum used? | 1.0 | **0** |
+| Task | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `handle_tool_call_intent` | 268124 | 26017 | 17422 | 93.5% | 33.0% | 1.00 | 0.50 | **0** | 24 |
+| `physarum_usage` | 268124 | 7882 | 4476 | 98.3% | 43.2% | 1.00 | 0.50 | **0** | 19 |
 
-That is “did the packet already hold the files a developer would open”, not a live multi-agent trial.
+That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
 
 ## Index snapshot
 
@@ -37,9 +39,9 @@ From `cargo test -p neuromesh-graph indexes_real_neuromesh_repo_with_usable_grap
 
 | Metric | Value |
 | :--- | ---: |
-| Files | 156 (`target/` ignored) |
-| Nodes | 956 |
-| Edges | 1,958 |
+| Files | 159 (`target/` ignored) |
+| Nodes | 972 |
+| Edges | 2,001 |
 | Resolved calls | 558 |
 | Resolved imports | 571 |
 | `search_symbols("handle_tool_call")` | &lt; 1 ms, exact hit |

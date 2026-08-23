@@ -32,11 +32,11 @@ Stimulus (the prompt)
 
 Slime molds find short paths that still feed every food source. `PhysarumSolver` in `neuromesh-graph` is a Hagen–Poiseuille style flux on the project graph: reinforce tubes that carry flow, atrophy the rest.
 
-On `neuromesh_get_context` the default path is **seed-then-fill** (fast, budgeted, tested). Physarum remains on the graph crate for Steiner-style experiments (`solve_physarum_context`) — a place to push algorithms without blocking the MCP loop.
+On `neuromesh_get_context`, after seeds resolve, **neighborhood Physarum** grows tubes between two or more seeds on a capped subgraph (hot-path config, target &lt; 20ms). If the neighborhood is too large or there is only one seed, fill falls back to seed-then-fill. `get_stats` reports `physarum_solver: active` only when that tube path actually ran.
 
 ### Synapses — STDP / Hebbian edges
 
-Edges carry pheromone weight. `neuromesh_record_feedback` spikes the nodes the agent touched: causal co-activation → LTP, unused branches → LTD. That is how the mesh *learns a repo* without a cloud model.
+Edges carry pheromone weight. `neuromesh_record_feedback` is a **required** step after a successful edit: spike the nodes the agent touched so the next `get_context` can prefer co-edited files. Without feedback there is no synaptic learning. Mycelium records the same transitions and pre-warms predicted neighbors.
 
 ### Exons / introns — genetic slicing
 
@@ -48,7 +48,7 @@ A cell does not dump its cytosol because someone knocked. `max_savings` / `balan
 
 ### Mycelium — prefetch
 
-`neuromesh-cache` models “the next symbol you will need” as hyphal growth: warm neighbors in the background so the second tool call is already in RAM.
+`neuromesh-cache` is on the `get_context` loop: after a packet ships, hyphal tips of those files are pre-warmed so `expand_fold` / the next activate can hit RAM.
 
 ## Where to hack
 

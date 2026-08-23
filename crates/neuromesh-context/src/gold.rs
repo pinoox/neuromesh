@@ -22,6 +22,12 @@ pub struct GoldMetrics {
     pub unresolved: usize,
     pub seeds_missed: usize,
     pub coverage_claim: String,
+    pub workspace_tokens: usize,
+    pub selected_raw: usize,
+    pub packet_tokens: usize,
+    pub reduction_vs_workspace: f32,
+    pub reduction_vs_selected: f32,
+    pub grep_still_needed: u8,
 }
 
 pub fn builtin_gold_tasks() -> Vec<GoldTask> {
@@ -263,11 +269,31 @@ pub fn evaluate_view(task: &GoldTask, view: &ContextView, latency_ms: u64) -> Go
         .as_ref()
         .map(|c| c.seeds_missed.len())
         .unwrap_or(0);
+    let workspace_tokens = view.workspace_tokens.max(1);
+    let selected_raw = view.total_raw_tokens.max(view.active_tokens);
+    let packet_tokens = view.active_tokens;
+    let reduction_vs_workspace = if workspace_tokens > 0 {
+        (workspace_tokens.saturating_sub(packet_tokens) as f32 / workspace_tokens as f32) * 100.0
+    } else {
+        0.0
+    };
+    let reduction_vs_selected = if selected_raw > 0 {
+        (selected_raw.saturating_sub(packet_tokens) as f32 / selected_raw as f32) * 100.0
+    } else {
+        0.0
+    };
+    let grep_still_needed = if task.expect_seeds_missed {
+        1
+    } else if recall >= 1.0 {
+        0
+    } else {
+        1
+    };
     GoldMetrics {
         id: task.id.clone(),
         recall,
         precision,
-        tokens: view.active_tokens,
+        tokens: packet_tokens,
         latency_ms,
         unresolved: view.unresolved.len(),
         seeds_missed,
@@ -276,6 +302,12 @@ pub fn evaluate_view(task: &GoldTask, view: &ContextView, latency_ms: u64) -> Go
             .as_ref()
             .map(|c| c.claim.clone())
             .unwrap_or_else(|| "unknown".into()),
+        workspace_tokens,
+        selected_raw,
+        packet_tokens,
+        reduction_vs_workspace,
+        reduction_vs_selected,
+        grep_still_needed,
     }
 }
 
@@ -391,11 +423,21 @@ mod tests {
             } else {
                 assert!(
                     metrics.recall >= 0.8,
-                    "{} recall {} packet={:?} gold={:?}",
+                    "{} recall {} packet={:?} gold={:?} why={:?}",
                     task.id,
                     metrics.recall,
                     packet_paths(&view),
-                    task.gold_files
+                    task.gold_files,
+                    view.active_nodes
+                        .iter()
+                        .filter(|n| n.node.node_type == neuromesh_core::NodeType::File)
+                        .map(|n| format!(
+                            "{}:{:?}:{}",
+                            n.node.file_path.to_string_lossy().replace('\\', "/"),
+                            n.expansion_reason,
+                            n.activation_score
+                        ))
+                        .collect::<Vec<_>>()
                 );
                 assert!(
                     metrics.precision >= 0.4,
@@ -405,6 +447,9 @@ mod tests {
                     packet_paths(&view),
                     task.gold_files
                 );
+                assert_eq!(metrics.grep_still_needed, if metrics.recall >= 1.0 { 0 } else { 1 });
+                assert!(metrics.reduction_vs_workspace >= 0.0);
+                assert!(metrics.reduction_vs_selected >= 0.0);
                 assert_eq!(view.budget_fill_cap, 8_000);
                 assert!(
                     view.budget_fill_used <= view.budget_fill_cap,

@@ -1519,6 +1519,44 @@ impl NeuralProjectGraph {
             .optimize_subgraph(&nodes_map, &edges_map, seed_nodes)
     }
 
+    /// Neighborhood Physarum for `get_context`. Skips huge subgraphs so the
+    /// hot path stays under the 20ms tube SLA; `iterations_converged == 0` means skipped.
+    pub fn solve_physarum_tube(
+        &self,
+        seed_nodes: &HashSet<NodeId>,
+        hops: usize,
+    ) -> PhysarumResult {
+        const MAX_NODES: usize = 250;
+        const MAX_EDGES: usize = 400;
+        if seed_nodes.len() < 2 {
+            return PhysarumResult {
+                active_nodes: seed_nodes.clone(),
+                node_flux: HashMap::new(),
+                active_edges: HashSet::new(),
+                edge_conductance: HashMap::new(),
+                pruning_ratio: 0.0,
+                iterations_converged: 0,
+            };
+        }
+        let neighborhood = self.neighborhood(seed_nodes, hops);
+        let (nodes_map, edges_map) = self.subgraph_maps(&neighborhood);
+        if nodes_map.len() > MAX_NODES || edges_map.len() > MAX_EDGES {
+            return PhysarumResult {
+                active_nodes: seed_nodes.clone(),
+                node_flux: HashMap::new(),
+                active_edges: HashSet::new(),
+                edge_conductance: HashMap::new(),
+                pruning_ratio: 0.0,
+                iterations_converged: 0,
+            };
+        }
+        PhysarumSolver::new(PhysarumConfig::hot_path()).optimize_subgraph(
+            &nodes_map,
+            &edges_map,
+            seed_nodes,
+        )
+    }
+
     /// Record a neural firing event (e.g. symbol read or written by AI agent)
     pub fn record_neural_spike(&self, node_id: NodeId, was_modified: bool, was_useful: bool) {
         self.synaptic_engine

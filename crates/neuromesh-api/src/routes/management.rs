@@ -22,13 +22,7 @@ pub fn get_status(state: &AppState) -> Value {
         },
         "graph": graph_stats,
         "metrics": metrics,
-        "biomimetic": {
-            "physarum_solver": "active",
-            "synaptic_stdp": "active",
-            "genetic_slicing": "active",
-            "mycelial_prefetch": "active",
-            "cellular_osmotic_gate": "active"
-        }
+        "biomimetic": state.mcp_handler.biomimetic_report()
     })
 }
 

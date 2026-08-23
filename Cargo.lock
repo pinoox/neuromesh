@@ -777,6 +777,7 @@ name = "neuromesh-mcp"
 version = "0.5.0"
 dependencies = [
  "chrono",
+ "neuromesh-cache",
  "neuromesh-context",
  "neuromesh-core",
  "neuromesh-graph",

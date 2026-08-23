@@ -54,7 +54,7 @@ Evidence packet → MCP client
 | `neuromesh-api` | Local monitor HTTP / SSE |
 | `neuromesh-core` | Shared types (`NodeId`, `ContextView`, budgets) |
 
-`get_context` uses seed-then-fill plus genetic slicing. Physarum and spreading activation live on the graph crate for Steiner-style experiments — see [nature.md](nature.md).
+`get_context` resolves seeds, runs neighborhood Physarum when two or more seeds exist (capped subgraph, &lt; 20ms SLA), then fills remaining connectors under the token budget and skeletonizes. `get_stats` only marks Physarum active when that tube path ran. See [nature.md](nature.md).
 
 ## Index
 
@@ -67,6 +67,6 @@ Rust and TypeScript use tree-sitter so `fn` / `impl` ranges and in-function call
 
 ## Packet
 
-Selector: required seed files, then optional connectors ranked by outbound calls, inbound usage, imports, and unresolved-call closers. Per-crate fill is a **soft** cap — a high-scoring extra file from the same crate can still enter.
+Selector: required seed files, then optional connectors ranked by outbound calls, inbound usage, imports, **pheromone / STDP weight**, Physarum tubes, and unresolved-call closers. Per-crate fill is a **soft** cap — a high-scoring extra file from the same crate can still enter.
 
-Activator: skeletonize with graph function spans, register folds, report budget (`seed_tokens`, `fill_used` / `fill_cap`) and coverage.
+Activator: skeletonize with graph function spans (fold threshold from `ContextChromosome.fold_threshold_lines`), register folds **for the MCP session** (cleared only when the project changes), report budget (`seed_tokens`, `fill_used` / `fill_cap`) and coverage. `next_actions` tell the agent to `expand_fold` or to Grep only when coverage is `partial`.

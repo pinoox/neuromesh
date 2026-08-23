@@ -75,7 +75,7 @@ The agent still sees the *shape* of the file — signatures, imports, neighbors 
 | **Mycelium** | Hyphal prefetch | Warm the next hop before the second tool call |
 | **Neural mesh** | Project graph in RAM | Files, functions, `Imports`, `Calls` — a nervous system, not a bag of strings |
 
-The philosophy of the social pitch is right: **a graph in RAM, a short path, the rest dormant.** The shipped `get_context` loop is seed-then-fill (unique resolve, real token budget, then splice). The slime-mold solver lives on the graph for Steiner-style experiments. Both share one rule: *do not dump the organism into every thought.*
+The philosophy of the social pitch is right: **a graph in RAM, a short path, the rest dormant.** After seeds resolve, neighborhood Physarum grows tubes between them (under 20ms, skipped if the subgraph is huge). Fill still respects the token cap. `record_feedback` is how synapses change the next packet.
 
 Play with the metaphors and the crates: [docs/nature.md](docs/nature.md).
 
@@ -88,7 +88,8 @@ flowchart LR
   P[Prompt] --> I[Identifiers]
   I --> G[Graph in RAM]
   G --> S[Seed files]
-  S --> F[Fill the path]
+  S --> T[Physarum tubes]
+  T --> F[Fill + synapses]
   F --> X[Exon / intron splice]
   X --> E[Evidence packet]
   E --> W[expand_fold if needed]
@@ -96,8 +97,8 @@ flowchart LR
 
 1. **Read the task** as written. `handle_tool_call` survives; it is not lowercased into mush.  
 2. **Resolve on the mesh.** Edges exist when the target is unique. Ambiguous names stay sleepy — never a million fake links.  
-3. **Ship seeds, fill the path.** The files that own those symbols always go in. Callees and imports fill a **real** budget (`balanced` = 8k extra tokens, not “the whole crate”).  
-4. **Splice.** Untargeted bodies become fold markers. Coverage tells you if a seed was missed — only then is Grep fair.
+3. **Ship seeds, grow the tube, fill the rest.** The files that own those symbols always go in. With two or more seeds, Physarum traces the cheapest connecting tissue on a neighborhood subgraph. Callees and synaptic neighbors fill a **real** budget (`balanced` = 8k extra tokens).  
+4. **Splice.** Untargeted bodies become fold markers. Coverage tells you if a seed was missed — only then is Grep fair. Folds stay in the MCP session so the next tool can wake them.
 
 Tell the agent:
 
@@ -206,16 +207,20 @@ Rust and TypeScript go through **tree-sitter**. Python, Vue, Go and friends use 
 
 ## What we actually measured
 
-Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding, versus dumping the workspace.
+Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (debug, 2026-08-23):
+On this repo (debug, 2026-08-23, 268,124 workspace tokens):
 
-- Gold prompts *How does `handle_tool_call` extract intent?* and *Where is Physarum used?* — gold files already in the packet → **Grep still needed: 0**
-- Recall ≥ 0.8 and precision ≥ 0.4 locked on this repo **and** five fixture projects
-- Packet activation **&lt; 50 ms** in the debug gold test; symbol search **&lt; 1 ms**
-- Index: **156 files · 956 nodes · 1,958 edges · ~1.2 s**
+| Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `handle_tool_call_intent` | balanced | 268124 | 26017 | 17422 | 93.5% | 33.0% | 1.00 | 0.50 | **0** | 24 |
+| `physarum_usage` | balanced | 268124 | 7882 | 4476 | 98.3% | 43.2% | 1.00 | 0.50 | **0** | 19 |
 
-Re-run it yourself: `neuromesh eval` · [docs/quality.md](docs/quality.md).
+`Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
+
+Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** five fixture projects. Packet activation **&lt; 50 ms** in the debug gold test.
+
+Index snapshot from that eval run: **159 files · 972 nodes · 2,001 edges · ~1.2 s**.
 
 ---
 

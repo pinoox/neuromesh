@@ -1,3 +1,4 @@
+use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
 use neuromesh_core::{NodeId, OptimizationMode, Result};
 use neuromesh_graph::NeuralProjectGraph;
@@ -14,6 +15,7 @@ pub struct McpToolHandler {
     expansion_engine: Arc<ExpansionEngine>,
     memory_db: Arc<MemoryDatabase>,
     working_memory: Arc<parking_lot::RwLock<WorkingMemory>>,
+    mycelium: Arc<MyceliumCache>,
 }
 
 impl McpToolHandler {
@@ -30,11 +32,64 @@ impl McpToolHandler {
             expansion_engine,
             memory_db,
             working_memory,
+            mycelium: Arc::new(MyceliumCache::new(MyceliumConfig::default())),
         }
     }
 
     pub fn graph(&self) -> &Arc<NeuralProjectGraph> {
         &self.graph
+    }
+
+    pub fn mycelium_stats(&self) -> MyceliumStats {
+        self.mycelium.stats()
+    }
+
+    pub fn biomimetic_report(&self) -> Value {
+        let phys = self.activator.last_physarum();
+        let myc = self.mycelium.stats();
+        json!({
+            "physarum_solver": if phys.used { "active" } else { "idle" },
+            "physarum_last_ms": phys.ms,
+            "synaptic_stdp": "active",
+            "bio_genetic_slicing": "active",
+            "mycelial_prefetching": if myc.total_prefetches > 0 { "active" } else { "idle" },
+            "mycelium": myc,
+            "cellular_osmotic_gate": "active"
+        })
+    }
+
+    fn mycelium_file_hit(&self, file_id: &NodeId) -> bool {
+        self.mycelium.get_prewarmed(file_id).is_some()
+    }
+
+    fn record_mycelium_path(&self, path: &[NodeId]) {
+        for window in path.windows(2) {
+            self.mycelium.record_transition(&window[0], &window[1]);
+            if let Some(node) = self.graph.get_node(&window[1]) {
+                if let Some(content) = node.content.clone() {
+                    self.mycelium.prewarm_node(window[1].clone(), content);
+                }
+            }
+        }
+    }
+
+    fn prefetch_mycelium(&self, view: &neuromesh_core::ContextView) {
+        let files: Vec<NodeId> = view
+            .active_nodes
+            .iter()
+            .filter(|n| n.node.node_type == neuromesh_core::NodeType::File)
+            .map(|n| n.node.id.clone())
+            .collect();
+        self.record_mycelium_path(&files);
+        if let Some(last) = files.last() {
+            for tip in self.mycelium.predict_next_nodes(last) {
+                if let Some(node) = self.graph.get_node(&tip.target_node) {
+                    if let Some(content) = node.content.clone() {
+                        self.mycelium.prewarm_node(tip.target_node, content);
+                    }
+                }
+            }
+        }
     }
 
     pub async fn handle_tool_call(&self, name: &str, arguments: &Value) -> Result<Value> {
@@ -59,6 +114,7 @@ impl McpToolHandler {
                 let view = self
                     .activator
                     .activate(&self.graph, &signature, gate.effective_mode);
+                self.prefetch_mycelium(&view);
 
                 for active in &view.active_nodes {
                     self.graph
@@ -185,6 +241,9 @@ impl McpToolHandler {
                         "reduction_vs_workspace_pct": format!("{:.1}%", vs_workspace),
                         "reduction_vs_selected_pct": format!("{:.1}%", vs_selected),
                         "seed_call_coverage": view.seed_call_coverage,
+                        "physarum_used": view.physarum_used,
+                        "physarum_ms": view.physarum_ms,
+                        "selection_method": view.selection_method,
                     }
                 }))
             }
@@ -272,6 +331,8 @@ impl McpToolHandler {
 
                 if let Some(fold) = self.expansion_engine.expand_fold(node_id_str) {
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                    let file_id = NodeId::from_file_path(&fold.file_path);
+                    let cache_hit = self.mycelium_file_hit(&file_id);
                     Ok(json!({
                         "success": true,
                         "kind": "fold",
@@ -285,6 +346,7 @@ impl McpToolHandler {
                         "restored_tokens": fold.restored_tokens,
                         "latency_ms": elapsed_ms,
                         "reason": reason,
+                        "mycelium_hit": cache_hit,
                     }))
                 } else if let Some((view, audit)) = self
                     .expansion_engine
@@ -446,6 +508,7 @@ impl McpToolHandler {
                 }
                 self.graph.apply_stdp_on_path(&path);
                 self.graph.reinforce_path(&path, success);
+                self.record_mycelium_path(&path);
                 if let Ok(cwd) = std::env::current_dir() {
                     let _ = self.graph.save_persisted(&cwd);
                 }
@@ -497,17 +560,81 @@ impl McpToolHandler {
                 Ok(json!({
                     "project_id": self.graph.project_id().0,
                     "graph_stats": stats,
-                    "biomimetic_engine": {
-                        "physarum_solver": "active",
-                        "synaptic_stdp": "active",
-                        "bio_genetic_slicing": "active",
-                        "mycelial_prefetching": "active",
-                        "cellular_osmotic_gate": "active"
-                    }
+                    "biomimetic_engine": self.biomimetic_report()
                 }))
             }
 
             _ => Ok(json!({ "error": format!("Unknown tool: {}", name) })),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neuromesh_context::ReversibleContextRegistry;
+    use neuromesh_core::ProjectId;
+    use neuromesh_index::{IndexedFile, SourceLanguage};
+    use neuromesh_memory::MemoryDatabase;
+    use neuromesh_parser::CodeIntelligenceEngine;
+    use parking_lot::RwLock;
+    use std::path::PathBuf;
+
+    fn indexed(rel: &str) -> IndexedFile {
+        IndexedFile {
+            project_id: ProjectId::new("neuromesh"),
+            relative_path: PathBuf::from(rel),
+            full_path: PathBuf::from(rel),
+            blake3_hash: "test".into(),
+            byte_size: 80,
+            token_count: 40,
+            language: SourceLanguage::Rust,
+            last_modified: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn mycelium_records_packet_transitions() {
+        let graph = Arc::new(NeuralProjectGraph::new(ProjectId::new("neuromesh")));
+        let a = "pub fn start_job() { enqueue_job(); }\n";
+        let b = "pub fn enqueue_job() { let x = 1; x }\n";
+        graph.ingest_file(
+            &indexed("src/worker.rs"),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("worker.rs"), a, SourceLanguage::Rust),
+            Some(a),
+        );
+        graph.ingest_file(
+            &indexed("src/queue.rs"),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("queue.rs"), b, SourceLanguage::Rust),
+            Some(b),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let handler = McpToolHandler::new(
+            graph,
+            Arc::new(ContextActivator::new(registry.clone())),
+            Arc::new(ExpansionEngine::new(registry)),
+            Arc::new(MemoryDatabase::open_in_memory().unwrap()),
+            Arc::new(RwLock::new(WorkingMemory::default())),
+        );
+        let idle = handler.biomimetic_report();
+        assert_eq!(idle["mycelial_prefetching"].as_str(), Some("idle"));
+        let args = json!({ "task_description": "How does start_job enqueue_job?" });
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            handler
+                .handle_tool_call("neuromesh_get_context", &args)
+                .await
+                .unwrap();
+            handler
+                .handle_tool_call("neuromesh_get_context", &args)
+                .await
+                .unwrap();
+        });
+        let stats = handler.mycelium_stats();
+        assert!(
+            stats.total_hyphal_trails > 0 || stats.total_prefetches > 0,
+            "mycelium should record packet transitions: {stats:?}"
+        );
     }
 }

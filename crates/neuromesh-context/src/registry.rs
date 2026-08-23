@@ -1,5 +1,5 @@
 use crate::skeleton::FoldedIntron;
-use neuromesh_core::{ContextNode, InactiveContextDescriptor, NodeId};
+use neuromesh_core::{ContextNode, InactiveContextDescriptor, NodeId, ProjectId};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -16,6 +16,7 @@ pub struct ReversibleContextRegistry {
     inactive_nodes: Arc<RwLock<HashMap<NodeId, InactiveContextDescriptor>>>,
     node_store: Arc<RwLock<HashMap<NodeId, ContextNode>>>,
     folds: Arc<RwLock<HashMap<String, StoredFold>>>,
+    session_project: Arc<RwLock<Option<ProjectId>>>,
 }
 
 impl ReversibleContextRegistry {
@@ -71,9 +72,24 @@ impl ReversibleContextRegistry {
         self.node_store.read().get(id).cloned()
     }
 
+    pub fn begin_activate(&self, project_id: &ProjectId) {
+        let mut session = self.session_project.write();
+        if session.as_ref() != Some(project_id) {
+            self.folds.write().clear();
+            *session = Some(project_id.clone());
+        }
+        self.inactive_nodes.write().clear();
+        self.node_store.write().clear();
+    }
+
+    pub fn fold_count(&self) -> usize {
+        self.folds.read().len()
+    }
+
     pub fn clear(&self) {
         self.inactive_nodes.write().clear();
         self.node_store.write().clear();
         self.folds.write().clear();
+        *self.session_project.write() = None;
     }
 }

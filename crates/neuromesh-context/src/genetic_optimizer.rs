@@ -15,7 +15,7 @@ pub struct ContextChromosome {
 impl Default for ContextChromosome {
     fn default() -> Self {
         Self {
-            fold_threshold_lines: 4,
+            fold_threshold_lines: 2,
             docstring_retention: 0.8,
             type_signature_depth: 2,
             interface_boost: 1.5,

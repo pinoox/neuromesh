@@ -13,7 +13,7 @@ neuromesh_get_context(task_description)
   → after a successful edit: neuromesh_record_feedback
 ```
 
-Start with `get_context`. Grep only when `coverage.claim` is `partial` or a seed is listed in `seeds_missed`.
+Start with `get_context`. `next_actions` say when to `neuromesh_expand_fold`. Grep (`neuromesh_search_symbols`) only when `coverage.claim` is `partial`. After a good edit, **always** call `neuromesh_record_feedback` — that is the synaptic learning step; without it the next packet does not change.
 
 ## Tools
 
@@ -44,7 +44,8 @@ Aliases exist for older clients (`activate_context`, `expand_context`, `search_c
 - `coverage` — `no_recorded_gap` or `partial`
 - `budget` — `seed_tokens`, `fill_used`, `fill_cap`, `mode`
 - `seed_call_coverage` — fraction of seed call targets present in the packet
-- `next_actions` — expand a fold, trace, or search
+- `next_actions` — `expand_fold` for sleeping exons; Grep/search only when `coverage` is `partial`
+- `physarum_used` / `physarum_ms` / `selection_method` — honest slime-mold telemetry
 
 `mode`: `balanced` (default), `max_savings`, `max_quality`. Critical tasks (auth / payment / secret) upgrade to max quality.
 
@@ -56,4 +57,4 @@ Markers look like:
 /* [neuromesh:fold:fold_unused_helper_1 | 12 lines folded | fn unused_helper()] */
 ```
 
-Pass that `fold_id` to `neuromesh_expand_fold`. The body comes from the in-memory registry of the **current** `get_context` session — call expand in the same MCP process, after get_context, not as a cold start.
+Pass that `fold_id` to `neuromesh_expand_fold`. Folds persist for the **MCP session** (same process, same project). They are not cleared on every `get_context`. A new project id wipes the registry.

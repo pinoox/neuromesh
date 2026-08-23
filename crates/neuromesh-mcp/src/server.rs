@@ -191,7 +191,7 @@ impl McpServer {
                         },
                         {
                             "name": "neuromesh_get_file_skeleton",
-                            "description": "Get the AST-aware skeleton of a code file with untargeted helper methods folded into reversible folds (reduces tokens by 85-98%).",
+                            "description": "Skeletonize one file: seed symbols stay open as exons; sibling functions fold to reversible one-line markers. Token reduction is measured per request (original_tokens vs skeleton_tokens), not a global percentage.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -263,7 +263,7 @@ impl McpServer {
                         },
                         {
                             "name": "neuromesh_record_feedback",
-                            "description": "Record task execution feedback to trigger Synaptic STDP Plasticity learning and reinforce optimal pathways.",
+                            "description": "Required after a successful edit: spike the nodes you touched so STDP/pheromone can change the next get_context packet. Without this call there is no synaptic learning.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -339,7 +339,7 @@ impl McpServer {
                         },
                         {
                             "name": "neuromesh_get_stats",
-                            "description": "Retrieve real-time graph density, synaptic health, and biomimetic telemetry.",
+                            "description": "Graph size plus honest biomimetic flags: physarum_solver is active only when the last get_context actually ran neighborhood tubes.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {}

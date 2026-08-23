@@ -11,7 +11,8 @@ The agent loop is real: **get_context → expand_fold**, Grep only when coverage
 - **Packets.** Every file includes `path`, `why`, `line_range`, `folded_symbols`, and `seed_call_coverage`.
 - **Parse.** tree-sitter for Rust and TypeScript behind the same `AstAnalysisResult`; regex remains the fallback. Impl- and field-aware resolve (`self.activator.activate` → `ContextActivator::activate`). Ambiguous calls stay `Likely` instead of vanishing.
 - **Skeletonizer** prefers parser/graph function spans over brace counting.
-- **Gold.** Path-qualified files, five fixture repos under `tests/fixtures/`, recall ≥ 0.8 **and** precision ≥ 0.4. `neuromesh eval` runs the workspace and the fixtures.
+- **Gold.** Path-qualified files, five fixture repos under `tests/fixtures/`, recall ≥ 0.8 **and** precision ≥ 0.4. `neuromesh eval` prints workspace / selected / packet tokens, reduction, and Grep-still-needed.
+- **Hot path.** Neighborhood Physarum tubes after two+ seeds (skip huge subgraphs; stats `active` only when used). Selector reads pheromone. Folds persist for the MCP session. Mycelium prefetches packet neighbors.
 
 ## 0.4.0
 

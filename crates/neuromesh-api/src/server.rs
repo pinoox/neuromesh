@@ -213,13 +213,7 @@ impl HttpServer {
                         "average_latency_ms": avg_latency_ms,
                         "total_raw_tokens": total_tokens
                     },
-                    "biomimetic": {
-                        "physarum_solver": "active",
-                        "synaptic_stdp": "active",
-                        "genetic_slicing": "active",
-                        "mycelial_prefetch": "active",
-                        "cellular_osmotic_gate": "active"
-                    }
+                    "biomimetic": state.mcp_handler.biomimetic_report()
                 });
                 Self::send_json(&mut stream, 200, &resp).await?;
             }
@@ -824,7 +818,7 @@ impl HttpServer {
             ("GET", "/api/mcp/tools") => {
                 let tools = json!({
                     "tools": [
-                        { "name": "neuromesh_get_context", "description": "Activate minimal context with Physarum & Genetic Slicing", "params": ["task_description", "mode"] },
+                        { "name": "neuromesh_get_context", "description": "Evidence packet: seeds, Physarum tubes when two+ seeds, then fold", "params": ["task_description", "mode"] },
                         { "name": "neuromesh_get_file_skeleton", "description": "Get AST code skeleton with folded introns", "params": ["file_path", "active_symbols"] },
                         { "name": "neuromesh_expand_fold", "description": "Reversibly expand folded methods into full code", "params": ["node_id", "reason"] },
                         { "name": "neuromesh_search_symbols", "description": "Search Neural Project Graph symbols", "params": ["query"] },

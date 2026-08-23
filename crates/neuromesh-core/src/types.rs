@@ -303,6 +303,18 @@ pub struct ContextView {
     /// Fraction of seed outbound Calls whose target file is in the packet.
     #[serde(default)]
     pub seed_call_coverage: f32,
+    /// Indexed workspace token count (for honest reduction vs dump-all).
+    #[serde(default)]
+    pub workspace_tokens: usize,
+    /// True when neighborhood Physarum actually built tubes for this packet.
+    #[serde(default)]
+    pub physarum_used: bool,
+    /// Wall time of the Physarum tube solve in milliseconds (0 if skipped).
+    #[serde(default)]
+    pub physarum_ms: u64,
+    /// `seed_then_fill` or `physarum_seed_fill`.
+    #[serde(default)]
+    pub selection_method: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -13,6 +13,8 @@ pub struct PhysarumConfig {
     pub growth_factor: f32,
     /// Number of cytoplasmic streaming iterations
     pub max_iterations: usize,
+    /// Successive over-relaxation inner loops per iteration
+    pub sor_iterations: usize,
     /// Minimum tube conductivity threshold to avoid total degeneration
     pub min_conductivity: f32,
     /// Maximum conductivity cap
@@ -28,6 +30,7 @@ impl Default for PhysarumConfig {
             flux_exponent: 1.25,
             growth_factor: 0.35,
             max_iterations: 15,
+            sor_iterations: 25,
             min_conductivity: 0.02,
             max_conductivity: 5.0,
             prune_threshold: 0.12,
@@ -54,6 +57,22 @@ pub struct PhysarumResult {
 /// Physarum Polycephalum Network Solver
 pub struct PhysarumSolver {
     config: PhysarumConfig,
+}
+
+impl PhysarumConfig {
+    /// Fast neighborhood solve for the `get_context` hot path (&lt; 20ms target).
+    pub fn hot_path() -> Self {
+        Self {
+            decay_rate: 0.10,
+            flux_exponent: 1.2,
+            growth_factor: 0.40,
+            max_iterations: 6,
+            sor_iterations: 8,
+            min_conductivity: 0.02,
+            max_conductivity: 5.0,
+            prune_threshold: 0.12,
+        }
+    }
 }
 
 impl PhysarumSolver {
@@ -137,7 +156,8 @@ impl PhysarumSolver {
             }
 
             // Successive Over-Relaxation (SOR) to compute node pressures p_i
-            for _ in 0..25 {
+            let sor_iters = self.config.sor_iterations.max(4);
+            for _ in 0..sor_iters {
                 let mut max_delta: f32 = 0.0;
                 for (node_id, neighbors) in &adj {
                     if node_id == source_node || sink_nodes.contains(node_id) {

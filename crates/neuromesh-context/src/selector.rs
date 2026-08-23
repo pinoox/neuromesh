@@ -73,7 +73,7 @@ pub fn select(
     };
     let max_extra_files = match mode {
         OptimizationMode::MaxSavings => 0,
-        OptimizationMode::Balanced => 4,
+        OptimizationMode::Balanced => 5,
         OptimizationMode::MaxQuality => 8,
     };
 
@@ -129,7 +129,7 @@ pub fn select(
                     }
                     if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
                         let mut amount = if outbound_call { 12.0 } else { 10.0 };
-                        if outbound_call && edge.confidence == EdgeConfidence::Proven {
+                        if outbound_call && edge.confidence != EdgeConfidence::Unresolved {
                             amount += 3.0;
                         }
                         if focus_terms.contains(&node.name.to_lowercase()) {
@@ -162,6 +162,33 @@ pub fn select(
                     }
                     if let Some(imported_file) = graph.file_id_for_path(&node.file_path) {
                         bump_file(&mut file_scores, &imported_file, 8.0);
+                    }
+                }
+            }
+        }
+    }
+
+    const SYNAPTIC_FILL_MIN: f32 = 0.58;
+    for seed in seeds {
+        let Some(seed_node) = graph.get_node(seed) else {
+            continue;
+        };
+        let mut endpoints = vec![seed.clone()];
+        if let Some(file_id) = graph.file_id_for_path(&seed_node.file_path) {
+            endpoints.push(file_id);
+        }
+        for endpoint in endpoints {
+            for (neighbor, edge) in graph.get_connected_neighbors(&endpoint) {
+                if edge.pheromone_weight < SYNAPTIC_FILL_MIN {
+                    continue;
+                }
+                if let Some(node) = graph.get_node(&neighbor) {
+                    if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                        bump_file_max(
+                            &mut file_scores,
+                            &file_id,
+                            9.0 * edge.pheromone_weight,
+                        );
                     }
                 }
             }
@@ -211,7 +238,31 @@ pub fn select(
         }
     }
 
-    let mut optional_files: Vec<(NodeId, f32)> = file_scores.into_iter().collect();
+    let mut optional_files: Vec<(NodeId, f32)> = file_scores
+        .into_iter()
+        .map(|(id, gain)| (id, gain.min(24.0)))
+        .collect();
+    for term in focus_terms {
+        if term.len() < 4 {
+            continue;
+        }
+        if let Some((id, _)) = graph.resolve_ranked(term, None, None) {
+            if let Some(node) = graph.get_node(&id) {
+                if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                    if required.contains(&file_id) {
+                        continue;
+                    }
+                    if let Some(entry) = optional_files.iter_mut().find(|(fid, _)| *fid == file_id) {
+                        if entry.1 < 36.0 {
+                            entry.1 = 36.0;
+                        }
+                    } else if !is_noise_node(graph, &file_id) {
+                        optional_files.push((file_id, 36.0));
+                    }
+                }
+            }
+        }
+    }
     optional_files.sort_by(|a, b| {
         let score = b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal);
         if score != std::cmp::Ordering::Equal {
@@ -244,6 +295,9 @@ pub fn select(
     for (id, gain) in optional_files {
         if limited.len() >= max_extra_files {
             break;
+        }
+        if graph.get_node(&id).is_some_and(|n| n.token_cost > 10_000) {
+            continue;
         }
         let crate_key = graph
             .get_node(&id)

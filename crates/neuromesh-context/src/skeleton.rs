@@ -1,3 +1,4 @@
+use crate::genetic_optimizer::ContextChromosome;
 use neuromesh_core::TokenCounter;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -43,6 +44,9 @@ fn is_seed_exon(sym_name: &str, active_symbols: &HashSet<String>) -> bool {
 }
 
 /// Seed functions stay open (exons). Sibling functions fold. Import lines are kept as-is.
+pub fn fold_intron_min_lines() -> usize {
+    ContextChromosome::default().fold_threshold_lines.max(2)
+}
 pub struct CodeSkeletonizer;
 
 impl CodeSkeletonizer {
@@ -63,8 +67,11 @@ impl CodeSkeletonizer {
         spans: &[FunctionSpan],
     ) -> SkeletonResult {
         let original_tokens = TokenCounter::count_tokens(content);
+        let line_count = content.lines().count();
+        let min_lines = fold_intron_min_lines();
 
-        if content.lines().count() < 8 || original_tokens < 35 {
+        let tiny = line_count < 4 || original_tokens < 20;
+        if tiny && spans.len() < 2 {
             return SkeletonResult {
                 skeleton_code: content.to_string(),
                 original_tokens,
@@ -82,6 +89,7 @@ impl CodeSkeletonizer {
                 active_symbol_names,
                 original_tokens,
                 spans,
+                min_lines,
             );
         }
 
@@ -99,9 +107,14 @@ impl CodeSkeletonizer {
             || file_path.ends_with(".php");
 
         if is_python {
-            Self::skeletonize_python(content, active_symbol_names, original_tokens)
+            Self::skeletonize_python(content, active_symbol_names, original_tokens, min_lines)
         } else if is_c_like {
-            Self::skeletonize_brace_language(content, active_symbol_names, original_tokens)
+            Self::skeletonize_brace_language(
+                content,
+                active_symbol_names,
+                original_tokens,
+                min_lines,
+            )
         } else {
             SkeletonResult {
                 skeleton_code: content.to_string(),
@@ -120,6 +133,7 @@ impl CodeSkeletonizer {
         active_symbols: &HashSet<String>,
         original_tokens: usize,
         spans: &[FunctionSpan],
+        min_lines: usize,
     ) -> SkeletonResult {
         let lines: Vec<&str> = content.lines().collect();
         let mut fold_ranges: Vec<(usize, usize, FunctionSpan)> = Vec::new();
@@ -138,7 +152,7 @@ impl CodeSkeletonizer {
                 exons_count += 1;
                 continue;
             }
-            if span_len <= 3 {
+            if span_len < min_lines {
                 exons_count += 1;
                 continue;
             }
@@ -218,6 +232,7 @@ impl CodeSkeletonizer {
         content: &str,
         active_symbols: &HashSet<String>,
         original_tokens: usize,
+        min_lines: usize,
     ) -> SkeletonResult {
         let lines: Vec<&str> = content.lines().collect();
         let mut result_lines: Vec<String> = Vec::new();
@@ -258,7 +273,7 @@ impl CodeSkeletonizer {
                 }
 
                 let span = body_end - body_start + 1;
-                if found_open && span > 3 && !is_active {
+                if found_open && span >= min_lines && !is_active {
                     // Fold this intron
                     introns_folded += 1;
                     let fold_id = format!("fold_{}_{}", sym_name, introns_folded);
@@ -328,6 +343,7 @@ impl CodeSkeletonizer {
         content: &str,
         active_symbols: &HashSet<String>,
         original_tokens: usize,
+        min_lines: usize,
     ) -> SkeletonResult {
         let lines: Vec<&str> = content.lines().collect();
         let mut result_lines: Vec<String> = Vec::new();
@@ -363,7 +379,7 @@ impl CodeSkeletonizer {
                 }
 
                 let span = body_end - i + 1;
-                if span > 3 && !is_active {
+                if span >= min_lines && !is_active {
                     introns_folded += 1;
                     let fold_id = format!("fold_{}_{}", sym_name, introns_folded);
                     let body_content = lines[i..=body_end].join("\n");
@@ -487,5 +503,20 @@ export function untargetedHeavyHelper2() {
         assert!(!res.skeleton_code.contains("let z = 3"));
         assert_eq!(res.folds.len(), 1);
         assert_eq!(res.folds[0].original_body.lines().count(), 6);
+    }
+
+    #[test]
+    fn small_multi_function_file_still_skeletonizes() {
+        let code = "fn keep() {\n    1\n}\nfn drop_me() {\n    let x = 1;\n    x\n}\n";
+        let mut active = HashSet::new();
+        active.insert("keep".into());
+        let res = CodeSkeletonizer::skeletonize("tiny.rs", code, &active);
+        assert!(
+            res.introns_folded >= 1,
+            "multi-fn files must fold even when short: {:?}",
+            res.skeleton_code
+        );
+        assert!(res.skeleton_code.contains("keep"));
+        assert!(res.skeleton_code.contains("neuromesh:fold"));
     }
 }

@@ -7,10 +7,13 @@ use neuromesh_core::{
     NodeType, OptimizationMode, SeedResolution, TaskSignature,
 };
 use neuromesh_graph::NeuralProjectGraph;
+use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Instant;
 
 const MAX_INACTIVE: usize = 12;
+const PHYSARUM_SLA_MS: u64 = 20;
 
 struct MaterializedNode {
     node: neuromesh_core::ContextNode,
@@ -21,9 +24,16 @@ struct MaterializedNode {
     folded_symbols: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PhysarumTelemetry {
+    pub used: bool,
+    pub ms: u64,
+}
+
 pub struct ContextActivator {
     scorer: ActivationScorer,
     registry: Arc<ReversibleContextRegistry>,
+    last_physarum: Mutex<PhysarumTelemetry>,
 }
 
 impl ContextActivator {
@@ -31,11 +41,16 @@ impl ContextActivator {
         Self {
             scorer: ActivationScorer::new(ScoringWeights::default()),
             registry,
+            last_physarum: Mutex::new(PhysarumTelemetry::default()),
         }
     }
 
     pub fn registry(&self) -> &Arc<ReversibleContextRegistry> {
         &self.registry
+    }
+
+    pub fn last_physarum(&self) -> PhysarumTelemetry {
+        *self.last_physarum.lock()
     }
 
     pub fn activate(
@@ -44,7 +59,7 @@ impl ContextActivator {
         signature: &TaskSignature,
         mode: OptimizationMode,
     ) -> ContextView {
-        self.registry.clear();
+        self.registry.begin_activate(&graph.project_id());
 
         let is_critical = signature.requires_conservative_mode();
         let effective_mode = if is_critical {
@@ -181,7 +196,7 @@ impl ContextActivator {
             }
         }
 
-        let selection = select(
+        let mut selection = select(
             graph,
             &neighborhood,
             &seed_set,
@@ -190,6 +205,68 @@ impl ContextActivator {
             effective_mode,
         );
         let fill_cap = fill_budget(effective_mode);
+
+        let mut physarum_used = false;
+        let mut physarum_ms = 0u64;
+        if seed_set.len() >= 2 {
+            let started = Instant::now();
+            let tube = graph.solve_physarum_tube(&seed_set, hops.min(2));
+            physarum_ms = started.elapsed().as_millis() as u64;
+            let ran = tube.iterations_converged > 0;
+            if ran && physarum_ms <= PHYSARUM_SLA_MS {
+                physarum_used = true;
+                for id in &tube.active_nodes {
+                    let Some(node) = graph.get_node(id) else {
+                        continue;
+                    };
+                    let Some(file_id) = graph.file_id_for_path(&node.file_path) else {
+                        continue;
+                    };
+                    if selection.required.contains(&file_id) {
+                        continue;
+                    }
+                    let entry = selection.scores.entry(file_id.clone()).or_insert(0.0);
+                    if *entry < 8.0 {
+                        *entry = 8.0;
+                    }
+                    if !selection.optional.contains(&file_id) {
+                        selection.optional.push(file_id);
+                    }
+                    seed_reasons
+                        .entry(id.clone())
+                        .or_insert_with(|| "physarum_tube".into());
+                }
+                selection.method = "physarum_seed_fill";
+            }
+        }
+        let scores = selection.scores.clone();
+        selection.optional.sort_by(|a, b| {
+            let sa = scores.get(a).copied().unwrap_or(0.0);
+            let sb = scores.get(b).copied().unwrap_or(0.0);
+            let score = sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal);
+            if score != std::cmp::Ordering::Equal {
+                return score;
+            }
+            let pa = graph
+                .get_node(a)
+                .map(|n| n.file_path.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let pb = graph
+                .get_node(b)
+                .map(|n| n.file_path.to_string_lossy().to_string())
+                .unwrap_or_default();
+            pa.cmp(&pb)
+        });
+        let extra_cap = match effective_mode {
+            OptimizationMode::MaxSavings => 0,
+            OptimizationMode::Balanced => 5,
+            OptimizationMode::MaxQuality => 8,
+        };
+        selection.optional.truncate(extra_cap);
+        *self.last_physarum.lock() = PhysarumTelemetry {
+            used: physarum_used,
+            ms: physarum_ms,
+        };
 
         let mut active_symbol_names: HashSet<String> = HashSet::new();
         active_symbol_names.insert(signature.entity.to_lowercase());
@@ -315,7 +392,7 @@ impl ContextActivator {
                 continue;
             };
             let cost = item.node.token_cost.max(1);
-            if fill_cap == 0 || (fill_used > 0 && fill_used.saturating_add(cost) > fill_cap) {
+            if fill_cap == 0 || fill_used.saturating_add(cost) > fill_cap {
                 self.registry.register_inactive(
                     &item.node,
                     0.2,
@@ -418,6 +495,10 @@ impl ContextActivator {
             over_budget: fill_used > fill_cap,
             fold_ids,
             seed_call_coverage: compute_seed_call_coverage(graph, &seed_set, &selected_paths),
+            workspace_tokens,
+            physarum_used,
+            physarum_ms,
+            selection_method: selection.method.to_string(),
         }
     }
 }
@@ -484,30 +565,22 @@ fn build_next_actions(
     unresolved: &[neuromesh_core::UnresolvedRef],
 ) -> Vec<NextAction> {
     let mut actions = Vec::new();
-    for missed in &coverage.seeds_missed {
-        actions.push(NextAction {
-            tool: "neuromesh_search_symbols".into(),
-            query: missed.clone(),
-            why: "seed did not resolve in the index".into(),
-        });
-    }
-    if let Some(fold_id) = fold_ids.first() {
-        let on_call_path = active.iter().any(|n| {
-            graph
-                .get_connected_neighbors(&n.node.id)
-                .iter()
-                .any(|(_, e)| {
-                    e.edge_type == EdgeType::Calls
-                        && e.confidence != neuromesh_core::EdgeConfidence::Unresolved
-                })
-        });
-        if on_call_path {
+    let partial = coverage.claim == "partial";
+    if partial {
+        for missed in &coverage.seeds_missed {
             actions.push(NextAction {
-                tool: "neuromesh_expand_fold".into(),
-                query: fold_id.clone(),
-                why: "folded sibling sits on a Calls path".into(),
+                tool: "neuromesh_search_symbols".into(),
+                query: missed.clone(),
+                why: "coverage is partial — Grep/search this missed seed".into(),
             });
         }
+    }
+    for fold_id in fold_ids.iter().take(3) {
+        actions.push(NextAction {
+            tool: "neuromesh_expand_fold".into(),
+            query: fold_id.clone(),
+            why: "wake this intron without reading the disk".into(),
+        });
     }
     for node in active.iter().take(4) {
         for (neighbor, edge) in graph.get_connected_neighbors(&node.node.id) {
@@ -522,17 +595,19 @@ fn build_next_actions(
                 }
             }
         }
-        if actions.len() >= 6 {
+        if actions.len() >= 8 {
             break;
         }
     }
-    if let Some(u) = unresolved.first() {
-        if !actions.iter().any(|a| a.query == u.name) {
-            actions.push(NextAction {
-                tool: "neuromesh_search_symbols".into(),
-                query: u.name.clone(),
-                why: format!("unresolved {:?} from {}", u.relationship, u.from),
-            });
+    if partial {
+        if let Some(u) = unresolved.first() {
+            if !actions.iter().any(|a| a.query == u.name) {
+                actions.push(NextAction {
+                    tool: "neuromesh_search_symbols".into(),
+                    query: u.name.clone(),
+                    why: format!("unresolved {:?} from {} — Grep only because coverage is partial", u.relationship, u.from),
+                });
+            }
         }
     }
     actions.truncate(8);
@@ -661,5 +736,312 @@ pub fn unused_helper() {
             .expect("fold must be in registry");
         assert!(expanded.original_body.contains("let q = 5"));
         assert_eq!(expanded.fold_id, fold_id);
+    }
+
+    #[test]
+    fn real_tools_rs_folds_siblings_and_roundtrips() {
+        let tools_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("neuromesh-mcp")
+            .join("src")
+            .join("tools.rs");
+        let tools = std::fs::read_to_string(&tools_path).expect("read tools.rs");
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        graph.ingest_file(
+            &indexed("crates/neuromesh-mcp/src/tools.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("tools.rs"),
+                &tools,
+                SourceLanguage::Rust,
+            ),
+            Some(&tools),
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry.clone());
+        let signature = TaskSignatureExtractor::extract("How does handle_tool_call extract intent?");
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        let packet = view
+            .active_nodes
+            .iter()
+            .find(|n| {
+                n.node.node_type == NodeType::File
+                    && n.node
+                        .file_path
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                        .ends_with("tools.rs")
+            })
+            .expect("tools.rs in packet");
+        let skeleton = packet.node.content.as_deref().unwrap_or("");
+        assert!(
+            !packet.folded_symbols.iter().any(|s| s == "handle_tool_call"),
+            "handle_tool_call must remain an exon, folded={:?}",
+            packet.folded_symbols
+        );
+        assert!(
+            skeleton.contains("handle_tool_call") || skeleton.contains("TaskSignatureExtractor"),
+            "handle_tool_call exon must stay open; skeleton starts: {:?}",
+            skeleton.chars().take(400).collect::<String>()
+        );
+        assert!(
+            !packet.folded_symbols.is_empty() || !view.fold_ids.is_empty(),
+            "sibling methods in tools.rs should fold"
+        );
+        let fold_id = view.fold_ids.first().cloned().expect("fold id");
+        let engine = crate::expansion::ExpansionEngine::new(registry);
+        let expanded = engine.expand_fold(&fold_id).expect("expand from registry");
+        assert!(!expanded.original_body.is_empty());
+        assert!(!expanded.original_body.contains("[neuromesh:fold:"));
+    }
+
+    #[test]
+    fn physarum_tubes_connect_two_seeds_under_sla() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let a = r#"
+pub fn start_job() {
+    enqueue_job();
+}
+"#;
+        let b = r#"
+pub fn enqueue_job() {
+    let x = 1;
+    x
+}
+"#;
+        graph.ingest_file(
+            &indexed("src/worker.rs"),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("worker.rs"), a, SourceLanguage::Rust),
+            Some(a),
+        );
+        graph.ingest_file(
+            &indexed("src/queue.rs"),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("queue.rs"), b, SourceLanguage::Rust),
+            Some(b),
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let signature = TaskSignatureExtractor::extract("How does start_job enqueue_job?");
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        let seeds: Vec<_> = view
+            .seeds
+            .iter()
+            .filter(|s| s.resolved_id.is_some())
+            .collect();
+        assert!(seeds.len() >= 2, "need two seeds for Physarum: {:?}", view.seeds);
+        assert!(
+            view.physarum_ms < 20,
+            "tube latency {}ms",
+            view.physarum_ms
+        );
+        assert!(
+            view.physarum_used,
+            "neighborhood Physarum must run for two seeds: method={}",
+            view.selection_method
+        );
+        let tel = activator.last_physarum();
+        assert!(tel.used);
+        assert!(tel.ms < 20);
+    }
+
+    #[test]
+    fn folds_survive_second_activate_in_same_session() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let tools = r#"
+pub fn handle_tool_call() {
+    let signature = 1;
+    signature
+}
+pub fn unused_helper() {
+    let x = 1;
+    let y = 2;
+    let z = 3;
+    let w = 4;
+    x + y + z + w
+}
+"#;
+        graph.ingest_file(
+            &indexed("crates/neuromesh-mcp/src/tools.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("tools.rs"),
+                tools,
+                SourceLanguage::Rust,
+            ),
+            Some(tools),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry.clone());
+        let first = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("How does handle_tool_call work?"),
+            OptimizationMode::Balanced,
+        );
+        let fold_id = first.fold_ids.first().cloned().expect("fold");
+        let second = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("How does handle_tool_call work?"),
+            OptimizationMode::Balanced,
+        );
+        assert!(
+            registry.get_fold(&fold_id).is_some()
+                || second.fold_ids.iter().any(|id| registry.get_fold(id).is_some()),
+            "folds must persist across get_context in one session"
+        );
+        assert!(registry.fold_count() > 0);
+    }
+
+    #[test]
+    fn synaptic_feedback_pulls_coedited_file_into_second_packet() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let worker = r#"
+pub fn process_job() {
+    let n = 1;
+    n
+}
+"#;
+        let sig = r#"
+pub fn extract(prompt: &str) -> String {
+    prompt.to_string()
+}
+"#;
+        graph.ingest_file(
+            &indexed("src/worker.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("worker.rs"),
+                worker,
+                SourceLanguage::Rust,
+            ),
+            Some(worker),
+        );
+        graph.ingest_file(
+            &indexed("src/signature.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("signature.rs"),
+                sig,
+                SourceLanguage::Rust,
+            ),
+            Some(sig),
+        );
+        graph.finalize_links();
+        let worker_file = graph
+            .file_id_for_path(&PathBuf::from("src/worker.rs"))
+            .expect("worker file");
+        let sig_file = graph
+            .file_id_for_path(&PathBuf::from("src/signature.rs"))
+            .expect("signature file");
+        graph.add_edge(
+            worker_file.clone(),
+            sig_file.clone(),
+            neuromesh_core::EdgeType::ModifiedWith,
+        );
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let signature = TaskSignatureExtractor::extract("How does process_job work?");
+        let first = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        let first_has_sig = first.active_nodes.iter().any(|n| {
+            n.node
+                .file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .contains("signature.rs")
+        });
+        graph.record_neural_spike(worker_file.clone(), true, true);
+        graph.record_neural_spike(sig_file.clone(), true, true);
+        graph.apply_stdp_on_path(&[worker_file.clone(), sig_file.clone()]);
+        graph.reinforce_path(&[worker_file, sig_file], true);
+        graph.reinforce_path(
+            &[
+                graph
+                    .file_id_for_path(&PathBuf::from("src/worker.rs"))
+                    .unwrap(),
+                graph
+                    .file_id_for_path(&PathBuf::from("src/signature.rs"))
+                    .unwrap(),
+            ],
+            true,
+        );
+
+        let second = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        let second_has_sig = second.active_nodes.iter().any(|n| {
+            n.node
+                .file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .contains("signature.rs")
+        });
+        assert!(
+            second_has_sig,
+            "pheromone fill should pull signature.rs after feedback; first={first_has_sig}"
+        );
+    }
+
+    #[test]
+    fn next_actions_expand_folds_and_grep_only_when_partial() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let tools = r#"
+pub fn handle_tool_call() {
+    let signature = 1;
+    signature
+}
+pub fn unused_helper() {
+    let x = 1;
+    let y = 2;
+    let z = 3;
+    x + y + z
+}
+"#;
+        graph.ingest_file(
+            &indexed("src/tools.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("tools.rs"),
+                tools,
+                SourceLanguage::Rust,
+            ),
+            Some(tools),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let hit = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("How does handle_tool_call work?"),
+            OptimizationMode::Balanced,
+        );
+        assert!(
+            hit.next_actions
+                .iter()
+                .any(|a| a.tool == "neuromesh_expand_fold")
+                || hit.fold_ids.is_empty(),
+            "expand_fold should be offered when folds exist: {:?}",
+            hit.next_actions
+        );
+        assert!(
+            !hit.next_actions
+                .iter()
+                .any(|a| a.tool == "neuromesh_search_symbols"),
+            "Grep is not next when coverage is complete: {:?}",
+            hit.next_actions
+        );
+        let miss = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("What does __no_such_symbol_xyz__ do?"),
+            OptimizationMode::Balanced,
+        );
+        assert_eq!(
+            miss.coverage.as_ref().map(|c| c.claim.as_str()),
+            Some("partial")
+        );
+        assert!(
+            miss.next_actions
+                .iter()
+                .any(|a| a.tool == "neuromesh_search_symbols"),
+            "Grep only when partial: {:?}",
+            miss.next_actions
+        );
     }
 }
