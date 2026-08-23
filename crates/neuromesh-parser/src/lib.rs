@@ -8,6 +8,7 @@ pub mod python_lang;
 pub mod rust_lang;
 pub mod scss;
 pub mod semantic;
+pub mod tree_sitter_lang;
 pub mod types;
 pub mod typescript;
 pub mod vue;

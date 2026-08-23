@@ -12,3 +12,6 @@ serde.workspace = true
 serde_json.workspace = true
 regex.workspace = true
 tracing.workspace = true
+tree-sitter = "0.24"
+tree-sitter-rust = "0.23"
+tree-sitter-typescript = "0.23"

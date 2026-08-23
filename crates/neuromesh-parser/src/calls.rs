@@ -106,13 +106,22 @@ pub fn extract_calls_from_line_ctx(
             continue;
         }
         let recv = cap.name("recv").map(|m| m.as_str());
+        let match_start = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let before = &trimmed[..match_start];
         let receiver_hint = match recv {
             Some("self") | Some("this") | Some("Super") => impl_parent.map(|p| format!("impl:{p}")),
             Some(recv) => recv
                 .split("::")
                 .last()
                 .filter(|last| last.chars().next().is_some_and(|c| c.is_uppercase()))
-                .map(|last| format!("type:{last}")),
+                .map(|last| format!("type:{last}"))
+                .or_else(|| {
+                    if before.ends_with("self.") || before.ends_with("this.") {
+                        Some(format!("field:{recv}"))
+                    } else {
+                        None
+                    }
+                }),
             None => impl_parent.map(|p| format!("impl:{p}")),
         };
 

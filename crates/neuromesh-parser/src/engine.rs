@@ -16,10 +16,12 @@ impl CodeIntelligenceEngine {
         match language {
             SourceLanguage::Vue => VueParser::parse(path, content),
             SourceLanguage::TypeScript | SourceLanguage::JavaScript => {
-                TypeScriptParser::parse(path, content)
+                crate::tree_sitter_lang::parse_typescript(path, content)
+                    .unwrap_or_else(|| TypeScriptParser::parse(path, content))
             }
             SourceLanguage::SCSS | SourceLanguage::CSS => ScssParser::parse(path, content),
-            SourceLanguage::Rust => RustParser::parse(path, content),
+            SourceLanguage::Rust => crate::tree_sitter_lang::parse_rust(path, content)
+                .unwrap_or_else(|| RustParser::parse(path, content)),
             SourceLanguage::Python => PythonParser::parse(path, content),
             SourceLanguage::HTML => HtmlParser::parse(path, content),
             SourceLanguage::Go

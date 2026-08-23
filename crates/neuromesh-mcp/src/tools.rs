@@ -97,9 +97,11 @@ impl McpToolHandler {
                             "skeleton": n.node.content,
                             "tokens": n.node.token_cost,
                             "why": n.expansion_reason,
-                            "folds": view.fold_ids.iter().filter(|id| {
-                                id.contains(&n.node.name.replace('.', "_"))
-                            }).cloned().collect::<Vec<_>>(),
+                            "line_range": n.node.line_range,
+                            "folded_symbols": n.folded_symbols,
+                            "folds": n.folded_symbols.iter().map(|sym| {
+                                view.fold_ids.iter().filter(|id| id.contains(sym)).cloned().collect::<Vec<_>>()
+                            }).flatten().collect::<Vec<_>>(),
                         })
                     })
                     .collect();
@@ -182,6 +184,7 @@ impl McpToolHandler {
                         "active_tokens": opt_tokens,
                         "reduction_vs_workspace_pct": format!("{:.1}%", vs_workspace),
                         "reduction_vs_selected_pct": format!("{:.1}%", vs_selected),
+                        "seed_call_coverage": view.seed_call_coverage,
                     }
                 }))
             }
@@ -267,7 +270,23 @@ impl McpToolHandler {
                     .as_str()
                     .unwrap_or("Agent requested expansion");
 
-                if let Some((view, audit)) = self
+                if let Some(fold) = self.expansion_engine.expand_fold(node_id_str) {
+                    let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                    Ok(json!({
+                        "success": true,
+                        "kind": "fold",
+                        "fold_id": fold.fold_id,
+                        "symbol_name": fold.symbol_name,
+                        "signature": fold.signature,
+                        "original_body": fold.original_body,
+                        "file_path": fold.file_path,
+                        "start_line": fold.start_line,
+                        "end_line": fold.end_line,
+                        "restored_tokens": fold.restored_tokens,
+                        "latency_ms": elapsed_ms,
+                        "reason": reason,
+                    }))
+                } else if let Some((view, audit)) = self
                     .expansion_engine
                     .expand_node(&NodeId::new(node_id_str), reason)
                 {
@@ -299,6 +318,7 @@ impl McpToolHandler {
 
                     Ok(json!({
                         "success": true,
+                        "kind": "node",
                         "expanded_node": view,
                         "audit": audit
                     }))

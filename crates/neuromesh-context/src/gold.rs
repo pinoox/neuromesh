@@ -30,16 +30,19 @@ pub fn builtin_gold_tasks() -> Vec<GoldTask> {
             id: "handle_tool_call_intent".into(),
             prompt: "How does handle_tool_call extract intent?".into(),
             gold_files: vec![
-                "tools.rs".into(),
-                "signature.rs".into(),
-                "activator.rs".into(),
+                "crates/neuromesh-mcp/src/tools.rs".into(),
+                "crates/neuromesh-task/src/signature.rs".into(),
+                "crates/neuromesh-context/src/activator.rs".into(),
             ],
             expect_seeds_missed: false,
         },
         GoldTask {
             id: "physarum_usage".into(),
             prompt: "Where is Physarum used?".into(),
-            gold_files: vec!["physarum.rs".into(), "activation.rs".into()],
+            gold_files: vec![
+                "crates/neuromesh-graph/src/physarum.rs".into(),
+                "crates/neuromesh-graph/src/activation.rs".into(),
+            ],
             expect_seeds_missed: false,
         },
         GoldTask {
@@ -48,6 +51,65 @@ pub fn builtin_gold_tasks() -> Vec<GoldTask> {
             gold_files: Vec::new(),
             expect_seeds_missed: true,
         },
+    ]
+}
+
+pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
+    vec![
+        (
+            "mini-router",
+            GoldTask {
+                id: "router_handle".into(),
+                prompt: "How does handle_request extract a route?".into(),
+                gold_files: vec!["src/handler.rs".into(), "src/extract.rs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-router",
+            GoldTask {
+                id: "router_refactor".into(),
+                prompt: "Refactor extract_route so handle_request can parse a path.".into(),
+                gold_files: vec!["src/extract.rs".into(), "src/handler.rs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-store",
+            GoldTask {
+                id: "cart_add".into(),
+                prompt: "How does addToCart use createStore?".into(),
+                gold_files: vec!["src/cart.ts".into(), "src/store.ts".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-service",
+            GoldTask {
+                id: "session_start".into(),
+                prompt: "How does start_session issue_token?".into(),
+                gold_files: vec!["src/session.rs".into(), "src/auth.rs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-queue",
+            GoldTask {
+                id: "process_job".into(),
+                prompt: "How does process_job enqueue and dequeue?".into(),
+                gold_files: vec!["src/worker.rs".into(), "src/queue.rs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-config",
+            GoldTask {
+                id: "boot_config".into(),
+                prompt: "How does boot load_config from a debug string?".into(),
+                gold_files: vec!["src/boot.rs".into(), "src/config.rs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
     ]
 }
 
@@ -61,9 +123,21 @@ pub fn load_gold_tasks(path: &Path) -> Vec<GoldTask> {
 fn parse_gold_toml(raw: &str) -> Option<Vec<GoldTask>> {
     let mut tasks = Vec::new();
     let mut current: Option<GoldTask> = None;
+    let mut array_buf: Option<String> = None;
     for line in raw.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(buf) = array_buf.as_mut() {
+            buf.push(' ');
+            buf.push_str(line);
+            if line.contains(']') {
+                if let Some(task) = current.as_mut() {
+                    task.gold_files = parse_string_array(buf);
+                }
+                array_buf = None;
+            }
             continue;
         }
         if line == "[[task]]" {
@@ -86,7 +160,13 @@ fn parse_gold_toml(raw: &str) -> Option<Vec<GoldTask>> {
             "id" => task.id = unquote(value),
             "prompt" => task.prompt = unquote(value),
             "expect_seeds_missed" => task.expect_seeds_missed = value == "true",
-            "gold_files" => task.gold_files = parse_string_array(value),
+            "gold_files" => {
+                if value.contains(']') {
+                    task.gold_files = parse_string_array(value);
+                } else {
+                    array_buf = Some(value.to_string());
+                }
+            }
             _ => {}
         }
     }
@@ -128,19 +208,53 @@ pub fn packet_file_names(view: &ContextView) -> HashSet<String> {
         .collect()
 }
 
+pub fn packet_paths(view: &ContextView) -> HashSet<String> {
+    view.active_nodes
+        .iter()
+        .filter(|n| n.node.node_type == NodeType::File)
+        .map(|n| n.node.file_path.to_string_lossy().replace('\\', "/"))
+        .collect()
+}
+
+fn gold_file_hit(gold: &str, names: &HashSet<String>, paths: &HashSet<String>) -> bool {
+    let gold = gold.replace('\\', "/");
+    if gold.contains('/') {
+        paths.iter().any(|p| p.ends_with(&gold) || p.contains(&gold))
+    } else {
+        names.contains(&gold)
+    }
+}
+
 pub fn evaluate_view(task: &GoldTask, view: &ContextView, latency_ms: u64) -> GoldMetrics {
-    let packet = packet_file_names(view);
-    let gold: HashSet<String> = task.gold_files.iter().cloned().collect();
-    let hits = gold.intersection(&packet).count();
-    let recall = if gold.is_empty() {
+    let names = packet_file_names(view);
+    let paths = packet_paths(view);
+    let hits = task
+        .gold_files
+        .iter()
+        .filter(|g| gold_file_hit(g, &names, &paths))
+        .count();
+    let recall = if task.gold_files.is_empty() {
         1.0
     } else {
-        hits as f32 / gold.len() as f32
+        hits as f32 / task.gold_files.len() as f32
     };
-    let precision = if packet.is_empty() {
+    let precision = if paths.is_empty() {
         0.0
     } else {
-        hits as f32 / packet.len() as f32
+        let relevant = paths
+            .iter()
+            .filter(|p| {
+                task.gold_files.iter().any(|g| {
+                    let g = g.replace('\\', "/");
+                    if g.contains('/') {
+                        p.ends_with(&g) || p.contains(&g)
+                    } else {
+                        p.rsplit('/').next() == Some(g.as_str())
+                    }
+                })
+            })
+            .count();
+        relevant as f32 / paths.len() as f32
     };
     let seeds_missed = view
         .coverage
@@ -207,6 +321,7 @@ mod tests {
         let builtin = builtin_gold_tasks();
         assert_eq!(loaded.len(), builtin.len());
         assert_eq!(loaded[0].id, "handle_tool_call_intent");
+        assert!(loaded[0].gold_files.iter().any(|f| f.contains("crates/")));
         assert!(loaded[2].expect_seeds_missed);
     }
 
@@ -219,6 +334,26 @@ mod tests {
         let walker = ProjectWalker::new(root.clone(), ProjectId::new("neuromesh"));
         let scanned = walker.scan().expect("scan workspace");
         graph.ingest_workspace(&scanned);
+
+        if let Some(handle) = graph.resolve_best("handle_tool_call") {
+            let calls: Vec<String> = graph
+                .get_neighbor_views(&handle.id)
+                .into_iter()
+                .filter(|n| n.edge.edge_type == neuromesh_core::EdgeType::Calls)
+                .map(|n| {
+                    format!(
+                        "{}@{}:{:?}",
+                        n.node.name,
+                        n.node.file_path.to_string_lossy().replace('\\', "/"),
+                        n.edge.confidence
+                    )
+                })
+                .collect();
+            assert!(
+                calls.iter().any(|c| c.contains("activator.rs") && c.contains("activate")),
+                "handle_tool_call calls should include ContextActivator::activate, got {calls:?}"
+            );
+        }
 
         let tasks = workspace_gold_path()
             .map(|p| load_gold_tasks(&p))
@@ -255,7 +390,15 @@ mod tests {
                     "{} recall {} packet={:?} gold={:?}",
                     task.id,
                     metrics.recall,
-                    packet_file_names(&view),
+                    packet_paths(&view),
+                    task.gold_files
+                );
+                assert!(
+                    metrics.precision >= 0.4,
+                    "{} precision {} packet={:?} gold={:?}",
+                    task.id,
+                    metrics.precision,
+                    packet_paths(&view),
                     task.gold_files
                 );
                 assert_eq!(view.budget_fill_cap, 8_000);
@@ -298,6 +441,51 @@ mod tests {
             savings_files <= quality_files,
             "max_savings files {savings_files} should be <= max_quality {quality_files}"
         );
+        if !quality.fold_ids.is_empty() {
+            let engine = crate::expansion::ExpansionEngine::new(activator.registry().clone());
+            let fold = engine
+                .expand_fold(&quality.fold_ids[0])
+                .expect("registered fold");
+            assert!(!fold.original_body.is_empty());
+        }
+    }
+
+    #[test]
+    fn gold_harness_on_fixture_repos() {
+        let Some(root) = workspace_root() else {
+            return;
+        };
+        let fixtures = root.join("tests").join("fixtures");
+        for (dir, task) in fixture_gold_cases() {
+            let fixture = fixtures.join(dir);
+            if !fixture.exists() {
+                continue;
+            }
+            let graph = NeuralProjectGraph::new(ProjectId::new(dir));
+            let walker = ProjectWalker::new(fixture, ProjectId::new(dir));
+            let scanned = walker.scan().expect("scan fixture");
+            graph.ingest_workspace(&scanned);
+            let registry = Arc::new(ReversibleContextRegistry::new());
+            let activator = ContextActivator::new(registry);
+            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+            let metrics = evaluate_view(&task, &view, 0);
+            assert!(
+                metrics.recall >= 0.8,
+                "{} recall {} packet={:?} gold={:?}",
+                task.id,
+                metrics.recall,
+                packet_paths(&view),
+                task.gold_files
+            );
+            assert!(
+                metrics.precision >= 0.4,
+                "{} precision {} packet={:?}",
+                task.id,
+                metrics.precision,
+                packet_paths(&view)
+            );
+        }
     }
 
     /// Honest live measurement on this workspace. Prints JSON for the v0.4 claim check.

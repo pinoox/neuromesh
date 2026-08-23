@@ -636,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-api"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "futures-util",
@@ -663,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-cache"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -676,7 +676,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-cli"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -703,7 +703,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-context"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -720,7 +720,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -734,7 +734,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-graph"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -748,7 +748,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-index"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -763,7 +763,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-local-ai"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "neuromesh-core",
  "parking_lot",
@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-mcp"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "neuromesh-context",
@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-memory"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -809,7 +809,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-observability"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -824,7 +824,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-parser"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "neuromesh-core",
  "neuromesh-index",
@@ -832,11 +832,14 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "tree-sitter",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
 ]
 
 [[package]]
 name = "neuromesh-provider"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "futures-util",
  "neuromesh-core",
@@ -849,7 +852,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-router"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "neuromesh-context",
  "neuromesh-core",
@@ -862,7 +865,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-task"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "neuromesh-core",
  "neuromesh-parser",
@@ -1281,6 +1284,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "streaming-iterator"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520"
+
+[[package]]
 name = "syn"
 version = "2.0.118"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1465,6 +1474,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "tree-sitter"
+version = "0.24.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5387dffa7ffc7d2dae12b50c6f7aab8ff79d6210147c6613561fc3d474c6f75"
+dependencies = [
+ "cc",
+ "regex",
+ "regex-syntax",
+ "streaming-iterator",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-language"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782"
+
+[[package]]
+name = "tree-sitter-rust"
+version = "0.23.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca8ccb3e3a3495c8a943f6c3fd24c3804c471fd7f4f16087623c7fa4c0068e8a"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-typescript"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
 ]
 
 [[package]]

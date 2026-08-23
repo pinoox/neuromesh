@@ -1,0 +1,11 @@
+[[task]]
+id = "router_handle"
+prompt = "How does handle_request extract a route?"
+gold_files = ["src/handler.rs", "src/extract.rs"]
+expect_seeds_missed = false
+
+[[task]]
+id = "router_refactor"
+prompt = "Refactor extract_route so handle_request can parse a path."
+gold_files = ["src/extract.rs", "src/handler.rs"]
+expect_seeds_missed = false

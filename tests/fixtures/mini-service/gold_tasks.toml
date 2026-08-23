@@ -1,0 +1,5 @@
+[[task]]
+id = "session_start"
+prompt = "How does start_session issue_token?"
+gold_files = ["src/session.rs", "src/auth.rs"]
+expect_seeds_missed = false

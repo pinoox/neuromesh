@@ -1,0 +1,5 @@
+[[task]]
+id = "boot_config"
+prompt = "How does boot load_config from a debug string?"
+gold_files = ["src/boot.rs", "src/config.rs"]
+expect_seeds_missed = false

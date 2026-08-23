@@ -1,4 +1,6 @@
-use neuromesh_context::gold::{evaluate_view, load_gold_tasks, packet_file_names};
+use neuromesh_context::gold::{
+    evaluate_view, fixture_gold_cases, load_gold_tasks, packet_file_names, packet_paths,
+};
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{OptimizationMode, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
@@ -56,10 +58,10 @@ pub fn execute() -> Result<()> {
         index_ms
     );
     println!(
-        "{:<28} {:<12} {:>8} {:>8} {:>8} {:>8} {:>7} {:>8}",
-        "Task", "Mode", "WS tok", "Packet", "Fill", "Cap", "Recall", "ms"
+        "{:<28} {:<12} {:>8} {:>8} {:>8} {:>8} {:>7} {:>7} {:>8}",
+        "Task", "Mode", "WS tok", "Packet", "Fill", "Cap", "Recall", "Prec", "ms"
     );
-    println!("{}", "-".repeat(100));
+    println!("{}", "-".repeat(110));
 
     for task in &tasks {
         let signature = TaskSignatureExtractor::extract(&task.prompt);
@@ -74,7 +76,7 @@ pub fn execute() -> Result<()> {
             let metrics = evaluate_view(task, &view, ms as u64);
             let files = packet_file_names(&view);
             println!(
-                "{:<28} {:<12} {:>8} {:>8} {:>8} {:>8} {:>7.2} {:>8}",
+                "{:<28} {:<12} {:>8} {:>8} {:>8} {:>8} {:>7.2} {:>7.2} {:>8}",
                 if task.id.len() > 27 {
                     format!("{}…", &task.id[..26])
                 } else {
@@ -86,10 +88,11 @@ pub fn execute() -> Result<()> {
                 view.budget_fill_used,
                 view.budget_fill_cap,
                 metrics.recall,
+                metrics.precision,
                 ms
             );
             if mode == OptimizationMode::Balanced && !files.is_empty() {
-                let mut names: Vec<_> = files.into_iter().collect();
+                let mut names: Vec<_> = packet_paths(&view).into_iter().collect();
                 names.sort();
                 println!("    files: {}", names.join(", "));
             }
@@ -98,6 +101,56 @@ pub fn execute() -> Result<()> {
 
     println!("\nFill caps: max_savings=0 extra · balanced=8000 extra · max_quality=16000 extra.");
     println!("Seeds always ship (a large target function can exceed the fill cap).");
-    println!("Reduction is vs the indexed workspace, not vs a fake 25k corpus.\n");
+    println!("Reduction is vs the indexed workspace, not vs a fake 25k corpus.");
+
+    let fixtures = current_dir.join("tests").join("fixtures");
+    if fixtures.is_dir() {
+        println!("\nFixture repos:");
+        if let Ok(entries) = std::fs::read_dir(&fixtures) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_dir() {
+                    continue;
+                }
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let walker = ProjectWalker::new(path.clone(), ProjectId::new(&name));
+                let Ok(scanned) = walker.scan() else {
+                    continue;
+                };
+                if scanned.is_empty() {
+                    continue;
+                }
+                let graph = NeuralProjectGraph::new(ProjectId::new(&name));
+                graph.ingest_workspace(&scanned);
+                let registry = Arc::new(ReversibleContextRegistry::new());
+                let activator = ContextActivator::new(registry);
+                println!("  {name}: {} files", scanned.len());
+                let gold_path = path.join("gold_tasks.toml");
+                let tasks = if gold_path.exists() {
+                    load_gold_tasks(&gold_path)
+                } else {
+                    fixture_gold_cases()
+                        .into_iter()
+                        .filter(|(dir, _)| *dir == name)
+                        .map(|(_, task)| task)
+                        .collect()
+                };
+                for task in tasks {
+                    let signature = TaskSignatureExtractor::extract(&task.prompt);
+                    let view =
+                        activator.activate(&graph, &signature, OptimizationMode::Balanced);
+                    let metrics = evaluate_view(&task, &view, 0);
+                    println!(
+                        "    {} recall={:.2} prec={:.2} files={:?}",
+                        task.id,
+                        metrics.recall,
+                        metrics.precision,
+                        packet_paths(&view)
+                    );
+                }
+            }
+        }
+    }
+    println!();
     Ok(())
 }

@@ -216,14 +216,17 @@ impl McpServer {
                                 "properties": {
                                     "node_id": {
                                         "type": "string",
-                                        "description": "The ID of the fold or inactive node to expand"
+                                        "description": "Fold id from the packet (fold_*) or an inactive node id"
+                                    },
+                                    "fold_id": {
+                                        "type": "string",
+                                        "description": "Alias for node_id when expanding a [neuromesh:fold] marker"
                                     },
                                     "reason": {
                                         "type": "string",
                                         "description": "Reason for expansion"
                                     }
-                                },
-                                "required": ["node_id"]
+                                }
                             }
                         },
                         {

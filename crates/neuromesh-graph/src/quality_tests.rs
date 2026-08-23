@@ -130,6 +130,86 @@ pub fn bar() {}
     }
 
     #[test]
+    fn field_receiver_resolves_activator_not_spreading_activate() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let tools = r#"
+use neuromesh_context::ContextActivator;
+use neuromesh_task::TaskSignatureExtractor;
+pub struct Handler {
+    activator: ContextActivator,
+}
+impl Handler {
+    pub fn handle_tool_call(&self) {
+        TaskSignatureExtractor::extract("demo");
+        self.activator.activate();
+    }
+}
+"#;
+        let activator = r#"
+pub struct ContextActivator;
+impl ContextActivator {
+    pub fn activate(&self) {}
+}
+"#;
+        let spreading = r#"
+pub struct SpreadingActivation;
+impl SpreadingActivation {
+    pub fn activate(&self) {}
+}
+"#;
+        graph.ingest_file(
+            &indexed("crates/neuromesh-mcp/src/tools.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("crates/neuromesh-mcp/src/tools.rs"),
+                tools,
+                SourceLanguage::Rust,
+            ),
+            Some(tools),
+        );
+        graph.ingest_file(
+            &indexed("crates/neuromesh-context/src/activator.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("crates/neuromesh-context/src/activator.rs"),
+                activator,
+                SourceLanguage::Rust,
+            ),
+            Some(activator),
+        );
+        graph.ingest_file(
+            &indexed("crates/neuromesh-graph/src/activation.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("crates/neuromesh-graph/src/activation.rs"),
+                spreading,
+                SourceLanguage::Rust,
+            ),
+            Some(spreading),
+        );
+        graph.finalize_links();
+        let handle = graph
+            .resolve_unique("handle_tool_call", Some("tools.rs"))
+            .expect("handle_tool_call");
+        let neighbors = graph.get_neighbor_views(&handle);
+        let activate = neighbors
+            .iter()
+            .find(|n| n.node.name == "activate" && n.edge.edge_type == neuromesh_core::EdgeType::Calls)
+            .expect("activate call");
+        assert!(
+            activate
+                .node
+                .file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .ends_with("activator.rs"),
+            "activate resolved to {:?}",
+            activate.node.file_path
+        );
+        assert_eq!(
+            activate.edge.confidence,
+            neuromesh_core::EdgeConfidence::Proven
+        );
+    }
+
+    #[test]
     fn incremental_hash_skips_and_persist_roundtrips() {
         let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
         let src = "pub fn persist_me() {}\n";

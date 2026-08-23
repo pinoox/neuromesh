@@ -47,7 +47,6 @@ pub fn select(
     mode: OptimizationMode,
 ) -> Selection {
     let fill_cap = fill_budget(mode);
-    let _ = neighborhood;
     let mut required: HashSet<NodeId> = HashSet::new();
     let mut scores: HashMap<NodeId, f32> = HashMap::new();
 
@@ -74,8 +73,8 @@ pub fn select(
     };
     let max_extra_files = match mode {
         OptimizationMode::MaxSavings => 0,
-        OptimizationMode::Balanced => 8,
-        OptimizationMode::MaxQuality => 14,
+        OptimizationMode::Balanced => 4,
+        OptimizationMode::MaxQuality => 8,
     };
 
     let mut file_scores: HashMap<NodeId, f32> = HashMap::new();
@@ -83,13 +82,16 @@ pub fn select(
         if required.contains(id) || is_noise_node(graph, id) {
             return;
         }
-        if graph
-            .get_node(id)
-            .is_some_and(|n| n.node_type == NodeType::File && n.token_cost > 10_000)
-        {
+        *scores.entry(id.clone()).or_insert(0.0) += amount;
+    };
+    let bump_file_max = |scores: &mut HashMap<NodeId, f32>, id: &NodeId, amount: f32| {
+        if required.contains(id) || is_noise_node(graph, id) {
             return;
         }
-        *scores.entry(id.clone()).or_insert(0.0) += amount;
+        let entry = scores.entry(id.clone()).or_insert(0.0);
+        if amount > *entry {
+            *entry = amount;
+        }
     };
 
     for term in focus_terms {
@@ -126,11 +128,18 @@ pub fn select(
                         continue;
                     }
                     if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
-                        bump_file(
-                            &mut file_scores,
-                            &file_id,
-                            if outbound_call { 12.0 } else { 10.0 },
-                        );
+                        let mut amount = if outbound_call { 12.0 } else { 10.0 };
+                        if outbound_call && edge.confidence == EdgeConfidence::Proven {
+                            amount += 3.0;
+                        }
+                        if focus_terms.contains(&node.name.to_lowercase()) {
+                            amount += 8.0;
+                        }
+                        if outbound_call {
+                            bump_file_max(&mut file_scores, &file_id, amount);
+                        } else {
+                            bump_file(&mut file_scores, &file_id, amount);
+                        }
                     }
                     scores.entry(neighbor.clone()).or_insert(9.0);
                 }
@@ -159,11 +168,44 @@ pub fn select(
         }
     }
 
+    for u in graph.unresolved_refs() {
+        let from_seed = seeds.iter().any(|s| {
+            graph
+                .get_node(s)
+                .is_some_and(|n| n.file_path == u.from_file)
+        });
+        if !from_seed {
+            continue;
+        }
+        if let Some((id, _)) = graph.resolve_ranked(&u.name, None, None) {
+            if let Some(node) = graph.get_node(&id) {
+                if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                    bump_file(&mut file_scores, &file_id, 11.0);
+                }
+            }
+        }
+    }
+
     if hop_limit >= 2 {
         for id in graph.steiner_union(seeds) {
             if let Some(node) = graph.get_node(&id) {
                 if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
                     bump_file(&mut file_scores, &file_id, 1.5);
+                }
+            }
+        }
+    }
+
+    for id in neighborhood {
+        if let Some(node) = graph.get_node(id) {
+            let file_id = if node.node_type == NodeType::File {
+                Some(id.clone())
+            } else {
+                graph.file_id_for_path(&node.file_path)
+            };
+            if let Some(file_id) = file_id {
+                if file_scores.contains_key(&file_id) {
+                    bump_file(&mut file_scores, &file_id, 1.0);
                 }
             }
         }
@@ -191,8 +233,14 @@ pub fn select(
         OptimizationMode::Balanced => 2,
         OptimizationMode::MaxQuality => 3,
     };
+    let overflow_limit = match mode {
+        OptimizationMode::MaxSavings => 0,
+        OptimizationMode::Balanced => 4,
+        OptimizationMode::MaxQuality => 6,
+    };
     let mut per_crate: HashMap<String, usize> = HashMap::new();
     let mut limited = Vec::new();
+    let mut overflow: Vec<(NodeId, f32)> = Vec::new();
     for (id, gain) in optional_files {
         if limited.len() >= max_extra_files {
             break;
@@ -201,8 +249,27 @@ pub fn select(
             .get_node(&id)
             .map(|n| crate_dir(&n.file_path))
             .unwrap_or_default();
-        let count = per_crate.entry(crate_key).or_insert(0);
+        let count = per_crate.entry(crate_key.clone()).or_insert(0);
         if *count >= per_crate_limit {
+            overflow.push((id, gain));
+            continue;
+        }
+        *count += 1;
+        limited.push((id, gain));
+    }
+    for (id, gain) in overflow {
+        if limited.len() >= max_extra_files {
+            break;
+        }
+        if gain < 12.0 {
+            continue;
+        }
+        let crate_key = graph
+            .get_node(&id)
+            .map(|n| crate_dir(&n.file_path))
+            .unwrap_or_default();
+        let count = per_crate.entry(crate_key).or_insert(0);
+        if *count >= overflow_limit {
             continue;
         }
         *count += 1;

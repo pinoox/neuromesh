@@ -4,6 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionSpan {
+    pub name: String,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FoldedIntron {
     pub fold_id: String,
     pub symbol_name: String,
@@ -44,9 +52,18 @@ impl CodeSkeletonizer {
         content: &str,
         active_symbol_names: &HashSet<String>,
     ) -> SkeletonResult {
+        Self::skeletonize_with_spans(file_path, content, active_symbol_names, &[])
+    }
+
+    /// Prefer parser/graph function spans when available (accurate bodies).
+    pub fn skeletonize_with_spans(
+        file_path: &str,
+        content: &str,
+        active_symbol_names: &HashSet<String>,
+        spans: &[FunctionSpan],
+    ) -> SkeletonResult {
         let original_tokens = TokenCounter::count_tokens(content);
 
-        // For very tiny snippets (< 8 lines or < 35 tokens), keep full content
         if content.lines().count() < 8 || original_tokens < 35 {
             return SkeletonResult {
                 skeleton_code: content.to_string(),
@@ -57,6 +74,10 @@ impl CodeSkeletonizer {
                 introns_folded: 0,
                 folds: Vec::new(),
             };
+        }
+
+        if !spans.is_empty() {
+            return Self::skeletonize_from_spans(content, active_symbol_names, original_tokens, spans);
         }
 
         let is_python = file_path.ends_with(".py");
@@ -77,7 +98,6 @@ impl CodeSkeletonizer {
         } else if is_c_like {
             Self::skeletonize_brace_language(content, active_symbol_names, original_tokens)
         } else {
-            // Default fallback
             SkeletonResult {
                 skeleton_code: content.to_string(),
                 original_tokens,
@@ -87,6 +107,105 @@ impl CodeSkeletonizer {
                 introns_folded: 0,
                 folds: Vec::new(),
             }
+        }
+    }
+
+    fn skeletonize_from_spans(
+        content: &str,
+        active_symbols: &HashSet<String>,
+        original_tokens: usize,
+        spans: &[FunctionSpan],
+    ) -> SkeletonResult {
+        let lines: Vec<&str> = content.lines().collect();
+        let mut fold_ranges: Vec<(usize, usize, FunctionSpan)> = Vec::new();
+        let mut exons_count = 0;
+        let mut ordered: Vec<FunctionSpan> = spans.to_vec();
+        ordered.sort_by_key(|s| s.start_line);
+
+        for span in ordered {
+            let start = span.start_line.saturating_sub(1);
+            let end = span.end_line.min(lines.len()).saturating_sub(1);
+            if start >= lines.len() || end < start {
+                continue;
+            }
+            let span_len = end.saturating_sub(start) + 1;
+            if is_seed_exon(&span.name, active_symbols) {
+                exons_count += 1;
+                continue;
+            }
+            if span_len <= 3 {
+                exons_count += 1;
+                continue;
+            }
+            fold_ranges.push((start, end, span));
+        }
+
+        if fold_ranges.is_empty() {
+            return SkeletonResult {
+                skeleton_code: content.to_string(),
+                original_tokens,
+                skeleton_tokens: original_tokens,
+                token_reduction_pct: 0.0,
+                exons_count,
+                introns_folded: 0,
+                folds: Vec::new(),
+            };
+        }
+
+        let mut result_lines: Vec<String> = Vec::new();
+        let mut folds: Vec<FoldedIntron> = Vec::new();
+        let mut i = 0usize;
+        let mut fold_idx = 0usize;
+        while i < lines.len() {
+            if fold_idx < fold_ranges.len() && i == fold_ranges[fold_idx].0 {
+                let (start, end, span) = &fold_ranges[fold_idx];
+                let body_content = lines[*start..=*end].join("\n");
+                let saved_tokens = TokenCounter::count_tokens(&body_content);
+                let indent = lines[*start]
+                    .chars()
+                    .take_while(|c| c.is_whitespace())
+                    .collect::<String>();
+                let fold_id = format!("fold_{}_{}", span.name, folds.len() + 1);
+                result_lines.push(format!(
+                    "{}/* [neuromesh:fold:{} | {} lines folded | {}] */",
+                    indent,
+                    fold_id,
+                    end.saturating_sub(*start) + 1,
+                    span.signature
+                ));
+                folds.push(FoldedIntron {
+                    fold_id,
+                    symbol_name: span.name.clone(),
+                    signature: span.signature.clone(),
+                    original_body: body_content,
+                    start_line: span.start_line,
+                    end_line: span.end_line,
+                    saved_tokens,
+                });
+                i = *end + 1;
+                fold_idx += 1;
+                continue;
+            }
+            result_lines.push(lines[i].to_string());
+            i += 1;
+        }
+
+        let skeleton_code = result_lines.join("\n");
+        let skeleton_tokens = TokenCounter::count_tokens(&skeleton_code);
+        let saved = original_tokens.saturating_sub(skeleton_tokens);
+        let token_reduction_pct = if original_tokens > 0 {
+            (saved as f32 / original_tokens as f32) * 100.0
+        } else {
+            0.0
+        };
+        SkeletonResult {
+            skeleton_code,
+            original_tokens,
+            skeleton_tokens,
+            token_reduction_pct,
+            exons_count,
+            introns_folded: folds.len(),
+            folds,
         }
     }
 
@@ -336,5 +455,32 @@ export function untargetedHeavyHelper2() {
             .skeleton_code
             .contains("neuromesh:fold:fold_untargetedHeavyHelper"));
         assert!(res.token_reduction_pct > 30.0);
+    }
+
+    #[test]
+    fn skeletonize_from_spans_folds_non_exons() {
+        let code = "fn keep() {\n    let a = 1;\n    let b = 2;\n    a + b\n}\nfn drop_me() {\n    let x = 1;\n    let y = 2;\n    let z = 3;\n    x + y + z\n}\n";
+        let mut active = HashSet::new();
+        active.insert("keep".into());
+        let spans = vec![
+            FunctionSpan {
+                name: "keep".into(),
+                start_line: 1,
+                end_line: 5,
+                signature: "fn keep()".into(),
+            },
+            FunctionSpan {
+                name: "drop_me".into(),
+                start_line: 6,
+                end_line: 11,
+                signature: "fn drop_me()".into(),
+            },
+        ];
+        let res = CodeSkeletonizer::skeletonize_with_spans("x.rs", code, &active, &spans);
+        assert!(res.skeleton_code.contains("fn keep()"));
+        assert!(res.skeleton_code.contains("neuromesh:fold:fold_drop_me"));
+        assert!(!res.skeleton_code.contains("let z = 3"));
+        assert_eq!(res.folds.len(), 1);
+        assert_eq!(res.folds[0].original_body.lines().count(), 6);
     }
 }

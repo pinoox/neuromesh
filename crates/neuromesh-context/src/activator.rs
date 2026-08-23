@@ -1,10 +1,10 @@
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
 use crate::selector::{budget_mode_name, fill_budget, is_noise_path, select};
-use crate::skeleton::CodeSkeletonizer;
+use crate::skeleton::{CodeSkeletonizer, FunctionSpan};
 use neuromesh_core::{
     ActivatedNodeView, ContextStatus, ContextView, CoverageReport, EdgeType, NextAction, NodeId,
-    OptimizationMode, SeedResolution, TaskSignature,
+    NodeType, OptimizationMode, SeedResolution, TaskSignature,
 };
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::{HashMap, HashSet};
@@ -23,6 +23,10 @@ impl ContextActivator {
             scorer: ActivationScorer::new(ScoringWeights::default()),
             registry,
         }
+    }
+
+    pub fn registry(&self) -> &Arc<ReversibleContextRegistry> {
+        &self.registry
     }
 
     pub fn activate(
@@ -199,59 +203,73 @@ impl ContextActivator {
         let mut fill_used: usize = 0;
         let mut total_raw_tokens = 0;
         let mut fold_ids = Vec::new();
+        let registry = self.registry.clone();
 
-        let materialize =
-            |id: &NodeId,
-             scores: &HashMap<NodeId, f32>,
-             seed_energies: &HashMap<NodeId, f32>,
-             seed_reasons: &HashMap<NodeId, String>,
-             scorer: &crate::scoring::ActivationScorer|
-             -> Option<(neuromesh_core::ContextNode, f32, String, usize, Vec<String>)> {
-                let mut node = graph.get_node(id)?;
-                if is_noise_path(&node.file_path) && !seed_set.contains(id) {
-                    let seed_file = seed_set.iter().any(|s| {
-                        graph
-                            .get_node(s)
-                            .is_some_and(|n| n.file_path == node.file_path)
-                    });
-                    if !seed_file {
-                        return None;
-                    }
-                }
-                let rel_strength = *seed_energies.get(id).unwrap_or(&0.35);
-                let score = scores
-                    .get(id)
-                    .copied()
-                    .unwrap_or_else(|| scorer.score_node(&node, signature, rel_strength, 1.0));
-                let reason = seed_reasons.get(id).cloned().unwrap_or_else(|| {
-                    scores
-                        .get(id)
-                        .map(|s| format!("utility:{s:.2}"))
-                        .unwrap_or_else(|| "connector".into())
+        let materialize = |id: &NodeId,
+                           scores: &HashMap<NodeId, f32>,
+                           seed_energies: &HashMap<NodeId, f32>,
+                           seed_reasons: &HashMap<NodeId, String>,
+                           scorer: &crate::scoring::ActivationScorer|
+         -> Option<(
+            neuromesh_core::ContextNode,
+            f32,
+            String,
+            usize,
+            Vec<String>,
+            Vec<String>,
+        )> {
+            let mut node = graph.get_node(id)?;
+            if is_noise_path(&node.file_path) && !seed_set.contains(id) {
+                let seed_file = seed_set.iter().any(|s| {
+                    graph
+                        .get_node(s)
+                        .is_some_and(|n| n.file_path == node.file_path)
                 });
-                let mut folds = Vec::new();
-                let raw = if let Some(content) = node.content.clone() {
-                    let raw = neuromesh_core::TokenCounter::count_tokens(&content);
-                    let skeleton_res = CodeSkeletonizer::skeletonize(
-                        &node.file_path.to_string_lossy(),
-                        &content,
-                        &active_symbol_names,
-                    );
-                    folds.extend(skeleton_res.folds.iter().map(|f| f.fold_id.clone()));
-                    node.content = Some(skeleton_res.skeleton_code);
-                    node.token_cost = skeleton_res.skeleton_tokens;
-                    raw
-                } else {
-                    node.token_cost
-                };
-                Some((node, score, reason, raw, folds))
+                if !seed_file {
+                    return None;
+                }
+            }
+            let rel_strength = *seed_energies.get(id).unwrap_or(&0.35);
+            let score = scores
+                .get(id)
+                .copied()
+                .unwrap_or_else(|| scorer.score_node(&node, signature, rel_strength, 1.0));
+            let reason = seed_reasons.get(id).cloned().unwrap_or_else(|| {
+                scores
+                    .get(id)
+                    .map(|s| format!("utility:{s:.2}"))
+                    .unwrap_or_else(|| "connector".into())
+            });
+            let mut folds = Vec::new();
+            let mut folded_symbols = Vec::new();
+            let raw = if let Some(content) = node.content.clone() {
+                let raw = neuromesh_core::TokenCounter::count_tokens(&content);
+                let spans = function_spans_for_file(graph, &node.file_path);
+                let skeleton_res = CodeSkeletonizer::skeletonize_with_spans(
+                    &node.file_path.to_string_lossy(),
+                    &content,
+                    &active_symbol_names,
+                    &spans,
+                );
+                for fold in &skeleton_res.folds {
+                    registry.register_fold(node.file_path.clone(), fold.clone());
+                    folded_symbols.push(fold.symbol_name.clone());
+                    folds.push(fold.fold_id.clone());
+                }
+                node.content = Some(skeleton_res.skeleton_code);
+                node.token_cost = skeleton_res.skeleton_tokens;
+                raw
+            } else {
+                node.token_cost
             };
+            Some((node, score, reason, raw, folds, folded_symbols))
+        };
 
         for id in &selection.required {
             if included.contains(id) {
                 continue;
             }
-            let Some((node, score, reason, raw, folds)) = materialize(
+            let Some((node, score, reason, raw, folds, folded_symbols)) = materialize(
                 id,
                 &selection.scores,
                 &seed_energies,
@@ -270,6 +288,7 @@ impl ContextActivator {
                 activation_score: score,
                 status: ContextStatus::Active,
                 expansion_reason: Some(reason),
+                folded_symbols,
             });
         }
 
@@ -277,7 +296,7 @@ impl ContextActivator {
             if included.contains(id) {
                 continue;
             }
-            let Some((node, score, reason, raw, folds)) = materialize(
+            let Some((node, score, reason, raw, folds, folded_symbols)) = materialize(
                 id,
                 &selection.scores,
                 &seed_energies,
@@ -287,7 +306,7 @@ impl ContextActivator {
                 continue;
             };
             let cost = node.token_cost.max(1);
-            if cost > fill_cap || (fill_used > 0 && fill_used.saturating_add(cost) > fill_cap) {
+            if fill_cap == 0 || (fill_used > 0 && fill_used.saturating_add(cost) > fill_cap) {
                 self.registry
                     .register_inactive(&node, 0.2, signature.confidence, score, None);
                 continue;
@@ -302,6 +321,7 @@ impl ContextActivator {
                 activation_score: score,
                 status: ContextStatus::Active,
                 expansion_reason: Some(reason),
+                folded_symbols,
             });
         }
 
@@ -383,7 +403,61 @@ impl ContextActivator {
             budget_fill_cap: fill_cap,
             over_budget: fill_used > fill_cap,
             fold_ids,
+            seed_call_coverage: compute_seed_call_coverage(graph, &seed_set, &selected_paths),
         }
+    }
+}
+
+fn function_spans_for_file(
+    graph: &NeuralProjectGraph,
+    path: &std::path::Path,
+) -> Vec<FunctionSpan> {
+    let norm = path.to_string_lossy().replace('\\', "/");
+    graph
+        .get_all_nodes()
+        .into_iter()
+        .filter(|n| {
+            n.node_type == NodeType::Function
+                && n.file_path.to_string_lossy().replace('\\', "/") == norm
+        })
+        .filter_map(|n| {
+            let range = n.line_range?;
+            Some(FunctionSpan {
+                name: n.name,
+                start_line: range.start,
+                end_line: range.end.saturating_sub(1).max(range.start),
+                signature: n.signature.unwrap_or_default(),
+            })
+        })
+        .collect()
+}
+
+fn compute_seed_call_coverage(
+    graph: &NeuralProjectGraph,
+    seeds: &HashSet<NodeId>,
+    selected_paths: &HashSet<String>,
+) -> f32 {
+    let mut total = 0usize;
+    let mut hit = 0usize;
+    for seed in seeds {
+        for (neighbor, edge) in graph.get_connected_neighbors(seed) {
+            if edge.edge_type != EdgeType::Calls || edge.source != *seed {
+                continue;
+            }
+            let Some(node) = graph.get_node(&neighbor) else {
+                continue;
+            };
+            total += 1;
+            let path = node.file_path.to_string_lossy().replace('\\', "/");
+            if selected_paths.contains(&path) {
+                hit += 1;
+            }
+        }
+    }
+    if total == 0 {
+        1.0
+    } else {
+        hit as f32 / total as f32
     }
 }
 
@@ -523,5 +597,55 @@ impl TaskSignatureExtractor {
         assert!(view.coverage.is_some());
         assert!(view.budget_cap > 0);
         assert!(view.seeds.iter().any(|s| s.resolved_id.is_some()));
+    }
+
+    #[test]
+    fn expand_fold_restores_body_without_disk() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let tools = r#"
+use neuromesh_task::TaskSignatureExtractor;
+pub fn handle_tool_call() {
+    let signature = TaskSignatureExtractor::extract("demo");
+    activate(&signature);
+}
+pub fn unused_helper() {
+    let x = 1;
+    let y = 2;
+    let z = 3;
+    let w = 4;
+    let q = 5;
+    x + y + z + w + q
+}
+"#;
+        graph.ingest_file(
+            &indexed("crates/neuromesh-mcp/src/tools.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("tools.rs"),
+                tools,
+                SourceLanguage::Rust,
+            ),
+            Some(tools),
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry.clone());
+        let signature = TaskSignatureExtractor::extract("How does handle_tool_call work?");
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(
+            !view.fold_ids.is_empty(),
+            "expected unused_helper to fold: {:?}",
+            view.active_nodes
+                .iter()
+                .map(|n| n.node.content.clone())
+                .collect::<Vec<_>>()
+        );
+        let fold_id = view.fold_ids[0].clone();
+        let engine = crate::expansion::ExpansionEngine::new(registry);
+        let expanded = engine
+            .expand_fold(&fold_id)
+            .expect("fold must be in registry");
+        assert!(expanded.original_body.contains("let q = 5"));
+        assert_eq!(expanded.fold_id, fold_id);
     }
 }

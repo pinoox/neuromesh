@@ -258,6 +258,8 @@ pub struct ActivatedNodeView {
     pub activation_score: f32,
     pub status: ContextStatus,
     pub expansion_reason: Option<String>,
+    #[serde(default)]
+    pub folded_symbols: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -298,6 +300,9 @@ pub struct ContextView {
     pub over_budget: bool,
     #[serde(default)]
     pub fold_ids: Vec<String>,
+    /// Fraction of seed outbound Calls whose target file is in the packet.
+    #[serde(default)]
+    pub seed_call_coverage: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

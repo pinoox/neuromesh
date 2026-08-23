@@ -448,6 +448,27 @@ impl NeuralProjectGraph {
                             );
                         }
                         true
+                    } else if let Some((target, _)) = self.resolve_ranked(
+                        &rel.target_symbol,
+                        Some(&rel.source_file.to_string_lossy()),
+                        Some(&imported_files),
+                    ) {
+                        if target != source {
+                            self.add_edge_with_confidence(
+                                source.clone(),
+                                target,
+                                EdgeType::Calls,
+                                EdgeConfidence::Likely,
+                            );
+                        }
+                        unresolved.push(UnresolvedRef {
+                            name: rel.target_symbol.clone(),
+                            from: rel.source_symbol.clone(),
+                            from_file: rel.source_file.clone(),
+                            reason: "ambiguous call kept as likely".into(),
+                            relationship: EdgeType::Calls,
+                        });
+                        true
                     } else {
                         unresolved.push(UnresolvedRef {
                             name: rel.target_symbol.clone(),
@@ -670,9 +691,7 @@ impl NeuralProjectGraph {
             if hinted.len() == 1 {
                 return hinted.into_iter().next();
             }
-            if !hinted.is_empty() {
-                return hinted.into_iter().next();
-            }
+            return None;
         }
         None
     }
@@ -743,6 +762,20 @@ impl NeuralProjectGraph {
             return imported.into_iter().next();
         }
 
+        let src_pkg = package_name(source_file);
+        let same_crate: Vec<NodeId> = ids
+            .iter()
+            .filter(|id| {
+                data.nodes.get(*id).is_some_and(|n| {
+                    n.node_type != NodeType::File && package_name(&n.file_path) == src_pkg
+                })
+            })
+            .cloned()
+            .collect();
+        if same_crate.len() == 1 {
+            return same_crate.into_iter().next();
+        }
+
         if ids.len() == 1 {
             return ids.into_iter().next();
         }
@@ -755,6 +788,7 @@ impl NeuralProjectGraph {
         file_hint: Option<&str>,
         imported_files: Option<&HashSet<PathBuf>>,
     ) -> Option<(NodeId, EdgeConfidence)> {
+        let file_hint = file_hint.filter(|hint| !hint.contains("::"));
         if let Some(hint) = file_hint {
             if let Some(found) = self.resolve_export(name, hint) {
                 return Some(found);
@@ -864,6 +898,13 @@ impl NeuralProjectGraph {
         receiver_hint: Option<&str>,
     ) -> Option<(NodeId, EdgeConfidence)> {
         if let Some(hint) = receiver_hint {
+            if let Some(field) = hint.strip_prefix("field:") {
+                if let Some(id) =
+                    self.resolve_method_on_field(name, field, source_file, imported_files)
+                {
+                    return Some((id, EdgeConfidence::Proven));
+                }
+            }
             let type_name = hint
                 .strip_prefix("impl:")
                 .or_else(|| hint.strip_prefix("type:"))
@@ -895,6 +936,51 @@ impl NeuralProjectGraph {
             Some(&source_file.to_string_lossy()),
             Some(imported_files),
         )
+    }
+
+    fn resolve_method_on_field(
+        &self,
+        method: &str,
+        field: &str,
+        source_file: &Path,
+        imported_files: &HashSet<PathBuf>,
+    ) -> Option<NodeId> {
+        let data = self.inner.read();
+        let mut type_names: Vec<String> = data
+            .nodes
+            .values()
+            .filter(|n| n.node_type == NodeType::Class || n.node_type == NodeType::Symbol)
+            .filter(|n| field_matches_type(field, &n.name))
+            .filter(|n| imported_files.contains(&n.file_path) || n.file_path == source_file)
+            .map(|n| n.name.clone())
+            .collect();
+        type_names.sort();
+        type_names.dedup();
+        let mut hits: Vec<NodeId> = Vec::new();
+        for ty in &type_names {
+            let key = format!("{}::{}", ty.to_lowercase(), method.to_lowercase());
+            if let Some(ids) = data.impl_index.get(&key) {
+                hits.extend(ids.iter().cloned());
+            }
+        }
+        hits.sort_by(|a, b| a.0.cmp(&b.0));
+        hits.dedup();
+        if hits.len() == 1 {
+            return hits.into_iter().next();
+        }
+        let imported_hits: Vec<NodeId> = hits
+            .iter()
+            .filter(|id| {
+                data.nodes
+                    .get(*id)
+                    .is_some_and(|n| imported_files.contains(&n.file_path))
+            })
+            .cloned()
+            .collect();
+        if imported_hits.len() == 1 {
+            return imported_hits.into_iter().next();
+        }
+        None
     }
 
     fn resolve_export(&self, name: &str, file_hint: &str) -> Option<(NodeId, EdgeConfidence)> {
@@ -1556,6 +1642,32 @@ fn is_fixture_path(path: &Path) -> bool {
         || lower.contains("/test/")
         || lower.ends_with("/tests.rs")
         || lower.contains("quality_tests")
+}
+
+fn to_snake_case(name: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in name.chars().enumerate() {
+        if c.is_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.extend(c.to_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn field_matches_type(field: &str, type_name: &str) -> bool {
+    let field = field.to_lowercase();
+    if field.is_empty() {
+        return false;
+    }
+    let snake = to_snake_case(type_name);
+    snake == field
+        || snake.ends_with(&format!("_{field}"))
+        || type_name.to_lowercase().ends_with(&field)
 }
 
 fn package_name(path: &Path) -> String {

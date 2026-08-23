@@ -1,12 +1,21 @@
+use crate::skeleton::FoldedIntron;
 use neuromesh_core::{ContextNode, InactiveContextDescriptor, NodeId};
 use parking_lot::RwLock;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
+
+#[derive(Debug, Clone)]
+pub struct StoredFold {
+    pub fold: FoldedIntron,
+    pub file_path: PathBuf,
+}
 
 #[derive(Clone, Default)]
 pub struct ReversibleContextRegistry {
     inactive_nodes: Arc<RwLock<HashMap<NodeId, InactiveContextDescriptor>>>,
     node_store: Arc<RwLock<HashMap<NodeId, ContextNode>>>,
+    folds: Arc<RwLock<HashMap<String, StoredFold>>>,
 }
 
 impl ReversibleContextRegistry {
@@ -43,6 +52,17 @@ impl ReversibleContextRegistry {
             .insert(node.id.clone(), node.clone());
     }
 
+    pub fn register_fold(&self, file_path: PathBuf, fold: FoldedIntron) {
+        self.folds.write().insert(
+            fold.fold_id.clone(),
+            StoredFold { fold, file_path },
+        );
+    }
+
+    pub fn get_fold(&self, fold_id: &str) -> Option<StoredFold> {
+        self.folds.read().get(fold_id).cloned()
+    }
+
     pub fn get_inactive_descriptors(&self) -> Vec<InactiveContextDescriptor> {
         self.inactive_nodes.read().values().cloned().collect()
     }
@@ -55,5 +75,6 @@ impl ReversibleContextRegistry {
     pub fn clear(&self) {
         self.inactive_nodes.write().clear();
         self.node_store.write().clear();
+        self.folds.write().clear();
     }
 }

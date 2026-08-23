@@ -1,0 +1,5 @@
+[[task]]
+id = "cart_add"
+prompt = "How does addToCart use createStore?"
+gold_files = ["src/cart.ts", "src/store.ts"]
+expect_seeds_missed = false

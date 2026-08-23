@@ -1,0 +1,5 @@
+[[task]]
+id = "process_job"
+prompt = "How does process_job enqueue and dequeue?"
+gold_files = ["src/worker.rs", "src/queue.rs"]
+expect_seeds_missed = false

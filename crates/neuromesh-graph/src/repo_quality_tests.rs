@@ -79,6 +79,55 @@ mod tests {
         let trace = graph.trace_symbol("handle_tool_call", crate::TraceDirection::Both, 3);
         assert!(trace.origin.is_some());
 
+        let tools_path = root.join("crates").join("neuromesh-mcp").join("src").join("tools.rs");
+        if let Ok(tools_src) = std::fs::read_to_string(&tools_path) {
+            let ast = CodeIntelligenceEngine::analyze(
+                &tools_path,
+                &tools_src,
+                neuromesh_index::SourceLanguage::Rust,
+            );
+            let handle = ast
+                .symbols
+                .iter()
+                .find(|s| s.name == "handle_tool_call")
+                .expect("real handle_tool_call");
+            assert!(
+                handle.calls.iter().any(|c| c == "extract"),
+                "extract missing: {:?}",
+                handle.calls
+            );
+            assert!(
+                handle.calls.iter().any(|c| c == "evaluate" || c == "activate"),
+                "evaluate/activate missing: {:?}",
+                handle.calls
+            );
+            assert!(
+                ast.relationships.iter().any(|r| {
+                    r.source_symbol == "handle_tool_call"
+                        && r.target_symbol == "activate"
+                        && r.receiver_hint.as_deref() == Some("field:activator")
+                }),
+                "self.activator.activate should be field-scoped"
+            );
+        }
+
+        let handle = graph.resolve_best("handle_tool_call").expect("resolve");
+        let neighbors = graph.get_neighbor_views(&handle.id);
+        let activate = neighbors.iter().find(|n| {
+            n.node.name == "activate" && n.edge.edge_type == neuromesh_core::EdgeType::Calls
+        });
+        if let Some(activate) = activate {
+            let path = activate.node.file_path.to_string_lossy().replace('\\', "/");
+            assert!(
+                path.ends_with("activator.rs"),
+                "activate should be ContextActivator::activate, got {path}"
+            );
+            assert_eq!(
+                activate.edge.confidence,
+                neuromesh_core::EdgeConfidence::Proven
+            );
+        }
+
         eprintln!(
             "NeuroMesh quality: files={} nodes={} edges={} calls={} imports={} index_ms={} search_ms={} neighbors={}",
             scanned.len(),

@@ -1,15 +1,22 @@
-# NeuroMesh v0.4 gold tasks — measured on this repo, not claimed completeness.
+# NeuroMesh gold tasks — path-qualified files on this repo.
 
 [[task]]
 id = "handle_tool_call_intent"
 prompt = "How does handle_tool_call extract intent?"
-gold_files = ["tools.rs", "signature.rs", "activator.rs"]
+gold_files = [
+  "crates/neuromesh-mcp/src/tools.rs",
+  "crates/neuromesh-task/src/signature.rs",
+  "crates/neuromesh-context/src/activator.rs",
+]
 expect_seeds_missed = false
 
 [[task]]
 id = "physarum_usage"
 prompt = "Where is Physarum used?"
-gold_files = ["physarum.rs", "activation.rs"]
+gold_files = [
+  "crates/neuromesh-graph/src/physarum.rs",
+  "crates/neuromesh-graph/src/activation.rs",
+]
 expect_seeds_missed = false
 
 [[task]]
