@@ -52,18 +52,32 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
         ));
     }
 
-    for doc in ["ARCHITECTURE.md", "DESIGN.md", "README.md", "API.md"] {
-        let path = root.join(doc);
-        if let Ok(content) = fs::read_to_string(&path) {
-            let summary = first_meaningful_lines(&content, 8);
-            if !summary.is_empty() {
-                facts.push(ProjectFact::new(
-                    project_id.clone(),
-                    "documentation",
-                    doc.to_lowercase(),
-                    summary,
-                ));
+    let mut doc_paths = vec![root.join("README.md")];
+    if let Ok(entries) = fs::read_dir(root.join("docs")) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("md") {
+                doc_paths.push(path);
             }
+        }
+    }
+    for path in doc_paths {
+        let Ok(content) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("doc")
+            .to_lowercase();
+        let summary = first_meaningful_lines(&content, 8);
+        if !summary.is_empty() {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "documentation",
+                name,
+                summary,
+            ));
         }
     }
 
