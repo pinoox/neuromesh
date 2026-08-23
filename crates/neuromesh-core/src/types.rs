@@ -142,6 +142,28 @@ pub struct ContextNode {
     pub last_accessed: DateTime<Utc>,
 }
 
+impl ContextNode {
+    /// Clone metadata only — skip source bodies so the galaxy UI is not a 2MB JSON dump.
+    pub fn without_content(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            project_id: self.project_id.clone(),
+            file_path: self.file_path.clone(),
+            node_type: self.node_type,
+            name: self.name.clone(),
+            signature: self.signature.clone(),
+            line_range: self.line_range.clone(),
+            token_cost: self.token_cost,
+            content: None,
+            content_hash: self.content_hash.clone(),
+            parent: self.parent.clone(),
+            base_relevance: self.base_relevance,
+            access_count: self.access_count,
+            last_accessed: self.last_accessed,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextEdge {
     pub id: EdgeId,

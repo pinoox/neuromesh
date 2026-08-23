@@ -84,7 +84,9 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
         "eval" | "evaluate" => commands::evaluate::execute()?,
         "benchmark" => commands::benchmark::execute()?,
         "mcp" => {
-            // Instant 0ms startup for MCP handshake over stdio (Cursor / Claude / Cline)
+            // Handshake over stdio must start immediately. Index on a blocking
+            // pool thread so we never starve stdin/stdout worker threads.
+            eprintln!("NeuroMesh MCP listening on stdio");
             let current_dir = neuromesh_index::ProjectWalker::discover_workspace(
                 &env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             );
@@ -124,12 +126,11 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 working_memory,
             ));
 
-            // Run indexer in BACKGROUND so stdio handshake (initialize & tools/list) happens immediately
             let bg_graph = graph.clone();
             let bg_dir = current_dir.clone();
             let bg_pid = project_id.clone();
             let _ = graph.load_persisted(&current_dir);
-            tokio::spawn(async move {
+            tokio::task::spawn_blocking(move || {
                 if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
                     return;
                 }

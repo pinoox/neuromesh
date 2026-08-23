@@ -546,6 +546,14 @@ impl NeuralProjectGraph {
         data.nodes.values().cloned().collect()
     }
 
+    pub fn get_all_nodes_for_viz(&self) -> Vec<ContextNode> {
+        let data = self.inner.read();
+        data.nodes
+            .values()
+            .map(ContextNode::without_content)
+            .collect()
+    }
+
     pub fn get_nodes_map(&self) -> HashMap<NodeId, ContextNode> {
         let data = self.inner.read();
         data.nodes.clone()

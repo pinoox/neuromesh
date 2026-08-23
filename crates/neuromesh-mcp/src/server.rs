@@ -3,10 +3,15 @@ use neuromesh_core::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::AsyncWriteExt;
+
+fn default_jsonrpc() -> String {
+    "2.0".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcRequest {
+    #[serde(default = "default_jsonrpc")]
     pub jsonrpc: String,
     pub id: Option<Value>,
     pub method: String,
@@ -23,36 +28,55 @@ impl McpServer {
     }
 
     pub async fn run_stdio(&self) -> Result<()> {
-        let stdin = tokio::io::stdin();
-        let mut stdout = tokio::io::stdout();
-        let mut reader = BufReader::new(stdin);
-        let mut line = String::new();
-
-        while reader.read_line(&mut line).await? > 0 {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                line.clear();
-                continue;
-            }
-
-            if let Ok(req) = serde_json::from_str::<JsonRpcRequest>(trimmed) {
-                // Per JSON-RPC 2.0 & MCP specs: Notifications have no id and must NEVER receive a response
-                if req.id.is_none()
-                    || req.method == "initialized"
-                    || req.method.starts_with("notifications/")
-                {
-                    line.clear();
-                    continue;
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        std::thread::Builder::new()
+            .name("neuromesh-mcp-stdin".into())
+            .spawn(move || {
+                let stdin = std::io::stdin();
+                let mut reader = std::io::BufReader::new(stdin.lock());
+                while let Ok(Some(msg)) = crate::stdio::read_message(&mut reader) {
+                    if tx.send(msg).is_err() {
+                        break;
+                    }
                 }
+            })?;
 
-                let response = self.process_request(req).await;
-                let out_bytes = serde_json::to_vec(&response).unwrap_or_default();
-                stdout.write_all(&out_bytes).await?;
-                stdout.write_all(b"\n").await?;
-                stdout.flush().await?;
+        let mut stdout = tokio::io::stdout();
+        while let Some(raw) = rx.recv().await {
+            match serde_json::from_str::<JsonRpcRequest>(&raw) {
+                Ok(req) => {
+                    // Notifications have no id and must never receive a response.
+                    if req.id.is_none()
+                        || req.method == "initialized"
+                        || req.method.starts_with("notifications/")
+                    {
+                        continue;
+                    }
+
+                    let response = self.process_request(req).await;
+                    let out_bytes = serde_json::to_vec(&response).unwrap_or_default();
+                    stdout.write_all(&out_bytes).await?;
+                    stdout.write_all(b"\n").await?;
+                    stdout.flush().await?;
+                }
+                Err(_) => {
+                    if let Ok(val) = serde_json::from_str::<Value>(&raw) {
+                        if let Some(id) = val.get("id").cloned() {
+                            if !id.is_null() {
+                                let err = json!({
+                                    "jsonrpc": "2.0",
+                                    "id": id,
+                                    "error": { "code": -32700, "message": "Parse error" }
+                                });
+                                let out_bytes = serde_json::to_vec(&err).unwrap_or_default();
+                                stdout.write_all(&out_bytes).await?;
+                                stdout.write_all(b"\n").await?;
+                                stdout.flush().await?;
+                            }
+                        }
+                    }
+                }
             }
-
-            line.clear();
         }
 
         Ok(())
@@ -111,7 +135,7 @@ impl McpServer {
                             let bg_dir = p_buf.clone();
                             let bg_pid = pid.clone();
                             let _ = self.handler.graph().load_persisted(&p_buf);
-                            tokio::spawn(async move {
+                            tokio::task::spawn_blocking(move || {
                                 let walker =
                                     neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid);
                                 if let Ok(scanned) = walker.scan() {

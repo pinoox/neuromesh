@@ -307,17 +307,13 @@ impl HttpServer {
 
                 // Helper to count files in an inactive project quickly
                 let scan_inactive_counts = |proj_path: &std::path::Path| -> (usize, usize, usize) {
-                    let walker =
-                        ProjectWalker::new(proj_path.to_path_buf(), ProjectId::new("probe"));
-                    if let Ok(scanned) = walker.scan() {
-                        let file_count = scanned.len();
-                        if file_count > 0 {
-                            let est_nodes = file_count * 5 + 8;
-                            let est_edges = file_count * 7 + 12;
-                            (file_count, est_nodes, est_edges)
-                        } else {
-                            (0, 0, 0)
-                        }
+                    // Never walk sibling trees on the request path — that blocked the UI.
+                    if proj_path.join(".neuromesh").join("graph.json").exists()
+                        || proj_path.join("Cargo.toml").exists()
+                        || proj_path.join("package.json").exists()
+                        || proj_path.join("pyproject.toml").exists()
+                    {
+                        (1, 0, 0)
                     } else {
                         (0, 0, 0)
                     }
@@ -694,7 +690,7 @@ impl HttpServer {
 
             // Neural Project Graph Data (for 2D visualizer)
             ("GET", "/api/graph") => {
-                let nodes = state.graph.get_all_nodes();
+                let nodes = state.graph.get_all_nodes_for_viz();
                 let edges_map = state.graph.get_edges_map();
                 let edges: Vec<Value> = edges_map
                     .values()
