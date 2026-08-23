@@ -1,0 +1,5 @@
+.git/**
+**/*.md
+!README.md
+**/*.map
+.DS_Store

@@ -1,42 +1,337 @@
 {
   "name": "vscode-neuromesh",
-  "displayName": "NeuroMesh — Neural Context Runtime & 3D Monitor",
-  "description": "Biomimetic MCP Neural Context Engine & Webview Monitor for Cursor & VS Code",
-  "version": "0.2.0",
+  "displayName": "NeuroMesh",
+  "description": "Evidence packets, reversible folds, and a live mesh sidebar for Cursor & VS Code. Don’t dump files — fold them.",
+  "version": "0.5.0",
   "publisher": "neuromesh",
+  "license": "MIT",
+  "homepage": "https://github.com/pinoox/neuromesh",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pinoox/neuromesh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pinoox/neuromesh/issues"
+  },
+  "galleryBanner": {
+    "color": "#06080d",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": [
     "AI",
-    "Programming Languages",
+    "Visualization",
     "Other"
+  ],
+  "keywords": [
+    "neuromesh",
+    "mcp",
+    "context",
+    "tokens",
+    "fold",
+    "cursor",
+    "physarum"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
   ],
   "main": "./extension.js",
   "contributes": {
+    "configuration": {
+      "title": "NeuroMesh",
+      "properties": {
+        "neuromesh.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Host of the local NeuroMesh monitor (`neuromesh monitor`)."
+        },
+        "neuromesh.port": {
+          "type": "number",
+          "default": 8765,
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Port of the local NeuroMesh monitor."
+        },
+        "neuromesh.pollIntervalMs": {
+          "type": "number",
+          "default": 4000,
+          "minimum": 1000,
+          "maximum": 60000,
+          "description": "How often the sidebar and status bar refresh from /api/status."
+        },
+        "neuromesh.defaultMode": {
+          "type": "string",
+          "enum": [
+            "max_savings",
+            "balanced",
+            "max_quality"
+          ],
+          "enumDescriptions": [
+            "Seeds only — 0 extra fill tokens. Tiny, obvious edits.",
+            "Default. 8,000 extra connector tokens after seeds.",
+            "16,000 extra tokens. Refactors, auth, don’t-you-dare-miss-it."
+          ],
+          "default": "balanced",
+          "description": "Membrane mode for Get Context when the task is not critical."
+        },
+        "neuromesh.showFoldDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlight `[neuromesh:fold]` intron markers in the editor."
+        }
+      }
+    },
+    "colors": [
+      {
+        "id": "neuromesh.foldBackground",
+        "description": "Background for [neuromesh:fold] intron markers",
+        "defaults": {
+          "dark": "#00f0b41f",
+          "light": "#0d94881f",
+          "highContrast": "#00f0b440"
+        }
+      },
+      {
+        "id": "neuromesh.foldForeground",
+        "description": "Foreground for fold marker after-text",
+        "defaults": {
+          "dark": "#00f0b4",
+          "light": "#0f766e",
+          "highContrast": "#00f0b4"
+        }
+      },
+      {
+        "id": "neuromesh.foldRuler",
+        "description": "Overview ruler mark for folded introns",
+        "defaults": {
+          "dark": "#00d2ff",
+          "light": "#0891b2",
+          "highContrast": "#00d2ff"
+        }
+      }
+    ],
     "commands": [
       {
+        "command": "neuromesh.openDashboard",
+        "title": "Open Packet Inspector",
+        "icon": "$(inspect)",
+        "category": "NeuroMesh"
+      },
+      {
         "command": "neuromesh.openMonitor",
-        "title": "NeuroMesh: Open 3D Neural Monitor Dashboard",
-        "icon": "$(globe)"
+        "title": "Open Galaxy Monitor",
+        "icon": "$(globe)",
+        "category": "NeuroMesh"
       },
       {
         "command": "neuromesh.reindexProject",
-        "title": "NeuroMesh: Re-index Active Workspace",
-        "icon": "$(refresh)"
+        "title": "Re-index Workspace",
+        "icon": "$(refresh)",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.getContext",
+        "title": "Get Context for Selection",
+        "icon": "$(symbol-ruler)",
+        "category": "NeuroMesh"
       },
       {
         "command": "neuromesh.activateContext",
-        "title": "NeuroMesh: Activate Minimal Context for Selection"
+        "title": "Activate Minimal Context for Selection",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.expandFold",
+        "title": "Expand Fold at Cursor",
+        "icon": "$(unfold)",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.skeletonizeFile",
+        "title": "Skeletonize Current File",
+        "icon": "$(file-code)",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.searchSymbols",
+        "title": "Search Symbols",
+        "icon": "$(search)",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.recordFeedback",
+        "title": "Record Feedback (STDP)",
+        "icon": "$(pass)",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.setMode",
+        "title": "Set Membrane Mode",
+        "icon": "$(settings-gear)",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.copyMcpConfig",
+        "title": "Copy MCP Config",
+        "icon": "$(copy)",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.refresh",
+        "title": "Refresh Sidebar",
+        "icon": "$(refresh)",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.openFile",
+        "title": "Open Packet File",
+        "category": "NeuroMesh"
+      },
+      {
+        "command": "neuromesh.expandFoldId",
+        "title": "Expand Fold by Id",
+        "category": "NeuroMesh"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "neuromesh.getContext",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "neuromesh.openDashboard",
+        "key": "ctrl+alt+m",
+        "mac": "cmd+alt+m"
       }
     ],
     "menus": {
-      "editor/context": [
+      "commandPalette": [
+        {
+          "command": "neuromesh.openFile",
+          "when": "false"
+        },
+        {
+          "command": "neuromesh.expandFoldId",
+          "when": "false"
+        },
         {
           "command": "neuromesh.activateContext",
-          "group": "neuromesh"
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "neuromesh.editor",
+          "group": "neuromesh@1"
+        }
+      ],
+      "neuromesh.editor": [
+        {
+          "command": "neuromesh.getContext",
+          "group": "1_run@1"
+        },
+        {
+          "command": "neuromesh.expandFold",
+          "group": "1_run@2"
+        },
+        {
+          "command": "neuromesh.skeletonizeFile",
+          "group": "1_run@3"
+        },
+        {
+          "command": "neuromesh.recordFeedback",
+          "group": "2_learn@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "neuromesh.refresh",
+          "when": "view == neuromesh.mesh",
+          "group": "navigation"
+        },
+        {
+          "command": "neuromesh.reindexProject",
+          "when": "view == neuromesh.mesh",
+          "group": "navigation"
+        },
+        {
+          "command": "neuromesh.openDashboard",
+          "when": "view == neuromesh.packet",
+          "group": "navigation"
+        },
+        {
+          "command": "neuromesh.getContext",
+          "when": "view == neuromesh.packet",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "neuromesh.openFile",
+          "when": "view == neuromesh.packet && viewItem == packetFile",
+          "group": "inline"
+        },
+        {
+          "command": "neuromesh.expandFoldId",
+          "when": "view == neuromesh.folds && viewItem == fold",
+          "group": "inline"
         }
       ]
-    }
+    },
+    "submenus": [
+      {
+        "id": "neuromesh.editor",
+        "label": "NeuroMesh"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "neuromesh",
+          "title": "NeuroMesh",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "neuromesh": [
+        {
+          "id": "neuromesh.mesh",
+          "name": "Mesh",
+          "icon": "$(graph)"
+        },
+        {
+          "id": "neuromesh.packet",
+          "name": "Last Packet",
+          "icon": "$(package)"
+        },
+        {
+          "id": "neuromesh.folds",
+          "name": "Session Folds",
+          "icon": "$(folding-collapsed)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "neuromesh.mesh",
+        "contents": "The local monitor is not running.\n\nStart it in this workspace:\n\n```\nneuromesh monitor\n```\n\n[Copy MCP config](command:neuromesh.copyMcpConfig) · [Open setup](command:neuromesh.openDashboard)",
+        "when": "!neuromesh.online"
+      },
+      {
+        "view": "neuromesh.packet",
+        "contents": "No evidence packet yet.\n\nSelect a symbol or describe a task, then run **Get Context**. Seeds always ship; the rest fold.\n\n[Get Context](command:neuromesh.getContext)",
+        "when": "neuromesh.online && !neuromesh.hasPacket"
+      },
+      {
+        "view": "neuromesh.folds",
+        "contents": "Session folds appear after `get_context` skeletonizes untargeted bodies.\n\nExpand with **Expand Fold at Cursor** or from this list — the body comes from RAM, not disk.",
+        "when": "neuromesh.online && !neuromesh.hasFolds"
+      }
+    ]
   }
 }
