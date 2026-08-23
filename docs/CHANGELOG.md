@@ -2,6 +2,14 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
+## 0.5.2 — 2026-08-23
+
+Monitor port is a first-class CLI setting, not a hardcoded 8765.
+
+- **`neuromesh port`.** Print the effective port, or persist it with `neuromesh port 9000` (`<cwd>/.neuromesh/config.json`).
+- **One-shot override.** `neuromesh monitor --port 9000` (`-p`, `--port=`) and the same flag on `start`. Env `NEUROMESH_PORT` wins over files.
+- **Clients follow.** `doctor`, `connect`, and telemetry POST use the loaded host/port. VS Code / Cursor still uses Settings → `neuromesh.port` — keep it in sync.
+
 ## 0.5.1 — 2026-08-23
 
 Accuracy first, then faster index, then a thinner default packet.

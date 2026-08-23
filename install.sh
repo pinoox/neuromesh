@@ -109,6 +109,6 @@ printf "\n${BOLD}Verifying installation:${NC}\n"
 "${INSTALL_DIR}/${BINARY_NAME}" --help | head -n 8
 
 printf "\n${GREEN}${BOLD}🚀 Quick Start:${NC}\n"
-printf "  1. Launch 3D Monitor:  ${CYAN}neuromesh monitor${NC} (Open http://127.0.0.1:8765)\n"
+printf "  1. Launch 3D Monitor:  ${CYAN}neuromesh monitor${NC} (default http://127.0.0.1:8765; ${CYAN}neuromesh port${NC} to change)\n"
 printf "  2. Connect to IDE:     ${CYAN}neuromesh connect${NC}\n"
 printf "  3. Index Workspace:    ${CYAN}neuromesh index${NC}\n\n"

@@ -32,7 +32,7 @@ neuromesh monitor
 | **Activity bar → NeuroMesh** | Live mesh (files / nodes / edges / mode / Physarum), last packet files, session folds |
 | **Status bar** | Offline warning, or `NM 93.5% · 8 folds` from the last packet |
 | **Packet Inspector** | Same evidence packet the MCP agent receives: vs workspace, vs selected, coverage, budget, next_actions |
-| **Galaxy Monitor** | The 3D/2D graph UI at `http://127.0.0.1:8765` |
+| **Galaxy Monitor** | The 3D/2D graph UI (default `http://127.0.0.1:8765`; `neuromesh port`) |
 | **Fold markers** | `[neuromesh:fold:…]` lines get a ruler mark, hover, and CodeLens → expand from RAM |
 
 ## Commands
@@ -52,6 +52,6 @@ neuromesh monitor
 
 ## Settings
 
-`neuromesh.host`, `neuromesh.port` (default `8765`), `neuromesh.pollIntervalMs`, `neuromesh.defaultMode`, `neuromesh.showFoldDecorations`.
+`neuromesh.host`, `neuromesh.port` (default `8765` — match `neuromesh port` / the running monitor), `neuromesh.pollIntervalMs`, `neuromesh.defaultMode`, `neuromesh.showFoldDecorations`.
 
 Product docs: [docs/](../../docs/README.md) · [MCP tools](../../docs/mcp.md)

@@ -2,7 +2,7 @@
   "name": "vscode-neuromesh",
   "displayName": "NeuroMesh",
   "description": "Evidence packets, reversible folds, and a live mesh sidebar for Cursor & VS Code. Don’t dump files — fold them.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "publisher": "neuromesh",
   "license": "MIT",
   "homepage": "https://github.com/pinoox/neuromesh",
@@ -52,7 +52,7 @@
           "default": 8765,
           "minimum": 1,
           "maximum": 65535,
-          "description": "Port of the local NeuroMesh monitor."
+          "description": "Port of the local NeuroMesh monitor. Must match `neuromesh port` / `neuromesh monitor --port`."
         },
         "neuromesh.pollIntervalMs": {
           "type": "number",

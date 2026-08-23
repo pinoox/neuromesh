@@ -4,27 +4,18 @@ use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
 use neuromesh_memory::MemoryDatabase;
 use neuromesh_provider::ProviderFactory;
-use std::fs;
 use std::io::Write;
 use std::sync::Arc;
 
-pub async fn execute() -> Result<()> {
+pub async fn execute(port_override: Option<u16>) -> Result<()> {
     let current_dir = std::env::current_dir()?;
     println!("NeuroMesh gateway: starting in {}", current_dir.display());
     let _ = std::io::stdout().flush();
 
-    let local_config_path = current_dir.join(".neuromesh").join("config.json");
-    let home_config_path = dirs::home_dir().map(|h| h.join(".neuromesh").join("config.json"));
-
-    let config = if local_config_path.exists() {
-        let content = fs::read_to_string(&local_config_path)?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else if let Some(hp) = home_config_path.filter(|p| p.exists()) {
-        let content = fs::read_to_string(&hp)?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        Config::default()
-    };
+    let mut config = Config::load();
+    if let Some(port) = port_override {
+        config = config.with_port(port);
+    }
 
     let project_name = current_dir
         .file_name()

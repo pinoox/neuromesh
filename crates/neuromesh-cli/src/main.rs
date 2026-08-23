@@ -29,6 +29,9 @@ fn main() -> Result<()> {
         "connect" => {
             return commands::connect::execute();
         }
+        "port" => {
+            return commands::port::execute(args.get(2).map(|s| s.as_str()));
+        }
         "init" => {
             return commands::init::execute();
         }
@@ -75,8 +78,14 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
         "index" => {
             let _ = commands::index::execute()?;
         }
-        "start" => commands::start::execute().await?,
-        "monitor" | "ui" | "dashboard" => commands::monitor::execute().await?,
+        "start" => {
+            let port = commands::port_from_args(args)?;
+            commands::start::execute(port).await?;
+        }
+        "monitor" | "ui" | "dashboard" => {
+            let port = commands::port_from_args(args)?;
+            commands::monitor::execute(port).await?;
+        }
         "optimize" => {
             let prompt = args.get(2).cloned();
             commands::optimize::execute(prompt)?;
@@ -164,7 +173,8 @@ fn print_help() {
     println!("Usage: neuromesh <COMMAND> [OPTIONS]\n");
     println!("Commands:");
     println!("  mcp        MCP server over stdio (Cursor / Claude / Cline)");
-    println!("  monitor    Web UI + SSE on http://127.0.0.1:8765");
+    println!("  monitor    Web UI + SSE (default http://127.0.0.1:8765)");
+    println!("  port       Show or set the monitor port (`neuromesh port 9000`)");
     println!("  index      Index the current workspace into the project graph");
     println!("  status     Node/edge counts after index (or a fresh scan)");
     println!("  graph      Print graph stats");
@@ -179,6 +189,8 @@ fn print_help() {
     println!("  version    Print version (-v, --version)");
     println!("  help       Print this help (-h, --help)\n");
     println!("Quick start:");
-    println!("  neuromesh mcp         # what IDEs launch");
-    println!("  neuromesh connect     # copy-paste MCP config\n");
+    println!("  neuromesh mcp                   # what IDEs launch");
+    println!("  neuromesh port 9000             # persist galaxy UI port");
+    println!("  neuromesh monitor --port 9000   # one run only");
+    println!("  neuromesh connect               # copy-paste MCP config\n");
 }

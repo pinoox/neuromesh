@@ -1,4 +1,4 @@
-use neuromesh_core::Result;
+use neuromesh_core::{Config, Result};
 use neuromesh_index::ProjectWalker;
 use std::env;
 use std::net::TcpListener;
@@ -12,10 +12,13 @@ pub fn execute() -> Result<()> {
     );
     println!("Version        : {}", env!("CARGO_PKG_VERSION"));
 
-    match TcpListener::bind("127.0.0.1:8765") {
-        Ok(_) => println!("Monitor port   : 8765 available"),
-        Err(_) => println!("Monitor port   : 8765 in use"),
+    let cfg = Config::load();
+    let addr = format!("{}:{}", cfg.host, cfg.port);
+    match TcpListener::bind(&addr) {
+        Ok(_) => println!("Monitor port   : {addr} available"),
+        Err(_) => println!("Monitor port   : {addr} in use"),
     }
+    println!("Change with    : neuromesh port <n>  |  --port <n>  |  NEUROMESH_PORT");
 
     let cwd = env::current_dir()?;
     let root = ProjectWalker::discover_workspace(&cwd);

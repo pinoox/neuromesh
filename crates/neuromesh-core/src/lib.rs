@@ -5,7 +5,7 @@ pub mod token;
 pub mod types;
 
 pub use config::{
-    Config, LocalAiConfig, OptimizationMode, ProviderConfig, ProviderType, Thresholds,
+    parse_port, Config, LocalAiConfig, OptimizationMode, ProviderConfig, ProviderType, Thresholds,
 };
 pub use error::{NeuroMeshError, Result};
 pub use task::{SubtaskNode, SubtaskStatus, TaskGraph, TaskIntent, TaskRisk, TaskSignature};

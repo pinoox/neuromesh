@@ -1,4 +1,4 @@
-use neuromesh_core::Result;
+use neuromesh_core::{Config, Result};
 
 pub fn execute() -> Result<()> {
     println!(
@@ -23,10 +23,12 @@ pub fn execute() -> Result<()> {
     println!("   ──────────────────────────────────────────────────────────────────────────");
     println!("   Server Name : neuromesh\n   Command     : neuromesh\n   Arguments   : mcp\n");
 
+    let cfg = Config::load();
     println!("4. Web UI Monitor Dashboard:");
     println!("   ──────────────────────────────────────────────────────────────────────────");
     println!("   Run: neuromesh monitor (or neuromesh ui)");
-    println!("   URL: http://127.0.0.1:8765\n");
+    println!("   URL: http://{}:{}", cfg.host, cfg.port);
+    println!("   Port: neuromesh port 9000   or   neuromesh monitor --port 9000\n");
 
     Ok(())
 }

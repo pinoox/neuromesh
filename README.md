@@ -193,7 +193,21 @@ Native **MCP stdio** — what Cursor, Claude, VS Code, Windsurf, Cline, and Zed 
 
 It finds the git / Cargo / `package.json` root. It **refuses** `$HOME` and drive roots (that is how you accidentally index 11k junk files).
 
-**3D galaxy UI** of the live graph: `neuromesh monitor` → [http://127.0.0.1:8765](http://127.0.0.1:8765).
+**3D galaxy UI** of the live graph: `neuromesh monitor` → [http://127.0.0.1:8765](http://127.0.0.1:8765) by default.
+
+### Monitor port
+
+Default is **8765**. Persist it for this repo, override one run, or use an env var:
+
+```bash
+neuromesh port                 # print effective port
+neuromesh port 9000            # save to <cwd>/.neuromesh/config.json
+neuromesh monitor --port 9000  # this process only (`-p` works too)
+```
+
+Priority: `--port` / `-p` → `NEUROMESH_PORT` → `.neuromesh/config.json` → `~/.neuromesh/config.json` → 8765.
+
+VS Code / Cursor: Settings → `neuromesh.port` must match the running monitor. After `neuromesh port 9000`, restart `neuromesh monitor` and set the editor to 9000.
 
 ---
 

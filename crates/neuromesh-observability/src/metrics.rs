@@ -39,15 +39,19 @@ pub fn record_global_telemetry(meta: OptimizationMetadata) {
     history.push(meta.clone());
     save_persisted_history(&history);
 
-    // 2. Notify local monitor server if running on 127.0.0.1:8765
+    // 2. Notify local monitor if it is listening on the configured port
     let payload = serde_json::to_vec(&meta).unwrap_or_default();
+    let cfg = neuromesh_core::Config::load();
+    let host = cfg.host;
+    let port = cfg.port;
     tokio::spawn(async move {
         use tokio::io::AsyncWriteExt;
         use tokio::net::TcpStream;
-        if let Ok(mut stream) = TcpStream::connect("127.0.0.1:8765").await {
+        let endpoint = format!("{host}:{port}");
+        if let Ok(mut stream) = TcpStream::connect(&endpoint).await {
             let req = format!(
                 "POST /api/telemetry/record HTTP/1.1\r\n\
-                 Host: 127.0.0.1:8765\r\n\
+                 Host: {endpoint}\r\n\
                  Content-Type: application/json\r\n\
                  Content-Length: {}\r\n\
                  Connection: close\r\n\r\n",

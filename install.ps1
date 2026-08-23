@@ -85,7 +85,7 @@ Write-Host "`nVerifying installation:" -ForegroundColor Cyan
 & $BinPath --help | Select-Object -First 8
 
 Write-Host "`nQuick Start:" -ForegroundColor Green
-Write-Host "  1. Launch 3D Monitor:  neuromesh monitor (Open http://127.0.0.1:8765)" -ForegroundColor White
+Write-Host "  1. Launch 3D Monitor:  neuromesh monitor (default http://127.0.0.1:8765; neuromesh port to change)" -ForegroundColor White
 Write-Host "  2. Connect to IDE:     neuromesh connect" -ForegroundColor White
 Write-Host "  3. Index Workspace:    neuromesh index" -ForegroundColor White
 Write-Host "`n(Note: Restart your terminal/IDE for PATH changes to take full effect.)`n" -ForegroundColor Gray
