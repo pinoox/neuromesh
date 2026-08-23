@@ -1521,11 +1521,7 @@ impl NeuralProjectGraph {
 
     /// Neighborhood Physarum for `get_context`. Skips huge subgraphs so the
     /// hot path stays under the 20ms tube SLA; `iterations_converged == 0` means skipped.
-    pub fn solve_physarum_tube(
-        &self,
-        seed_nodes: &HashSet<NodeId>,
-        hops: usize,
-    ) -> PhysarumResult {
+    pub fn solve_physarum_tube(&self, seed_nodes: &HashSet<NodeId>, hops: usize) -> PhysarumResult {
         const MAX_NODES: usize = 250;
         const MAX_EDGES: usize = 400;
         if seed_nodes.len() < 2 {
@@ -1550,11 +1546,8 @@ impl NeuralProjectGraph {
                 iterations_converged: 0,
             };
         }
-        PhysarumSolver::new(PhysarumConfig::hot_path()).optimize_subgraph(
-            &nodes_map,
-            &edges_map,
-            seed_nodes,
-        )
+        PhysarumSolver::new(PhysarumConfig::hot_path())
+            .optimize_subgraph(&nodes_map, &edges_map, seed_nodes)
     }
 
     /// Record a neural firing event (e.g. symbol read or written by AI agent)

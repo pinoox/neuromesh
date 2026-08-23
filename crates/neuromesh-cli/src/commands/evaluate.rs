@@ -59,7 +59,17 @@ pub fn execute() -> Result<()> {
     );
     println!(
         "{:<28} {:<12} {:>8} {:>8} {:>8} {:>7} {:>7} {:>7} {:>7} {:>5} {:>6}",
-        "Task", "Mode", "WS tok", "Selected", "Packet", "vsWS%", "vsSel%", "Recall", "Prec", "Grep", "ms"
+        "Task",
+        "Mode",
+        "WS tok",
+        "Selected",
+        "Packet",
+        "vsWS%",
+        "vsSel%",
+        "Recall",
+        "Prec",
+        "Grep",
+        "ms"
     );
     println!("{}", "-".repeat(118));
 

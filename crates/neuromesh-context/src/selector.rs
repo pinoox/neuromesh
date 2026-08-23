@@ -184,11 +184,7 @@ pub fn select(
                 }
                 if let Some(node) = graph.get_node(&neighbor) {
                     if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
-                        bump_file_max(
-                            &mut file_scores,
-                            &file_id,
-                            9.0 * edge.pheromone_weight,
-                        );
+                        bump_file_max(&mut file_scores, &file_id, 9.0 * edge.pheromone_weight);
                     }
                 }
             }
@@ -252,7 +248,8 @@ pub fn select(
                     if required.contains(&file_id) {
                         continue;
                     }
-                    if let Some(entry) = optional_files.iter_mut().find(|(fid, _)| *fid == file_id) {
+                    if let Some(entry) = optional_files.iter_mut().find(|(fid, _)| *fid == file_id)
+                    {
                         if entry.1 < 36.0 {
                             entry.1 = 36.0;
                         }

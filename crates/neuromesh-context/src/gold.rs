@@ -447,7 +447,10 @@ mod tests {
                     packet_paths(&view),
                     task.gold_files
                 );
-                assert_eq!(metrics.grep_still_needed, if metrics.recall >= 1.0 { 0 } else { 1 });
+                assert_eq!(
+                    metrics.grep_still_needed,
+                    if metrics.recall >= 1.0 { 0 } else { 1 }
+                );
                 assert!(metrics.reduction_vs_workspace >= 0.0);
                 assert!(metrics.reduction_vs_selected >= 0.0);
                 assert_eq!(view.budget_fill_cap, 8_000);

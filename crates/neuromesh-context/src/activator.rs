@@ -605,7 +605,10 @@ fn build_next_actions(
                 actions.push(NextAction {
                     tool: "neuromesh_search_symbols".into(),
                     query: u.name.clone(),
-                    why: format!("unresolved {:?} from {} — Grep only because coverage is partial", u.relationship, u.from),
+                    why: format!(
+                        "unresolved {:?} from {} — Grep only because coverage is partial",
+                        u.relationship, u.from
+                    ),
                 });
             }
         }
@@ -760,7 +763,8 @@ pub fn unused_helper() {
 
         let registry = Arc::new(ReversibleContextRegistry::new());
         let activator = ContextActivator::new(registry.clone());
-        let signature = TaskSignatureExtractor::extract("How does handle_tool_call extract intent?");
+        let signature =
+            TaskSignatureExtractor::extract("How does handle_tool_call extract intent?");
         let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
         let packet = view
             .active_nodes
@@ -776,7 +780,10 @@ pub fn unused_helper() {
             .expect("tools.rs in packet");
         let skeleton = packet.node.content.as_deref().unwrap_or("");
         assert!(
-            !packet.folded_symbols.iter().any(|s| s == "handle_tool_call"),
+            !packet
+                .folded_symbols
+                .iter()
+                .any(|s| s == "handle_tool_call"),
             "handle_tool_call must remain an exon, folded={:?}",
             packet.folded_symbols
         );
@@ -831,12 +838,12 @@ pub fn enqueue_job() {
             .iter()
             .filter(|s| s.resolved_id.is_some())
             .collect();
-        assert!(seeds.len() >= 2, "need two seeds for Physarum: {:?}", view.seeds);
         assert!(
-            view.physarum_ms < 20,
-            "tube latency {}ms",
-            view.physarum_ms
+            seeds.len() >= 2,
+            "need two seeds for Physarum: {:?}",
+            view.seeds
         );
+        assert!(view.physarum_ms < 20, "tube latency {}ms", view.physarum_ms);
         assert!(
             view.physarum_used,
             "neighborhood Physarum must run for two seeds: method={}",
@@ -888,7 +895,10 @@ pub fn unused_helper() {
         );
         assert!(
             registry.get_fold(&fold_id).is_some()
-                || second.fold_ids.iter().any(|id| registry.get_fold(id).is_some()),
+                || second
+                    .fold_ids
+                    .iter()
+                    .any(|id| registry.get_fold(id).is_some()),
             "folds must persist across get_context in one session"
         );
         assert!(registry.fold_count() > 0);
