@@ -70,7 +70,7 @@
           ],
           "enumDescriptions": [
             "Seeds only — 0 extra fill tokens. Tiny, obvious edits.",
-            "Default. 8,000 extra connector tokens after seeds.",
+            "Default. 5,000 extra connector tokens after seeds.",
             "16,000 extra tokens. Refactors, auth, don’t-you-dare-miss-it."
           ],
           "default": "balanced",

@@ -91,6 +91,13 @@ impl ProjectWalker {
                 || s_lower == ".idea"
                 || s_lower == "local settings"
                 || s_lower == "application data"
+                || s_lower == "benches"
+                || s_lower == "examples"
+                || s_lower == "testdata"
+                || s_lower == "test_data"
+                || s_lower == ".tox"
+                || s_lower == ".mypy_cache"
+                || s_lower == ".pytest_cache"
             {
                 return true;
             }
@@ -160,5 +167,27 @@ impl ProjectWalker {
         }
 
         Ok(results)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectWalker;
+    use std::path::Path;
+
+    #[test]
+    fn ignores_benches_examples_testdata_not_tests() {
+        assert!(ProjectWalker::is_ignored(Path::new(
+            "crates/foo/benches/hot.rs"
+        )));
+        assert!(ProjectWalker::is_ignored(Path::new("examples/demo.rs")));
+        assert!(ProjectWalker::is_ignored(Path::new("testdata/input.rs")));
+        assert!(ProjectWalker::is_ignored(Path::new(".pytest_cache/a.py")));
+        assert!(!ProjectWalker::is_ignored(Path::new(
+            "crates/foo/src/lib.rs"
+        )));
+        assert!(!ProjectWalker::is_ignored(Path::new(
+            "crates/foo/tests/gold.rs"
+        )));
     }
 }

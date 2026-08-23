@@ -7,7 +7,7 @@ use std::path::Path;
 pub fn fill_budget(mode: OptimizationMode) -> usize {
     match mode {
         OptimizationMode::MaxSavings => 0,
-        OptimizationMode::Balanced => 8_000,
+        OptimizationMode::Balanced => 5_000,
         OptimizationMode::MaxQuality => 16_000,
     }
 }
@@ -503,6 +503,14 @@ pub fn is_noise_path(path: &Path) -> bool {
         || lower.contains("_tests.rs")
         || lower.contains("/editors/")
         || lower.starts_with("editors/")
+        || lower.contains("/benches/")
+        || lower.starts_with("benches/")
+        || lower.contains("/examples/")
+        || lower.starts_with("examples/")
+        || lower.contains("/testdata/")
+        || lower.contains("/test_data/")
+        || lower.starts_with("testdata/")
+        || lower.starts_with("test_data/")
 }
 
 pub fn is_common_call(name: &str) -> bool {

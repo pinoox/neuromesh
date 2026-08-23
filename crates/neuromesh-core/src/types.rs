@@ -314,7 +314,7 @@ pub struct ContextView {
     /// Extra connector tokens actually filled.
     #[serde(default)]
     pub budget_fill_used: usize,
-    /// Extra connector allowance for this mode (0 / 8000 / 16000 on top of seeds).
+    /// Extra connector allowance for this mode (0 / 5000 / 16000 on top of seeds).
     #[serde(default)]
     pub budget_fill_cap: usize,
     /// True when fill exceeded fill_cap (should not happen) or seeds alone are huge.

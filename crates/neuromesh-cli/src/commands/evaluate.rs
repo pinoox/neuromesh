@@ -111,7 +111,7 @@ pub fn execute() -> Result<()> {
         }
     }
 
-    println!("\nFill caps: max_savings=0 extra · balanced=8000 extra · max_quality=16000 extra.");
+    println!("\nFill caps: max_savings=0 extra · balanced=5000 extra · max_quality=16000 extra.");
     println!("Seeds always ship (a large target function can exceed the fill cap).");
     println!("WS tok = indexed workspace. Selected = raw tokens of packet files before fold. Packet = after fold.");
     println!("Grep = 0 when gold files are already in the packet (recall 1.0); 1 otherwise.");

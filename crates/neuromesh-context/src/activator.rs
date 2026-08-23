@@ -5,10 +5,10 @@ use crate::selector::{
 };
 use crate::skeleton::{CodeSkeletonizer, FunctionSpan};
 use neuromesh_core::{
-    ActivatedNodeView, ContextStatus, ContextView, CoverageReport, EdgeType, NextAction, NodeId,
-    NodeType, OptimizationMode, SeedResolution, TaskSignature,
+    ActivatedNodeView, ContextStatus, ContextView, CoverageReport, EdgeConfidence, EdgeType,
+    NextAction, NodeId, NodeType, OptimizationMode, SeedResolution, TaskSignature,
 };
-use neuromesh_graph::NeuralProjectGraph;
+use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -177,7 +177,8 @@ impl ContextActivator {
             {
                 continue;
             }
-            if let Some((id, confidence)) = graph.resolve_ranked(&query, None, None) {
+            if let Some((ranked_id, confidence)) = graph.resolve_ranked(&query, None, None) {
+                let id = prefer_search_seed(graph, &query, ranked_id, confidence);
                 let conf = match confidence {
                     neuromesh_core::EdgeConfidence::Proven => 1.0,
                     neuromesh_core::EdgeConfidence::Likely => 0.62,
@@ -567,6 +568,29 @@ impl ContextActivator {
         *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
         view
     }
+}
+
+fn prefer_search_seed(
+    graph: &NeuralProjectGraph,
+    query: &str,
+    ranked_id: NodeId,
+    ranked_confidence: EdgeConfidence,
+) -> NodeId {
+    let Some(hit) = graph.search_symbols(query, 1).into_iter().next() else {
+        return ranked_id;
+    };
+    if hit.score < 90.0 || hit.id == ranked_id {
+        return ranked_id;
+    }
+    let exact_case = hit.name == query;
+    let path_hit = path_echoes_symbol(&hit.file_path, query);
+    if !exact_case && !path_hit {
+        return ranked_id;
+    }
+    if ranked_confidence == EdgeConfidence::Proven && !exact_case && !path_hit {
+        return ranked_id;
+    }
+    hit.id
 }
 
 fn function_spans_for_file(
@@ -1300,6 +1324,87 @@ export function unusedRebalanceBins(): number {
                 .any(|s| s == "unusedCheckoutDebugDump"),
             "unused sibling must still fold, folded={:?}",
             checkout.folded_symbols
+        );
+    }
+
+    #[test]
+    fn searcher_seed_ships_module_file() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        let searcher_mod = r#"
+pub struct Searcher {
+    needle: String,
+}
+
+impl Searcher {
+    pub fn search(&self, haystack: &str) -> bool {
+        let extra = haystack.len();
+        haystack.contains(&self.needle) && extra > 0
+    }
+}
+"#;
+        let query_fn = r#"
+pub fn searcher(haystack: &str, needle: &str) -> bool {
+    let a = haystack.len();
+    let b = needle.len();
+    let c = a.saturating_sub(b);
+    haystack.contains(needle) && c < 10_000
+}
+"#;
+        graph.ingest_file(
+            &indexed("src/searcher/mod.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/searcher/mod.rs"),
+                searcher_mod,
+                SourceLanguage::Rust,
+            ),
+            Some(searcher_mod),
+        );
+        graph.ingest_file(
+            &indexed("src/query.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/query.rs"),
+                query_fn,
+                SourceLanguage::Rust,
+            ),
+            Some(query_fn),
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("How does Searcher scan a haystack?"),
+            OptimizationMode::Balanced,
+        );
+        let files: Vec<String> = view
+            .active_nodes
+            .iter()
+            .filter(|n| n.node.node_type == NodeType::File)
+            .map(|n| n.node.file_path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        assert!(
+            files.iter().any(|p| p.ends_with("searcher/mod.rs")),
+            "packet must include searcher/mod.rs, files={files:?}"
+        );
+        assert!(
+            view.seeds.iter().any(|s| {
+                s.query == "Searcher"
+                    && s.resolved_id
+                        .as_ref()
+                        .and_then(|id| {
+                            graph.get_node(id).map(|n| {
+                                n.name == "Searcher"
+                                    && n.file_path
+                                        .to_string_lossy()
+                                        .replace('\\', "/")
+                                        .ends_with("searcher/mod.rs")
+                            })
+                        })
+                        .unwrap_or(false)
+            }),
+            "seed Searcher must resolve to searcher/mod.rs, seeds={:?}",
+            view.seeds
         );
     }
 }

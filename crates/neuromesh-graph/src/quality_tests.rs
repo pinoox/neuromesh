@@ -379,4 +379,86 @@ impl ContextActivator {
         assert!(resolved.is_some());
         assert_eq!(resolved.unwrap().1, neuromesh_core::EdgeConfidence::Proven);
     }
+
+    #[test]
+    fn searcher_beats_lowercase_field_twin() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        let searcher_mod = r#"
+pub struct Searcher {
+    needle: String,
+}
+
+impl Searcher {
+    pub fn search(&self, haystack: &str) -> bool {
+        haystack.contains(&self.needle)
+    }
+}
+"#;
+        let query_fn = r#"
+pub fn searcher(haystack: &str, needle: &str) -> bool {
+    let a = haystack.len();
+    let b = needle.len();
+    let c = a.saturating_sub(b);
+    let d = c.saturating_add(2);
+    haystack.contains(needle) && d > 0
+}
+"#;
+        graph.ingest_file(
+            &indexed("src/searcher/mod.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/searcher/mod.rs"),
+                searcher_mod,
+                SourceLanguage::Rust,
+            ),
+            Some(searcher_mod),
+        );
+        graph.ingest_file(
+            &indexed("src/query.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/query.rs"),
+                query_fn,
+                SourceLanguage::Rust,
+            ),
+            Some(query_fn),
+        );
+        graph.finalize_links();
+
+        let hits = graph.search_symbols("Searcher", 5);
+        assert!(
+            !hits.is_empty(),
+            "search_symbols must find Searcher: {hits:?}"
+        );
+        let top = &hits[0];
+        assert_eq!(top.name, "Searcher");
+        assert!(
+            top.file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .ends_with("searcher/mod.rs"),
+            "search_symbols top path {:?}",
+            top.file_path
+        );
+
+        let best = graph.resolve_best("Searcher").expect("resolve_best");
+        assert_eq!(best.name, "Searcher");
+        assert!(
+            best.file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .ends_with("searcher/mod.rs"),
+            "resolve_best path {:?}",
+            best.file_path
+        );
+
+        let (ranked, _) = graph
+            .resolve_ranked("Searcher", None, None)
+            .expect("resolve_ranked");
+        let ranked_node = graph.get_node(&ranked).expect("ranked node");
+        assert_eq!(ranked_node.name, "Searcher");
+        assert!(ranked_node
+            .file_path
+            .to_string_lossy()
+            .replace('\\', "/")
+            .ends_with("searcher/mod.rs"));
+    }
 }

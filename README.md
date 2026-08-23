@@ -114,7 +114,7 @@ neuromesh_get_context(task)
 | Mode | Extra tokens on top of seeds | Feel |
 | :--- | ---: | :--- |
 | `max_savings` | 0 | Tiny, obvious edits |
-| `balanced` | 8,000 | Default |
+| `balanced` | 5,000 | Default |
 | `max_quality` | 16,000 | Refactors, auth, “don’t you dare miss it” |
 
 Seeds are never truncated to fake a small packet.

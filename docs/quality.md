@@ -48,6 +48,6 @@ From `cargo test -p neuromesh-graph indexes_real_neuromesh_repo_with_usable_grap
 | Neighbors of `handle_tool_call` | 28 |
 | Index time (debug) | ~1,202 ms |
 
-Fill caps: `max_savings` = 0 extra tokens, `balanced` = 8,000, `max_quality` = 16,000. Reduction is versus **this workspace**, not a fake 25k dump.
+Fill caps: `max_savings` = 0 extra tokens, `balanced` = 5,000, `max_quality` = 16,000. Reduction is versus **this workspace**, not a fake 25k dump.
 
 Token savings from skeletonization are **per file and per task**. There is no universal 99% claim.

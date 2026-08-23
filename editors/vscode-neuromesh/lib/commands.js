@@ -332,7 +332,7 @@ function registerCommands(context, { api, state, dashboard, monitor }) {
                     },
                     {
                         label: 'balanced',
-                        description: '8,000 fill tokens',
+                        description: '5,000 fill tokens',
                         detail: 'Default membrane.',
                     },
                     {

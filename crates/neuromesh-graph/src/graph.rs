@@ -632,12 +632,7 @@ impl NeuralProjectGraph {
             .into_iter()
             .filter_map(|(id, (score, reason))| {
                 data.nodes.get(&id).map(|node| {
-                    let bonus = match node.node_type {
-                        NodeType::Function | NodeType::Class | NodeType::Component => 4.0,
-                        NodeType::File => 1.0,
-                        _ => 0.0,
-                    };
-                    SearchHit::from_node(node, score + bonus, reason)
+                    SearchHit::from_node(node, score + ranking_bonus(node, query), reason)
                 })
             })
             .collect();
@@ -846,7 +841,7 @@ impl NeuralProjectGraph {
             }
             if hinted.len() > 1 {
                 drop(data);
-                return self.pick_dominant_candidate(&hinted);
+                return self.pick_dominant_candidate(&hinted, name);
             }
         }
         if let Some(hint) = file_hint {
@@ -861,17 +856,21 @@ impl NeuralProjectGraph {
                 .collect();
             if !hinted.is_empty() {
                 drop(data);
-                return self.pick_dominant_candidate(&hinted);
+                return self.pick_dominant_candidate(&hinted, name);
             }
         }
         if !ids.is_empty() {
             drop(data);
-            return self.pick_dominant_candidate(&ids);
+            return self.pick_dominant_candidate(&ids, name);
         }
         None
     }
 
-    fn pick_dominant_candidate(&self, ids: &[NodeId]) -> Option<(NodeId, EdgeConfidence)> {
+    fn pick_dominant_candidate(
+        &self,
+        ids: &[NodeId],
+        query: &str,
+    ) -> Option<(NodeId, EdgeConfidence)> {
         if ids.is_empty() {
             return None;
         }
@@ -883,9 +882,7 @@ impl NeuralProjectGraph {
             .map(|id| {
                 let mut score = 0.0;
                 if let Some(node) = self.get_node(id) {
-                    if !is_fixture_path(&node.file_path) {
-                        score += 24.0;
-                    }
+                    score += ranking_bonus(&node, query);
                     if is_crate_path(&node.file_path) {
                         score += 12.0;
                     }
@@ -1693,6 +1690,43 @@ fn index_tokens(data: &mut GraphData, id: &NodeId, name: &str) {
     }
 }
 
+fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
+    let mut bonus = match node.node_type {
+        NodeType::Function | NodeType::Class | NodeType::Component => 8.0,
+        NodeType::File => 1.0,
+        _ => 0.0,
+    };
+    if node.name == query {
+        bonus += 16.0;
+    }
+    if path_echoes_symbol(&node.file_path, query) {
+        bonus += 12.0;
+    }
+    if is_fixture_path(&node.file_path) {
+        bonus -= 24.0;
+    }
+    bonus
+}
+
+/// True when a file stem or parent directory repeats the symbol name
+/// (`Searcher` ↔ `src/searcher/mod.rs`).
+pub fn path_echoes_symbol(path: &Path, query: &str) -> bool {
+    let query = query.trim();
+    if query.is_empty() {
+        return false;
+    }
+    let q_lower = query.to_lowercase();
+    let q_snake = to_snake_case(query).to_lowercase();
+    let lower = path.to_string_lossy().replace('\\', "/").to_lowercase();
+    lower.split('/').any(|seg| {
+        let stem = seg.rsplit_once('.').map(|(name, _)| name).unwrap_or(seg);
+        if matches!(stem, "mod" | "lib" | "index") {
+            return false;
+        }
+        stem == q_lower || stem == q_snake
+    })
+}
+
 fn is_fixture_path(path: &Path) -> bool {
     let lower = path.to_string_lossy().replace('\\', "/").to_lowercase();
     lower.contains("/tests/")
@@ -1702,6 +1736,14 @@ fn is_fixture_path(path: &Path) -> bool {
         || lower.contains("quality_tests")
         || lower.contains("/editors/")
         || lower.starts_with("editors/")
+        || lower.contains("/benches/")
+        || lower.starts_with("benches/")
+        || lower.contains("/examples/")
+        || lower.starts_with("examples/")
+        || lower.contains("/testdata/")
+        || lower.contains("/test_data/")
+        || lower.starts_with("testdata/")
+        || lower.starts_with("test_data/")
 }
 
 fn is_crate_path(path: &Path) -> bool {
