@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeuroMesh v0.4.0 — Task-conditioned Context Engine & Neural Workflow</title>
+    <title>NeuroMesh v__NEUROMESH_VERSION__ — Task-conditioned Context Engine & Neural Workflow</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -752,6 +752,69 @@
             font-weight: 600;
         }
 
+        .coverage-pill {
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            letter-spacing: 0.02em;
+        }
+        .coverage-pill.ok {
+            color: var(--accent-green);
+            background: rgba(0, 240, 180, 0.12);
+            border: 1px solid rgba(0, 240, 180, 0.35);
+        }
+        .coverage-pill.partial {
+            color: var(--accent-amber);
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+        }
+        .packet-file-row {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            padding: 0.55rem 0.7rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.28);
+            margin-bottom: 0.45rem;
+        }
+        .packet-file-path {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            word-break: break-all;
+        }
+        .packet-file-meta {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+        }
+        .fold-chip, .action-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            padding: 0.18rem 0.45rem;
+            border-radius: 5px;
+            border: 1px solid rgba(0, 210, 255, 0.3);
+            color: var(--accent-cyan);
+            background: rgba(0, 210, 255, 0.08);
+            cursor: pointer;
+            margin: 0.15rem 0.2rem 0 0;
+        }
+        .fold-chip:hover { border-color: var(--accent-green); color: var(--accent-green); }
+        .bio-meter {
+            height: 6px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 3px;
+        }
+        .bio-meter > div {
+            height: 100%;
+            border-radius: 3px;
+            max-width: 100%;
+        }
+        .idle-note { opacity: 0.75; font-weight: 600; }
+
         .flow-connector {
             display: flex;
             align-items: center;
@@ -1421,7 +1484,7 @@
                 <div class="brand-text">
                     <div class="brand-title-row">
                         <h1>NeuroMesh</h1>
-                        <span class="brand-badge-v2">v0.4.0</span>
+                        <span class="brand-badge-v2">v__NEUROMESH_VERSION__</span>
                     </div>
                     <p data-i18n="brand_subtitle">Neural Context Engine & MCP</p>
                 </div>
@@ -1523,91 +1586,95 @@
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-label">
-                            <span data-i18n="kpi_reduction_title">AVERAGE TOKEN REDUCTION</span>
-                            <span style="color: var(--accent-green);" data-i18n="kpi_reduction_peak">Peak 99.2%</span>
+                            <span data-i18n="kpi_reduction_title">REDUCTION VS WORKSPACE</span>
+                            <span style="color: var(--accent-green);" id="kpiReductionPeak" data-i18n="kpi_reduction_peak">from get_context</span>
                         </div>
                         <div class="metric-value" style="color: var(--accent-green);" id="kpiReduction"><span class="skeleton-shimmer skeleton-line" style="width: 75px;">&nbsp;</span></div>
-                        <div class="metric-subtext" data-i18n="kpi_reduction_sub">Compared against raw project context injection</div>
+                        <div class="metric-subtext" data-i18n="kpi_reduction_sub">Packet tokens vs indexed workspace dump — not a global 99% claim</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">
-                            <span data-i18n="kpi_tokens_saved_title">OPTIMIZED TOKENS ESTIMATE</span>
+                            <span data-i18n="kpi_tokens_saved_title">LAST PACKET</span>
                             <span style="color: var(--accent-cyan);" id="kpiTokensSavedBadge"><span class="skeleton-shimmer" style="width: 45px; height: 12px;">&nbsp;</span></span>
                         </div>
                         <div class="metric-value" style="color: var(--accent-cyan);" id="kpiTokensSaved"><span class="skeleton-shimmer skeleton-line" style="width: 120px;">&nbsp;</span></div>
-                        <div class="metric-subtext" data-i18n="kpi_tokens_saved_sub">Estimated tokens pruned & saved per context call</div>
+                        <div class="metric-subtext" data-i18n="kpi_tokens_saved_sub">Packet / workspace tokens from the last get_context</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">
-                            <span data-i18n="kpi_cost_title">ESTIMATED API COST SAVED</span>
-                            <span style="color: var(--accent-green);" data-i18n="kpi_cost_drop">98.4% Drop</span>
+                            <span data-i18n="kpi_cost_title">COVERAGE</span>
+                            <span style="color: var(--accent-green);" id="kpiCoverageBadge">—</span>
                         </div>
                         <div class="metric-value" id="kpiCost"><span class="skeleton-shimmer skeleton-line" style="width: 105px;">&nbsp;</span></div>
-                        <div class="metric-subtext" data-i18n="kpi_cost_sub">Calculated vs Frontier models (Claude 3.7 Sonnet, GPT-4.5 & Gemini 2.5 Pro)</div>
+                        <div class="metric-subtext" data-i18n="kpi_cost_sub">no_recorded_gap or partial — Grep only when partial</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">
-                            <span data-i18n="kpi_requests_title">TOTAL REQUESTS PROCESSED</span>
+                            <span data-i18n="kpi_requests_title">GET_CONTEXT CALLS</span>
                             <span style="color: var(--accent-purple);" id="kpiHitRate"><span class="skeleton-shimmer" style="width: 45px; height: 12px;">&nbsp;</span></span>
                         </div>
                         <div class="metric-value" id="kpiRequests"><span class="skeleton-shimmer skeleton-line" style="width: 90px;">&nbsp;</span></div>
-                        <div class="metric-subtext" data-i18n="kpi_requests_sub">Processed queries in active workspace</div>
+                        <div class="metric-subtext" data-i18n="kpi_requests_sub">Recorded activations in this workspace</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">
-                            <span data-i18n="kpi_synapses_title">ACTIVE SYNAPTIC EDGES</span>
-                            <span style="color: var(--accent-amber);" data-i18n="kpi_synapses_status">Hebbian LTP Potentiated</span>
+                            <span data-i18n="kpi_synapses_title">GRAPH</span>
+                            <span style="color: var(--accent-amber);" id="kpiGraphBadge">files · nodes · edges</span>
                         </div>
                         <div class="metric-value" id="kpiSynapses"><span class="skeleton-shimmer skeleton-line" style="width: 110px;">&nbsp;</span></div>
-                        <div class="metric-subtext" data-i18n="kpi_synapses_sub">Causal STDP learning & Physarum flux</div>
+                        <div class="metric-subtext" data-i18n="kpi_synapses_sub">Indexed files, AST nodes, call/import edges</div>
                     </div>
                 </div>
 
                 <div class="biomimetic-section-grid">
                     <div class="panel-card">
                         <div class="panel-header">
-                            <div class="panel-title">🌿 <span data-i18n="title_telemetry">Next-Gen Biomimetic Architecture Live Telemetry</span></div>
-                            <span class="status-badge" style="color: var(--accent-green);" data-i18n="badge_operational">100% Operational</span>
+                            <div class="panel-title">🌿 <span data-i18n="title_telemetry">Live engine telemetry</span></div>
+                            <span class="status-badge" style="color: var(--accent-green);" id="badgeOperational">idle until get_context</span>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 1.15rem;">
                             <div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
-                                    <span>🟢 <strong data-i18n="bio_physarum">Physarum Polycephalum (Slime Mold) Pruning</strong></span>
-                                    <strong style="color: var(--accent-green);">94% Efficiency</strong>
+                                    <span>🟢 <strong data-i18n="bio_physarum">Physarum tubes</strong></span>
+                                    <strong id="bioPhysarumValue" class="idle-note">idle</strong>
                                 </div>
-                                <div style="height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px;">
-                                    <div style="width: 94%; height: 100%; background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan)); border-radius: 3px;"></div>
+                                <div class="bio-meter">
+                                    <div id="bioPhysarumBar" style="width: 0%; background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));"></div>
                                 </div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_physarum_help">Runs only with two or more seeds on a capped subgraph (SLA &lt; 20ms). Idle is honest.</div>
                             </div>
 
                             <div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
-                                    <span>🧬 <strong data-i18n="bio_genetic">Genetic Slicing & Intron Suppression</strong></span>
-                                    <strong style="color: var(--accent-cyan);">89.2% Intron Suppression</strong>
+                                    <span>🧬 <strong data-i18n="bio_genetic">Folds in this session</strong></span>
+                                    <strong id="bioGeneticValue" style="color: var(--accent-cyan);">0</strong>
                                 </div>
-                                <div style="height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px;">
-                                    <div style="width: 89%; height: 100%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple)); border-radius: 3px;"></div>
+                                <div class="bio-meter">
+                                    <div id="bioGeneticBar" style="width: 0%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));"></div>
                                 </div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_genetic_help">Reversible [neuromesh:fold] bodies. expand_fold restores from RAM, not disk.</div>
                             </div>
 
                             <div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
-                                    <span>🔮 <strong data-i18n="bio_mycelium">Multi-Hop Speculative Prefetcher (Markov)</strong></span>
-                                    <strong style="color: var(--accent-purple);">98.1% L1 Hit Rate (0ms Latency)</strong>
+                                    <span>🔮 <strong data-i18n="bio_mycelium">Mycelium prefetch</strong></span>
+                                    <strong id="bioMyceliumValue" class="idle-note">idle</strong>
                                 </div>
-                                <div style="height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px;">
-                                    <div style="width: 98%; height: 100%; background: linear-gradient(90deg, var(--accent-purple), var(--accent-rose)); border-radius: 3px;"></div>
+                                <div class="bio-meter">
+                                    <div id="bioMyceliumBar" style="width: 0%; background: linear-gradient(90deg, var(--accent-purple), var(--accent-rose));"></div>
                                 </div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_mycelium_help">Pre-warms packet neighbors after get_context. Hit rate is measured, not assumed.</div>
                             </div>
 
                             <div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
-                                    <span>🛡️ <strong data-i18n="bio_membrane">Cellular Osmotic Gate Membrane</strong></span>
-                                    <strong style="color: var(--accent-amber);" data-i18n="bio_mode_balanced">Permeability: Balanced Mode</strong>
+                                    <span>🛡️ <strong data-i18n="bio_membrane">QualityGate fill cap</strong></span>
+                                    <strong id="bioMembraneValue" style="color: var(--accent-amber);">balanced · +8k</strong>
                                 </div>
-                                <div style="height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px;">
-                                    <div style="width: 75%; height: 100%; background: linear-gradient(90deg, var(--accent-amber), var(--accent-green)); border-radius: 3px;"></div>
+                                <div class="bio-meter">
+                                    <div id="bioMembraneBar" style="width: 50%; background: linear-gradient(90deg, var(--accent-amber), var(--accent-green));"></div>
                                 </div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_membrane_help">max_savings 0 · balanced +8k · max_quality +16k extra tokens on top of seeds. Auth/payment tasks upgrade.</div>
                             </div>
                         </div>
                     </div>
@@ -1639,16 +1706,16 @@
                             <span class="status-badge" style="color: var(--accent-green); font-size:0.78rem;"><span class="pulse-dot"></span> <span id="pipeEngineStatus">Pipeline Reactive & Active</span></span>
                         </div>
                         <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1rem;" data-i18n="flow_desc">
-                            Visual DAG execution stream showing the biomimetic stages traversed for each MCP request:
+                            Same loop as the agent: get_context → expand_fold. Grep only when coverage is partial.
                         </div>
 
                         <!-- LIVE TRACE TEST RUNNER -->
                         <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; background:rgba(0,0,0,0.35); padding:0.85rem; border-radius:10px; border:1px solid var(--border-color); margin-bottom:1.25rem;">
-                            <input type="text" id="pipelineTracePrompt" placeholder="Enter test prompt (e.g. 'Optimize database indexes and cache query paths')..." style="flex:1; min-width:240px; padding:0.5rem 0.85rem; background:rgba(15,23,42,0.8); border:1px solid var(--border-color); border-radius:6px; color:#fff; font-size:0.85rem;" onkeydown="if(event.key==='Enter') window.runPipelineTrace()">
+                            <input type="text" id="pipelineTracePrompt" placeholder="e.g. How does handle_tool_call extract intent?" style="flex:1; min-width:240px; padding:0.5rem 0.85rem; background:rgba(15,23,42,0.8); border:1px solid var(--border-color); border-radius:6px; color:#fff; font-size:0.85rem;" onkeydown="if(event.key==='Enter') window.runPipelineTrace()">
                             <select id="pipelineTraceMode" style="padding:0.5rem 0.85rem; background:rgba(15,23,42,0.8); border:1px solid var(--border-color); border-radius:6px; color:#fff; font-size:0.85rem;">
-                                <option value="balanced">Balanced (92-95% Drop)</option>
-                                <option value="max_savings">Max Savings (98-99% Drop)</option>
-                                <option value="max_quality">Max Quality (85-90% Drop)</option>
+                                <option value="balanced">balanced · seeds + 8k fill</option>
+                                <option value="max_savings">max_savings · seeds only</option>
+                                <option value="max_quality">max_quality · seeds + 16k fill</option>
                             </select>
                             <button class="btn-primary" onclick="window.runPipelineTrace()" style="padding:0.5rem 1rem; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem;">
                                 <span>⚡</span> <span data-i18n="btn_run_trace">Run Pipeline Trace</span>
@@ -1657,85 +1724,79 @@
 
                         <!-- FLOW GRAPH -->
                         <div class="flow-canvas" id="pipelineFlowCanvas">
-                            <!-- NODE 1 -->
                             <div class="flow-node active-stage" id="pipeNode1" onclick="window.showPipelineStage('input')">
                                 <div class="flow-node-header">
                                     <span>Trigger</span>
-                                    <span style="color: var(--accent-cyan);">Stage 1</span>
+                                    <span style="color: var(--accent-cyan);">1</span>
                                 </div>
-                                <div class="flow-node-title">📥 Prompt Ingest</div>
-                                <div class="flow-node-metric" id="pipeMetric1">&lt; 0.1ms latency</div>
+                                <div class="flow-node-title">📥 Prompt</div>
+                                <div class="flow-node-metric" id="pipeMetric1">—</div>
                             </div>
 
                             <div class="flow-connector">➔</div>
 
-                            <!-- NODE 2 -->
                             <div class="flow-node" id="pipeNode2" onclick="window.showPipelineStage('signature')">
                                 <div class="flow-node-header">
-                                    <span>Analysis</span>
-                                    <span style="color: var(--accent-purple);">Stage 2</span>
+                                    <span>Resolve</span>
+                                    <span style="color: var(--accent-purple);">2</span>
                                 </div>
-                                <div class="flow-node-title">🔍 Task Signature</div>
-                                <div class="flow-node-metric" id="pipeMetric2">98.5% Confidence</div>
+                                <div class="flow-node-title">🔍 Seeds</div>
+                                <div class="flow-node-metric" id="pipeMetric2">unique resolve</div>
                             </div>
 
                             <div class="flow-connector">➔</div>
 
-                            <!-- NODE 3 -->
-                            <div class="flow-node" id="pipeNode3" onclick="window.showPipelineStage('physarum')">
+                            <div class="flow-node" id="pipeNode3" onclick="window.showPipelineStage('membrane')">
                                 <div class="flow-node-header">
-                                    <span>Routing</span>
-                                    <span style="color: var(--accent-green);">Stage 3</span>
+                                    <span>Gate</span>
+                                    <span style="color: var(--accent-amber);">3</span>
                                 </div>
-                                <div class="flow-node-title">🌿 Physarum & STDP</div>
-                                <div class="flow-node-metric" id="pipeMetric3">Shortest Path Found</div>
+                                <div class="flow-node-title">🛡️ Fill cap</div>
+                                <div class="flow-node-metric" id="pipeMetric3">+8k balanced</div>
                             </div>
 
                             <div class="flow-connector">➔</div>
 
-                            <!-- NODE 4 -->
-                            <div class="flow-node" id="pipeNode4" onclick="window.showPipelineStage('genetic')">
+                            <div class="flow-node" id="pipeNode4" onclick="window.showPipelineStage('physarum')">
                                 <div class="flow-node-header">
-                                    <span>Compression</span>
-                                    <span style="color: var(--accent-cyan);">Stage 4</span>
+                                    <span>Tubes</span>
+                                    <span style="color: var(--accent-green);">4</span>
                                 </div>
-                                <div class="flow-node-title">🧬 Genetic Slicing</div>
-                                <div class="flow-node-metric" id="pipeMetric4">94.8% Intron Folded</div>
+                                <div class="flow-node-title">🌿 Physarum</div>
+                                <div class="flow-node-metric" id="pipeMetric4">idle until 2 seeds</div>
                             </div>
 
                             <div class="flow-connector">➔</div>
 
-                            <!-- NODE 5 -->
-                            <div class="flow-node" id="pipeNode5" onclick="window.showPipelineStage('membrane')">
+                            <div class="flow-node" id="pipeNode5" onclick="window.showPipelineStage('genetic')">
                                 <div class="flow-node-header">
-                                    <span>Gating</span>
-                                    <span style="color: var(--accent-amber);">Stage 5</span>
+                                    <span>Splice</span>
+                                    <span style="color: var(--accent-cyan);">5</span>
                                 </div>
-                                <div class="flow-node-title">🛡️ Osmotic Gate</div>
-                                <div class="flow-node-metric" id="pipeMetric5">Isotonic Balance</div>
+                                <div class="flow-node-title">🧬 Folds</div>
+                                <div class="flow-node-metric" id="pipeMetric5">exons stay open</div>
                             </div>
 
                             <div class="flow-connector">➔</div>
 
-                            <!-- NODE 6 -->
                             <div class="flow-node" id="pipeNode6" onclick="window.showPipelineStage('output')">
                                 <div class="flow-node-header">
-                                    <span>Egress</span>
-                                    <span style="color: var(--accent-rose);">Stage 6</span>
+                                    <span>Packet</span>
+                                    <span style="color: var(--accent-rose);">6</span>
                                 </div>
-                                <div class="flow-node-title">🚀 Minimal Context</div>
-                                <div class="flow-node-metric" id="pipeMetric6">99.2% Token Drop</div>
+                                <div class="flow-node-title">📦 next_actions</div>
+                                <div class="flow-node-metric" id="pipeMetric6">coverage</div>
                             </div>
                         </div>
 
                         <!-- DETAIL CARD & TELEMETRY INSPECTOR -->
                         <div id="pipelineDetailCard" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-top:1.25rem;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
-                                <h3 style="color: var(--accent-green); font-size: 0.95rem; margin:0;" id="pipeStageTitle">Stage 1: Prompt Ingestion & AST Matching</h3>
-                                <span id="pipeStageStatusBadge" class="status-badge" style="color:var(--accent-cyan); font-size:0.75rem;">Stage Ready</span>
+                                <h3 style="color: var(--accent-green); font-size: 0.95rem; margin:0;" id="pipeStageTitle">Stage 1: Prompt</h3>
+                                <span id="pipeStageStatusBadge" class="status-badge" style="color:var(--accent-cyan); font-size:0.75rem;">Ready</span>
                             </div>
-                            <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;" id="pipeStageDesc">The MCP server receives the natural language instruction or tool query from the AI assistant. It matches the query against the registered code project.</p>
-                            <div id="pipeStageTelemetryBox" style="margin-top:0.75rem; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:0.75rem; font-family:'Fira Code',monospace; font-size:0.78rem; color:var(--text-secondary); max-height:220px; overflow-y:auto; white-space:pre-wrap;">// Run a prompt or select a stage above to inspect live pipeline execution telemetry</div>
+                            <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;" id="pipeStageDesc">The MCP server receives the task. Seeds resolve uniquely; Physarum runs only with two or more seeds; folds register for expand_fold.</p>
+                            <div id="pipeStageTelemetryBox" style="margin-top:0.75rem; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:0.75rem; font-family:'Fira Code',monospace; font-size:0.78rem; color:var(--text-secondary); max-height:220px; overflow-y:auto; white-space:pre-wrap;">// Run get_context to inspect the evidence packet (coverage, folds, next_actions)</div>
                         </div>
                     </div>
                 </div>
@@ -2014,27 +2075,32 @@
                             <div>
                                 <label style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 0.35rem; display: block;" data-i18n="lbl_sim_mode">Optimization Mode:</label>
                                 <select id="simModeSelect">
-                                    <option value="balanced" data-i18n="opt_mode_balanced">Balanced (Smart Recommended)</option>
-                                    <option value="max_savings" data-i18n="opt_mode_savings">Max Savings (95% Slicing)</option>
-                                    <option value="max_quality" data-i18n="opt_mode_quality">Max Quality (Deep Invariants)</option>
+                                    <option value="balanced" data-i18n="opt_mode_balanced">balanced · seeds + 8k fill</option>
+                                    <option value="max_savings" data-i18n="opt_mode_savings">max_savings · seeds only</option>
+                                    <option value="max_quality" data-i18n="opt_mode_quality">max_quality · seeds + 16k fill</option>
                                 </select>
                             </div>
                             <button class="btn-primary" onclick="window.executeSimulation()">
-                                <span>🌿</span> <span data-i18n="btn_run_sim">Run Biomimetic Activation</span>
+                                <span>🌿</span> <span data-i18n="btn_run_sim">Run get_context</span>
                             </button>
                         </div>
 
                         <div id="simMetricsPanel" style="display: none; margin-top: 1rem; background: rgba(0,240,180,0.08); border: 1px solid rgba(0,240,180,0.3); border-radius: 8px; padding: 0.85rem;">
-                            <div style="font-weight: 800; color: var(--accent-green);" id="simRedText">— Token Reduction</div>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;" id="simTokenText">Active: 380 tokens | Raw: 4,500 tokens</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                                <div style="font-weight: 800; color: var(--accent-green);" id="simRedText">— vs workspace</div>
+                                <span id="simCoveragePill" class="coverage-pill ok">—</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.35rem;" id="simTokenText">Packet vs workspace · fill · Physarum</div>
+                            <div id="simNextActions" style="margin-top:0.6rem;"></div>
                         </div>
                     </div>
 
                     <div class="panel-card" style="overflow-y: auto;">
                         <div class="panel-header">
-                            <div class="panel-title">🧬 <span data-i18n="title_sim_preview">Bio-Genetic Sliced Context Preview</span></div>
+                            <div class="panel-title">📦 <span data-i18n="title_sim_preview">Evidence packet</span></div>
                         </div>
-                        <div class="code-snippet-box" id="simCodeOutput" style="max-height: calc(100vh - 220px);">// Type a prompt and click Run Biomimetic Activation...</div>
+                        <div id="simPacketFiles" style="margin-bottom:0.75rem;"></div>
+                        <div class="code-snippet-box" id="simCodeOutput" style="max-height: calc(100vh - 280px);">// Type a task and run get_context — same packet the agent receives.</div>
                     </div>
                 </div>
             </div>
@@ -2046,26 +2112,29 @@
                     <div class="panel-card">
                         <div class="panel-header" style="flex-wrap: wrap; gap: 0.75rem;">
                             <div class="panel-title">🛠️ <span data-i18n="title_mcp_playground">Native MCP Tool Execution Playground</span></div>
-                            <span class="status-badge" style="color: var(--accent-green);"><span class="pulse-dot"></span> MCP v1.0 Ready</span>
+                            <span class="status-badge" style="color: var(--accent-green);"><span class="pulse-dot"></span> MCP stdio</span>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 1rem;">
                             <div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
                                     <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary);" data-i18n="lbl_mcp_tool">Select Native MCP Tool:</label>
-                                    <span id="mcpToolBadge" style="font-size: 0.7rem; color: var(--accent-cyan); font-weight: 600;">⚡ Semantic Retrieval</span>
+                                    <span id="mcpToolBadge" style="font-size: 0.7rem; color: var(--accent-cyan); font-weight: 600;">⚡ get_context</span>
                                 </div>
                                 <select id="mcpToolSelect" onchange="window.onMcpToolChange(this.value)" style="padding: 0.55rem 0.85rem; font-size: 0.85rem; font-weight: 600; background: rgba(15,23,42,0.9); border: 1px solid var(--border-color); border-radius: 8px; color: #fff; width: 100%;">
-                                    <option value="neuromesh_get_context">⚡ neuromesh_get_context</option>
-                                    <option value="neuromesh_get_file_skeleton">🧬 neuromesh_get_file_skeleton</option>
-                                    <option value="neuromesh_expand_fold">🔍 neuromesh_expand_fold</option>
-                                    <option value="neuromesh_search_symbols">🔎 neuromesh_search_symbols</option>
-                                    <option value="neuromesh_get_dependencies">🕸️ neuromesh_get_dependencies</option>
-                                    <option value="neuromesh_record_feedback">📈 neuromesh_record_feedback</option>
-                                    <option value="neuromesh_get_project_memory">🧠 neuromesh_get_project_memory</option>
-                                    <option value="neuromesh_get_stats">📊 neuromesh_get_stats</option>
+                                    <option value="neuromesh_get_context">neuromesh_get_context</option>
+                                    <option value="neuromesh_expand_fold">neuromesh_expand_fold</option>
+                                    <option value="neuromesh_get_file_skeleton">neuromesh_get_file_skeleton</option>
+                                    <option value="neuromesh_search_symbols">neuromesh_search_symbols</option>
+                                    <option value="neuromesh_get_dependencies">neuromesh_get_dependencies</option>
+                                    <option value="neuromesh_trace">neuromesh_trace</option>
+                                    <option value="neuromesh_analyze_impact">neuromesh_analyze_impact</option>
+                                    <option value="neuromesh_get_architecture">neuromesh_get_architecture</option>
+                                    <option value="neuromesh_record_feedback">neuromesh_record_feedback</option>
+                                    <option value="neuromesh_get_project_memory">neuromesh_get_project_memory</option>
+                                    <option value="neuromesh_get_stats">neuromesh_get_stats</option>
                                 </select>
                                 <div id="mcpToolDescText" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.4rem; line-height: 1.4;">
-                                    Intelligently slices and compresses relevant AST context for an AI task.
+                                    Evidence packet: seeds, Physarum tubes when two+ seeds, folds, coverage, next_actions.
                                 </div>
                             </div>
 
@@ -2412,31 +2481,31 @@
                 btn_reindex: 'Re-index',
                 badge_watcher: 'Live File Watcher Active (<5ms)',
                 btn_test_context: 'Test Context',
-                kpi_reduction_title: 'AVERAGE TOKEN REDUCTION',
-                kpi_reduction_peak: 'Peak 99.2%',
-                kpi_reduction_sub: 'Compared against raw project context injection',
-                kpi_tokens_saved_title: 'OPTIMIZED TOKENS ESTIMATE',
-                kpi_tokens_saved_sub: 'Estimated tokens pruned & saved per context call',
-                kpi_cost_title: 'ESTIMATED API COST SAVED',
-                kpi_cost_drop: '98.4% Drop',
-                kpi_cost_sub: 'Calculated vs Frontier models (Claude 3.7 Sonnet, GPT-4.5 & Gemini 2.5 Pro)',
-                kpi_requests_title: 'TOTAL REQUESTS PROCESSED',
-                kpi_requests_sub: 'Processed queries in active workspace',
-                kpi_synapses_title: 'ACTIVE SYNAPTIC EDGES',
-                kpi_synapses_status: 'Hebbian LTP Potentiated',
-                kpi_synapses_sub: 'Causal STDP learning & Physarum flux',
-                title_telemetry: 'Next-Gen Biomimetic Architecture Live Telemetry',
-                badge_operational: '100% Operational',
-                bio_physarum: 'Physarum Polycephalum (Slime Mold) Pruning',
-                bio_genetic: 'Genetic Slicing & Intron Suppression',
-                bio_mycelium: 'Multi-Hop Speculative Prefetcher (Markov)',
-                bio_membrane: 'Cellular Osmotic Gate Membrane',
-                bio_mode_balanced: 'Permeability: Balanced Mode',
+                kpi_reduction_title: 'REDUCTION VS WORKSPACE',
+                kpi_reduction_peak: 'from get_context',
+                kpi_reduction_sub: 'Packet tokens vs indexed workspace dump — not a global 99% claim',
+                kpi_tokens_saved_title: 'LAST PACKET',
+                kpi_tokens_saved_sub: 'Packet / workspace tokens from the last get_context',
+                kpi_cost_title: 'COVERAGE',
+                kpi_cost_drop: 'no_recorded_gap | partial',
+                kpi_cost_sub: 'Grep (search_symbols) only when coverage is partial',
+                kpi_requests_title: 'GET_CONTEXT CALLS',
+                kpi_requests_sub: 'Recorded activations in this workspace',
+                kpi_synapses_title: 'GRAPH',
+                kpi_synapses_status: 'files · nodes · edges',
+                kpi_synapses_sub: 'Indexed files, AST nodes, call/import edges',
+                title_telemetry: 'Live engine telemetry',
+                badge_operational: 'idle until get_context',
+                bio_physarum: 'Physarum tubes',
+                bio_genetic: 'Folds in this session',
+                bio_mycelium: 'Mycelium prefetch',
+                bio_membrane: 'QualityGate fill cap',
+                bio_mode_balanced: 'balanced · +8k fill',
                 title_mcp_connect: '1-Click MCP Connect',
                 mcp_connect_help: 'Copy this block into your agent configuration file:',
                 btn_copy_json: 'Copy Configuration JSON',
-                flow_title: 'Live Request Execution DAG & Biomimetic Pipeline',
-                flow_desc: 'Visual pipeline showing what happens under the hood for each prompt received via MCP:',
+                flow_title: 'get_context pipeline',
+                flow_desc: 'Same loop as the agent: get_context → expand_fold. Grep only when coverage is partial.',
                 galaxy_filter_title: 'Galaxy Architecture View',
                 filter_all: 'All',
                 filter_files: 'Files',
@@ -2489,11 +2558,11 @@
                 title_sim_lab: 'Context Simulator Lab',
                 lbl_sim_prompt: 'Task Description / Agent Prompt:',
                 lbl_sim_mode: 'Optimization Mode:',
-                opt_mode_balanced: 'Balanced (Smart Recommended)',
-                opt_mode_savings: 'Max Savings (95% Slicing)',
-                opt_mode_quality: 'Max Quality (Deep Invariants)',
-                btn_run_sim: 'Run Biomimetic Activation',
-                title_sim_preview: 'Bio-Genetic Sliced Context Preview',
+                opt_mode_balanced: 'balanced · seeds + 8k fill',
+                opt_mode_savings: 'max_savings · seeds only',
+                opt_mode_quality: 'max_quality · seeds + 16k fill',
+                btn_run_sim: 'Run get_context',
+                title_sim_preview: 'Evidence packet',
                 title_mcp_playground: 'Native MCP Tool Execution Playground',
                 lbl_mcp_tool: 'Select Native MCP Tool:',
                 lbl_mcp_args: 'Input JSON Arguments:',
@@ -2504,7 +2573,10 @@
                 memory_guide: 'This section persists verified architectural patterns and best-practice rules across your workspaces.',
                 title_settings: 'Runtime Configuration & Parameters',
                 lbl_default_mode: 'Default Context Optimization Mode:',
-                guide_default_mode: 'Controls default biological compression. Balanced keeps key invariants (~90% reduction); Max Savings aggressively folds method bodies (up to 96%); Max Quality retains full type signatures.',
+                guide_default_mode: 'Seeds always ship. Extra connector fill: balanced +8k, max_savings 0, max_quality +16k. Auth/payment/secret tasks upgrade the membrane.',
+                opt_mode_balanced_desc: 'Seeds + 8k fill · default',
+                opt_mode_savings_desc: 'Seeds only · no extra fill',
+                opt_mode_quality_desc: 'Seeds + 16k fill',
                 lbl_alpha: 'Physarum Flux Decay Alpha:',
                 guide_alpha: 'Conductivity decay rate of the Physarum slime-mold routing solver. Higher values accelerate pruning of redundant AST graph branches.',
                 lbl_stdp: 'Synaptic STDP LTP Potentiation Rate:',
@@ -2540,11 +2612,11 @@
                 sec_biomimetic_core: 'Biomimetic Context Core',
                 sec_algo_dynamics: 'Algorithmic Dynamics & Tuning',
                 opt_mode_balanced_short: 'Balanced',
-                opt_mode_balanced_desc: '~90% Reduction · Recommended',
+                opt_mode_balanced_desc: 'Seeds + 8k fill · default',
                 opt_mode_savings_short: 'Max Savings',
-                opt_mode_savings_desc: '~96% Slicing · Minimal Tokens',
+                opt_mode_savings_desc: 'Seeds only · no extra fill',
                 opt_mode_quality_short: 'Max Quality',
-                opt_mode_quality_desc: 'Full AST Types · Deep Context',
+                opt_mode_quality_desc: 'Seeds + 16k fill',
                 perm_isotonic_short: 'Isotonic',
                 perm_isotonic_desc: 'Balanced Flow · Standard',
                 perm_hypertonic_short: 'Hypertonic',
@@ -2572,31 +2644,31 @@
                 btn_reindex: 'ایندکس مجدد',
                 badge_watcher: 'ناظر زنده فایل‌ها فعال (<۵ms)',
                 btn_test_context: 'تست کانتکست',
-                kpi_reduction_title: 'میانگین کاهش مصرف توکن',
-                kpi_reduction_peak: 'اوج ۹۹.۲٪',
-                kpi_reduction_sub: 'در مقایسه با تزریق کانتکست خام پروژه',
-                kpi_tokens_saved_title: 'تخمین توکن‌های بهینه‌شده',
-                kpi_tokens_saved_sub: 'میزان توکن‌های فشرده و صرفه‌جویی‌شده در هر فراخوانی کانتکست',
-                kpi_cost_title: 'هزینه ذخیره‌شده API',
-                kpi_cost_drop: '۹۸.۴٪ افت هزینه',
-                kpi_cost_sub: 'بر مبنای تعرفه مدل‌های Claude 3.7 Sonnet ، GPT-4.5 و Gemini 2.5 Pro',
-                kpi_requests_title: 'تعداد کل درخواست‌ها',
-                kpi_requests_sub: 'درخواست‌های پردازش‌شده در این پروژه',
-                kpi_synapses_title: 'سیناپس‌های عصبی فعال',
-                kpi_synapses_status: 'تقویت سیناپسی هبیان (LTP)',
-                kpi_synapses_sub: 'یادگیری علّی STDP و شار هیدرولیکی فیزاروم',
-                title_telemetry: 'تله‌متری زنده معماری الهام‌گرفته از طبیعت',
-                badge_operational: '۱۰۰٪ عملیاتی',
-                bio_physarum: 'مسیریاب فیزاروم (کپک لجن - Physarum)',
-                bio_genetic: 'اسکلت‌بندی ژنتیک و سرکوب اینترون‌های زائد',
-                bio_mycelium: 'پیش‌بارگذاری چندگامی میسلیوم (Markov)',
-                bio_membrane: 'درگاه اسمزی سلولی (Cellular Gate)',
-                bio_mode_balanced: 'نفوذپذیری: حالت متعادل',
+                kpi_reduction_title: 'کاهش نسبت به کل ورک‌اسپیس',
+                kpi_reduction_peak: 'از get_context',
+                kpi_reduction_sub: 'توکن پکت در برابر دامپ کل ایندکس — ادعای جهانی ۹۹٪ نیست',
+                kpi_tokens_saved_title: 'آخرین پکت',
+                kpi_tokens_saved_sub: 'توکن پکت / ورک‌اسپیس از آخرین get_context',
+                kpi_cost_title: 'پوشش (coverage)',
+                kpi_cost_drop: 'no_recorded_gap یا partial',
+                kpi_cost_sub: 'Grep فقط وقتی coverage برابر partial است',
+                kpi_requests_title: 'فراخوانی get_context',
+                kpi_requests_sub: 'فعال‌سازی‌های ثبت‌شده در این ورک‌اسپیس',
+                kpi_synapses_title: 'گراف',
+                kpi_synapses_status: 'فایل · نود · یال',
+                kpi_synapses_sub: 'فایل‌های ایندکس، نود AST، یال call/import',
+                title_telemetry: 'تله‌متری زنده موتور',
+                badge_operational: 'تا get_context در حالت idle',
+                bio_physarum: 'لوله‌های فیزاروم',
+                bio_genetic: 'فولدهای این نشست',
+                bio_mycelium: 'پیش‌بار میسلیوم',
+                bio_membrane: 'سقف fill در QualityGate',
+                bio_mode_balanced: 'متعادل · ۸هزار توکن اضافه',
                 title_mcp_connect: 'اتصال ۱-کلیک به پروتکل MCP',
                 mcp_connect_help: 'این قطعه کد را در تنظیمات Claude Desktop یا Cursor قرار دهید:',
                 btn_copy_json: 'کپی پیکربندی JSON',
-                flow_title: 'جریان اجرای درخواست و پایپ‌لاین بیومیمتیک (نمای جریان)',
-                flow_desc: 'فرایند قدم‌به‌قدم پردازش و فشرده‌سازی پرامپت در پشت صحنه پروتکل MCP:',
+                flow_title: 'پایپ‌لاین get_context',
+                flow_desc: 'همان حلقهٔ ایجنت: get_context سپس expand_fold. Grep فقط وقتی coverage برابر partial است.',
                 galaxy_filter_title: 'نمای کلان کهکشان معماری سه‌بعدی',
                 filter_all: 'همه',
                 filter_files: 'فایل‌ها',
@@ -2650,11 +2722,11 @@
                 title_sim_lab: 'آزمایشگاه شبیه‌سازی کانتکست',
                 lbl_sim_prompt: 'شرح تسک / پرامپت ارسالی به مدل:',
                 lbl_sim_mode: 'حالت بهینه‌سازی کانتکست:',
-                opt_mode_balanced: 'متعادل (پیشنهاد هوشمند)',
-                opt_mode_savings: 'بیشترین صرفه‌جویی (فشرده‌سازی ۹۵٪)',
-                opt_mode_quality: 'بالاترین کیفیت (حفظ عمیق ساختار)',
-                btn_run_sim: 'اجرای کانتکست بیومیمتیک',
-                title_sim_preview: 'پیش‌نمایش اسکلت بهینه‌شده کانتکست',
+                opt_mode_balanced: 'متعادل · بذر + ۸هزار fill',
+                opt_mode_savings: 'بیشترین صرفه‌جویی · فقط بذر',
+                opt_mode_quality: 'بالاترین کیفیت · بذر + ۱۶هزار fill',
+                btn_run_sim: 'اجرای get_context',
+                title_sim_preview: 'پکت شواهد',
                 title_mcp_playground: 'میزکار اجرای ابزارهای بومی MCP',
                 lbl_mcp_tool: 'انتخاب ابزار MCP:',
                 lbl_mcp_args: 'پارامترهای JSON ورودی:',
@@ -2701,11 +2773,11 @@
                 sec_biomimetic_core: 'هسته بهینه‌سازی بیومیمتیک',
                 sec_algo_dynamics: 'تنظیمات محاسباتی و فرکانس',
                 opt_mode_balanced_short: 'متعادل',
-                opt_mode_balanced_desc: 'کاهش ۹۰٪ · پیشنهاد هوشمند',
+                opt_mode_balanced_desc: 'بذر + ۸هزار fill · پیش‌فرض',
                 opt_mode_savings_short: 'بیشترین صرفه‌جویی',
-                opt_mode_savings_desc: 'فشرده‌سازی ۹۶٪ · کمترین توکن',
+                opt_mode_savings_desc: 'فقط بذر · بدون fill اضافه',
                 opt_mode_quality_short: 'بالاترین کیفیت',
-                opt_mode_quality_desc: 'حفظ ساختار کامل تایپ‌های AST',
+                opt_mode_quality_desc: 'بذر + ۱۶هزار fill',
                 perm_isotonic_short: 'ایزوتونیک',
                 perm_isotonic_desc: 'نفوذپذیری متعادل · استاندارد',
                 perm_hypertonic_short: 'هایپرتونیک',
@@ -2844,6 +2916,115 @@
             }
         };
 
+        window.lastEvidencePacket = null;
+
+        window.formatTok = function(n) {
+            const v = Number(n) || 0;
+            if (v >= 1000000) return (v / 1000000).toFixed(2) + 'M';
+            if (v >= 1000) return (v / 1000).toFixed(1) + 'k';
+            return String(v);
+        };
+
+        window.packetFromResponse = function(data) {
+            if (!data) return null;
+            if (data.evidence_packet) return data;
+            if (data.context_view) {
+                const v = data.context_view;
+                return {
+                    task: data.signature || {},
+                    membrane_state: data.membrane_state,
+                    evidence_packet: {
+                        files: (v.active_nodes || []).filter(n => n.node && (n.node.node_type === 'File' || n.node.node_type === 'file')),
+                        coverage: v.coverage,
+                        next_actions: v.next_actions,
+                        budget: {
+                            seed_tokens: v.budget_seed_tokens,
+                            fill_used: v.budget_fill_used,
+                            fill_cap: v.budget_fill_cap,
+                            mode: v.budget_mode
+                        },
+                        workspace_tokens: v.workspace_tokens,
+                        active_tokens: v.active_tokens,
+                        physarum_used: v.physarum_used,
+                        physarum_ms: v.physarum_ms,
+                        selection_method: v.selection_method,
+                        seed_call_coverage: v.seed_call_coverage,
+                        reduction_vs_workspace_pct: (v.reduction_percentage || 0).toFixed(1) + '%'
+                    }
+                };
+            }
+            return data;
+        };
+
+        window.applyPacketMetrics = function(data) {
+            const pkt = window.packetFromResponse(data);
+            window.lastEvidencePacket = pkt;
+            if (!pkt || !pkt.evidence_packet) return pkt;
+            const ep = pkt.evidence_packet;
+            const files = ep.files || [];
+            const cov = ep.coverage || {};
+            const budget = ep.budget || {};
+            const claim = cov.claim || '—';
+            const vsWs = ep.reduction_vs_workspace_pct || '—';
+            const m1 = document.getElementById('pipeMetric1');
+            const m2 = document.getElementById('pipeMetric2');
+            const m3 = document.getElementById('pipeMetric3');
+            const m4 = document.getElementById('pipeMetric4');
+            const m5 = document.getElementById('pipeMetric5');
+            const m6 = document.getElementById('pipeMetric6');
+            const task = pkt.task || {};
+            const ids = (task.identifiers || []).length;
+            if (m1) m1.innerText = `${(task.intent || 'task').toString().slice(0, 28)}`;
+            if (m2) m2.innerText = `${cov.seeds_hit ? cov.seeds_hit.length : ids} hit · ${cov.seeds_missed ? cov.seeds_missed.length : 0} missed`;
+            if (m3) m3.innerText = `${budget.mode || pkt.effective_mode || 'balanced'} · fill ${window.formatTok(budget.fill_used)}/${window.formatTok(budget.fill_cap)}`;
+            if (m4) m4.innerText = ep.physarum_used ? `active ${ep.physarum_ms}ms` : 'idle (need 2+ seeds)';
+            const foldN = files.reduce((n, f) => n + ((f.folded_symbols || f.folds || []).length), 0);
+            if (m5) m5.innerText = `${foldN} folds · ${files.length} files`;
+            if (m6) m6.innerText = `${claim} · ${vsWs} vs WS`;
+            return pkt;
+        };
+
+        window.expandFoldFromUi = async function(foldId) {
+            if (!foldId) return;
+            try {
+                const res = await fetch('/api/expand', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fold_id: foldId, reason: 'monitor expand_fold' })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    window.showToast(data.error || 'Fold not in session registry', 'error');
+                    return;
+                }
+                const body = data.original_body || (data.expanded_node && data.expanded_node.node && data.expanded_node.node.content) || '';
+                const out = document.getElementById('simCodeOutput');
+                if (out) {
+                    out.innerText = `// expand_fold ${data.fold_id || foldId}\n// ${data.file_path || ''} ${data.symbol_name || ''}\n\n` + body;
+                }
+                window.showToast(currentLang === 'fa' ? `فولد بازیابی شد (${data.restored_tokens || 0} توکن)` : `Fold restored (${data.restored_tokens || 0} tokens)`, 'success');
+            } catch (e) {
+                window.showToast('expand_fold error: ' + e, 'error');
+            }
+        };
+
+        window.renderPacketFiles = function(files, mountId) {
+            const mount = document.getElementById(mountId);
+            if (!mount) return;
+            if (!files || !files.length) {
+                mount.innerHTML = '';
+                return;
+            }
+            mount.innerHTML = files.map(f => {
+                const path = f.path || (f.node && f.node.file_path) || '';
+                const why = f.why || (f.expansion_reason) || '';
+                const tokens = f.tokens || (f.node && f.node.token_cost) || 0;
+                const folds = (f.folds && f.folds.length) ? f.folds : (f.folded_symbols || []);
+                const foldBtns = folds.map(id => `<button class="fold-chip" onclick="window.expandFoldFromUi('${String(id).replace(/'/g, '')}')">fold ${id}</button>`).join('');
+                return `<div class="packet-file-row"><div class="packet-file-path">${path}</div><div class="packet-file-meta">${why ? why + ' · ' : ''}${tokens} tok</div><div>${foldBtns}</div></div>`;
+            }).join('');
+        };
+
         let isTracingPipeline = false;
         window.runPipelineTrace = async function() {
             if (isTracingPipeline) return;
@@ -2855,7 +3036,7 @@
 
             isTracingPipeline = true;
             const statusBadge = document.getElementById('pipeEngineStatus');
-            if (statusBadge) statusBadge.innerText = currentLang === 'fa' ? 'در حال پیمایش بیومیمتیک...' : 'Traversing Biomimetic DAG...';
+            if (statusBadge) statusBadge.innerText = currentLang === 'fa' ? 'در حال get_context...' : 'Running get_context...';
 
             const stages = ['pipeNode1', 'pipeNode2', 'pipeNode3', 'pipeNode4', 'pipeNode5', 'pipeNode6'];
             stages.forEach(id => {
@@ -2891,65 +3072,67 @@
                 setRunning(1);
                 window.showPipelineStage('signature');
 
-                await new Promise(r => setTimeout(r, 240));
+                await new Promise(r => setTimeout(r, 180));
                 setCompleted(1);
                 setRunning(2);
-                window.showPipelineStage('physarum');
-
-                await new Promise(r => setTimeout(r, 240));
-                setCompleted(2);
-                setRunning(3);
-                window.showPipelineStage('genetic');
-
-                await new Promise(r => setTimeout(r, 220));
-                setCompleted(3);
-                setRunning(4);
                 window.showPipelineStage('membrane');
 
-                const data = await resPromise;
+                await new Promise(r => setTimeout(r, 180));
+                setCompleted(2);
+                setRunning(3);
+                window.showPipelineStage('physarum');
 
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 180));
+                setCompleted(3);
+                setRunning(4);
+                window.showPipelineStage('genetic');
+
+                const data = await resPromise;
+                if (data.error) throw new Error(data.error);
+
+                await new Promise(r => setTimeout(r, 160));
                 setCompleted(4);
                 setRunning(5);
                 window.showPipelineStage('output');
 
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 160));
                 setCompleted(5);
 
-                const m1 = document.getElementById('pipeMetric1');
-                const m2 = document.getElementById('pipeMetric2');
-                const m3 = document.getElementById('pipeMetric3');
-                const m4 = document.getElementById('pipeMetric4');
-                const m5 = document.getElementById('pipeMetric5');
-                const m6 = document.getElementById('pipeMetric6');
-
-                const sig = data.signature || {};
-                const view = data.context_view || {};
-                const beforeTokens = (rawNodes.length * 1250) || 160000;
-                const afterTokens = view.active_tokens || 15;
-                const redPct = Math.max(90, ((beforeTokens - afterTokens) / beforeTokens * 100)).toFixed(1);
-
-                if (m1) m1.innerText = `${prompt.length} chars · <0.1ms`;
-                if (m2) m2.innerText = `${sig.domain || 'Codebase'} · 99% Conf`;
-                if (m3) m3.innerText = `${(view.active_nodes || []).length} active nodes`;
-                if (m4) m4.innerText = `${redPct}% Introns Folded`;
-                if (m5) m5.innerText = `${data.membrane_state || 'Isotonic'} Gate`;
-                if (m6) m6.innerText = `⚡ ${redPct}% Token Drop`;
+                const pkt = window.applyPacketMetrics(data);
+                const ep = (pkt && pkt.evidence_packet) || {};
+                const cov = ep.coverage || {};
+                const claim = cov.claim || 'unknown';
+                const vsWs = ep.reduction_vs_workspace_pct || '—';
 
                 const telemetryBox = document.getElementById('pipeStageTelemetryBox');
                 if (telemetryBox) {
-                    telemetryBox.innerText = `// [BIOMIMETIC DAG EXECUTION TRACE - 100% COMPLETE]\n` +
-                        `Prompt: "${prompt}"\n` +
-                        `Optimization Mode: ${mode}\n` +
-                        `Extracted Task Signature: ${JSON.stringify(sig, null, 2)}\n` +
-                        `Cellular Membrane State: ${data.membrane_state || 'Isotonic'}\n` +
-                        `Active Synaptic Subgraph: ${JSON.stringify(view.active_nodes || [], null, 2)}\n` +
-                        `Output Token Context: ${afterTokens.toLocaleString()} tokens (Raw was ~${beforeTokens.toLocaleString()}, Drop: ${redPct}%)\n` +
-                        `Execution Time: ${new Date().toLocaleTimeString()} · Status: SUCCESS`;
+                    telemetryBox.innerText = JSON.stringify({
+                        task: pkt && pkt.task,
+                        membrane_state: pkt && pkt.membrane_state,
+                        effective_mode: pkt && pkt.effective_mode,
+                        latency_ms: pkt && pkt.latency_ms,
+                        coverage: cov,
+                        next_actions: ep.next_actions,
+                        budget: ep.budget,
+                        physarum_used: ep.physarum_used,
+                        physarum_ms: ep.physarum_ms,
+                        selection_method: ep.selection_method,
+                        files: (ep.files || []).map(f => ({ path: f.path, why: f.why, tokens: f.tokens, folded: f.folded_symbols })),
+                        reduction_vs_workspace_pct: vsWs,
+                        reduction_vs_selected_pct: ep.reduction_vs_selected_pct,
+                        seed_call_coverage: ep.seed_call_coverage
+                    }, null, 2);
                 }
 
-                if (statusBadge) statusBadge.innerText = currentLang === 'fa' ? 'جریان با موفقیت کامل شد' : 'DAG Traversal Complete (Optimal)';
-                window.showToast(currentLang === 'fa' ? `تست جریان با موفقیت اجرا شد (${redPct}% بهینه‌سازی)` : `Pipeline trace executed (${redPct}% reduction)`, 'success');
+                if (statusBadge) statusBadge.innerText = currentLang === 'fa'
+                    ? `تمام شد · ${claim}`
+                    : `Complete · ${claim}`;
+                window.showToast(
+                    currentLang === 'fa'
+                        ? `get_context: ${claim} · ${vsWs} نسبت به ورک‌اسپیس`
+                        : `get_context: ${claim} · ${vsWs} vs workspace`,
+                    claim === 'partial' ? 'info' : 'success'
+                );
 
                 window.fetchLogs(false);
                 window.fetchUsage(false);
@@ -2963,48 +3146,53 @@
         };
 
         window.showPipelineStage = function(stage, customPrompt) {
+            const pkt = window.lastEvidencePacket;
+            const ep = (pkt && pkt.evidence_packet) || {};
+            const cov = ep.coverage || {};
+            const budget = ep.budget || {};
+            const task = (pkt && pkt.task) || {};
             const stages = {
                 input: {
                     node: 'pipeNode1',
-                    badge: 'Stage 1: Ingest',
-                    title: { en: "Stage 1: Prompt Ingest & Token Budgeting", fa: "مرحله ۱: دریافت پرامپت و بودجه‌بندی توکن" },
-                    desc: { en: "MCP server intercepts the natural language request and validates token budget constraints.", fa: "درخواست ورودی مدل هوش مصنوعی دریافت شده و محدودیت بودجه توکن برای آن تعیین می‌گردد." },
-                    telemetry: (p) => `// STAGE 1 TELEMETRY\nStatus: Ingested & Validated\nPrompt: "${p || document.getElementById('pipelineTracePrompt')?.value || 'Default Task'}"\nProtocol: MCP (Model Context Protocol)\nLatency: <0.1ms`
+                    badge: '1 Prompt',
+                    title: { en: "1 · Prompt ingest", fa: "۱ · دریافت پرامپت" },
+                    desc: { en: "MCP receives the task. No compression yet — just the string.", fa: "سرور MCP تسک را می‌گیرد. هنوز فشرده‌سازی نیست." },
+                    telemetry: (p) => `prompt: "${p || document.getElementById('pipelineTracePrompt')?.value || ''}"`
                 },
                 signature: {
                     node: 'pipeNode2',
-                    badge: 'Stage 2: Signature',
-                    title: { en: "Stage 2: Task Signature Extractor (AST Heuristics)", fa: "مرحله ۲: استخراج امضا و نیت تسک (تحلیل AST)" },
-                    desc: { en: "Identifies target domain, language, entities, and modified modules using AST pattern heuristics.", fa: "دامنه کد، زبان، ماژول‌ها و توابع هدف با تحلیل AST شناسایی و کلاس‌بندی می‌شوند." },
-                    telemetry: () => `// STAGE 2 TELEMETRY\nStatus: Intent Extracted\nExtracted Entities: Domain Heuristics, AST Patterns\nConfidence Score: 98.5%\nLanguage Target: Multi-Language AST`
-                },
-                physarum: {
-                    node: 'pipeNode3',
-                    badge: 'Stage 3: Physarum',
-                    title: { en: "Stage 3: Physarum Slime Mold & STDP Plasticity", fa: "مرحله ۳: مسیریاب فیزاروم و پلاستیسیته سیناپسی STDP" },
-                    desc: { en: "Simulates hydraulic flux across project synapses to pinpoint only the critical execution subgraphs.", fa: "جریان هیدرولیکی فیزاروم کوتاه‌ترین و مؤثرترین مسیرهای ارتباطی میان فایل‌ها را فعال می‌کند." },
-                    telemetry: () => `// STAGE 3 TELEMETRY\nStatus: Hydraulic Flux Solved\nSteiner Minimal Tree: Calculated\nPheromone Potentiation: Active (Hebbian LTP)\nPruned Inactive Branches: >85%`
-                },
-                genetic: {
-                    node: 'pipeNode4',
-                    badge: 'Stage 4: Genetic Slicing',
-                    title: { en: "Stage 4: Genetic Slicing & Intron Suppression", fa: "مرحله ۴: اسکلت‌بندی ژنتیک و سرکوب اینترون‌های زائد" },
-                    desc: { en: "Suppresses function bodies (introns) while preserving semantic type signatures, traits, and interfaces.", fa: "بدنه توابع غیرمرتبط فشرده و مخفی می‌شوند اما امضای تایپ‌ها و اینترفیس‌ها ۱۰۰٪ دست‌نخورده می‌مانند." },
-                    telemetry: () => `// STAGE 4 TELEMETRY\nStatus: Sliced & Folded\nIntron Compression Ratio: 94.8%\nExon Preservation: Type Signatures, Traits, Exports Intact`
+                    badge: '2 Seeds',
+                    title: { en: "2 · Unique resolve / seeds", fa: "۲ · resolve یکتا / بذرها" },
+                    desc: { en: "Identifiers and file hints resolve uniquely. Ambiguous calls stay Likely. Missed seeds make coverage partial.", fa: "شناسه‌ها یکتا resolve می‌شوند. فراخوانی مبهم Likely می‌ماند. بذر ازدست‌رفته یعنی coverage=partial." },
+                    telemetry: () => JSON.stringify({ intent: task.intent, identifiers: task.identifiers, file_hints: task.file_hints, seeds_hit: cov.seeds_hit, seeds_missed: cov.seeds_missed }, null, 2)
                 },
                 membrane: {
+                    node: 'pipeNode3',
+                    badge: '3 Gate',
+                    title: { en: "3 · QualityGate fill cap", fa: "۳ · سقف fill در QualityGate" },
+                    desc: { en: "Seeds always ship. Extra connectors: max_savings 0, balanced +8k, max_quality +16k. Critical tasks (auth/payment/secret) upgrade.", fa: "بذر همیشه ارسال می‌شود. کانکتور اضافه: صرفه‌جویی ۰، متعادل ۸هزار، کیفیت ۱۶هزار." },
+                    telemetry: () => JSON.stringify({ membrane_state: pkt && pkt.membrane_state, effective_mode: pkt && pkt.effective_mode, budget }, null, 2)
+                },
+                physarum: {
+                    node: 'pipeNode4',
+                    badge: '4 Physarum',
+                    title: { en: "4 · Neighborhood Physarum tubes", fa: "۴ · لوله‌های فیزاروم همسایگی" },
+                    desc: { en: "Runs only with two or more seeds on a capped subgraph (SLA < 20ms). Otherwise seed-then-fill. Idle is the honest default.", fa: "فقط با دو بذر یا بیشتر روی زیرگراف محدود (SLA زیر ۲۰ms). وگرنه seed-then-fill. idle یعنی اجرا نشده." },
+                    telemetry: () => JSON.stringify({ physarum_used: ep.physarum_used || false, physarum_ms: ep.physarum_ms || 0, selection_method: ep.selection_method || 'seed_then_fill' }, null, 2)
+                },
+                genetic: {
                     node: 'pipeNode5',
-                    badge: 'Stage 5: Osmotic Gate',
-                    title: { en: "Stage 5: Cellular Osmotic Membrane Gate", fa: "مرحله ۵: غشای اسمزی و تنظیم نفوذپذیری سلولی" },
-                    desc: { en: "Regulates context boundary permeability based on prompt pressure to prevent context hallucination.", fa: "نفوذپذیری کانتکست بر اساس پیچیدگی تسک تنظیم شده تا مانع از توهم مدل و افت دقت شود." },
-                    telemetry: () => `// STAGE 5 TELEMETRY\nStatus: Isotonic Balance\nOsmotic Pressure: Optimal (0.92)\nContext Drift Guard: 100% Locked`
+                    badge: '5 Folds',
+                    title: { en: "5 · Skeletonize / register folds", fa: "۵ · اسکلت و ثبت فولد" },
+                    desc: { en: "Seed functions stay exons. Sibling helpers fold as [neuromesh:fold]. Bodies live in the session registry for expand_fold.", fa: "توابع بذر اگزون می‌مانند. هلپرها فولد می‌شوند. بدنه در رجیستری نشست برای expand_fold می‌ماند." },
+                    telemetry: () => JSON.stringify((ep.files || []).map(f => ({ path: f.path, folded: f.folded_symbols, tokens: f.tokens })), null, 2)
                 },
                 output: {
                     node: 'pipeNode6',
-                    badge: 'Stage 6: Minimal Context',
-                    title: { en: "Stage 6: Minimal Context Egress to LLM", fa: "مرحله ۶: خروجی کانتکست فوق‌فشرده به مدل هوش مصنوعی" },
-                    desc: { en: "Ultra-compact reversible context is returned to Claude/GPT-4/Gemini with >98% token reduction.", fa: "کانتکست مهندسی‌شده و فوق‌فشرده با کاهش بیش از ۹۸٪ توکن‌ها به مدل هوش مصنوعی تحویل داده می‌شود." },
-                    telemetry: () => `// STAGE 6 TELEMETRY\nStatus: Egress Dispatched\nFinal Token Reduction: >98%\nReversibility Key: Active\nTarget: Claude / GPT-4 / Cursor MCP`
+                    badge: '6 Packet',
+                    title: { en: "6 · Evidence packet + next_actions", fa: "۶ · پکت شواهد و next_actions" },
+                    desc: { en: "Agent reads the packet. next_actions say expand_fold. Grep/search only when coverage is partial. Then record_feedback after a good edit.", fa: "ایجنت پکت را می‌خواند. next_actions می‌گوید expand_fold. Grep فقط وقتی coverage برابر partial است." },
+                    telemetry: () => JSON.stringify({ coverage: cov, next_actions: ep.next_actions, vs_workspace: ep.reduction_vs_workspace_pct, vs_selected: ep.reduction_vs_selected_pct, seed_call_coverage: ep.seed_call_coverage, files: (ep.files || []).length }, null, 2)
                 }
             };
 
@@ -3114,54 +3302,105 @@
                 if (data.graph) {
                     const elSynapses = document.getElementById('kpiSynapses');
                     const elBadge = document.getElementById('nodeCountBadge');
-                    if (elSynapses) elSynapses.innerText = `${data.graph.total_edges} ${currentLang === 'fa' ? 'سیناپس' : 'Synapses'}`;
-                    if (elBadge && activeClusterKey === null) elBadge.innerText = `${macroClusters.length || data.graph.total_nodes} ${currentLang === 'fa' ? 'ماژول اصلی' : 'Subsystems'}`;
+                    const elGraphBadge = document.getElementById('kpiGraphBadge');
+                    const files = data.graph.file_nodes || 0;
+                    const nodes = data.graph.total_nodes || 0;
+                    const edges = data.graph.total_edges || 0;
+                    if (elSynapses) elSynapses.innerText = `${files} · ${nodes} · ${edges}`;
+                    if (elGraphBadge) elGraphBadge.innerText = currentLang === 'fa' ? 'فایل · نود · یال' : 'files · nodes · edges';
+                    if (elBadge && activeClusterKey === null) elBadge.innerText = `${macroClusters.length || nodes} ${currentLang === 'fa' ? 'ماژول' : 'Subsystems'}`;
                 }
-                if (data.metrics) {
-                    const elRequests = document.getElementById('kpiRequests');
-                    const elRed = document.getElementById('kpiReduction');
-                    const elCost = document.getElementById('kpiCost');
-                    const elHitRate = document.getElementById('kpiHitRate');
-                    const elTokensSaved = document.getElementById('kpiTokensSaved');
-                    const elTokensBadge = document.getElementById('kpiTokensSavedBadge');
-                    
-                    const reqCount = data.metrics.total_requests || 0;
-                    if (elRequests) elRequests.innerText = `${reqCount} ${currentLang === 'fa' ? 'درخواست' : 'requests'}`;
-                    
-                    const redPct = data.metrics.overall_reduction_pct ? data.metrics.overall_reduction_pct.toFixed(1) : '94.5';
-                    if (elRed) elRed.innerText = `${redPct}%`;
+                const packet = data.last_packet || (data.biomimetic && data.biomimetic.last_packet);
+                const bio = data.biomimetic || {};
+                const myc = bio.mycelium || {};
+                const reqCount = (data.metrics && data.metrics.total_requests) || 0;
 
-                    const totalSaved = data.metrics.total_tokens_saved || 0;
-                    if (elTokensSaved) {
-                        if (totalSaved >= 1000000) {
-                            elTokensSaved.innerText = `~${(totalSaved / 1000000).toFixed(2)}M ${currentLang === 'fa' ? 'توکن' : 'tokens'}`;
-                        } else if (totalSaved >= 1000) {
-                            elTokensSaved.innerText = `~${(totalSaved / 1000).toFixed(1)}k ${currentLang === 'fa' ? 'توکن' : 'tokens'}`;
-                        } else if (totalSaved > 0) {
-                            elTokensSaved.innerText = `${totalSaved.toLocaleString()} ${currentLang === 'fa' ? 'توکن' : 'tokens'}`;
-                        } else {
-                            elTokensSaved.innerText = `0 ${currentLang === 'fa' ? 'توکن' : 'tokens'}`;
-                        }
-                    }
+                const elRequests = document.getElementById('kpiRequests');
+                const elRed = document.getElementById('kpiReduction');
+                const elPeak = document.getElementById('kpiReductionPeak');
+                const elCost = document.getElementById('kpiCost');
+                const elCovBadge = document.getElementById('kpiCoverageBadge');
+                const elHitRate = document.getElementById('kpiHitRate');
+                const elTokensSaved = document.getElementById('kpiTokensSaved');
+                const elTokensBadge = document.getElementById('kpiTokensSavedBadge');
 
-                    if (elTokensBadge) {
-                        elTokensBadge.innerText = reqCount > 0 ? `⚡ ${redPct}% ${currentLang === 'fa' ? 'صرفه‌جویی' : 'Saved'}` : (currentLang === 'fa' ? 'آماده' : 'Ready');
+                if (elRequests) elRequests.innerText = `${reqCount}`;
+
+                const red = data.metrics ? data.metrics.overall_reduction_pct : null;
+                const hasRed = reqCount > 0 && red != null && !Number.isNaN(Number(red));
+                if (elRed) elRed.innerText = hasRed ? `${Number(red).toFixed(1)}%` : '—';
+                if (elPeak) elPeak.innerText = hasRed
+                    ? (currentLang === 'fa' ? 'میانگین اندازه‌گیری‌شده' : 'measured mean')
+                    : (currentLang === 'fa' ? 'هنوز درخواستی نیست' : 'no calls yet');
+
+                if (packet) {
+                    if (elTokensSaved) elTokensSaved.innerText = `${window.formatTok(packet.packet_tokens)} / ${window.formatTok(packet.workspace_tokens)}`;
+                    if (elTokensBadge) elTokensBadge.innerText = `${packet.file_count || 0} files`;
+                    const claim = packet.coverage_claim || '—';
+                    if (elCost) elCost.innerText = claim;
+                    if (elCovBadge) {
+                        elCovBadge.innerText = packet.grep_needed ? 'Grep' : 'no Grep';
+                        elCovBadge.style.color = packet.grep_needed ? 'var(--accent-amber)' : 'var(--accent-green)';
                     }
-                    
-                    const estCostSaved = totalSaved > 0 ? ((totalSaved / 1000000) * 15.0).toFixed(2) : '0.00';
-                    const estCost = reqCount > 0 
-                        ? `$${estCostSaved} ${currentLang === 'fa' ? 'صرفه‌جویی' : 'saved'}` 
-                        : (currentLang === 'fa' ? '۰ دلار (آماده)' : '$0.00 (Ready)');
-                    if (elCost) elCost.innerText = estCost;
-                    
-                    if (elHitRate) {
-                        if (reqCount > 0) {
-                            elHitRate.innerText = `Cache ${(data.metrics.cache_hit_rate || 0).toFixed(0)}%`;
-                        } else {
-                            elHitRate.innerText = currentLang === 'fa' ? 'آماده' : 'Ready';
-                        }
-                    }
+                } else {
+                    const wsTok = (data.metrics && data.metrics.total_raw_tokens) || 0;
+                    if (elTokensSaved) elTokensSaved.innerText = wsTok ? window.formatTok(wsTok) + ' ws' : '—';
+                    if (elTokensBadge) elTokensBadge.innerText = currentLang === 'fa' ? 'آماده' : 'Ready';
+                    if (elCost) elCost.innerText = '—';
+                    if (elCovBadge) elCovBadge.innerText = '—';
                 }
+
+                if (elHitRate) {
+                    const lat = data.metrics && data.metrics.average_latency_ms;
+                    elHitRate.innerText = reqCount > 0 && lat != null
+                        ? `${Number(lat).toFixed(0)} ms`
+                        : (currentLang === 'fa' ? 'آماده' : 'Ready');
+                }
+
+                const physActive = bio.physarum_solver === 'active';
+                const physEl = document.getElementById('bioPhysarumValue');
+                const physBar = document.getElementById('bioPhysarumBar');
+                if (physEl) {
+                    physEl.innerText = physActive
+                        ? `active ${bio.physarum_last_ms || 0}ms`
+                        : 'idle';
+                    physEl.style.color = physActive ? 'var(--accent-green)' : '';
+                    physEl.classList.toggle('idle-note', !physActive);
+                }
+                if (physBar) physBar.style.width = physActive
+                    ? Math.min(100, ((bio.physarum_last_ms || 1) / 20) * 100) + '%'
+                    : '0%';
+
+                const folds = data.session_folds != null ? data.session_folds : (bio.folds_in_session || 0);
+                const genEl = document.getElementById('bioGeneticValue');
+                const genBar = document.getElementById('bioGeneticBar');
+                if (genEl) genEl.innerText = String(folds);
+                if (genBar) genBar.style.width = Math.min(100, folds * 8) + '%';
+
+                const mycActive = bio.mycelial_prefetching === 'active';
+                const mycEl = document.getElementById('bioMyceliumValue');
+                const mycBar = document.getElementById('bioMyceliumBar');
+                if (mycEl) {
+                    mycEl.innerText = mycActive
+                        ? `${myc.hit_rate_pct != null ? Number(myc.hit_rate_pct).toFixed(0) : 0}% hit · ${myc.total_prefetches || 0} pref`
+                        : 'idle';
+                    mycEl.classList.toggle('idle-note', !mycActive);
+                }
+                if (mycBar) mycBar.style.width = mycActive
+                    ? Math.min(100, Number(myc.hit_rate_pct) || 8) + '%'
+                    : '0%';
+
+                const mode = (data.mode || 'balanced').toString();
+                const fillCap = data.fill_cap != null ? data.fill_cap : (mode === 'max_quality' ? 16000 : mode === 'max_savings' ? 0 : 8000);
+                const memEl = document.getElementById('bioMembraneValue');
+                const memBar = document.getElementById('bioMembraneBar');
+                if (memEl) memEl.innerText = `${mode} · +${window.formatTok(fillCap)}`;
+                if (memBar) memBar.style.width = fillCap === 0 ? '8%' : fillCap >= 16000 ? '100%' : '50%';
+
+                const op = document.getElementById('badgeOperational');
+                if (op) op.innerText = packet
+                    ? (currentLang === 'fa' ? 'آخرین پکت ثبت شد' : 'last packet recorded')
+                    : (currentLang === 'fa' ? 'تا get_context در idle' : 'idle until get_context');
             } catch (e) {}
         };
 
@@ -3826,18 +4065,53 @@
                     body: JSON.stringify({ prompt, mode })
                 });
                 const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                const pkt = window.applyPacketMetrics(data);
+                const ep = (pkt && pkt.evidence_packet) || {};
+                const cov = ep.coverage || {};
+                const claim = cov.claim || '—';
+                const vsWs = ep.reduction_vs_workspace_pct || '—';
+                const vsSel = ep.reduction_vs_selected_pct || '—';
+                const budget = ep.budget || {};
 
                 document.getElementById('simMetricsPanel').style.display = 'block';
-                document.getElementById('simRedText').innerText = `${data.context_view.reduction_percentage.toFixed(1)}% ${currentLang === 'fa' ? 'صرفه‌جویی مصرف توکن' : 'Token Reduction'}`;
-                document.getElementById('simTokenText').innerText = `${currentLang === 'fa' ? 'فعال:' : 'Active:'} ${data.context_view.active_tokens} ${currentLang === 'fa' ? 'توکن' : 'tokens'} | ${currentLang === 'fa' ? 'خام:' : 'Raw:'} ${data.context_view.total_raw_tokens}`;
+                document.getElementById('simRedText').innerText = `${vsWs} vs workspace · ${vsSel} vs selected`;
+                const pill = document.getElementById('simCoveragePill');
+                if (pill) {
+                    pill.innerText = claim;
+                    pill.className = 'coverage-pill ' + (claim === 'partial' ? 'partial' : 'ok');
+                }
+                document.getElementById('simTokenText').innerText =
+                    `packet ${window.formatTok(ep.active_tokens)} · workspace ${window.formatTok(ep.workspace_tokens)} · fill ${window.formatTok(budget.fill_used)}/${window.formatTok(budget.fill_cap)} · ` +
+                    (ep.physarum_used ? `physarum ${ep.physarum_ms}ms` : 'physarum idle') +
+                    ` · ${(ep.selection_method || 'seed_then_fill')}`;
+
+                const actions = ep.next_actions || [];
+                const actBox = document.getElementById('simNextActions');
+                if (actBox) {
+                    if (!actions.length) {
+                        actBox.innerHTML = `<div class="packet-file-meta">${currentLang === 'fa' ? 'next_actions خالی' : 'no next_actions'}</div>`;
+                    } else {
+                        actBox.innerHTML = actions.map(a => {
+                            const isFold = a.tool && String(a.tool).includes('expand_fold');
+                            const q = (a.query || '').replace(/'/g, '');
+                            return `<button class="action-chip" ${isFold ? `onclick="window.expandFoldFromUi('${q}')"` : ''}>${a.tool || ''} · ${a.query || ''}<div class="packet-file-meta">${a.why || ''}</div></button>`;
+                        }).join('');
+                    }
+                }
+
+                window.renderPacketFiles(ep.files || [], 'simPacketFiles');
 
                 let codePreview = '';
-                data.context_view.active_nodes.forEach(a => {
-                    codePreview += `// ═════ [Active Node: ${a.node.name} | Score: ${a.activation_score.toFixed(2)}] ═════\n`;
-                    if (a.node.content) codePreview += a.node.content + '\n\n';
+                (ep.files || []).forEach(f => {
+                    codePreview += `// ═════ ${f.path || ''} · ${f.why || ''} · ${f.tokens || 0} tok ═════\n`;
+                    if (f.skeleton) codePreview += f.skeleton + '\n\n';
                 });
-                document.getElementById('simCodeOutput').innerText = codePreview || '// Minimal context generated.';
-                window.showToast(currentLang === 'fa' ? `کانتکست شبیه‌سازی شد (${data.context_view.reduction_percentage.toFixed(1)}٪ صرفه‌جویی)` : `Context simulation complete (${data.context_view.reduction_percentage.toFixed(1)}% saved)`, 'success');
+                document.getElementById('simCodeOutput').innerText = codePreview || '// Empty packet — try a prompt that matches indexed symbols.';
+                window.showToast(
+                    currentLang === 'fa' ? `get_context: ${claim}` : `get_context: ${claim}`,
+                    claim === 'partial' ? 'info' : 'success'
+                );
             } catch (e) {
                 window.showToast('Simulation error: ' + e, 'error');
             } finally {
@@ -3847,65 +4121,83 @@
 
         const MCP_TOOL_DEFINITIONS = {
             'neuromesh_get_context': {
-                badge: '⚡ Semantic Retrieval',
-                desc: 'Intelligently slices and compresses relevant AST context for an AI task.',
+                badge: '⚡ evidence packet',
+                desc: 'Seeds always ship, Physarum tubes when two+ seeds, then fold. Grep only if coverage is partial.',
                 defaultArgs: {
-                    task_description: "Optimize database connection pooling and cache query paths",
+                    task_description: "How does handle_tool_call extract intent?",
                     mode: "balanced"
                 }
             },
-            'neuromesh_get_file_skeleton': {
-                badge: '🧬 Genetic Slicing',
-                desc: 'Generates genetic AST skeleton of a file with folded implementations.',
+            'neuromesh_expand_fold': {
+                badge: '🧬 spliceosome',
+                desc: 'Restore a folded body by fold_id from the session registry (no disk re-read). Run get_context first.',
                 defaultArgs: {
-                    file_path: "crates/neuromesh-api/src/server.rs",
-                    active_symbols: ["AppState", "run_server"]
+                    fold_id: "fold_unused_helper_1",
+                    reason: "need the function body"
                 }
             },
-            'neuromesh_expand_fold': {
-                badge: '🔍 AST Unfolding',
-                desc: 'Expands a specific folded AST method or class body.',
+            'neuromesh_get_file_skeleton': {
+                badge: '🧬 skeleton',
+                desc: 'Skeletonize one file; listed symbols stay as exons.',
                 defaultArgs: {
-                    file_path: "crates/neuromesh-api/src/server.rs",
-                    fold_id: "AppState"
+                    file_path: "crates/neuromesh-mcp/src/tools.rs",
+                    active_symbols: ["handle_tool_call"]
                 }
             },
             'neuromesh_search_symbols': {
-                badge: '🔎 Symbol Index',
-                desc: 'Semantic & fuzzy symbol search across all indexed crates and files.',
+                badge: '🔎 Grep',
+                desc: 'Ranked search. Use only when coverage.claim is partial.',
                 defaultArgs: {
-                    query: "router",
+                    query: "handle_tool_call",
                     limit: 10
                 }
             },
             'neuromesh_get_dependencies': {
-                badge: '🕸️ Synaptic Graph',
-                desc: 'Traces cross-file Hebbian synaptic dependencies and imports.',
+                badge: '🕸️ neighbors',
+                desc: 'Typed call/import neighbors for a symbol or path.',
                 defaultArgs: {
-                    file_path: "crates/neuromesh-api/src/server.rs",
+                    symbol_or_path: "ContextActivator",
                     depth: 2
                 }
             },
-            'neuromesh_record_feedback': {
-                badge: '📈 Hebbian Plasticity',
-                desc: 'Records task outcome and potentiates Hebbian LTP synaptic weights.',
+            'neuromesh_trace': {
+                badge: '🔗 trace',
+                desc: 'Call/import chains from a seed (in / out / both).',
                 defaultArgs: {
-                    task_id: "req-mcp-01",
-                    success: true,
-                    tokens_saved: 4200,
-                    note: "Optimal context slice"
+                    query: "activate",
+                    direction: "out",
+                    depth: 2
+                }
+            },
+            'neuromesh_analyze_impact': {
+                badge: '💥 blast',
+                desc: 'Blast radius around a symbol.',
+                defaultArgs: {
+                    query: "activate",
+                    depth: 2
+                }
+            },
+            'neuromesh_get_architecture': {
+                badge: '🗺️ map',
+                desc: 'Languages, packages, entry points.',
+                defaultArgs: {}
+            },
+            'neuromesh_record_feedback': {
+                badge: '📈 STDP',
+                desc: 'Required after a successful edit — spikes the path so the next packet can prefer those files.',
+                defaultArgs: {
+                    task_success: true,
+                    touched_nodes: ["handle_tool_call"]
                 }
             },
             'neuromesh_get_project_memory': {
-                badge: '🧠 Collective Memory',
-                desc: 'Retrieves cross-project architectural facts and design invariants.',
-                defaultArgs: {
-                    query: "architecture rules"
-                }
+                badge: '🧠 facts',
+                desc: 'Seeded facts from manifests and docs.',
+                defaultArgs: {}
             },
             'neuromesh_get_stats': {
-                badge: '📊 Telemetry Stream',
-                desc: 'Returns current project graph topology, token reduction, and telemetry.',
+                badge: '📊 stats',
+                desc: 'Graph size. physarum_solver is active only when the last get_context ran tubes.',
                 defaultArgs: {}
             }
         };

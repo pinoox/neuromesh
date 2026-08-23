@@ -50,11 +50,14 @@ impl McpToolHandler {
         json!({
             "physarum_solver": if phys.used { "active" } else { "idle" },
             "physarum_last_ms": phys.ms,
-            "synaptic_stdp": "active",
+            "physarum_sla_ms": 20,
+            "synaptic_stdp": "armed",
             "bio_genetic_slicing": "active",
+            "folds_in_session": self.activator.registry().fold_count(),
             "mycelial_prefetching": if myc.total_prefetches > 0 { "active" } else { "idle" },
             "mycelium": myc,
-            "cellular_osmotic_gate": "active"
+            "cellular_osmotic_gate": "active",
+            "last_packet": self.activator.last_packet(),
         })
     }
 
@@ -558,6 +561,7 @@ impl McpToolHandler {
             "neuromesh_get_stats" => {
                 let stats = self.graph.stats();
                 Ok(json!({
+                    "version": env!("CARGO_PKG_VERSION"),
                     "project_id": self.graph.project_id().0,
                     "graph_stats": stats,
                     "biomimetic_engine": self.biomimetic_report()

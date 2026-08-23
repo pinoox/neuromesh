@@ -87,7 +87,8 @@ impl AppState {
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 level: "INFO".to_string(),
                 category: "PHYSARUM".to_string(),
-                message: "Physarum Polycephalum Minimal Steiner Solver ready (<1ms)".to_string(),
+                message: "Neighborhood Physarum armed (active only with 2+ seeds, <20ms SLA)"
+                    .to_string(),
             },
             AuditLogEntry {
                 timestamp: chrono::Utc::now().to_rfc3339(),

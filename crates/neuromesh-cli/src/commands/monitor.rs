@@ -1,6 +1,7 @@
 use neuromesh_api::{AppState, HttpServer};
 use neuromesh_core::{Config, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
+use neuromesh_index::ProjectWalker;
 use neuromesh_memory::MemoryDatabase;
 use neuromesh_provider::ProviderFactory;
 use std::fs;
@@ -28,7 +29,20 @@ pub async fn execute() -> Result<()> {
         .to_string();
 
     let project_id = ProjectId::new(&project_name);
+    let walker = ProjectWalker::new(current_dir.clone(), project_id.clone());
+    let scanned = walker.scan().unwrap_or_default();
     let graph = Arc::new(NeuralProjectGraph::new(project_id));
+    let _ = graph.load_persisted(&current_dir);
+    graph.ingest_workspace(&scanned);
+    let _ = graph.save_persisted(&current_dir);
+    let stats = graph.stats();
+    println!(
+        "Indexed {} files · {} nodes · {} edges · {} workspace tokens",
+        scanned.len(),
+        stats.total_nodes,
+        stats.total_edges,
+        graph.total_tokens()
+    );
 
     let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
     let memory_db = Arc::new(

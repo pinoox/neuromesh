@@ -2,8 +2,6 @@ use crate::state::AppState;
 use neuromesh_core::{NodeId, OptimizationMode, ProjectId, Result};
 use neuromesh_index::ProjectWalker;
 use neuromesh_parser::CodeIntelligenceEngine;
-use neuromesh_router::QualityGate;
-use neuromesh_task::TaskSignatureExtractor;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -32,7 +30,8 @@ impl HttpServer {
         let listener = TcpListener::bind(addr).await?;
         println!("\n╔═══════════════════════════════════════════════════════════════════════════════════╗");
         println!(
-            "║             🌿 NEUROMESH v0.4.0 — UI MONITOR & MCP DASHBOARD ACTIVE               ║"
+            "║             🌿 NEUROMESH v{} — UI MONITOR & MCP DASHBOARD ACTIVE               ║",
+            env!("CARGO_PKG_VERSION")
         );
         println!("║   Open in browser: \x1b[1;36mhttp://{}\x1b[0m                                      ║", addr);
         println!("╚═══════════════════════════════════════════════════════════════════════════════════╝\n");
@@ -121,7 +120,8 @@ impl HttpServer {
         match (method, path) {
             // Web UI Dashboard Root
             ("GET", "/") | ("GET", "/index.html") => {
-                let html = crate::ui::INDEX_HTML;
+                let html = crate::ui::INDEX_HTML
+                    .replace("__NEUROMESH_VERSION__", env!("CARGO_PKG_VERSION"));
                 Self::send_response(
                     &mut stream,
                     200,
@@ -189,12 +189,17 @@ impl HttpServer {
                     0.0
                 };
 
+                let fill_cap = neuromesh_context::fill_budget(state.config.read().mode);
                 let resp = json!({
                     "status": "running",
+                    "version": env!("CARGO_PKG_VERSION"),
                     "protocol": "Pure MCP (Model Context Protocol)",
                     "project_id": current_pid.0,
                     "workspace_path": current_ws,
                     "mode": mode_str,
+                    "fill_cap": fill_cap,
+                    "session_folds": state.registry.fold_count(),
+                    "last_packet": state.activator.last_packet(),
                     "local_model": {
                         "name": local_model.name,
                         "size": local_model.parameter_size,
@@ -712,74 +717,59 @@ impl HttpServer {
                 Self::send_json(&mut stream, 200, &resp).await?;
             }
 
-            // Live Context Activation Simulation
+            // Live get_context — same evidence packet the MCP agent receives
             ("POST", "/api/simulate") | ("POST", "/v1/activate") => {
                 let prompt = body_json["prompt"].as_str().unwrap_or("");
                 let mode_str = body_json["mode"].as_str().unwrap_or("balanced");
-                let requested_mode = match mode_str {
-                    "max_quality" => OptimizationMode::MaxQuality,
-                    "max_savings" => OptimizationMode::MaxSavings,
-                    _ => OptimizationMode::Balanced,
-                };
-
-                let start_time = std::time::Instant::now();
-                let signature = TaskSignatureExtractor::extract(prompt);
-                let gate = QualityGate::evaluate(&signature, requested_mode);
-                let view = state
-                    .activator
-                    .activate(&state.graph, &signature, gate.effective_mode);
-
-                let total_raw = state.graph.total_tokens();
-                let tokens_before = if total_raw > 0 { total_raw } else { 16000 };
-                let tokens_after = view.active_tokens;
-                let reduction = if tokens_before > 0 {
-                    ((tokens_before.saturating_sub(tokens_after)) as f32 / tokens_before as f32)
-                        * 100.0
+                if prompt.trim().is_empty() {
+                    Self::send_json(&mut stream, 400, &json!({ "error": "prompt is required" }))
+                        .await?;
                 } else {
-                    90.0
-                };
-                let latency_ms = start_time.elapsed().as_millis() as u64;
-
-                state.metrics.record(neuromesh_core::OptimizationMetadata {
-                    request_id: format!("sim-{}", chrono::Utc::now().timestamp_millis()),
-                    task_id: None,
-                    project_id: state.graph.project_id(),
-                    mode: gate.effective_mode.to_string(),
-                    tokens_before,
-                    tokens_after,
-                    token_reduction_pct: reduction,
-                    nodes_before: state.graph.stats().total_nodes,
-                    nodes_after: view.active_nodes.len(),
-                    expansions_count: 0,
-                    cache_hit: false,
-                    provider: "MCP".to_string(),
-                    model: "Frontier".to_string(),
-                    latency_ms,
-                    success: true,
-                    timestamp: chrono::Utc::now(),
-                });
-
-                state.log(
-                    "OPTIMIZATION",
-                    "SIMULATE",
-                    &format!(
-                        "Context optimization: '{}' (Saved {} tokens, {:.1}% drop in {}ms)",
-                        prompt,
-                        tokens_before.saturating_sub(tokens_after),
-                        reduction,
-                        latency_ms
-                    ),
-                );
-
-                let resp = json!({
-                    "signature": signature,
-                    "membrane_state": gate.membrane_state,
-                    "context_view": view
-                });
-                Self::send_json(&mut stream, 200, &resp).await?;
+                    let args = json!({
+                        "task_description": prompt,
+                        "mode": mode_str,
+                    });
+                    match state
+                        .mcp_handler
+                        .handle_tool_call("neuromesh_get_context", &args)
+                        .await
+                    {
+                        Ok(packet) => {
+                            let vs_ws = packet
+                                .pointer("/evidence_packet/reduction_vs_workspace_pct")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("—");
+                            let files = packet
+                                .pointer("/evidence_packet/files")
+                                .and_then(|v| v.as_array())
+                                .map(|a| a.len())
+                                .unwrap_or(0);
+                            let claim = packet
+                                .pointer("/evidence_packet/coverage/claim")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            state.log(
+                                "OPTIMIZATION",
+                                "GET_CONTEXT",
+                                &format!(
+                                    "get_context '{}': {} files, coverage {}, vs workspace {}",
+                                    prompt.chars().take(80).collect::<String>(),
+                                    files,
+                                    claim,
+                                    vs_ws
+                                ),
+                            );
+                            Self::send_json(&mut stream, 200, &packet).await?;
+                        }
+                        Err(e) => {
+                            Self::send_json(&mut stream, 500, &json!({ "error": e.to_string() }))
+                                .await?;
+                        }
+                    }
+                }
             }
 
-            // Expand Inactive Node or Fold
+            // Expand folded intron by fold_id (session registry) or inactive node
             ("POST", "/api/expand") | ("POST", "/v1/expand") => {
                 let node_id = body_json["node_id"]
                     .as_str()
@@ -787,7 +777,30 @@ impl HttpServer {
                     .unwrap_or("");
                 let reason = body_json["reason"].as_str().unwrap_or("UI Monitor request");
 
-                if let Some((view, audit)) = state
+                if let Some(fold) = state.expansion_engine.expand_fold(node_id) {
+                    state.log(
+                        "OPTIMIZATION",
+                        "EXPAND_FOLD",
+                        &format!(
+                            "Restored fold '{}' ({} tokens) from session registry",
+                            fold.fold_id, fold.restored_tokens
+                        ),
+                    );
+                    let resp = json!({
+                        "success": true,
+                        "kind": "fold",
+                        "fold_id": fold.fold_id,
+                        "symbol_name": fold.symbol_name,
+                        "signature": fold.signature,
+                        "original_body": fold.original_body,
+                        "file_path": fold.file_path,
+                        "start_line": fold.start_line,
+                        "end_line": fold.end_line,
+                        "restored_tokens": fold.restored_tokens,
+                        "reason": reason
+                    });
+                    Self::send_json(&mut stream, 200, &resp).await?;
+                } else if let Some((view, audit)) = state
                     .expansion_engine
                     .expand_node(&NodeId::new(node_id), reason)
                 {
@@ -795,12 +808,13 @@ impl HttpServer {
                         "OPTIMIZATION",
                         "EXPAND",
                         &format!(
-                            "Reversibly expanded fold for node '{}' (Reason: {})",
+                            "Reversibly expanded inactive node '{}' (Reason: {})",
                             node_id, reason
                         ),
                     );
                     let resp = json!({
                         "success": true,
+                        "kind": "node",
                         "expanded_node": view,
                         "audit": audit
                     });
@@ -818,14 +832,17 @@ impl HttpServer {
             ("GET", "/api/mcp/tools") => {
                 let tools = json!({
                     "tools": [
-                        { "name": "neuromesh_get_context", "description": "Evidence packet: seeds, Physarum tubes when two+ seeds, then fold", "params": ["task_description", "mode"] },
-                        { "name": "neuromesh_get_file_skeleton", "description": "Get AST code skeleton with folded introns", "params": ["file_path", "active_symbols"] },
-                        { "name": "neuromesh_expand_fold", "description": "Reversibly expand folded methods into full code", "params": ["node_id", "reason"] },
-                        { "name": "neuromesh_search_symbols", "description": "Search Neural Project Graph symbols", "params": ["query"] },
-                        { "name": "neuromesh_get_dependencies", "description": "Get weighted graph dependencies for symbol/file", "params": ["symbol_or_path"] },
-                        { "name": "neuromesh_record_feedback", "description": "Trigger Synaptic STDP Plasticity learning", "params": ["task_success", "touched_nodes"] },
-                        { "name": "neuromesh_get_project_memory", "description": "Retrieve project architectural rules and conventions", "params": [] },
-                        { "name": "neuromesh_get_stats", "description": "Retrieve graph density and biomimetic health", "params": [] }
+                        { "name": "neuromesh_get_context", "description": "Evidence packet: seeds always ship, Physarum tubes when two+ seeds, then fold. Grep only if coverage is partial.", "params": ["task_description", "mode"] },
+                        { "name": "neuromesh_expand_fold", "description": "Restore a folded body by fold_id from the session registry (no disk re-read).", "params": ["fold_id", "reason"] },
+                        { "name": "neuromesh_get_file_skeleton", "description": "Skeletonize one file; seed symbols stay as exons.", "params": ["file_path", "active_symbols"] },
+                        { "name": "neuromesh_search_symbols", "description": "Ranked symbol search. Use only when coverage.claim is partial.", "params": ["query", "limit"] },
+                        { "name": "neuromesh_get_dependencies", "description": "Typed neighbors (calls, imports) for a symbol or path.", "params": ["symbol_or_path"] },
+                        { "name": "neuromesh_trace", "description": "Call/import chains from a seed.", "params": ["query", "direction", "depth"] },
+                        { "name": "neuromesh_analyze_impact", "description": "Blast radius around a symbol.", "params": ["query", "depth"] },
+                        { "name": "neuromesh_get_architecture", "description": "Languages, packages, entry points.", "params": [] },
+                        { "name": "neuromesh_record_feedback", "description": "Required STDP step after a successful edit.", "params": ["task_success", "touched_nodes"] },
+                        { "name": "neuromesh_get_project_memory", "description": "Seeded project facts from manifests and docs.", "params": [] },
+                        { "name": "neuromesh_get_stats", "description": "Graph size. physarum_solver is active only when the last get_context ran tubes.", "params": [] }
                     ]
                 });
                 Self::send_json(&mut stream, 200, &tools).await?;

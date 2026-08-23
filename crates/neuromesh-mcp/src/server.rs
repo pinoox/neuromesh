@@ -150,7 +150,7 @@ impl McpServer {
                         },
                         "serverInfo": {
                             "name": "neuromesh",
-                            "version": "0.4.0"
+                            "version": env!("CARGO_PKG_VERSION")
                         }
                     }
                 })

@@ -12,9 +12,13 @@ pub fn get_status(state: &AppState) -> Value {
 
     json!({
         "status": "running",
+        "version": env!("CARGO_PKG_VERSION"),
         "protocol": "MCP (Model Context Protocol)",
         "project_id": state.graph.project_id().0,
         "mode": state.config.read().mode.to_string(),
+        "fill_cap": neuromesh_context::fill_budget(state.config.read().mode),
+        "session_folds": state.registry.fold_count(),
+        "last_packet": state.activator.last_packet(),
         "local_model": {
             "name": local_model.name,
             "size": local_model.parameter_size,
@@ -67,19 +71,31 @@ pub fn simulate_context(state: &AppState, prompt: &str, mode: OptimizationMode) 
 
 /// Reversibly expands an inactive node or fold
 pub fn expand_context(state: &AppState, node_id: &str, reason: &str) -> Value {
-    if let Some((view, audit)) = state
+    if let Some(fold) = state.expansion_engine.expand_fold(node_id) {
+        json!({
+            "success": true,
+            "kind": "fold",
+            "fold_id": fold.fold_id,
+            "symbol_name": fold.symbol_name,
+            "original_body": fold.original_body,
+            "file_path": fold.file_path,
+            "restored_tokens": fold.restored_tokens,
+            "reason": reason
+        })
+    } else if let Some((view, audit)) = state
         .expansion_engine
         .expand_node(&NodeId::new(node_id), reason)
     {
         json!({
             "success": true,
+            "kind": "node",
             "expanded_node": view,
             "audit": audit
         })
     } else {
         json!({
             "success": false,
-            "error": "Node not found in reversible registry"
+            "error": "Node or fold not found in reversible registry"
         })
     }
 }

@@ -8,6 +8,7 @@ use neuromesh_core::{
 };
 use neuromesh_graph::NeuralProjectGraph;
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
@@ -30,10 +31,67 @@ pub struct PhysarumTelemetry {
     pub ms: u64,
 }
 
+/// Compact last-packet facts for the monitor dashboard (not the full evidence packet).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PacketSnapshot {
+    pub coverage_claim: String,
+    pub seeds_hit: usize,
+    pub seeds_missed: usize,
+    pub file_count: usize,
+    pub fold_count: usize,
+    pub physarum_used: bool,
+    pub physarum_ms: u64,
+    pub selection_method: String,
+    pub workspace_tokens: usize,
+    pub packet_tokens: usize,
+    pub fill_used: usize,
+    pub fill_cap: usize,
+    pub budget_mode: String,
+    pub seed_call_coverage: f32,
+    pub next_action_count: usize,
+    pub grep_needed: bool,
+    pub file_paths: Vec<String>,
+}
+
+impl PacketSnapshot {
+    fn from_view(view: &ContextView) -> Self {
+        let coverage = view.coverage.as_ref();
+        let claim = coverage
+            .map(|c| c.claim.clone())
+            .unwrap_or_else(|| "unknown".into());
+        let files: Vec<String> = view
+            .active_nodes
+            .iter()
+            .filter(|n| n.node.node_type == NodeType::File)
+            .map(|n| n.node.file_path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        Self {
+            coverage_claim: claim.clone(),
+            seeds_hit: coverage.map(|c| c.seeds_hit.len()).unwrap_or(0),
+            seeds_missed: coverage.map(|c| c.seeds_missed.len()).unwrap_or(0),
+            file_count: files.len(),
+            fold_count: view.fold_ids.len(),
+            physarum_used: view.physarum_used,
+            physarum_ms: view.physarum_ms,
+            selection_method: view.selection_method.clone(),
+            workspace_tokens: view.workspace_tokens,
+            packet_tokens: view.active_tokens,
+            fill_used: view.budget_fill_used,
+            fill_cap: view.budget_fill_cap,
+            budget_mode: view.budget_mode.clone(),
+            seed_call_coverage: view.seed_call_coverage,
+            next_action_count: view.next_actions.len(),
+            grep_needed: claim == "partial",
+            file_paths: files.into_iter().take(12).collect(),
+        }
+    }
+}
+
 pub struct ContextActivator {
     scorer: ActivationScorer,
     registry: Arc<ReversibleContextRegistry>,
     last_physarum: Mutex<PhysarumTelemetry>,
+    last_packet: Mutex<Option<PacketSnapshot>>,
 }
 
 impl ContextActivator {
@@ -42,6 +100,7 @@ impl ContextActivator {
             scorer: ActivationScorer::new(ScoringWeights::default()),
             registry,
             last_physarum: Mutex::new(PhysarumTelemetry::default()),
+            last_packet: Mutex::new(None),
         }
     }
 
@@ -51,6 +110,10 @@ impl ContextActivator {
 
     pub fn last_physarum(&self) -> PhysarumTelemetry {
         *self.last_physarum.lock()
+    }
+
+    pub fn last_packet(&self) -> Option<PacketSnapshot> {
+        self.last_packet.lock().clone()
     }
 
     pub fn activate(
@@ -473,7 +536,7 @@ impl ContextActivator {
             &unresolved,
         );
 
-        ContextView {
+        let view = ContextView {
             project_id: graph.project_id(),
             active_nodes,
             inactive_descriptors,
@@ -499,7 +562,9 @@ impl ContextActivator {
             physarum_used,
             physarum_ms,
             selection_method: selection.method.to_string(),
-        }
+        };
+        *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
+        view
     }
 }
 

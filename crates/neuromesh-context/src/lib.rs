@@ -8,7 +8,7 @@ pub mod scoring;
 pub mod selector;
 pub mod skeleton;
 
-pub use activator::{ContextActivator, PhysarumTelemetry};
+pub use activator::{ContextActivator, PacketSnapshot, PhysarumTelemetry};
 pub use dedup::ContextDeduplicator;
 pub use expansion::{ExpansionAuditRecord, ExpansionEngine, FoldExpansion};
 pub use genetic_optimizer::{ContextChromosome, GeneticContextOptimizer};
