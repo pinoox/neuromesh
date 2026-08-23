@@ -78,6 +78,7 @@ pub fn select(
     };
 
     let mut file_scores: HashMap<NodeId, f32> = HashMap::new();
+    let mut callee_files: HashSet<NodeId> = HashSet::new();
     let bump_file = |scores: &mut HashMap<NodeId, f32>, id: &NodeId, amount: f32| {
         if required.contains(id) || is_noise_node(graph, id) {
             return;
@@ -136,6 +137,7 @@ pub fn select(
                             amount += 8.0;
                         }
                         if outbound_call {
+                            callee_files.insert(file_id.clone());
                             bump_file_max(&mut file_scores, &file_id, amount);
                         } else {
                             bump_file(&mut file_scores, &file_id, amount);
@@ -265,6 +267,11 @@ pub fn select(
         if score != std::cmp::Ordering::Equal {
             return score;
         }
+        match (callee_files.contains(&a.0), callee_files.contains(&b.0)) {
+            (true, false) => return std::cmp::Ordering::Less,
+            (false, true) => return std::cmp::Ordering::Greater,
+            _ => {}
+        }
         let pa = graph
             .get_node(&a.0)
             .map(|n| n.file_path.to_string_lossy().to_string())
@@ -293,7 +300,7 @@ pub fn select(
         if limited.len() >= max_extra_files {
             break;
         }
-        if graph.get_node(&id).is_some_and(|n| n.token_cost > 10_000) {
+        if gain < 15.0 && graph.get_node(&id).is_some_and(|n| n.token_cost > 10_000) {
             continue;
         }
         let crate_key = graph
@@ -301,7 +308,7 @@ pub fn select(
             .map(|n| crate_dir(&n.file_path))
             .unwrap_or_default();
         let count = per_crate.entry(crate_key.clone()).or_insert(0);
-        if *count >= per_crate_limit {
+        if *count >= per_crate_limit && !callee_files.contains(&id) {
             overflow.push((id, gain));
             continue;
         }
@@ -403,6 +410,8 @@ pub fn is_noise_path(path: &Path) -> bool {
         || lower.contains("repo_quality_tests")
         || lower.contains("/tests/")
         || lower.contains("_tests.rs")
+        || lower.contains("/editors/")
+        || lower.starts_with("editors/")
 }
 
 pub fn is_common_call(name: &str) -> bool {

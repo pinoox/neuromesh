@@ -191,7 +191,7 @@ select {
   <div id="offline" class="banner hidden">Monitor is not running. In this workspace: <code>neuromesh monitor</code></div>
 
   <div class="composer">
-    <textarea id="prompt" placeholder="Task for neuromesh_get_context — e.g. How does handle_tool_call extract intent?"></textarea>
+    <textarea id="prompt" placeholder="Task for neuromesh_get_context — e.g. How does neuromesh_get_context pick seed files?"></textarea>
     <select id="mode" title="Membrane mode">
       <option value="max_savings">max_savings · 0 fill</option>
       <option value="balanced" selected>balanced · 8k fill</option>

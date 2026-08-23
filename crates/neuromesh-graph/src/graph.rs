@@ -776,6 +776,22 @@ impl NeuralProjectGraph {
             return same_crate.into_iter().next();
         }
 
+        let src_ext = path_ext(source_file);
+        let same_lang: Vec<NodeId> = ids
+            .iter()
+            .filter(|id| {
+                data.nodes.get(*id).is_some_and(|n| {
+                    n.node_type != NodeType::File
+                        && !is_fixture_path(&n.file_path)
+                        && path_ext(&n.file_path) == src_ext
+                })
+            })
+            .cloned()
+            .collect();
+        if same_lang.len() == 1 {
+            return same_lang.into_iter().next();
+        }
+
         if ids.len() == 1 {
             return ids.into_iter().next();
         }
@@ -861,6 +877,9 @@ impl NeuralProjectGraph {
                 if let Some(node) = self.get_node(id) {
                     if !is_fixture_path(&node.file_path) {
                         score += 24.0;
+                    }
+                    if is_crate_path(&node.file_path) {
+                        score += 12.0;
                     }
                     if node
                         .signature
@@ -1673,6 +1692,19 @@ fn is_fixture_path(path: &Path) -> bool {
         || lower.contains("/test/")
         || lower.ends_with("/tests.rs")
         || lower.contains("quality_tests")
+        || lower.contains("/editors/")
+        || lower.starts_with("editors/")
+}
+
+fn is_crate_path(path: &Path) -> bool {
+    let lower = path.to_string_lossy().replace('\\', "/").to_lowercase();
+    lower.contains("/crates/") || lower.starts_with("crates/")
+}
+
+fn path_ext(path: &Path) -> Option<String> {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
 }
 
 fn to_snake_case(name: &str) -> String {

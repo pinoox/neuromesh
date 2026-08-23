@@ -111,7 +111,7 @@ function registerCommands(context, { api, state, dashboard, monitor }) {
             prompt = await vscode.window.showInputBox({
                 title: 'NeuroMesh get_context',
                 prompt: 'Task description — identifiers stay as written, not lowercased.',
-                placeHolder: 'How does handle_tool_call extract intent?',
+                placeHolder: 'How does neuromesh_get_context pick seed files?',
                 value: vscode.window.activeTextEditor
                     ? path.basename(vscode.window.activeTextEditor.document.fileName)
                     : '',
