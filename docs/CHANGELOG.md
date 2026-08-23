@@ -7,7 +7,7 @@ All notable user-facing changes live here. The README stays a product guide, not
 The agent loop is real: **get_context → expand_fold**, Grep only when coverage is `partial`.
 
 - **Folds.** Skeletonization registers each `[neuromesh:fold]` body. `neuromesh_expand_fold` restores it by `fold_id` from the registry (no disk re-read).
-- **Smarter fill.** Soft crate caps, giant files skeletonized instead of dropped, unresolved-call closers scored. Each callee file is scored once so a large `match` does not drown the packet.
+- **Smarter fill.** Soft crate caps, giant files skeletonized instead of dropped, unresolved-call closers scored. Each callee file is scored once so a large `match` does not drown the packet. Seed callees stay exons so the function that answers the question is not folded.
 - **Packets.** Every file includes `path`, `why`, `line_range`, `folded_symbols`, and `seed_call_coverage`.
 - **Parse.** tree-sitter for Rust and TypeScript behind the same `AstAnalysisResult`; regex remains the fallback. Impl- and field-aware resolve (`self.activator.activate` → `ContextActivator::activate`). Ambiguous calls stay `Likely` instead of vanishing.
 - **Skeletonizer** prefers parser/graph function spans over brace counting.

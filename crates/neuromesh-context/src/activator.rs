@@ -1,6 +1,8 @@
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
-use crate::selector::{budget_mode_name, fill_budget, is_noise_path, select};
+use crate::selector::{
+    budget_mode_name, fill_budget, is_noise_path, seed_callee_exon_names, select,
+};
 use crate::skeleton::{CodeSkeletonizer, FunctionSpan};
 use neuromesh_core::{
     ActivatedNodeView, ContextStatus, ContextView, CoverageReport, EdgeType, NextAction, NodeId,
@@ -320,11 +322,7 @@ impl ContextActivator {
                 .unwrap_or_default();
             pa.cmp(&pb)
         });
-        let extra_cap = match effective_mode {
-            OptimizationMode::MaxSavings => 0,
-            OptimizationMode::Balanced => 5,
-            OptimizationMode::MaxQuality => 8,
-        };
+        let extra_cap = selection.optional_cap;
         selection.optional.truncate(extra_cap);
         *self.last_physarum.lock() = PhysarumTelemetry {
             used: physarum_used,
@@ -343,6 +341,9 @@ impl ContextActivator {
                 }
             }
             active_symbol_names.insert(seed.query.to_lowercase());
+        }
+        for name in seed_callee_exon_names(graph, &seed_set) {
+            active_symbol_names.insert(name);
         }
 
         let mut active_nodes = Vec::new();
@@ -1117,6 +1118,188 @@ pub fn unused_helper() {
                 .any(|a| a.tool == "neuromesh_search_symbols"),
             "Grep only when partial: {:?}",
             miss.next_actions
+        );
+    }
+
+    fn indexed_ts(rel: &str) -> IndexedFile {
+        IndexedFile {
+            project_id: ProjectId::new("shop"),
+            relative_path: PathBuf::from(rel),
+            full_path: PathBuf::from(rel),
+            blake3_hash: rel.to_string(),
+            byte_size: 400,
+            token_count: 80,
+            language: SourceLanguage::TypeScript,
+            last_modified: chrono::Utc::now(),
+        }
+    }
+
+    fn ingest_ts(graph: &NeuralProjectGraph, rel: &str, src: &str) {
+        graph.ingest_file(
+            &indexed_ts(rel),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from(rel), src, SourceLanguage::TypeScript),
+            Some(src),
+        );
+    }
+
+    #[test]
+    fn seed_callees_stay_open_siblings_still_fold() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_ts(
+            &graph,
+            "src/orders/checkout.ts",
+            r#"
+import { applyLoyaltyDiscount } from "./loyalty.ts";
+import { authorizePaymentIntent } from "../payments/stripe.ts";
+
+export function calculateCheckoutTotal(amount: number): number {
+  const discounted = applyLoyaltyDiscount(amount);
+  authorizePaymentIntent(discounted);
+  return discounted;
+}
+
+export function unusedCheckoutDebugDump(amount: number): string {
+  const a = amount;
+  const b = a + 1;
+  const c = b + 2;
+  const d = c + 3;
+  const e = d + 4;
+  return String(a + b + c + d + e);
+}
+"#,
+        );
+        ingest_ts(
+            &graph,
+            "src/orders/loyalty.ts",
+            r#"
+export function applyLoyaltyDiscount(amount: number): number {
+  const points = Math.floor(amount / 100);
+  const boost = points * 5;
+  return Math.max(0, amount - boost);
+}
+
+export function unusedExpireStalePoints(points: number): number {
+  const a = points;
+  const b = a / 2;
+  const c = b / 2;
+  const d = c / 2;
+  return Math.floor(a + b + c + d);
+}
+"#,
+        );
+        ingest_ts(
+            &graph,
+            "src/payments/stripe.ts",
+            r#"
+export function authorizePaymentIntent(amount: number): string {
+  if (amount <= 0) {
+    throw new Error("invalid");
+  }
+  return "pi_" + String(amount);
+}
+
+export function unusedListTestCards(): string[] {
+  const a = "4242";
+  const b = "4000";
+  const c = a + b;
+  const d = c + "12";
+  return [a, b, c, d];
+}
+"#,
+        );
+        ingest_ts(
+            &graph,
+            "src/lib/logger.ts",
+            r#"
+export function writeShopLog(event: string): void {
+  console.log(event);
+}
+
+export function unusedRotateBuffers(rows: string[]): string[] {
+  const out: string[] = [];
+  for (const row of rows) {
+    if (row.length > 0) {
+      out.push(row);
+    }
+  }
+  return out.slice(0, 10);
+}
+"#,
+        );
+        ingest_ts(
+            &graph,
+            "src/inventory/warehouse.ts",
+            r#"
+export function unusedRebalanceBins(): number {
+  const a = 1;
+  const b = 2;
+  const c = 3;
+  const d = 4;
+  return a + b + c + d;
+}
+"#,
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "How does calculateCheckoutTotal apply loyalty before authorizePaymentIntent?",
+            ),
+            OptimizationMode::Balanced,
+        );
+
+        let files: Vec<String> = view
+            .active_nodes
+            .iter()
+            .filter(|n| n.node.node_type == NodeType::File)
+            .map(|n| n.node.file_path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        assert!(
+            files.iter().any(|p| p.ends_with("loyalty.ts")),
+            "callee file loyalty.ts must be in the packet: {files:?}"
+        );
+        let loyalty = view
+            .active_nodes
+            .iter()
+            .find(|n| {
+                n.node.node_type == NodeType::File
+                    && n.node
+                        .file_path
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                        .ends_with("loyalty.ts")
+            })
+            .expect("loyalty.ts");
+        assert!(
+            !loyalty
+                .folded_symbols
+                .iter()
+                .any(|s| s == "applyLoyaltyDiscount"),
+            "applyLoyaltyDiscount is a seed callee and must stay an exon, folded={:?}",
+            loyalty.folded_symbols
+        );
+        let checkout = view
+            .active_nodes
+            .iter()
+            .find(|n| {
+                n.node.node_type == NodeType::File
+                    && n.node
+                        .file_path
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                        .ends_with("checkout.ts")
+            })
+            .expect("checkout.ts");
+        assert!(
+            checkout
+                .folded_symbols
+                .iter()
+                .any(|s| s == "unusedCheckoutDebugDump"),
+            "unused sibling must still fold, folded={:?}",
+            checkout.folded_symbols
         );
     }
 }

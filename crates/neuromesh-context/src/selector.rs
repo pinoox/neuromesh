@@ -24,6 +24,39 @@ pub fn budget_mode_name(mode: OptimizationMode) -> &'static str {
     }
 }
 
+/// Function names the seed actually calls. Those stay exons so the packet
+/// does not fold the body that answers the question.
+pub fn seed_callee_exon_names(
+    graph: &NeuralProjectGraph,
+    seeds: &HashSet<NodeId>,
+) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for seed in seeds {
+        let Some(seed_node) = graph.get_node(seed) else {
+            continue;
+        };
+        if seed_node.node_type == NodeType::File {
+            continue;
+        }
+        for (neighbor, edge) in graph.get_connected_neighbors(seed) {
+            if edge.edge_type != EdgeType::Calls || edge.source != *seed {
+                continue;
+            }
+            if edge.confidence == EdgeConfidence::Unresolved {
+                continue;
+            }
+            let Some(node) = graph.get_node(&neighbor) else {
+                continue;
+            };
+            if is_common_call(&node.name) {
+                continue;
+            }
+            names.insert(node.name.to_lowercase());
+        }
+    }
+    names
+}
+
 #[derive(Debug, Clone)]
 pub struct Selection {
     pub node_ids: Vec<NodeId>,
@@ -32,6 +65,7 @@ pub struct Selection {
     pub scores: HashMap<NodeId, f32>,
     pub budget_used: usize,
     pub budget_cap: usize,
+    pub optional_cap: usize,
     pub method: &'static str,
 }
 
@@ -66,16 +100,72 @@ pub fn select(
         }
     }
 
+    const MAX_REQUIRED_CALLEE_FILES: usize = 3;
+    let mut callee_candidates: Vec<(NodeId, String, bool)> = Vec::new();
+    for seed in seeds {
+        let Some(seed_node) = graph.get_node(seed) else {
+            continue;
+        };
+        if seed_node.node_type == NodeType::File {
+            continue;
+        }
+        for (neighbor, edge) in graph.get_connected_neighbors(seed) {
+            if edge.edge_type != EdgeType::Calls || edge.source != *seed {
+                continue;
+            }
+            if edge.confidence == EdgeConfidence::Unresolved {
+                continue;
+            }
+            let Some(node) = graph.get_node(&neighbor) else {
+                continue;
+            };
+            if is_common_call(&node.name) {
+                continue;
+            }
+            let Some(file_id) = graph.file_id_for_path(&node.file_path) else {
+                continue;
+            };
+            if required.contains(&file_id) {
+                continue;
+            }
+            let focus = focus_terms.contains(&node.name.to_lowercase());
+            callee_candidates.push((
+                file_id,
+                node.file_path.to_string_lossy().replace('\\', "/"),
+                focus,
+            ));
+        }
+    }
+    callee_candidates.sort_by(|a, b| match (a.2, b.2) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.1.cmp(&b.1),
+    });
+    let mut seen_callee_files: HashSet<NodeId> = HashSet::new();
+    let mut added_callees = 0usize;
+    for (file_id, _, _) in callee_candidates {
+        if !seen_callee_files.insert(file_id.clone()) {
+            continue;
+        }
+        if added_callees >= MAX_REQUIRED_CALLEE_FILES {
+            break;
+        }
+        required.insert(file_id.clone());
+        scores.entry(file_id).or_insert(16.0);
+        added_callees += 1;
+    }
+
     let hop_limit = match mode {
         OptimizationMode::MaxSavings => 0,
         OptimizationMode::Balanced => 1,
         OptimizationMode::MaxQuality => 2,
     };
-    let max_extra_files = match mode {
+    let max_extra_files: usize = match mode {
         OptimizationMode::MaxSavings => 0,
         OptimizationMode::Balanced => 5,
         OptimizationMode::MaxQuality => 8,
     };
+    let max_extra_files = max_extra_files.saturating_sub(added_callees);
 
     let mut file_scores: HashMap<NodeId, f32> = HashMap::new();
     let mut callee_files: HashSet<NodeId> = HashSet::new();
@@ -358,6 +448,7 @@ pub fn select(
         scores,
         budget_used: 0,
         budget_cap: fill_cap,
+        optional_cap: max_extra_files,
         method: "seed_then_fill",
     }
 }
