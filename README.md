@@ -150,6 +150,20 @@ neuromesh doctor
 neuromesh connect    # MCP JSON for the binary on your PATH
 ```
 
+### Update / uninstall
+
+Same installer **overwrites** the binary. Re-run the curl / `irm` command above (or `cargo install --force --git …`). Then `neuromesh -v` and restart the IDE so MCP does not keep an old process.
+
+Two copies are common: installer vs Cargo.
+
+| How you installed | Binary |
+| :--- | :--- |
+| `install.sh` | `~/.local/bin/neuromesh` |
+| `install.ps1` | `%LOCALAPPDATA%\Programs\neuromesh\neuromesh.exe` (also copied to `~\.cargo\bin` if that folder exists) |
+| `cargo install` | `~/.cargo/bin/neuromesh` |
+
+`which neuromesh` / `where.exe neuromesh` shows which one PATH hits first. Delete the extra file, or `cargo uninstall neuromesh-cli` if Cargo owns it. Drop the `neuromesh` block from `.cursor/mcp.json` (and friends) if you are leaving MCP.
+
 ---
 
 ## Connect

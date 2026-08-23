@@ -2,6 +2,17 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
+## 0.5.1 — 2026-08-23
+
+Accuracy first, then faster index, then a thinner default packet.
+
+- **Seed ranking.** `search_symbols` and `pick_dominant_candidate` prefer exact case, Class/Function/Component, and a path that repeats the symbol name (`Searcher` → `searcher/mod.rs`). Test/bench/example paths are penalized so a lowercase field twin does not steal the seed.
+- **Hybrid resolve.** After `resolve_ranked`, activate also checks a high-score search hit. If case or path agrees and the ids differ, the search hit becomes the seed — so a confident but wrong ranked pick no longer ships a thin, wrong packet.
+- **Index skip.** Walker ignores `benches`, `examples`, `testdata`, and extra caches (`.tox`, `.mypy_cache`, `.pytest_cache`). `tests/` stays indexed; fill still treats test/bench/example as noise.
+- **Balanced fill.** Extra connector cap is 5,000 tokens (was 8,000). Gold on this repo still passes.
+- **Seed callees stay exons.** Functions the seed actually calls keep their bodies; their files are required so the answer is not folded away.
+- **MCP handshake.** Stdio initialize no longer hangs, so the monitor and Cursor can start the session.
+
 ## 0.5.0 — 2026-08-23
 
 The agent loop is real: **get_context → expand_fold**, Grep only when coverage is `partial`.
