@@ -832,6 +832,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "streaming-iterator",
  "tracing",
  "tree-sitter",
  "tree-sitter-rust",

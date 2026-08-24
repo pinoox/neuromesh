@@ -41,7 +41,7 @@ Evidence packet → MCP client
 
 | Crate | Role |
 | :--- | :--- |
-| `neuromesh-parser` | tree-sitter Rust/TS, regex fallbacks, prompt anchors |
+| `neuromesh-parser` | Language registry, tree-sitter queries, regex fallbacks, prompt anchors |
 | `neuromesh-graph` | Neural mesh: ingest, search, trace, Physarum, STDP synapses |
 | `neuromesh-task` | Intent + identifier extraction |
 | `neuromesh-context` | Genetic splice (skeletonizer), fold registry, gold harness |
@@ -63,7 +63,7 @@ Evidence packet → MCP client
 3. Ingest nodes.
 4. `finalize_links`: resolve pending `Imports` then `Calls`.
 
-Rust and TypeScript use tree-sitter so `fn` / `impl` ranges and in-function calls are real spans. PHP / Go / Java / Kotlin / C# / C / C++ share the generic regex parser (functions, calls, throw/catch). Python and Vue have their own extractors.
+Rust and TypeScript use tree-sitter **queries** (`function` / `class` / `import` / `call`) so spans stay real; regex is the fallback if a grammar fails to load. PHP / Go / Java / Kotlin / C# / C / C++ share the generic regex parser. Python and Vue have their own extractors. New languages plug in through `LanguageSpec`, not a growing engine `match`.
 
 ## Packet
 
