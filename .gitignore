@@ -22,6 +22,8 @@
 # Local machine Neuromesh state
 .neuromesh/
 !.neuromesh/config.example.json
+.playwright/
+.playwright-cli/
 
 # Node & Frontend dependencies
 node_modules/
