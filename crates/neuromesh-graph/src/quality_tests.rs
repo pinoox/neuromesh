@@ -643,4 +643,178 @@ class SmsReceiver {
             save_hits[0].node.file_path.display()
         );
     }
+
+    fn assert_unique_call(
+        graph: &NeuralProjectGraph,
+        caller: &str,
+        caller_file: &str,
+        callee: &str,
+        expected_suffix: &str,
+        max_edges: usize,
+    ) {
+        let stats = graph.stats();
+        assert!(
+            stats.total_edges < max_edges,
+            "edges exploded: {}",
+            stats.total_edges
+        );
+        assert!(stats.resolved_calls >= 1);
+        let node = graph
+            .resolve_unique(caller, Some(caller_file))
+            .unwrap_or_else(|| panic!("{caller}"));
+        let neighbors = graph.get_neighbor_views(&node);
+        let hits: Vec<_> = neighbors
+            .iter()
+            .filter(|n| {
+                n.node.name == callee && n.edge.edge_type == neuromesh_core::EdgeType::Calls
+            })
+            .collect();
+        assert_eq!(
+            hits.len(),
+            1,
+            "same-name {callee} must not fan out: {:?}",
+            neighbors
+                .iter()
+                .map(|n| format!("{}:{}", n.node.name, n.node.file_path.display()))
+                .collect::<Vec<_>>()
+        );
+        let path = hits[0].node.file_path.to_string_lossy().replace('\\', "/");
+        assert!(
+            path.ends_with(expected_suffix),
+            "{expected_suffix} should win, got {path}"
+        );
+    }
+
+    #[test]
+    fn python_unique_save_does_not_explode_or_cross_link() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("py"));
+        let store = "class SmsStore:\n    def save(self, body):\n        self.persist(body)\n    def persist(self, body):\n        return body\n";
+        let inbox = "class InboxStore:\n    def save(self, body):\n        return body\n";
+        let receiver =
+            "from sms_store import SmsStore\ndef on_receive(body):\n    SmsStore.save(body)\n";
+        graph.ingest_file(
+            &indexed("sms_store.py"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("sms_store.py"),
+                store,
+                SourceLanguage::Python,
+            ),
+            Some(store),
+        );
+        graph.ingest_file(
+            &indexed("inbox_store.py"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("inbox_store.py"),
+                inbox,
+                SourceLanguage::Python,
+            ),
+            Some(inbox),
+        );
+        graph.ingest_file(
+            &indexed("receiver.py"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("receiver.py"),
+                receiver,
+                SourceLanguage::Python,
+            ),
+            Some(receiver),
+        );
+        graph.finalize_links();
+        assert_unique_call(
+            &graph,
+            "on_receive",
+            "receiver.py",
+            "save",
+            "sms_store.py",
+            30,
+        );
+    }
+
+    #[test]
+    fn go_unique_save_does_not_explode_or_cross_link() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("go"));
+        let store = "package smsstore\nfunc Save(body string) {}\n";
+        let inbox = "package inboxstore\nfunc Save(body string) {}\n";
+        let receiver = "package receiver\nimport \"example.com/app/smsstore\"\nfunc OnReceive(body string) { smsstore.Save(body) }\n";
+        graph.ingest_file(
+            &indexed("smsstore/store.go"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("smsstore/store.go"),
+                store,
+                SourceLanguage::Go,
+            ),
+            Some(store),
+        );
+        graph.ingest_file(
+            &indexed("inboxstore/store.go"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("inboxstore/store.go"),
+                inbox,
+                SourceLanguage::Go,
+            ),
+            Some(inbox),
+        );
+        graph.ingest_file(
+            &indexed("receiver/handler.go"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("receiver/handler.go"),
+                receiver,
+                SourceLanguage::Go,
+            ),
+            Some(receiver),
+        );
+        graph.finalize_links();
+        assert_unique_call(
+            &graph,
+            "OnReceive",
+            "receiver/handler.go",
+            "Save",
+            "smsstore/store.go",
+            30,
+        );
+    }
+
+    #[test]
+    fn java_unique_save_does_not_explode_or_cross_link() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("java"));
+        let store = "package com.example.app;\nclass SmsStore {\n    static void save(String body) { persist(body); }\n    static void persist(String body) {}\n}\n";
+        let inbox = "package com.example.app;\nclass InboxStore {\n    static void save(String body) {}\n}\n";
+        let receiver = "package com.example.app;\nimport com.example.app.SmsStore;\nclass SmsReceiver {\n    void onReceive(String body) { SmsStore.save(body); }\n}\n";
+        graph.ingest_file(
+            &indexed("com/example/app/SmsStore.java"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("com/example/app/SmsStore.java"),
+                store,
+                SourceLanguage::Java,
+            ),
+            Some(store),
+        );
+        graph.ingest_file(
+            &indexed("com/example/app/InboxStore.java"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("com/example/app/InboxStore.java"),
+                inbox,
+                SourceLanguage::Java,
+            ),
+            Some(inbox),
+        );
+        graph.ingest_file(
+            &indexed("com/example/app/SmsReceiver.java"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("com/example/app/SmsReceiver.java"),
+                receiver,
+                SourceLanguage::Java,
+            ),
+            Some(receiver),
+        );
+        graph.finalize_links();
+        assert_unique_call(
+            &graph,
+            "onReceive",
+            "com/example/app/SmsReceiver.java",
+            "save",
+            "SmsStore.java",
+            40,
+        );
+    }
 }

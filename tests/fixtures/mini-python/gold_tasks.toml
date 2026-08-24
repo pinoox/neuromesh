@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_receive"
+prompt = "How does on_receive use SmsStore.save?"
+gold_files = ["src/receiver.py", "src/sms_store.py"]
+expect_seeds_missed = false

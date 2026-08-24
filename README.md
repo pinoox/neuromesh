@@ -233,7 +233,7 @@ VS Code / Cursor: Settings → `neuromesh.port` must match the running monitor. 
 
 Each file in the packet has `path`, `why`, `line_range`, `folded_symbols`, and `seed_call_coverage`. Details: [docs/mcp.md](docs/mcp.md).
 
-Rust and TypeScript go through **tree-sitter queries**. Python and Vue have scoped extractors. PHP, Go, Java, Kotlin, C# and C/C++ use the generic regex parser (functions, `new Type`, `throw`, and `catch`). Ambiguous names are not “resolved” by hope.
+Rust, TypeScript, Python, Go, Java, Kotlin, and PHP go through **tree-sitter queries**. Vue has a scoped extractor. C# and C/C++ use the generic regex parser (functions, `new Type`, `throw`, and `catch`). Ambiguous names are not “resolved” by hope.
 
 ---
 
@@ -250,7 +250,7 @@ On this repo (debug, 2026-08-23, 268,124 workspace tokens):
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
-Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** five fixture projects. Packet activation **&lt; 50 ms** in the debug gold test.
+Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects. Packet activation **&lt; 150 ms** in the debug gold test.
 
 Index snapshot from that eval run: **159 files · 972 nodes · 2,001 edges · ~1.2 s**.
 

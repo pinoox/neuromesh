@@ -34,7 +34,7 @@ Nature is the metaphor. Unique edges and fill caps are the contract.
 
 Do not add a fuzzy “link every namesake” pass. That is how a home-directory index grew a million edges.
 
-Rust and TypeScript already go through tree-sitter **queries** (`src/queries/*.scm`) via `LanguageSpec`. Python and Vue have scoped regex extractors. PHP / Go / Java / Kotlin / C# / C / C++ share `GenericParser` (functions, calls, `throw` / `catch` / `new Type`). Other languages stay regex until eval on Rust and TypeScript stays green. A new language is a registry row plus queries or a fallback — not a new `match` arm in the engine.
+Rust and TypeScript already go through tree-sitter **queries** (`src/queries/*.scm`) via `LanguageSpec`. Python, Go, Java, Kotlin, and PHP use the same driver (regex/`GenericParser` fallback). Vue has a scoped regex extractor. C# / C / C++ stay on `GenericParser`. A new language is a registry row plus queries or a fallback — not a new `match` arm in the engine.
 
 ## Docs
 

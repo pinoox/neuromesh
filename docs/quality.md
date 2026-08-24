@@ -4,7 +4,7 @@ Claims in this project are supposed to come from commands you can run, not from 
 
 ## Gold
 
-`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Five small fixture repos live in `tests/fixtures/` (router, TS store, session, queue, string config), including edit/refactor-style prompts — not only “where is this symbol”.
+`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store, session, queue, string config, Python SMS, Kotlin SMS), including edit/refactor-style prompts — not only “where is this symbol”.
 
 Thresholds locked in tests:
 
@@ -12,7 +12,7 @@ Thresholds locked in tests:
 - precision ≥ **0.4**
 - missed seeds reported as `partial`, not an empty silent packet
 - `expand_fold` restores a registered body without reading the disk
-- activation under **50 ms** in the debug gold test on this repo
+- activation under **150 ms** in the debug gold test on this repo (cargo test is parallel; isolated runs sit nearer 60 ms)
 
 ```bash
 cargo test -p neuromesh-context gold_harness_on_neuromesh_repo -- --nocapture

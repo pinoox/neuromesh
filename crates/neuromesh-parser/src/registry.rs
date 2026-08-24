@@ -1,7 +1,10 @@
 use crate::generic::GenericParser;
 use crate::html::HtmlParser;
 use crate::python_lang::PythonParser;
-use crate::query_extract::{self, Grammar, QueryOptions, RUST_QUERIES, TYPESCRIPT_QUERIES};
+use crate::query_extract::{
+    self, Grammar, QueryOptions, GO_QUERIES, JAVA_QUERIES, KOTLIN_QUERIES, PHP_QUERIES,
+    PYTHON_QUERIES, RUST_QUERIES, TYPESCRIPT_QUERIES,
+};
 use crate::rust_lang::RustParser;
 use crate::scss::ScssParser;
 use crate::types::AstAnalysisResult;
@@ -39,83 +42,77 @@ impl LanguageSpec {
                 language,
                 grammar: Some(Grammar::Rust),
                 queries: Some(RUST_QUERIES),
-                options: QueryOptions {
-                    rust_use: true,
-                    skip_cfg_test: true,
-                    ts_import: false,
-                },
+                options: QueryOptions::rust(),
                 fallback: Fallback::Rust,
             },
             SourceLanguage::TypeScript | SourceLanguage::JavaScript => Self {
                 language,
                 grammar: Some(Grammar::TypeScript),
                 queries: Some(TYPESCRIPT_QUERIES),
-                options: QueryOptions {
-                    rust_use: false,
-                    skip_cfg_test: false,
-                    ts_import: true,
-                },
+                options: QueryOptions::typescript(),
                 fallback: Fallback::TypeScript,
             },
             SourceLanguage::Python => Self {
                 language,
-                grammar: None,
-                queries: None,
-                options: QueryOptions {
-                    rust_use: false,
-                    skip_cfg_test: false,
-                    ts_import: false,
-                },
+                grammar: Some(Grammar::Python),
+                queries: Some(PYTHON_QUERIES),
+                options: QueryOptions::python(),
                 fallback: Fallback::Python,
+            },
+            SourceLanguage::Go => Self {
+                language,
+                grammar: Some(Grammar::Go),
+                queries: Some(GO_QUERIES),
+                options: QueryOptions::go(),
+                fallback: Fallback::Generic,
+            },
+            SourceLanguage::Java => Self {
+                language,
+                grammar: Some(Grammar::Java),
+                queries: Some(JAVA_QUERIES),
+                options: QueryOptions::java(),
+                fallback: Fallback::Generic,
+            },
+            SourceLanguage::Kotlin => Self {
+                language,
+                grammar: Some(Grammar::Kotlin),
+                queries: Some(KOTLIN_QUERIES),
+                options: QueryOptions::kotlin(),
+                fallback: Fallback::Generic,
+            },
+            SourceLanguage::PHP => Self {
+                language,
+                grammar: Some(Grammar::Php),
+                queries: Some(PHP_QUERIES),
+                options: QueryOptions::php(),
+                fallback: Fallback::Generic,
             },
             SourceLanguage::Vue => Self {
                 language,
                 grammar: None,
                 queries: None,
-                options: QueryOptions {
-                    rust_use: false,
-                    skip_cfg_test: false,
-                    ts_import: false,
-                },
+                options: QueryOptions::typescript(),
                 fallback: Fallback::Vue,
             },
             SourceLanguage::SCSS | SourceLanguage::CSS => Self {
                 language,
                 grammar: None,
                 queries: None,
-                options: QueryOptions {
-                    rust_use: false,
-                    skip_cfg_test: false,
-                    ts_import: false,
-                },
+                options: QueryOptions::typescript(),
                 fallback: Fallback::Scss,
             },
             SourceLanguage::HTML => Self {
                 language,
                 grammar: None,
                 queries: None,
-                options: QueryOptions {
-                    rust_use: false,
-                    skip_cfg_test: false,
-                    ts_import: false,
-                },
+                options: QueryOptions::typescript(),
                 fallback: Fallback::Html,
             },
-            SourceLanguage::Go
-            | SourceLanguage::PHP
-            | SourceLanguage::Java
-            | SourceLanguage::Kotlin
-            | SourceLanguage::CSharp
-            | SourceLanguage::C
-            | SourceLanguage::Cpp => Self {
+            SourceLanguage::CSharp | SourceLanguage::C | SourceLanguage::Cpp => Self {
                 language,
                 grammar: None,
                 queries: None,
-                options: QueryOptions {
-                    rust_use: false,
-                    skip_cfg_test: false,
-                    ts_import: false,
-                },
+                options: QueryOptions::java(),
                 fallback: Fallback::Generic,
             },
             SourceLanguage::JSON
@@ -126,11 +123,7 @@ impl LanguageSpec {
                 language,
                 grammar: None,
                 queries: None,
-                options: QueryOptions {
-                    rust_use: false,
-                    skip_cfg_test: false,
-                    ts_import: false,
-                },
+                options: QueryOptions::typescript(),
                 fallback: Fallback::None,
             },
         }
@@ -167,12 +160,23 @@ mod tests {
     use neuromesh_index::SourceLanguage;
 
     #[test]
-    fn rust_and_typescript_use_tree_sitter_queries() {
-        let rust = LanguageSpec::get(SourceLanguage::Rust);
-        assert!(rust.grammar.is_some() && rust.queries.is_some());
-        let ts = LanguageSpec::get(SourceLanguage::TypeScript);
-        assert!(ts.grammar.is_some() && ts.queries.is_some());
-        let kotlin = LanguageSpec::get(SourceLanguage::Kotlin);
-        assert!(kotlin.grammar.is_none());
+    fn wave1_languages_use_tree_sitter_queries() {
+        for language in [
+            SourceLanguage::Rust,
+            SourceLanguage::TypeScript,
+            SourceLanguage::Python,
+            SourceLanguage::Go,
+            SourceLanguage::Java,
+            SourceLanguage::Kotlin,
+            SourceLanguage::PHP,
+        ] {
+            let spec = LanguageSpec::get(language);
+            assert!(
+                spec.grammar.is_some() && spec.queries.is_some(),
+                "{language:?} should have a query grammar"
+            );
+        }
+        let csharp = LanguageSpec::get(SourceLanguage::CSharp);
+        assert!(csharp.grammar.is_none());
     }
 }

@@ -9,11 +9,7 @@ pub fn parse_rust(path: &Path, content: &str) -> Option<AstAnalysisResult> {
         content,
         Grammar::Rust,
         RUST_QUERIES,
-        QueryOptions {
-            rust_use: true,
-            skip_cfg_test: true,
-            ts_import: false,
-        },
+        QueryOptions::rust(),
     )
 }
 
@@ -24,11 +20,7 @@ pub fn parse_typescript(path: &Path, content: &str) -> Option<AstAnalysisResult>
         content,
         Grammar::TypeScript,
         TYPESCRIPT_QUERIES,
-        QueryOptions {
-            rust_use: false,
-            skip_cfg_test: false,
-            ts_import: true,
-        },
+        QueryOptions::typescript(),
     )
 }
 

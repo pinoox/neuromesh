@@ -1,5 +1,7 @@
-use crate::calls::is_callable_name;
-use crate::imports::{expand_rust_use, record_import};
+use crate::calls::{extract_type_uses_from_line, is_callable_name};
+use crate::imports::{
+    expand_rust_use, last_import_segment, normalize_module_hint, record_import, split_import_alias,
+};
 use crate::types::{AstAnalysisResult, ParsedSymbol};
 use neuromesh_core::{EdgeType, NodeType};
 use std::path::Path;
@@ -9,18 +11,112 @@ use tree_sitter::{Language, Node, Parser, Query, QueryCursor, Tree};
 
 pub const RUST_QUERIES: &str = include_str!("queries/rust.scm");
 pub const TYPESCRIPT_QUERIES: &str = include_str!("queries/typescript.scm");
+pub const PYTHON_QUERIES: &str = include_str!("queries/python.scm");
+pub const GO_QUERIES: &str = include_str!("queries/go.scm");
+pub const JAVA_QUERIES: &str = include_str!("queries/java.scm");
+pub const KOTLIN_QUERIES: &str = include_str!("queries/kotlin.scm");
+pub const PHP_QUERIES: &str = include_str!("queries/php.scm");
 
 #[derive(Clone, Copy)]
 pub enum Grammar {
     Rust,
     TypeScript,
+    Python,
+    Go,
+    Java,
+    Kotlin,
+    Php,
+}
+
+#[derive(Clone, Copy)]
+pub enum ImportStyle {
+    None,
+    RustUse,
+    TypeScript,
+    Python,
+    Go,
+    Path,
+}
+
+#[derive(Clone, Copy)]
+pub enum ExportStyle {
+    PubOrExport,
+    NotUnderscore,
+    InitialUpper,
+    NotPrivate,
 }
 
 #[derive(Clone, Copy)]
 pub struct QueryOptions {
-    pub rust_use: bool,
+    pub import: ImportStyle,
+    pub export: ExportStyle,
     pub skip_cfg_test: bool,
-    pub ts_import: bool,
+    pub scan_type_uses: bool,
+}
+
+impl QueryOptions {
+    pub fn rust() -> Self {
+        Self {
+            import: ImportStyle::RustUse,
+            export: ExportStyle::PubOrExport,
+            skip_cfg_test: true,
+            scan_type_uses: false,
+        }
+    }
+
+    pub fn typescript() -> Self {
+        Self {
+            import: ImportStyle::TypeScript,
+            export: ExportStyle::PubOrExport,
+            skip_cfg_test: false,
+            scan_type_uses: false,
+        }
+    }
+
+    pub fn python() -> Self {
+        Self {
+            import: ImportStyle::Python,
+            export: ExportStyle::NotUnderscore,
+            skip_cfg_test: false,
+            scan_type_uses: false,
+        }
+    }
+
+    pub fn go() -> Self {
+        Self {
+            import: ImportStyle::Go,
+            export: ExportStyle::InitialUpper,
+            skip_cfg_test: false,
+            scan_type_uses: false,
+        }
+    }
+
+    pub fn java() -> Self {
+        Self {
+            import: ImportStyle::Path,
+            export: ExportStyle::NotPrivate,
+            skip_cfg_test: false,
+            scan_type_uses: true,
+        }
+    }
+
+    pub fn kotlin() -> Self {
+        Self {
+            import: ImportStyle::Path,
+            export: ExportStyle::NotPrivate,
+            skip_cfg_test: false,
+            scan_type_uses: true,
+        }
+    }
+
+    pub fn php() -> Self {
+        Self {
+            import: ImportStyle::Path,
+            export: ExportStyle::NotPrivate,
+            skip_cfg_test: false,
+            scan_type_uses: true,
+        }
+    }
 }
 
 /// Parse with a grammar + query profile. Returns None if the grammar or query fails to load.
@@ -31,7 +127,7 @@ pub fn parse(
     query_src: &'static str,
     options: QueryOptions,
 ) -> Option<AstAnalysisResult> {
-    let language = grammar.language();
+    let language = grammar.language()?;
     let query = compiled_query(grammar, &language, query_src)?;
     let mut parser = Parser::new();
     parser.set_language(&language).ok()?;
@@ -40,11 +136,16 @@ pub fn parse(
 }
 
 impl Grammar {
-    fn language(self) -> Language {
-        match self {
+    fn language(self) -> Option<Language> {
+        Some(match self {
             Grammar::Rust => tree_sitter_rust::LANGUAGE.into(),
             Grammar::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
-        }
+            Grammar::Python => tree_sitter_python::LANGUAGE.into(),
+            Grammar::Go => tree_sitter_go::LANGUAGE.into(),
+            Grammar::Java => tree_sitter_java::LANGUAGE.into(),
+            Grammar::Kotlin => tree_sitter_kotlin_sg::LANGUAGE.into(),
+            Grammar::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+        })
     }
 }
 
@@ -53,14 +154,48 @@ fn compiled_query(
     language: &Language,
     source: &'static str,
 ) -> Option<&'static Query> {
+    fn load(
+        slot: &'static OnceLock<Option<Query>>,
+        language: &Language,
+        source: &'static str,
+    ) -> Option<&'static Query> {
+        slot.get_or_init(|| match Query::new(language, source) {
+            Ok(q) => Some(q),
+            Err(err) => {
+                tracing::warn!(error = %err, "tree-sitter query failed to compile");
+                None
+            }
+        })
+        .as_ref()
+    }
     match grammar {
         Grammar::Rust => {
             static Q: OnceLock<Option<Query>> = OnceLock::new();
-            Q.get_or_init(|| Query::new(language, source).ok()).as_ref()
+            load(&Q, language, source)
         }
         Grammar::TypeScript => {
             static Q: OnceLock<Option<Query>> = OnceLock::new();
-            Q.get_or_init(|| Query::new(language, source).ok()).as_ref()
+            load(&Q, language, source)
+        }
+        Grammar::Python => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
+        }
+        Grammar::Go => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
+        }
+        Grammar::Java => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
+        }
+        Grammar::Kotlin => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
+        }
+        Grammar::Php => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
         }
     }
 }
@@ -68,6 +203,7 @@ fn compiled_query(
 struct FnHit<'a> {
     node: Node<'a>,
     name: String,
+    parent_name: Option<String>,
 }
 
 struct ImplHit<'a> {
@@ -106,6 +242,7 @@ fn extract(
     while let Some(m) = matches.next() {
         let mut function_node = None;
         let mut function_name = None;
+        let mut function_parent = None;
         let mut impl_node = None;
         let mut impl_type = None;
         let mut type_node = None;
@@ -115,6 +252,7 @@ fn extract(
             match query.capture_names()[cap.index as usize] {
                 "function" => function_node = Some(cap.node),
                 "function.name" => function_name = Some(text(cap.node, src)),
+                "function.parent" => function_parent = extract_ident(cap.node, src),
                 "impl" => impl_node = Some(cap.node),
                 "impl.type" => impl_type = extract_ident(cap.node, src),
                 "class" => {
@@ -136,6 +274,7 @@ fn extract(
             functions.push(FnHit {
                 node,
                 name: function_name.unwrap_or_else(|| "anonymous".into()),
+                parent_name: function_parent,
             });
         }
         if let Some(node) = impl_node {
@@ -168,45 +307,52 @@ fn extract(
             signature: Some(first_line(ty.node, src)),
             line_range: line_range(ty.node),
             docstring: None,
-            exported: is_exported(ty.node, src),
+            exported: is_exported(ty.node, &ty.name, src, options.export),
             parent: None,
             calls: Vec::new(),
         });
     }
 
     for func in &functions {
-        let parent =
-            innermost_impl(&impls, func.node.start_byte()).and_then(|imp| imp.type_name.clone());
+        let parent = innermost_impl(&impls, func.node.start_byte())
+            .and_then(|imp| imp.type_name.clone())
+            .or_else(|| func.parent_name.clone())
+            .or_else(|| innermost_type(&types, func.node.start_byte()).map(|ty| ty.name.clone()));
         result.symbols.push(ParsedSymbol {
             name: func.name.clone(),
             symbol_type: NodeType::Function,
             signature: Some(first_line(func.node, src)),
             line_range: line_range(func.node),
             docstring: None,
-            exported: is_exported(func.node, src),
+            exported: is_exported(func.node, &func.name, src, options.export),
             parent,
             calls: Vec::new(),
         });
     }
 
     for node in import_nodes {
-        if options.rust_use {
-            let spec = text(node, src)
-                .trim()
-                .trim_start_matches("pub ")
-                .trim_start_matches("use ")
-                .to_string();
-            for (imported, full) in expand_rust_use(&spec) {
-                record_import(
-                    &mut result,
-                    filename,
-                    imported,
-                    full,
-                    node.start_position().row + 1,
-                );
+        match options.import {
+            ImportStyle::None => {}
+            ImportStyle::RustUse => {
+                let spec = text(node, src)
+                    .trim()
+                    .trim_start_matches("pub ")
+                    .trim_start_matches("use ")
+                    .to_string();
+                for (imported, full) in expand_rust_use(&spec) {
+                    record_import(
+                        &mut result,
+                        filename,
+                        imported,
+                        full,
+                        node.start_position().row + 1,
+                    );
+                }
             }
-        } else if options.ts_import {
-            collect_ts_import(node, filename, src, &mut result);
+            ImportStyle::TypeScript => collect_ts_import(node, filename, src, &mut result),
+            ImportStyle::Python => collect_python_import(node, filename, src, &mut result),
+            ImportStyle::Go => collect_go_import(node, filename, src, &mut result),
+            ImportStyle::Path => collect_path_import(node, filename, src, &mut result),
         }
     }
 
@@ -214,14 +360,21 @@ fn extract(
         let Some(caller) = innermost_fn(&functions, call.start_byte()) else {
             continue;
         };
-        let impl_parent = innermost_impl(&impls, call.start_byte());
-        record_call(
-            call,
-            &caller.name,
-            impl_parent.and_then(|i| i.type_name.as_deref()),
-            src,
-            &mut result,
-        );
+        let type_parent = innermost_type(&types, call.start_byte()).map(|ty| ty.name.clone());
+        let parent = innermost_impl(&impls, call.start_byte())
+            .and_then(|i| i.type_name.as_deref())
+            .or(caller.parent_name.as_deref())
+            .or(type_parent.as_deref());
+        record_call(call, &caller.name, parent, src, &mut result);
+    }
+
+    if options.scan_type_uses {
+        for func in &functions {
+            let body = text(func.node, src);
+            for line in body.lines() {
+                extract_type_uses_from_line(&func.name, line, &mut result);
+            }
+        }
     }
 
     result.exports = result
@@ -248,6 +401,15 @@ fn innermost_impl<'a>(impls: &'a [ImplHit<'a>], byte: usize) -> Option<&'a ImplH
         .min_by_key(|i| i.node.end_byte() - i.node.start_byte())
 }
 
+fn innermost_type<'a>(types: &'a [TypeHit<'a>], byte: usize) -> Option<&'a TypeHit<'a>> {
+    types
+        .iter()
+        .filter(|t| {
+            t.kind == NodeType::Class && t.node.start_byte() <= byte && byte < t.node.end_byte()
+        })
+        .min_by_key(|t| t.node.end_byte() - t.node.start_byte())
+}
+
 fn record_call(
     node: Node,
     caller: &str,
@@ -255,10 +417,7 @@ fn record_call(
     src: &[u8],
     result: &mut AstAnalysisResult,
 ) {
-    let Some(func) = node.child_by_field_name("function") else {
-        return;
-    };
-    let (name, receiver_hint) = call_target(func, impl_parent, src);
+    let (name, receiver_hint) = call_name_and_hint(node, impl_parent, src);
     if name.is_empty() || !is_callable_name(&name) || name == caller {
         return;
     }
@@ -278,9 +437,105 @@ fn record_call(
     });
 }
 
+fn call_name_and_hint(
+    node: Node,
+    impl_parent: Option<&str>,
+    src: &[u8],
+) -> (String, Option<String>) {
+    if node.kind() == "object_creation_expression" || node.kind() == "constructor_invocation" {
+        if let Some(ty) = node
+            .child_by_field_name("type")
+            .or_else(|| first_type_child(node))
+        {
+            let name = extract_ident(ty, src).unwrap_or_else(|| last_ident(ty, src));
+            if !name.is_empty() {
+                return (name.clone(), Some(format!("type:{name}")));
+            }
+        }
+    }
+
+    if let Some(name_node) = node.child_by_field_name("name") {
+        if node.child_by_field_name("function").is_none() {
+            let name = last_ident(name_node, src);
+            let recv = node
+                .child_by_field_name("object")
+                .or_else(|| node.child_by_field_name("receiver"))
+                .or_else(|| node.child_by_field_name("scope"));
+            return (
+                name,
+                recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
+            );
+        }
+    }
+
+    if let Some(func) = node
+        .child_by_field_name("function")
+        .or_else(|| node.child_by_field_name("method"))
+        .or_else(|| callee_child(node))
+    {
+        return call_target(func, impl_parent, src);
+    }
+
+    (String::new(), None)
+}
+
+fn callee_child(node: Node) -> Option<Node> {
+    for i in 0..node.named_child_count() {
+        let child = node.named_child(i)?;
+        match child.kind() {
+            "call_suffix" | "argument_list" | "arguments" | "value_arguments" => continue,
+            _ => return Some(child),
+        }
+    }
+    None
+}
+
+fn first_type_child(node: Node) -> Option<Node> {
+    for i in 0..node.named_child_count() {
+        let child = node.named_child(i)?;
+        match child.kind() {
+            "type_identifier" | "identifier" | "user_type" | "generic_type" | "qualified_name"
+            | "name" => return Some(child),
+            _ => {}
+        }
+    }
+    None
+}
+
 fn call_target(func: Node, impl_parent: Option<&str>, src: &[u8]) -> (String, Option<String>) {
     match func.kind() {
-        "identifier" => (text(func, src), None),
+        "identifier"
+        | "field_identifier"
+        | "simple_identifier"
+        | "name"
+        | "type_identifier"
+        | "property_identifier" => (text(func, src), None),
+        "attribute" => {
+            let name = field_text(func, "attr", src)
+                .or_else(|| field_text(func, "attribute", src))
+                .unwrap_or_else(|| last_ident(func, src));
+            let recv = func.child_by_field_name("object");
+            (
+                name,
+                recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
+            )
+        }
+        "selector_expression" => {
+            let name = field_text(func, "field", src).unwrap_or_else(|| last_ident(func, src));
+            let recv = func.child_by_field_name("operand");
+            (
+                name,
+                recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
+            )
+        }
+        "navigation_expression" => {
+            let name = navigation_name(func, src);
+            let recv = func.named_child(0);
+            (
+                name,
+                recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
+            )
+        }
         "field_expression" | "member_expression" => {
             let name = field_text(func, "field", src)
                 .or_else(|| field_text(func, "property", src))
@@ -288,45 +543,91 @@ fn call_target(func: Node, impl_parent: Option<&str>, src: &[u8]) -> (String, Op
             let recv = func
                 .child_by_field_name("value")
                 .or_else(|| func.child_by_field_name("object"));
-            let hint = recv.and_then(|r| match r.kind() {
-                "self" | "this" => impl_parent.map(|p| format!("impl:{p}")),
-                "identifier" => {
-                    let t = text(r, src);
-                    if t.chars().next().is_some_and(|c| c.is_uppercase()) {
-                        Some(format!("type:{t}"))
-                    } else {
-                        None
-                    }
-                }
-                "field_expression" | "member_expression" => {
-                    let inner = r
-                        .child_by_field_name("value")
-                        .or_else(|| r.child_by_field_name("object"));
-                    let field =
-                        field_text(r, "field", src).or_else(|| field_text(r, "property", src));
-                    match (inner.map(|n| n.kind()), field) {
-                        (Some("self") | Some("this"), Some(field)) => {
-                            Some(format!("field:{field}"))
-                        }
-                        _ => None,
-                    }
-                }
-                _ => None,
-            });
+            (
+                name,
+                recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
+            )
+        }
+        "scoped_identifier" | "qualified_name" | "scoped_type_identifier" => {
+            let name = field_text(func, "name", src).unwrap_or_else(|| last_ident(func, src));
+            let path = func
+                .child_by_field_name("path")
+                .or_else(|| func.named_child(0));
+            let hint = path.and_then(|p| hint_from_receiver(p, impl_parent, src));
             (name, hint)
         }
-        "scoped_identifier" => {
-            let name = field_text(func, "name", src).unwrap_or_else(|| text(func, src));
-            let path = func.child_by_field_name("path").map(|p| text(p, src));
-            let hint = path.and_then(|p| {
-                p.rsplit("::")
-                    .next()
-                    .filter(|last| last.chars().next().is_some_and(|c| c.is_uppercase()))
-                    .map(|last| format!("type:{last}"))
-            });
-            (name, hint)
+        _ => {
+            if let Some(inner) = func.named_child(0) {
+                if inner.kind() != func.kind() {
+                    return call_target(inner, impl_parent, src);
+                }
+            }
+            (last_ident(func, src), None)
         }
-        _ => (text(func, src), None),
+    }
+}
+
+fn navigation_name(node: Node, src: &[u8]) -> String {
+    for i in (0..node.named_child_count()).rev() {
+        if let Some(child) = node.named_child(i) {
+            if child.kind() == "navigation_suffix" {
+                return last_ident(child, src);
+            }
+        }
+    }
+    last_ident(node, src)
+}
+
+fn hint_from_receiver(recv: Node, impl_parent: Option<&str>, src: &[u8]) -> Option<String> {
+    match recv.kind() {
+        "self" | "this" | "this_expression" | "super_expression" => {
+            impl_parent.map(|p| format!("impl:{p}"))
+        }
+        "identifier" | "simple_identifier" | "name" | "type_identifier" | "package_identifier"
+        | "field_identifier" => {
+            let t = text(recv, src);
+            if matches!(t.as_str(), "self" | "this" | "Super" | "super" | "Me") {
+                impl_parent.map(|p| format!("impl:{p}"))
+            } else if t.chars().next().is_some_and(|c| c.is_uppercase()) {
+                Some(format!("type:{t}"))
+            } else {
+                None
+            }
+        }
+        "field_expression" | "member_expression" => {
+            let inner = recv
+                .child_by_field_name("value")
+                .or_else(|| recv.child_by_field_name("object"));
+            let field =
+                field_text(recv, "field", src).or_else(|| field_text(recv, "property", src));
+            match (inner.map(|n| n.kind()), field) {
+                (Some("self") | Some("this") | Some("this_expression"), Some(field)) => {
+                    Some(format!("field:{field}"))
+                }
+                _ => inner.and_then(|n| hint_from_receiver(n, impl_parent, src)),
+            }
+        }
+        "attribute" => recv
+            .child_by_field_name("object")
+            .and_then(|n| hint_from_receiver(n, impl_parent, src)),
+        "selector_expression" => recv
+            .child_by_field_name("operand")
+            .and_then(|n| hint_from_receiver(n, impl_parent, src)),
+        "navigation_expression" => recv
+            .named_child(0)
+            .and_then(|n| hint_from_receiver(n, impl_parent, src)),
+        "pointer_type"
+        | "parenthesized_expression"
+        | "parenthesized_type"
+        | "user_type"
+        | "generic_type"
+        | "nullable_type" => recv
+            .child_by_field_name("type")
+            .or_else(|| recv.named_child(0))
+            .and_then(|n| hint_from_receiver(n, impl_parent, src)),
+        _ => recv
+            .named_child(0)
+            .and_then(|n| hint_from_receiver(n, impl_parent, src)),
     }
 }
 
@@ -352,6 +653,96 @@ fn collect_ts_import(node: Node, filename: &str, src: &[u8], result: &mut AstAna
     for imported in names {
         record_import(result, filename, imported, source.clone(), line);
     }
+}
+
+fn collect_python_import(node: Node, filename: &str, src: &[u8], result: &mut AstAnalysisResult) {
+    let line = node.start_position().row + 1;
+    let raw = text(node, src);
+    let trimmed = raw.trim();
+    if let Some(rest) = trimmed.strip_prefix("from ") {
+        if let Some((module, names)) = rest.split_once(" import ") {
+            let hint = normalize_module_hint(module.trim());
+            for part in names.split(',') {
+                let (imported, alias) = split_import_alias(part);
+                if imported == "*" {
+                    continue;
+                }
+                let name = alias.unwrap_or(imported);
+                record_import(result, filename, name, hint.clone(), line);
+            }
+        }
+        return;
+    }
+    if let Some(rest) = trimmed.strip_prefix("import ") {
+        for part in rest.split(',') {
+            let (path, alias) = split_import_alias(part);
+            let imported = alias.unwrap_or_else(|| last_import_segment(&path));
+            record_import(
+                result,
+                filename,
+                imported,
+                normalize_module_hint(&path),
+                line,
+            );
+        }
+    }
+}
+
+fn collect_go_import(node: Node, filename: &str, src: &[u8], result: &mut AstAnalysisResult) {
+    let line = node.start_position().row + 1;
+    let raw = text(node, src).trim().to_string();
+    if raw.is_empty() {
+        return;
+    }
+    let (alias, path) = if raw.starts_with('"') {
+        (None, raw.trim_matches('"').to_string())
+    } else if let Some((head, rest)) = raw.split_once(char::is_whitespace) {
+        let path = rest.trim().trim_matches('"').to_string();
+        if head == "_" || head == "." {
+            (None, path)
+        } else {
+            (Some(head.to_string()), path)
+        }
+    } else {
+        (None, raw.trim_matches('"').to_string())
+    };
+    let imported = alias.unwrap_or_else(|| last_import_segment(&path));
+    if imported.is_empty() {
+        return;
+    }
+    record_import(
+        result,
+        filename,
+        imported,
+        normalize_module_hint(&path),
+        line,
+    );
+}
+
+fn collect_path_import(node: Node, filename: &str, src: &[u8], result: &mut AstAnalysisResult) {
+    let line = node.start_position().row + 1;
+    let mut spec = text(node, src).trim().trim_end_matches(';').to_string();
+    for prefix in ["import static", "import", "use"] {
+        if let Some(rest) = spec.strip_prefix(prefix) {
+            spec = rest.trim().to_string();
+            break;
+        }
+    }
+    if spec.ends_with('*') {
+        return;
+    }
+    let (path, alias) = split_import_alias(&spec);
+    let imported = alias.unwrap_or_else(|| last_import_segment(&path));
+    if imported.is_empty() {
+        return;
+    }
+    record_import(
+        result,
+        filename,
+        imported,
+        normalize_module_hint(&path),
+        line,
+    );
 }
 
 fn in_cfg_test_mod(mut node: Node, src: &[u8]) -> bool {
@@ -386,17 +777,76 @@ fn is_cfg_test_mod(node: Node, src: &[u8]) -> bool {
 
 fn extract_ident(node: Node, src: &[u8]) -> Option<String> {
     match node.kind() {
-        "type_identifier" | "identifier" => Some(text(node, src)),
-        "generic_type" => node
+        "type_identifier" | "identifier" | "simple_identifier" | "name" | "field_identifier"
+        | "package_identifier" => Some(text(node, src)),
+        "generic_type" | "pointer_type" | "slice_type" | "array_type" | "channel_type"
+        | "nullable_type" | "user_type" => node
             .child_by_field_name("type")
+            .or_else(|| node.named_child(0))
             .and_then(|t| extract_ident(t, src)),
-        _ => field_text(node, "name", src),
+        "qualified_type" | "qualified_name" => {
+            field_text(node, "name", src).or_else(|| Some(last_ident(node, src)))
+        }
+        _ => field_text(node, "name", src).or_else(|| {
+            let ident = last_ident(node, src);
+            if ident.is_empty() {
+                None
+            } else {
+                Some(ident)
+            }
+        }),
     }
 }
 
-fn is_exported(node: Node, src: &[u8]) -> bool {
-    let t = node.utf8_text(src).unwrap_or("");
-    t.contains("pub ") || t.contains("export ")
+fn is_exported(node: Node, name: &str, src: &[u8], style: ExportStyle) -> bool {
+    match style {
+        ExportStyle::PubOrExport => {
+            let t = first_line(node, src);
+            t.contains("pub ") || t.contains("export ") || t.contains("public ")
+        }
+        ExportStyle::NotUnderscore => !name.starts_with('_'),
+        ExportStyle::InitialUpper => name.chars().next().is_some_and(|c| c.is_uppercase()),
+        ExportStyle::NotPrivate => {
+            let t = first_line(node, src);
+            !t.contains("private ") && !t.contains("protected ") && !t.contains("internal ")
+        }
+    }
+}
+
+fn last_ident(node: Node, src: &[u8]) -> String {
+    match node.kind() {
+        "identifier"
+        | "field_identifier"
+        | "simple_identifier"
+        | "type_identifier"
+        | "name"
+        | "property_identifier"
+        | "package_identifier" => return text(node, src),
+        _ => {}
+    }
+    let mut found = String::new();
+    fn walk(n: Node, src: &[u8], found: &mut String) {
+        match n.kind() {
+            "identifier"
+            | "field_identifier"
+            | "simple_identifier"
+            | "type_identifier"
+            | "name"
+            | "property_identifier"
+            | "package_identifier" => {
+                *found = text(n, src);
+            }
+            _ => {
+                for i in 0..n.named_child_count() {
+                    if let Some(c) = n.named_child(i) {
+                        walk(c, src, found);
+                    }
+                }
+            }
+        }
+    }
+    walk(node, src, &mut found);
+    found
 }
 
 fn field_text(node: Node, field: &str, src: &[u8]) -> Option<String> {
@@ -437,5 +887,170 @@ fn attach_calls(result: &mut AstAnalysisResult) {
                 sym.calls.push(rel.target_symbol.clone());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn parse_lang(
+        grammar: Grammar,
+        queries: &'static str,
+        options: QueryOptions,
+        path: &str,
+        code: &str,
+    ) -> AstAnalysisResult {
+        parse(&PathBuf::from(path), code, grammar, queries, options).expect("query extract")
+    }
+
+    #[test]
+    fn python_class_method_import_and_typed_call() {
+        let store = r#"
+class SmsStore:
+    def save(self, body):
+        self.persist(body)
+    def persist(self, body):
+        return body
+"#;
+        let ast = parse_lang(
+            Grammar::Python,
+            PYTHON_QUERIES,
+            QueryOptions::python(),
+            "sms_store.py",
+            store,
+        );
+        assert!(ast
+            .symbols
+            .iter()
+            .any(|s| s.name == "SmsStore" && s.symbol_type == NodeType::Class));
+        let save = ast.symbols.iter().find(|s| s.name == "save").expect("save");
+        assert_eq!(save.parent.as_deref(), Some("SmsStore"));
+        assert!(save.calls.iter().any(|c| c == "persist"));
+
+        let recv = r#"
+from sms_store import SmsStore
+def on_receive(body):
+    SmsStore.save(body)
+"#;
+        let ast = parse_lang(
+            Grammar::Python,
+            PYTHON_QUERIES,
+            QueryOptions::python(),
+            "receiver.py",
+            recv,
+        );
+        assert!(ast
+            .imports
+            .iter()
+            .any(|i| i.imported_symbols.contains(&"SmsStore".into())));
+        assert!(ast.relationships.iter().any(|r| {
+            r.source_symbol == "on_receive"
+                && r.target_symbol == "save"
+                && r.receiver_hint.as_deref() == Some("type:SmsStore")
+        }));
+    }
+
+    #[test]
+    fn kotlin_object_call_and_import() {
+        let store = r#"
+object SmsStore {
+    fun save(body: String?) {
+        persist(body)
+    }
+    private fun persist(body: String?) {}
+}
+"#;
+        let ast = parse_lang(
+            Grammar::Kotlin,
+            KOTLIN_QUERIES,
+            QueryOptions::kotlin(),
+            "SmsStore.kt",
+            store,
+        );
+        assert!(ast
+            .symbols
+            .iter()
+            .any(|s| s.name == "SmsStore" && s.symbol_type == NodeType::Class));
+        let save = ast.symbols.iter().find(|s| s.name == "save").expect("save");
+        assert_eq!(save.parent.as_deref(), Some("SmsStore"));
+        assert!(save.calls.iter().any(|c| c == "persist"));
+
+        let recv = r#"
+import com.example.app.SmsStore
+class SmsReceiver {
+    fun onReceive(intent: Intent) {
+        SmsStore.save(intent.getStringExtra("sms"))
+    }
+}
+"#;
+        let ast = parse_lang(
+            Grammar::Kotlin,
+            KOTLIN_QUERIES,
+            QueryOptions::kotlin(),
+            "SmsReceiver.kt",
+            recv,
+        );
+        assert!(ast
+            .imports
+            .iter()
+            .any(|i| i.imported_symbols.contains(&"SmsStore".into())));
+        assert!(ast.relationships.iter().any(|r| {
+            r.source_symbol == "onReceive"
+                && r.target_symbol == "save"
+                && r.receiver_hint.as_deref() == Some("type:SmsStore")
+        }));
+    }
+
+    #[test]
+    fn go_method_receiver_is_parent() {
+        let code = r#"
+package sms
+type Store struct{}
+func (s *Store) Save(body string) { s.persist(body) }
+func (s *Store) persist(body string) {}
+"#;
+        let ast = parse_lang(
+            Grammar::Go,
+            GO_QUERIES,
+            QueryOptions::go(),
+            "store.go",
+            code,
+        );
+        let save = ast.symbols.iter().find(|s| s.name == "Save").expect("Save");
+        assert_eq!(save.parent.as_deref(), Some("Store"));
+        assert!(save.exported);
+        let persist = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "persist")
+            .expect("persist");
+        assert!(!persist.exported);
+    }
+
+    #[test]
+    fn java_and_php_queries_compile() {
+        let java = parse_lang(
+            Grammar::Java,
+            JAVA_QUERIES,
+            QueryOptions::java(),
+            "SmsStore.java",
+            "class SmsStore { void save(String body) { persist(body); } void persist(String body) {} }",
+        );
+        assert!(java.symbols.iter().any(|s| s.name == "SmsStore"));
+        assert!(java.symbols.iter().any(|s| s.name == "save"));
+
+        let php = parse_lang(
+            Grammar::Php,
+            PHP_QUERIES,
+            QueryOptions::php(),
+            "Store.php",
+            "<?php class Store { public function save($body) { $this->persist($body); } private function persist($body) {} }",
+        );
+        assert!(php.symbols.iter().any(|s| s.name == "Store"));
+        let save = php.symbols.iter().find(|s| s.name == "save").expect("save");
+        assert_eq!(save.parent.as_deref(), Some("Store"));
+        assert!(save.calls.iter().any(|c| c == "persist"));
     }
 }

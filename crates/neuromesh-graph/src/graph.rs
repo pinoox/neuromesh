@@ -1124,7 +1124,23 @@ impl NeuralProjectGraph {
             );
             self.ingest_file(file, &ast, Some(content));
         }
+        self.apply_manifest_hints(scanned);
         self.finalize_links();
+    }
+
+    fn apply_manifest_hints(&self, scanned: &[(IndexedFile, String)]) {
+        let hints = crate::manifest::ManifestHints::from_scanned(scanned);
+        if hints.is_empty() {
+            return;
+        }
+        let mut data = self.inner.write();
+        for rel in &mut data.pending {
+            if let Some(hint) = rel.target_file_hint.as_ref() {
+                if let Some(rewritten) = hints.rewrite(hint) {
+                    rel.target_file_hint = Some(rewritten);
+                }
+            }
+        }
     }
 
     pub fn prune_absent_files(&self, present_rels: &HashSet<String>) {
