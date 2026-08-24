@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_action"
+prompt = "How does action use saveSms?"
+gold_files = ["app/routes/sms.tsx", "lib/sms_store.ts"]
+expect_seeds_missed = false

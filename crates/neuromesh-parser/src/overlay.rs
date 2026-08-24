@@ -1,3 +1,4 @@
+use crate::query_extract::{self, Grammar, QueryOptions, CSHARP_QUERIES};
 use crate::types::{AstAnalysisResult, ParsedSymbol};
 use crate::typescript::TypeScriptParser;
 use neuromesh_core::NodeType;
@@ -14,6 +15,7 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
         SourceLanguage::Kotlin | SourceLanguage::Java => {
             android_overlay(path, content, ast);
             spring_overlay(content, ast);
+            ktor_overlay(content, ast);
         }
         SourceLanguage::Python => {
             django_overlay(path, content, ast);
@@ -32,6 +34,7 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             express_overlay(content, ast);
             nest_overlay(content, ast);
             angular_overlay(content, ast);
+            remix_overlay(path, content, ast);
         }
         SourceLanguage::Go => gin_overlay(content, ast),
         SourceLanguage::Vue | SourceLanguage::Svelte => {
@@ -52,6 +55,9 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             tauri_overlay(content, ast);
             axum_overlay(content, ast);
         }
+        SourceLanguage::CSharp => aspnet_overlay(content, ast),
+        SourceLanguage::Swift => swiftui_overlay(content, ast),
+        SourceLanguage::HTML => razor_overlay(path, content, ast),
         SourceLanguage::Twig => twig_overlay(content, ast),
         _ => {}
     }
@@ -716,6 +722,307 @@ fn gin_overlay(content: &str, ast: &mut AstAnalysisResult) {
     }
 }
 
+fn aspnet_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains("MapGet")
+        && !content.contains("MapPost")
+        && !content.contains("MapPut")
+        && !content.contains("MapPatch")
+        && !content.contains("MapDelete")
+        && !content.contains("[HttpGet")
+        && !content.contains("[HttpPost")
+        && !content.contains("[HttpPut")
+        && !content.contains("[HttpPatch")
+        && !content.contains("[HttpDelete")
+        && !content.contains("[Route(")
+    {
+        return;
+    }
+    static MAP_RE: OnceLock<Regex> = OnceLock::new();
+    let map_re = MAP_RE.get_or_init(|| {
+        Regex::new(r#"Map(Get|Post|Put|Patch|Delete)\s*\(\s*["']([^"']+)["']"#).unwrap()
+    });
+    for cap in map_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("{method} {route}"),
+            format!("Map{method}(\"{route}\")"),
+            line,
+        );
+    }
+    static HTTP_RE: OnceLock<Regex> = OnceLock::new();
+    let http_re = HTTP_RE.get_or_init(|| {
+        Regex::new(r#"\[Http(Get|Post|Put|Patch|Delete)\(\s*["']([^"']+)["']"#).unwrap()
+    });
+    for cap in http_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("{method} {route}"),
+            format!("[Http{method}(\"{route}\")]"),
+            line,
+        );
+    }
+    static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static BARE_HTTP_RE: OnceLock<Regex> = OnceLock::new();
+    let route_re = ROUTE_RE.get_or_init(|| Regex::new(r#"\[Route\(\s*["']([^"']+)["']"#).unwrap());
+    let bare_http =
+        BARE_HTTP_RE.get_or_init(|| Regex::new(r"\[Http(Get|Post|Put|Patch|Delete)\]").unwrap());
+    let mut events: Vec<(usize, AspNetEvent<'_>)> = Vec::new();
+    for cap in route_re.captures_iter(content) {
+        let start = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let prefix = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if prefix.contains('[') {
+            continue;
+        }
+        events.push((start, AspNetEvent::Route(prefix)));
+    }
+    for cap in bare_http.captures_iter(content) {
+        let start = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let method = cap.get(1).map(|m| m.as_str()).unwrap_or("Get");
+        events.push((start, AspNetEvent::Http(method)));
+    }
+    events.sort_by_key(|(pos, _)| *pos);
+    let mut prefix = "";
+    for (start, event) in events {
+        match event {
+            AspNetEvent::Route(p) => prefix = p,
+            AspNetEvent::Http(method) => {
+                if prefix.is_empty() {
+                    continue;
+                }
+                let route = if prefix.starts_with('/') {
+                    prefix.to_string()
+                } else {
+                    format!("/{prefix}")
+                };
+                let method = method.to_uppercase();
+                let line = line_of(content, start);
+                push_api(
+                    ast,
+                    &format!("{method} {route}"),
+                    format!("[Http{method}] [Route(\"{prefix}\")]"),
+                    line,
+                );
+            }
+        }
+    }
+}
+
+enum AspNetEvent<'a> {
+    Route(&'a str),
+    Http(&'a str),
+}
+
+fn razor_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !matches!(ext.as_str(), "cshtml" | "razor")
+        && !content.contains("@page")
+        && !content.contains("@code")
+    {
+        return;
+    }
+    static PAGE_RE: OnceLock<Regex> = OnceLock::new();
+    let page_re = PAGE_RE.get_or_init(|| Regex::new(r#"@page\s+["']([^"']+)["']"#).unwrap());
+    for cap in page_re.captures_iter(content) {
+        let route = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(ast, route, format!("@page \"{route}\""), line);
+    }
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    if matches!(ext.as_str(), "cshtml" | "razor") && !stem.is_empty() {
+        promote(ast, stem, NodeType::Component);
+    }
+    for block in razor_code_blocks(content) {
+        let wrapped = format!("class __RazorCode {{\n{block}\n}}\n");
+        let Some(extra) = query_extract::parse(
+            path,
+            &wrapped,
+            Grammar::CSharp,
+            CSHARP_QUERIES,
+            QueryOptions::csharp(),
+        ) else {
+            continue;
+        };
+        for sym in extra.symbols {
+            if sym.name == "__RazorCode" || ast.symbols.iter().any(|s| s.name == sym.name) {
+                continue;
+            }
+            ast.symbols.push(sym);
+        }
+        ast.imports.extend(extra.imports);
+        ast.relationships.extend(extra.relationships);
+    }
+}
+
+fn razor_code_blocks(content: &str) -> Vec<&str> {
+    let mut blocks = Vec::new();
+    for (idx, _) in content.match_indices("@code") {
+        let after = &content[idx + 5..];
+        let Some(rel) = after.find('{') else {
+            continue;
+        };
+        let open = idx + 5 + rel;
+        let Some(close) = matching_brace(content, open) else {
+            continue;
+        };
+        if close > open + 1 {
+            blocks.push(&content[open + 1..close]);
+        }
+    }
+    blocks
+}
+
+fn matching_brace(content: &str, open: usize) -> Option<usize> {
+    let bytes = content.as_bytes();
+    if open >= bytes.len() || bytes[open] != b'{' {
+        return None;
+    }
+    let mut depth = 0i32;
+    for (k, &b) in bytes.iter().enumerate().skip(open) {
+        match b {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(k);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn swiftui_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains(": View")
+        && !content.contains(": App")
+        && !content.contains("SwiftUI")
+        && !content.contains("UIViewController")
+        && !content.contains("UIView")
+    {
+        return;
+    }
+    static CLASS_RE: OnceLock<Regex> = OnceLock::new();
+    let class_re = CLASS_RE.get_or_init(|| {
+        Regex::new(
+            r"(?m)^\s*(?:struct|class)\s+([A-Z][A-Za-z0-9_]*)\s*:\s*(?:View|App|UIViewController|UIView|ObservableObject)\b",
+        )
+        .unwrap()
+    });
+    for cap in class_re.captures_iter(content) {
+        if let Some(name) = cap.get(1) {
+            promote(ast, name.as_str(), NodeType::Component);
+        }
+    }
+}
+
+fn ktor_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains("ktor") && !content.contains("routing {") && !content.contains("routing{")
+    {
+        return;
+    }
+    static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    let route_re = ROUTE_RE.get_or_init(|| {
+        Regex::new(r#"\b(get|post|put|patch|delete)\s*\(\s*["']([^"']+)["']"#).unwrap()
+    });
+    for cap in route_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("{method} {route}"),
+            format!("{method} {route}"),
+            line,
+        );
+    }
+}
+
+fn remix_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    if let Some(route) = remix_file_route(path) {
+        push_api(ast, &route, format!("Remix {route}"), 1);
+    }
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let looks_rr = content.contains("createBrowserRouter")
+        || content.contains("createHashRouter")
+        || content.contains("react-router")
+        || content.contains("@remix-run")
+        || name.contains("router")
+        || name.contains("routes");
+    if !looks_rr {
+        return;
+    }
+    static PATH_RE: OnceLock<Regex> = OnceLock::new();
+    let path_re = PATH_RE.get_or_init(|| Regex::new(r#"path:\s*['"]([^'"]+)['"]"#).unwrap());
+    for cap in path_re.captures_iter(content) {
+        let raw = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if raw.is_empty() || raw.contains('.') {
+            continue;
+        }
+        let route = if raw.starts_with('/') {
+            raw.to_string()
+        } else {
+            format!("/{raw}")
+        };
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(ast, &route, format!("path: \"{route}\""), line);
+    }
+}
+
+fn remix_file_route(path: &Path) -> Option<String> {
+    let s = path.to_string_lossy().replace('\\', "/");
+    let after = s.split("/routes/").nth(1)?;
+    if after.contains("+page") || after.contains("+layout") || after.contains("+server") {
+        return None;
+    }
+    let without_ext = after.rsplit_once('.').map(|(n, _)| n).unwrap_or(after);
+    if without_ext.starts_with('_') && without_ext != "_index" && !without_ext.contains("._index") {
+        return None;
+    }
+    let parts: Vec<&str> = without_ext
+        .split('.')
+        .filter(|p| !p.is_empty() && *p != "_index" && !p.starts_with('_'))
+        .collect();
+    Some(join_next_segments(&parts.join("/")))
+}
+
 fn axum_overlay(content: &str, ast: &mut AstAnalysisResult) {
     if !content.contains(".route(") {
         return;
@@ -1309,6 +1616,78 @@ mod tests {
             has_api(&ast, "POST /sms"),
             "symbols = {:?}",
             ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn aspnet_map_post_is_api() {
+        let src = "var app = WebApplication.Create();\napp.MapPost(\"/sms\", Store);\nstatic void Store(string body) { SmsStore.Save(body); }\n";
+        let ast = analyze("Program.cs", src, SourceLanguage::CSharp);
+        assert!(
+            has_api(&ast, "POST /sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn razor_page_and_code_extract_store() {
+        let src =
+            "@page \"/sms\"\n@code {\n  void Store(string body) { SmsStore.Save(body); }\n}\n";
+        let ast = analyze("Pages/Sms.cshtml", src, SourceLanguage::HTML);
+        assert!(
+            has_api(&ast, "/sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+        assert!(
+            ast.symbols.iter().any(|s| s.name == "Store"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn swiftui_view_promotes_to_component() {
+        let src = "import SwiftUI\nstruct SmsInbox: View {\n  func store(body: String) { SmsStore.save(body) }\n  var body: some View { Text(\"sms\") }\n}\n";
+        let ast = analyze("SmsInbox.swift", src, SourceLanguage::Swift);
+        let recv = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "SmsInbox")
+            .expect("SmsInbox");
+        assert_eq!(recv.symbol_type, NodeType::Component);
+    }
+
+    #[test]
+    fn ktor_post_is_api() {
+        let src = "import io.ktor.server.routing.*\nfun Application.module() { routing { post(\"/sms\") { store() } } }\nfun store() { SmsStore.save(\"\") }\n";
+        let ast = analyze("Application.kt", src, SourceLanguage::Kotlin);
+        assert!(
+            has_api(&ast, "POST /sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn remix_route_module_is_api() {
+        let src = "import { saveSms } from '../lib/sms_store';\nexport async function action() { return saveSms('x'); }\n";
+        let ast = analyze("app/routes/sms.tsx", src, SourceLanguage::TypeScript);
+        assert!(
+            has_api(&ast, "/sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+        let router = analyze(
+            "app/router.ts",
+            "import { createBrowserRouter } from 'react-router';\nexport const router = createBrowserRouter([{ path: '/sms', action }]);\n",
+            SourceLanguage::TypeScript,
+        );
+        assert!(
+            has_api(&router, "/sms"),
+            "symbols = {:?}",
+            router.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
         );
     }
 }

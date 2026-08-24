@@ -1519,6 +1519,7 @@ impl NeuralProjectGraph {
                         | "go.mod"
                         | "angular.json"
                         | "nest-cli.json"
+                        | "App.csproj"
                 ) {
                     entry_points.push(SearchHit::from_node(node, 1.0, "entry"));
                 }

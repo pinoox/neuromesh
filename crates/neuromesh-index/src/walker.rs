@@ -68,6 +68,7 @@ impl ProjectWalker {
                 || current.join("app.php").exists()
                 || current.join("go.mod").exists()
                 || current.join("angular.json").exists()
+                || current.join("App.csproj").exists()
             {
                 return current;
             }

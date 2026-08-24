@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_store"
+prompt = "How does store use SmsStore.save?"
+gold_files = ["src/Application.kt", "src/SmsStore.kt"]
+expect_seeds_missed = false

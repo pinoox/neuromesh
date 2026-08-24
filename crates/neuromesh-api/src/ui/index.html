@@ -1823,12 +1823,12 @@
                             <div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
                                     <span>🛡️ <strong data-i18n="bio_membrane">QualityGate fill cap</strong></span>
-                                    <strong id="bioMembraneValue" style="color: var(--accent-amber);">balanced · +8k</strong>
+                                    <strong id="bioMembraneValue" style="color: var(--accent-amber);">balanced · +5k</strong>
                                 </div>
                                 <div class="bio-meter">
                                     <div id="bioMembraneBar" style="width: 50%; background: linear-gradient(90deg, var(--accent-amber), var(--accent-green));"></div>
                                 </div>
-                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_membrane_help">max_savings 0 · balanced +8k · max_quality +16k extra tokens on top of seeds. Auth/payment tasks upgrade.</div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_membrane_help">max_savings 0 · balanced +5k · max_quality +16k extra tokens on top of seeds. Auth/payment tasks upgrade.</div>
                             </div>
                         </div>
                     </div>
@@ -1867,7 +1867,7 @@
                         <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; background:rgba(0,0,0,0.35); padding:0.85rem; border-radius:10px; border:1px solid var(--border-color); margin-bottom:1.25rem;">
                             <input type="text" id="pipelineTracePrompt" placeholder="e.g. How does handle_tool_call extract intent?" style="flex:1; min-width:240px; padding:0.5rem 0.85rem; background:rgba(15,23,42,0.8); border:1px solid var(--border-color); border-radius:6px; color:#fff; font-size:0.85rem;" onkeydown="if(event.key==='Enter') window.runPipelineTrace()">
                             <select id="pipelineTraceMode" style="padding:0.5rem 0.85rem; background:rgba(15,23,42,0.8); border:1px solid var(--border-color); border-radius:6px; color:#fff; font-size:0.85rem;">
-                                <option value="balanced">balanced · seeds + 8k fill</option>
+                                <option value="balanced">balanced · seeds + 5k fill</option>
                                 <option value="max_savings">max_savings · seeds only</option>
                                 <option value="max_quality">max_quality · seeds + 16k fill</option>
                             </select>
@@ -1906,7 +1906,7 @@
                                     <span style="color: var(--accent-amber);">3</span>
                                 </div>
                                 <div class="flow-node-title">🛡️ Fill cap</div>
-                                <div class="flow-node-metric" id="pipeMetric3">+8k balanced</div>
+                                <div class="flow-node-metric" id="pipeMetric3">+5k balanced</div>
                             </div>
 
                             <div class="flow-connector">➔</div>
@@ -2229,7 +2229,7 @@
                             <div>
                                 <label style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 0.35rem; display: block;" data-i18n="lbl_sim_mode">Optimization Mode:</label>
                                 <select id="simModeSelect">
-                                    <option value="balanced" data-i18n="opt_mode_balanced">balanced · seeds + 8k fill</option>
+                                    <option value="balanced" data-i18n="opt_mode_balanced">balanced · seeds + 5k fill</option>
                                     <option value="max_savings" data-i18n="opt_mode_savings">max_savings · seeds only</option>
                                     <option value="max_quality" data-i18n="opt_mode_quality">max_quality · seeds + 16k fill</option>
                                 </select>
@@ -2654,7 +2654,7 @@
                 bio_genetic: 'Folds in this session',
                 bio_mycelium: 'Mycelium prefetch',
                 bio_membrane: 'QualityGate fill cap',
-                bio_mode_balanced: 'balanced · +8k fill',
+                bio_mode_balanced: 'balanced · +5k fill',
                 title_mcp_connect: '1-Click MCP Connect',
                 mcp_connect_help: 'Copy this block into your agent configuration file:',
                 btn_copy_json: 'Copy Configuration JSON',
@@ -2712,7 +2712,7 @@
                 title_sim_lab: 'Context Simulator Lab',
                 lbl_sim_prompt: 'Task Description / Agent Prompt:',
                 lbl_sim_mode: 'Optimization Mode:',
-                opt_mode_balanced: 'balanced · seeds + 8k fill',
+                opt_mode_balanced: 'balanced · seeds + 5k fill',
                 opt_mode_savings: 'max_savings · seeds only',
                 opt_mode_quality: 'max_quality · seeds + 16k fill',
                 btn_run_sim: 'Run get_context',
@@ -2727,8 +2727,8 @@
                 memory_guide: 'This section persists verified architectural patterns and best-practice rules across your workspaces.',
                 title_settings: 'Runtime Configuration & Parameters',
                 lbl_default_mode: 'Default Context Optimization Mode:',
-                guide_default_mode: 'Seeds always ship. Extra connector fill: balanced +8k, max_savings 0, max_quality +16k. Auth/payment/secret tasks upgrade the membrane.',
-                opt_mode_balanced_desc: 'Seeds + 8k fill · default',
+                guide_default_mode: 'Seeds always ship. Extra connector fill: balanced +5k, max_savings 0, max_quality +16k. Auth/payment/secret tasks upgrade the membrane.',
+                opt_mode_balanced_desc: 'Seeds + 5k fill · default',
                 opt_mode_savings_desc: 'Seeds only · no extra fill',
                 opt_mode_quality_desc: 'Seeds + 16k fill',
                 lbl_alpha: 'Physarum Flux Decay Alpha:',
@@ -2766,7 +2766,7 @@
                 sec_biomimetic_core: 'Biomimetic Context Core',
                 sec_algo_dynamics: 'Algorithmic Dynamics & Tuning',
                 opt_mode_balanced_short: 'Balanced',
-                opt_mode_balanced_desc: 'Seeds + 8k fill · default',
+                opt_mode_balanced_desc: 'Seeds + 5k fill · default',
                 opt_mode_savings_short: 'Max Savings',
                 opt_mode_savings_desc: 'Seeds only · no extra fill',
                 opt_mode_quality_short: 'Max Quality',
@@ -2817,7 +2817,7 @@
                 bio_genetic: 'فولدهای این نشست',
                 bio_mycelium: 'پیش‌بار میسلیوم',
                 bio_membrane: 'سقف fill در QualityGate',
-                bio_mode_balanced: 'متعادل · ۸هزار توکن اضافه',
+                bio_mode_balanced: 'متعادل · ۵هزار توکن اضافه',
                 title_mcp_connect: 'اتصال ۱-کلیک به پروتکل MCP',
                 mcp_connect_help: 'این قطعه کد را در تنظیمات Claude Desktop یا Cursor قرار دهید:',
                 btn_copy_json: 'کپی پیکربندی JSON',
@@ -2876,7 +2876,7 @@
                 title_sim_lab: 'آزمایشگاه شبیه‌سازی کانتکست',
                 lbl_sim_prompt: 'شرح تسک / پرامپت ارسالی به مدل:',
                 lbl_sim_mode: 'حالت بهینه‌سازی کانتکست:',
-                opt_mode_balanced: 'متعادل · بذر + ۸هزار fill',
+                opt_mode_balanced: 'متعادل · بذر + ۵هزار fill',
                 opt_mode_savings: 'بیشترین صرفه‌جویی · فقط بذر',
                 opt_mode_quality: 'بالاترین کیفیت · بذر + ۱۶هزار fill',
                 btn_run_sim: 'اجرای get_context',
@@ -2927,7 +2927,7 @@
                 sec_biomimetic_core: 'هسته بهینه‌سازی بیومیمتیک',
                 sec_algo_dynamics: 'تنظیمات محاسباتی و فرکانس',
                 opt_mode_balanced_short: 'متعادل',
-                opt_mode_balanced_desc: 'بذر + ۸هزار fill · پیش‌فرض',
+                opt_mode_balanced_desc: 'بذر + ۵هزار fill · پیش‌فرض',
                 opt_mode_savings_short: 'بیشترین صرفه‌جویی',
                 opt_mode_savings_desc: 'فقط بذر · بدون fill اضافه',
                 opt_mode_quality_short: 'بالاترین کیفیت',
@@ -3329,7 +3329,7 @@
                     node: 'pipeNode3',
                     badge: '3 Gate',
                     title: { en: "3 · QualityGate fill cap", fa: "۳ · سقف fill در QualityGate" },
-                    desc: { en: "Seeds always ship. Extra connectors: max_savings 0, balanced +8k, max_quality +16k. Critical tasks (auth/payment/secret) upgrade.", fa: "بذر همیشه ارسال می‌شود. کانکتور اضافه: صرفه‌جویی ۰، متعادل ۸هزار، کیفیت ۱۶هزار." },
+                    desc: { en: "Seeds always ship. Extra connectors: max_savings 0, balanced +5k, max_quality +16k. Critical tasks (auth/payment/secret) upgrade.", fa: "بذر همیشه ارسال می‌شود. کانکتور اضافه: صرفه‌جویی ۰، متعادل ۵هزار، کیفیت ۱۶هزار." },
                     telemetry: () => JSON.stringify({ membrane_state: pkt && pkt.membrane_state, effective_mode: pkt && pkt.effective_mode, budget }, null, 2)
                 },
                 physarum: {
@@ -3550,7 +3550,7 @@
                     : '0%';
 
                 const mode = (data.mode || 'balanced').toString();
-                const fillCap = data.fill_cap != null ? data.fill_cap : (mode === 'max_quality' ? 16000 : mode === 'max_savings' ? 0 : 8000);
+                const fillCap = data.fill_cap != null ? data.fill_cap : (mode === 'max_quality' ? 16000 : mode === 'max_savings' ? 0 : 5000);
                 const memEl = document.getElementById('bioMembraneValue');
                 const memBar = document.getElementById('bioMembraneBar');
                 if (memEl) memEl.innerText = `${mode} · +${window.formatTok(fillCap)}`;

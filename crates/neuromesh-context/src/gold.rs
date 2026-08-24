@@ -269,6 +269,42 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 expect_seeds_missed: false,
             },
         ),
+        (
+            "mini-aspnet",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does Store use SmsStore.Save?".into(),
+                gold_files: vec!["Program.cs".into(), "SmsStore.cs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-swiftui",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does store use SmsStore.save?".into(),
+                gold_files: vec!["SmsInbox.swift".into(), "SmsStore.swift".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-remix",
+            GoldTask {
+                id: "sms_action".into(),
+                prompt: "How does action use saveSms?".into(),
+                gold_files: vec!["app/routes/sms.tsx".into(), "lib/sms_store.ts".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-ktor",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does store use SmsStore.save?".into(),
+                gold_files: vec!["src/Application.kt".into(), "src/SmsStore.kt".into()],
+                expect_seeds_missed: false,
+            },
+        ),
     ]
 }
 

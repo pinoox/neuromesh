@@ -76,7 +76,7 @@ impl SourceLanguage {
             "json" => SourceLanguage::JSON,
             "yaml" | "yml" => SourceLanguage::YAML,
             "md" | "markdown" => SourceLanguage::Markdown,
-            "html" | "htm" => SourceLanguage::HTML,
+            "html" | "htm" | "cshtml" | "razor" => SourceLanguage::HTML,
             "twig" => SourceLanguage::Twig,
             "svelte" => SourceLanguage::Svelte,
             "astro" => SourceLanguage::Astro,
@@ -199,6 +199,14 @@ mod tests {
         assert_eq!(
             SourceLanguage::from_path(Path::new("src/pages/sms.astro")),
             SourceLanguage::Astro
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("Pages/Sms.cshtml")),
+            SourceLanguage::HTML
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("Inbox.razor")),
+            SourceLanguage::HTML
         );
         assert!(SourceLanguage::Twig.is_code());
         assert!(SourceLanguage::Svelte.is_code());

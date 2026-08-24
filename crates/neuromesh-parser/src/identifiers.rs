@@ -100,7 +100,7 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     });
     let bare_file_re = BARE_FILE_RE.get_or_init(|| {
         Regex::new(
-            r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|py|vue|go|java|cs|kt|kts|dart|rb|php|astro|svelte|twig)\b",
+            r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|py|vue|go|java|cs|kt|kts|dart|rb|php|astro|svelte|twig|cshtml|razor|swift)\b",
         )
         .unwrap()
     });

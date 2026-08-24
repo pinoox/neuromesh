@@ -104,6 +104,16 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
                 "angular",
                 "Angular app (package.json dependency)",
             ),
+            (
+                "\"@remix-run/",
+                "remix",
+                "Remix app (package.json dependency)",
+            ),
+            (
+                "\"react-router\"",
+                "react_router",
+                "React Router app (package.json dependency)",
+            ),
         ] {
             if pkg.contains(needle) {
                 facts.push(ProjectFact::new(
@@ -188,6 +198,23 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
                 "framework",
                 "spring",
                 "Spring project (org.springframework in Gradle)",
+            ));
+        }
+        if file_mentions(
+            root,
+            &[
+                "build.gradle.kts",
+                "build.gradle",
+                "settings.gradle.kts",
+                "settings.gradle",
+            ],
+            "io.ktor",
+        ) {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "ktor",
+                "Ktor HTTP app (io.ktor in Gradle)",
             ));
         }
     }
@@ -295,6 +322,14 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             "swift_package",
             "Swift package (Package.swift)",
         ));
+        if file_mentions(root, &["Package.swift"], "SwiftUI") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "swiftui",
+                "SwiftUI app (Package.swift)",
+            ));
+        }
     }
     if root.join("go.mod").exists() {
         facts.push(ProjectFact::new(
@@ -319,6 +354,15 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
                 "Echo HTTP app (go.mod)",
             ));
         }
+    }
+
+    if csproj_mentions_aspnet(root) {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "aspnet",
+            "ASP.NET project (Sdk.Web or AspNetCore in .csproj)",
+        ));
     }
 
     if root.join("angular.json").exists()
@@ -410,6 +454,21 @@ fn file_mentions(root: &Path, names: &[&str], needle: &str) -> bool {
         .any(|name| fs::read_to_string(root.join(name)).is_ok_and(|s| s.contains(needle)))
 }
 
+fn csproj_mentions_aspnet(root: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(root) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        let path = entry.path();
+        path.extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("csproj"))
+            && fs::read_to_string(&path).is_ok_and(|s| {
+                s.contains("Microsoft.NET.Sdk.Web") || s.contains("Microsoft.AspNetCore")
+            })
+    })
+}
+
 fn extract_workspace_members(cargo: &str) -> Option<String> {
     let start = cargo.find("members")?;
     let slice = &cargo[start..];
@@ -497,7 +556,7 @@ mod tests {
         let dir = temp_root();
         fs::write(
             dir.join("package.json"),
-            r#"{ "dependencies": { "express": "4", "@nestjs/core": "11", "@angular/core": "19" } }"#,
+            r#"{ "dependencies": { "express": "4", "@nestjs/core": "11", "@angular/core": "19", "@remix-run/node": "2", "react-router": "7" } }"#,
         )
         .unwrap();
         fs::write(
@@ -510,12 +569,32 @@ mod tests {
             "[package]\nname=\"x\"\n[dependencies]\naxum=\"0.8\"\n",
         )
         .unwrap();
+        fs::write(
+            dir.join("App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("build.gradle.kts"),
+            "implementation(\"io.ktor:ktor-server-core\")\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("Package.swift"),
+            "// swift-tools-version: 5.9\nimport PackageDescription\nimport SwiftUI\n",
+        )
+        .unwrap();
         let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
         assert!(facts.iter().any(|f| f.key == "express"));
         assert!(facts.iter().any(|f| f.key == "nestjs"));
         assert!(facts.iter().any(|f| f.key == "angular"));
+        assert!(facts.iter().any(|f| f.key == "remix"));
+        assert!(facts.iter().any(|f| f.key == "react_router"));
         assert!(facts.iter().any(|f| f.key == "gin"));
         assert!(facts.iter().any(|f| f.key == "axum"));
+        assert!(facts.iter().any(|f| f.key == "aspnet"));
+        assert!(facts.iter().any(|f| f.key == "ktor"));
+        assert!(facts.iter().any(|f| f.key == "swiftui"));
         let _ = fs::remove_dir_all(&dir);
     }
 

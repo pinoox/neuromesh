@@ -194,7 +194,7 @@ select {
     <textarea id="prompt" placeholder="Task for neuromesh_get_context — e.g. How does neuromesh_get_context pick seed files?"></textarea>
     <select id="mode" title="Membrane mode">
       <option value="max_savings">max_savings · 0 fill</option>
-      <option value="balanced" selected>balanced · 8k fill</option>
+      <option value="balanced" selected>balanced · 5k fill</option>
       <option value="max_quality">max_quality · 16k fill</option>
     </select>
     <button class="primary" id="btnGo">Get context</button>

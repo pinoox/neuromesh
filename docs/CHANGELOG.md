@@ -2,9 +2,9 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
-## 0.5.3 — 2026-08-24
+## 0.6.1 — 2026-08-24
 
-Build on 1.80+, honest MCP args, Kotlin in the indexer, and a less hollow PHP/Go/Java graph.
+Language registry, tree-sitter queries, framework overlays, parallel index, and thinner packets. First published 0.6.1.
 
 - **MSRV.** Even/odd uses `seed & 1` instead of `u64::is_multiple_of` (Rust 1.87). Workspace `rust-version` is 1.80. `rust-toolchain.toml` pins stable + rustfmt/clippy. Ubuntu `apt` rustc 1.75 still cannot parse lockfile v4 — use rustup.
 - **`task` alias.** `neuromesh_get_context` accepts `task_description`, `prompt`, or `task`. An empty prompt is a JSON-RPC error, not a silent empty packet.
@@ -15,6 +15,7 @@ Build on 1.80+, honest MCP args, Kotlin in the indexer, and a less hollow PHP/Go
 - **Index speed.** Workspace ingest parses files in parallel (rayon) and reuses a tree-sitter parser per thread. Hash skip is unchanged. `neuromesh index` uses the same ingest path as MCP.
 - **Thinner packets.** Function spans follow the real tree-sitter body (Dart signature+body siblings, Kotlin `fun`, TS `const fn = () =>`). Folds replace the **body**, not the signature, so the file map stays; a parent that contains a seed exon is not folded. Fill caps are unchanged.
 - **Wave 5 overlays.** Express `app.post`, Nest `@Controller`/`@Post`, Angular `@Component` + `path:`, Gin/Echo `.POST`, Axum `.route(..., post(`. Gold: `mini-express`, `mini-nest`, `mini-angular`, `mini-gin`, `mini-axum`. Prompt “how does store use …” keeps the lowercase method name so Astro/Express pages seed.
+- **Wave 6 overlays.** ASP.NET `MapPost`/`[HttpPost]` + Razor `@page`/`@code` (`.cshtml`/`.razor` indexed as HTML), SwiftUI `struct: View`, Remix `app/routes/` + React Router `createBrowserRouter`, Ktor `post("/sms")`. Gold: `mini-aspnet`, `mini-swiftui`, `mini-remix`, `mini-ktor`.
 - **Eval honesty.** `neuromesh eval` prints fixture dirs with an empty scan instead of skipping them. README numbers from release eval (2026-08-24): 219 files, 1,323 nodes, 2,891 edges, ~209 ms index.
 
 ## 0.5.2 — 2026-08-23
