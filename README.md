@@ -233,7 +233,7 @@ VS Code / Cursor: Settings → `neuromesh.port` must match the running monitor. 
 
 Each file in the packet has `path`, `why`, `line_range`, `folded_symbols`, and `seed_call_coverage`. Details: [docs/mcp.md](docs/mcp.md).
 
-Rust and TypeScript go through **tree-sitter**. Python and Vue have scoped extractors. PHP, Go, Java, C# and C/C++ use the generic regex parser (functions, `new Type`, `throw`, and `catch`). Ambiguous names are not “resolved” by hope.
+Rust and TypeScript go through **tree-sitter**. Python and Vue have scoped extractors. PHP, Go, Java, Kotlin, C# and C/C++ use the generic regex parser (functions, `new Type`, `throw`, and `catch`). Ambiguous names are not “resolved” by hope.
 
 ---
 

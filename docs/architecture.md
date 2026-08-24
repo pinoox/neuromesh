@@ -63,7 +63,7 @@ Evidence packet → MCP client
 3. Ingest nodes.
 4. `finalize_links`: resolve pending `Imports` then `Calls`.
 
-Rust and TypeScript use tree-sitter so `fn` / `impl` ranges and in-function calls are real spans. PHP / Go / Java / C# / C / C++ share the generic regex parser (functions, calls, throw/catch). Python and Vue have their own extractors.
+Rust and TypeScript use tree-sitter so `fn` / `impl` ranges and in-function calls are real spans. PHP / Go / Java / Kotlin / C# / C / C++ share the generic regex parser (functions, calls, throw/catch). Python and Vue have their own extractors.
 
 ## Packet
 

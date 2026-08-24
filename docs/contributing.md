@@ -34,7 +34,7 @@ Nature is the metaphor. Unique edges and fill caps are the contract.
 
 Do not add a fuzzy “link every namesake” pass. That is how a home-directory index grew a million edges.
 
-Rust and TypeScript already go through tree-sitter. Python and Vue have scoped regex extractors. PHP / Go / Java / C# / C / C++ share `GenericParser` (functions, calls, `throw` / `catch` / `new Type`). Other languages stay regex until eval on Rust and TypeScript stays green.
+Rust and TypeScript already go through tree-sitter. Python and Vue have scoped regex extractors. PHP / Go / Java / Kotlin / C# / C / C++ share `GenericParser` (functions, calls, `throw` / `catch` / `new Type`). Other languages stay regex until eval on Rust and TypeScript stays green.
 
 ## Docs
 

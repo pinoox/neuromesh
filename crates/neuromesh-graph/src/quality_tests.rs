@@ -545,4 +545,102 @@ final class InstallPlatformCommand
             "expected catch site as caller, got {callers:?}"
         );
     }
+
+    #[test]
+    fn kotlin_unique_save_does_not_explode_or_cross_link() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("android"));
+        let store = r#"
+package com.example.app
+object SmsStore {
+    fun save(body: String?) {
+        persist(body)
+    }
+    private fun persist(body: String?) {}
+}
+"#;
+        let inbox = r#"
+package com.example.app
+object InboxStore {
+    fun save(body: String?) {}
+}
+"#;
+        let receiver = r#"
+package com.example.app
+import com.example.app.SmsStore
+class SmsReceiver {
+    fun onReceive(intent: Intent) {
+        SmsStore.save(intent.getStringExtra("sms"))
+    }
+}
+"#;
+        graph.ingest_file(
+            &indexed("app/src/main/java/com/example/app/SmsStore.kt"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("app/src/main/java/com/example/app/SmsStore.kt"),
+                store,
+                SourceLanguage::Kotlin,
+            ),
+            Some(store),
+        );
+        graph.ingest_file(
+            &indexed("app/src/main/java/com/example/app/InboxStore.kt"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("app/src/main/java/com/example/app/InboxStore.kt"),
+                inbox,
+                SourceLanguage::Kotlin,
+            ),
+            Some(inbox),
+        );
+        graph.ingest_file(
+            &indexed("app/src/main/java/com/example/app/SmsReceiver.kt"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("app/src/main/java/com/example/app/SmsReceiver.kt"),
+                receiver,
+                SourceLanguage::Kotlin,
+            ),
+            Some(receiver),
+        );
+        graph.finalize_links();
+
+        let stats = graph.stats();
+        assert!(
+            stats.total_edges < 30,
+            "edges exploded: {}",
+            stats.total_edges
+        );
+        assert!(stats.resolved_calls >= 1);
+
+        let on_receive = graph
+            .resolve_unique(
+                "onReceive",
+                Some("app/src/main/java/com/example/app/SmsReceiver.kt"),
+            )
+            .expect("onReceive");
+        let neighbors = graph.get_neighbor_views(&on_receive);
+        let save_hits: Vec<_> = neighbors
+            .iter()
+            .filter(|n| {
+                n.node.name == "save" && n.edge.edge_type == neuromesh_core::EdgeType::Calls
+            })
+            .collect();
+        assert_eq!(
+            save_hits.len(),
+            1,
+            "same-name save must not fan out: {:?}",
+            neighbors
+                .iter()
+                .map(|n| format!("{}:{}", n.node.name, n.node.file_path.display()))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            save_hits[0]
+                .node
+                .file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .ends_with("SmsStore.kt"),
+            "SmsStore.save should win, got {}",
+            save_hits[0].node.file_path.display()
+        );
+    }
 }

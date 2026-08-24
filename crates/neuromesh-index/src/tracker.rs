@@ -16,6 +16,7 @@ pub enum SourceLanguage {
     Go,
     PHP,
     Java,
+    Kotlin,
     CSharp,
     C,
     Cpp,
@@ -59,6 +60,7 @@ impl SourceLanguage {
             "go" => SourceLanguage::Go,
             "php" => SourceLanguage::PHP,
             "java" => SourceLanguage::Java,
+            "kt" | "kts" => SourceLanguage::Kotlin,
             "cs" => SourceLanguage::CSharp,
             "c" | "h" => SourceLanguage::C,
             "cpp" | "hpp" | "cc" | "cxx" => SourceLanguage::Cpp,
@@ -87,6 +89,7 @@ impl SourceLanguage {
             Self::Go => "go",
             Self::PHP => "php",
             Self::Java => "java",
+            Self::Kotlin => "kotlin",
             Self::CSharp => "csharp",
             Self::C => "c",
             Self::Cpp => "cpp",
@@ -135,5 +138,25 @@ impl IndexedFile {
             language,
             last_modified,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SourceLanguage;
+    use std::path::Path;
+
+    #[test]
+    fn kotlin_extensions_are_source() {
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("app/src/main/java/SmsStore.kt")),
+            SourceLanguage::Kotlin
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("build.gradle.kts")),
+            SourceLanguage::Kotlin
+        );
+        assert_eq!(SourceLanguage::Kotlin.as_str(), "kotlin");
+        assert!(SourceLanguage::Kotlin.is_code());
     }
 }

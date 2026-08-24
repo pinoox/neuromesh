@@ -14,7 +14,7 @@ neuromesh optimize     # one prompt → print the packet
 neuromesh eval         # gold recall / precision / fill on cwd and tests/fixtures
 neuromesh benchmark    # same as eval
 neuromesh connect      # ready-to-paste MCP JSON
-neuromesh doctor       # workspace root, scan, persisted graph, port
+neuromesh doctor       # workspace root, scan, skipped extensions, graph, port
 neuromesh version
 ```
 
