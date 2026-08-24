@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NeuroMesh v__NEUROMESH_VERSION__ — Task-conditioned Context Engine & Neural Workflow</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23060d0a'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23d4ec5a'/%3E%3Ccircle cx='12' cy='13' r='3' fill='%23f7ffc4'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -234,28 +235,28 @@
 
         /* HEADER */
         header {
-            min-height: 65px;
-            height: auto;
+            min-height: 52px;
+            height: 52px;
             background: rgba(12, 16, 23, 0.88);
             backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0.55rem 1.75rem;
+            padding: 0 1.25rem;
             z-index: 40;
-            gap: 0.75rem 1rem;
-            flex-wrap: wrap;
-            overflow-x: auto;
+            gap: 0.5rem;
+            flex-wrap: nowrap;
+            overflow: hidden;
         }
 
         .project-selector-wrapper {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.45rem;
             flex: 1 1 auto;
             min-width: 0;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
         }
 
         .project-selector-label {
@@ -288,11 +289,17 @@
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            flex: 0 1 auto;
+            gap: 0.45rem;
+            flex: 0 0 auto;
             min-width: 0;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             margin-inline-start: auto;
+        }
+
+        header .btn-primary,
+        header .btn-secondary {
+            padding: 0.32rem 0.65rem;
+            font-size: 0.75rem;
         }
 
         .btn-primary {
@@ -359,8 +366,14 @@
         }
 
         #scopeBadge {
-            max-width: min(320px, 42vw);
+            max-width: min(220px, 28vw);
             min-width: 0;
+            padding: 0.32rem 0.65rem;
+        }
+
+        #scopeBadge:hover {
+            border-color: var(--accent-cyan) !important;
+            background: rgba(0, 210, 255, 0.1);
         }
 
         #scopeBadgeText {
@@ -499,7 +512,10 @@
             position: relative;
             width: 100%;
             height: calc(100vh - 110px);
-            background: #030508;
+            background:
+                radial-gradient(ellipse at 28% 18%, rgba(212, 236, 90, 0.08), transparent 52%),
+                radial-gradient(ellipse at 78% 82%, rgba(0, 240, 180, 0.07), transparent 48%),
+                radial-gradient(ellipse at 50% 50%, rgba(8, 18, 12, 0.4), #030508 70%);
             border: 1px solid var(--border-color);
             border-radius: 14px;
             overflow: hidden;
@@ -513,6 +529,10 @@
 
         #neuralCanvas:active {
             cursor: grabbing;
+        }
+
+        #neuralCanvas.can-click {
+            cursor: pointer;
         }
 
         .galaxy-hud-top-left {
@@ -541,9 +561,138 @@
             border-radius: 12px;
             padding: 0.45rem;
             display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
             gap: 0.45rem;
             backdrop-filter: blur(16px);
             z-index: 10;
+            max-width: min(560px, calc(100% - 360px));
+        }
+
+        .btn-primary.btn-slime-play {
+            background: linear-gradient(135deg, rgba(212, 236, 90, 0.28), rgba(0, 240, 180, 0.22));
+            border: 1px solid rgba(212, 236, 90, 0.6);
+            color: #f4ffb0;
+            box-shadow: 0 0 16px rgba(200, 230, 78, 0.18);
+        }
+
+        .btn-primary.btn-slime-play:hover {
+            border-color: #e8ff8a;
+            color: #fff;
+            box-shadow: 0 4px 18px rgba(200, 230, 78, 0.35);
+        }
+
+        .btn-primary.btn-slime-play.playing {
+            animation: slimePlayPulse 1.15s ease-in-out infinite;
+        }
+
+        @keyframes slimePlayPulse {
+            0%, 100% { box-shadow: 0 0 10px rgba(200, 230, 78, 0.2); }
+            50% { box-shadow: 0 0 22px rgba(200, 230, 78, 0.55); }
+        }
+
+        .galaxy-hover-tip {
+            position: absolute;
+            z-index: 26;
+            pointer-events: none;
+            background: rgba(8, 14, 12, 0.94);
+            border: 1px solid rgba(212, 236, 90, 0.35);
+            color: #f8fafc;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.4rem 0.65rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+            max-width: 260px;
+            transform: translate(12px, 12px);
+            display: none;
+        }
+
+        .galaxy-hover-tip.visible {
+            display: block;
+        }
+
+        .galaxy-hover-tip small {
+            display: block;
+            margin-top: 0.15rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-size: 0.68rem;
+        }
+
+        .slime-play-banner {
+            position: absolute;
+            bottom: 1.25rem;
+            inset-inline-end: 1.25rem;
+            z-index: 22;
+            display: none;
+            align-items: center;
+            gap: 0.55rem;
+            background: rgba(10, 18, 12, 0.92);
+            border: 1px solid rgba(212, 236, 90, 0.4);
+            border-radius: 12px;
+            padding: 0.55rem 0.85rem;
+            backdrop-filter: blur(16px);
+            color: #e8ff8a;
+            font-size: 0.75rem;
+            font-weight: 700;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+            max-width: min(340px, calc(100% - 2.5rem));
+        }
+
+        .slime-play-banner.visible {
+            display: flex;
+        }
+
+        .slime-eq {
+            width: 18px;
+            height: 14px;
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
+        .slime-eq span {
+            flex: 1;
+            background: #d4ec5a;
+            border-radius: 1px;
+            animation: slimeEq 0.9s ease-in-out infinite;
+        }
+
+        .slime-eq span:nth-child(2) { animation-delay: 0.12s; }
+        .slime-eq span:nth-child(3) { animation-delay: 0.24s; }
+        .slime-eq span:nth-child(4) { animation-delay: 0.08s; }
+
+        @keyframes slimeEq {
+            0%, 100% { height: 30%; }
+            50% { height: 100%; }
+        }
+
+        .pipeline-slime-theater {
+            margin-top: 1rem;
+            background: rgba(4, 10, 8, 0.72);
+            border: 1px solid rgba(212, 236, 90, 0.18);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .pipeline-slime-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 0.9rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #e8ff8a;
+        }
+
+        #pipelineSlimeCanvas {
+            display: block;
+            width: 100%;
+            height: 168px;
+            background: radial-gradient(ellipse at 40% 50%, rgba(212, 236, 90, 0.07), transparent 60%), #05080a;
         }
 
         .cluster-legend {
@@ -595,7 +744,7 @@
         .galaxy-layer-toggles {
             position: absolute;
             bottom: 1.25rem;
-            left: 1.25rem;
+            inset-inline-start: 1.25rem;
             background: rgba(10, 15, 26, 0.88);
             border: 1px solid var(--border-color);
             border-radius: 12px;
@@ -607,6 +756,7 @@
             align-items: center;
             gap: 0.85rem;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: min(720px, calc(100% - 2.5rem));
         }
 
         .layer-toggle-title {
@@ -1427,20 +1577,11 @@
         /* RESPONSIVE — laptop / split-screen (issue #1) */
         @media (max-width: 1440px) {
             header {
-                padding: 0.5rem 1.15rem;
-                gap: 0.55rem 0.75rem;
+                padding: 0 1rem;
             }
 
             .header-actions {
-                gap: 0.5rem;
-            }
-
-            .header-watcher-badge span[data-i18n="badge_watcher"] {
-                display: none;
-            }
-
-            .header-watcher-badge {
-                padding: 0.35rem 0.5rem;
+                gap: 0.4rem;
             }
 
             .metrics-grid {
@@ -1692,27 +1833,24 @@
         <main>
             <header>
                 <div class="project-selector-wrapper">
-                    <div class="status-badge" id="scopeBadge" onclick="window.openProjectModal()" style="border-color: rgba(0, 210, 255, 0.35); color: var(--accent-cyan); font-weight: 700; display: inline-flex; align-items: center; gap: 0.45rem; cursor:pointer; user-select:none; transition:all 0.2s;" title="Click to switch active project">
+                    <div class="status-badge" id="scopeBadge" onclick="window.openProjectModal()" style="border-color: rgba(0, 210, 255, 0.35); color: var(--accent-cyan); font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem; cursor:pointer; user-select:none; transition:all 0.2s;" title="Switch project">
                         <span class="pulse-dot" style="background:var(--accent-cyan); box-shadow:0 0 8px var(--accent-cyan);"></span>
-                        <span id="scopeBadgeText">🌐 All Projects (Collective)</span>
-                        <span style="font-size:0.68rem; opacity:0.8; margin-inline-start:0.2rem;">🔍</span>
+                        <span id="scopeBadgeText">🌐 All projects</span>
+                        <span style="font-size:0.62rem; opacity:0.75;">▼</span>
                     </div>
                     <button class="btn-secondary" onclick="window.triggerReindex()">
-                        <span>⚡</span> <span data-i18n="btn_reindex">Re-index</span>
+                        <span>⚡</span> <span data-i18n="btn_reindex">Index</span>
                     </button>
-                    <button class="btn-secondary" onclick="window.openProjectModal()" style="font-size:0.78rem;">
-                        <span>📁</span> <span data-i18n="btn_manage_projects">Switch Project</span>
-                    </button>
-                    <button class="btn-secondary" onclick="window.openMcpConnectModal()" style="font-size:0.78rem; border-color:rgba(0, 210, 255, 0.45); color:var(--accent-cyan);">
-                        <span>🔌</span> <span data-i18n="btn_connect_client">Connect Any Client</span>
+                    <button class="btn-secondary" onclick="window.openMcpConnectModal()" style="border-color:rgba(0, 210, 255, 0.45); color:var(--accent-cyan);">
+                        <span>🔌</span> <span data-i18n="btn_connect_client">Connect</span>
                     </button>
                 </div>
 
                 <div class="header-actions">
                     <div class="lang-dropdown-wrapper" id="langDropdownWrapper">
-                        <button class="btn-secondary" onclick="window.toggleLangMenu(event)" id="langTriggerBtn" style="display:flex; align-items:center; gap:0.45rem; padding: 0.45rem 0.8rem;">
-                            <span id="currentLangLabel">English</span>
-                            <span style="font-size:0.62rem; opacity:0.75; transform:translateY(1px);">▼</span>
+                        <button class="btn-secondary" onclick="window.toggleLangMenu(event)" id="langTriggerBtn" style="display:flex; align-items:center; gap:0.35rem;">
+                            <span id="currentLangLabel">EN</span>
+                            <span style="font-size:0.58rem; opacity:0.75; transform:translateY(1px);">▼</span>
                         </button>
                         <div class="lang-menu" id="langMenu">
                             <div class="lang-item active" id="langOptEn" onclick="window.selectLanguage('en')">
@@ -1725,12 +1863,12 @@
                             </div>
                         </div>
                     </div>
-                    <div class="status-badge header-watcher-badge" title="Live File Watcher Active (<5ms)">
+                    <div class="status-badge header-watcher-badge" title="Live file watcher (&lt;5ms)">
                         <div class="pulse-dot"></div>
-                        <span data-i18n="badge_watcher">Live File Watcher Active (&lt;5ms)</span>
+                        <span data-i18n="badge_watcher">Live</span>
                     </div>
                     <button class="btn-primary" onclick="window.switchView('simulator')">
-                        <span>🚀</span> <span data-i18n="btn_test_context">Test Context</span>
+                        <span>🚀</span> <span data-i18n="btn_test_context">Test</span>
                     </button>
                 </div>
             </header>
@@ -1940,11 +2078,22 @@
                                 </div>
                                 <div class="flow-node-title">📦 next_actions</div>
                                 <div class="flow-node-metric" id="pipeMetric6">coverage</div>
-                            </div>
                         </div>
+                    </div>
 
-                        <!-- DETAIL CARD & TELEMETRY INSPECTOR -->
-                        <div id="pipelineDetailCard" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-top:1.25rem;">
+                    <div class="pipeline-slime-theater">
+                        <div class="pipeline-slime-header">
+                            <span data-i18n="slime_theater_title">🌿 Physarum slime demo</span>
+                            <button class="btn-primary btn-slime-play" style="padding:0.3rem 0.75rem; font-size:0.75rem;" onclick="window.toggleSlimePlay()">
+                                <span id="btnSlimePlayIconPipe">▶</span>
+                                <span data-i18n="btn_slime_play">Play slime</span>
+                            </button>
+                        </div>
+                        <canvas id="pipelineSlimeCanvas" width="920" height="168"></canvas>
+                    </div>
+
+                    <!-- DETAIL CARD & TELEMETRY INSPECTOR -->
+                    <div id="pipelineDetailCard" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-top:1.25rem;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
                                 <h3 style="color: var(--accent-green); font-size: 0.95rem; margin:0;" id="pipeStageTitle">Stage 1: Prompt</h3>
                                 <span id="pipeStageStatusBadge" class="status-badge" style="color:var(--accent-cyan); font-size:0.75rem;">Ready</span>
@@ -1996,6 +2145,10 @@
                         <button id="btnBackToGalaxy" class="btn-secondary" style="display:none; padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="window.exitClusterDrilldown()">
                             <span>⬅</span> <span data-i18n="btn_back_galaxy">Back to Constellation</span>
                         </button>
+                        <button id="btnSlimePlay" class="btn-primary btn-slime-play" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="window.toggleSlimePlay()">
+                            <span id="btnSlimePlayIcon">▶</span>
+                            <span id="btnSlimePlayLabel" data-i18n="btn_slime_play">Play slime</span>
+                        </button>
                         <button class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="window.fireNeuralImpulse()">
                             <span>⚡</span> <span data-i18n="btn_fire_impulse">Neural Impulse</span>
                         </button>
@@ -2008,6 +2161,11 @@
                     </div>
 
                     <canvas id="neuralCanvas"></canvas>
+                    <div id="galaxyHoverTip" class="galaxy-hover-tip"></div>
+                    <div id="slimePlayBanner" class="slime-play-banner">
+                        <div class="slime-eq" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                        <span id="slimePlayBannerText" data-i18n="slime_playing">Physarum streaming — tubes grow, flow, then prune</span>
+                    </div>
 
                     <!-- 👁️ FLOATING DISPLAY LAYER TOGGLES -->
                     <div class="galaxy-layer-toggles" id="galaxyLayerToggles">
@@ -2632,9 +2790,9 @@
                 nav_settings: 'Settings & Tuning',
                 nav_logs: 'Audit Logs',
                 lbl_active_project: 'Active Project:',
-                btn_reindex: 'Re-index',
-                badge_watcher: 'Live File Watcher Active (<5ms)',
-                btn_test_context: 'Test Context',
+                btn_reindex: 'Index',
+                badge_watcher: 'Live',
+                btn_test_context: 'Test',
                 kpi_reduction_title: 'REDUCTION VS WORKSPACE',
                 kpi_reduction_peak: 'from get_context',
                 kpi_reduction_sub: 'Packet tokens vs indexed workspace dump — not a global 99% claim',
@@ -2670,6 +2828,10 @@
                 btn_center_orbit: 'Center Orbit',
                 btn_back_galaxy: 'Back to Constellation',
                 btn_fire_impulse: 'Neural Impulse',
+                btn_slime_play: 'Play slime',
+                btn_slime_pause: 'Pause slime',
+                slime_playing: 'Physarum streaming — tubes grow, flow, then prune',
+                slime_theater_title: '🌿 Physarum slime demo',
                 th_project_name: 'Project Name',
                 th_workspace_path: 'Workspace Path',
                 th_status: 'Status',
@@ -2776,7 +2938,7 @@
                 perm_hypertonic_short: 'Hypertonic',
                 perm_hypertonic_desc: 'High Permeability · Dense',
                 perm_hypotonic_short: 'Hypotonic',
-                btn_connect_client: 'Connect Any Client',
+                btn_connect_client: 'Connect',
                 modal_mcp_title: 'Universal MCP Client Integration',
                 modal_mcp_subtitle: 'Compatible with Cursor, Claude Desktop, Windsurf, VS Code Copilot, Cline, Roo Code, Continue.dev, Zed & Custom Agents',
                 lbl_poll_interval: 'Background Auto-Refresh Rate:',
@@ -2795,9 +2957,9 @@
                 nav_settings: 'تنظیمات و پارامترها',
                 nav_logs: 'گزارش رویدادها',
                 lbl_active_project: 'پروژه فعال:',
-                btn_reindex: 'ایندکس مجدد',
-                badge_watcher: 'ناظر زنده فایل‌ها فعال (<۵ms)',
-                btn_test_context: 'تست کانتکست',
+                btn_reindex: 'ایندکس',
+                badge_watcher: 'زنده',
+                btn_test_context: 'تست',
                 kpi_reduction_title: 'کاهش نسبت به کل ورک‌اسپیس',
                 kpi_reduction_peak: 'از get_context',
                 kpi_reduction_sub: 'توکن پکت در برابر دامپ کل ایندکس — ادعای جهانی ۹۹٪ نیست',
@@ -2833,6 +2995,10 @@
                 btn_center_orbit: 'مرکز مدار',
                 btn_back_galaxy: 'بازگشت به نمای کل کهکشان',
                 btn_fire_impulse: 'انفجار پالس عصبی',
+                btn_slime_play: 'پخش اسلایم',
+                btn_slime_pause: 'توقف اسلایم',
+                slime_playing: 'جریان فیزاروم — لوله‌ها رشد می‌کنند، شار می‌برند، بعد هرس می‌شوند',
+                slime_theater_title: '🌿 نمایش اسلایم فیزاروم',
                 title_registered_projects: 'پروژه‌های ایندکس‌شده و فعال NeuroMesh',
                 th_project_name: 'نام پروژه',
                 th_workspace_path: 'مسیر پروژه',
@@ -2938,7 +3104,7 @@
                 perm_hypertonic_desc: 'نفوذپذیری بالا · کانتکست چگال',
                 perm_hypotonic_short: 'هایپوتونیک',
                 perm_hypotonic_desc: 'نفوذپذیری انتخابی · فشرده',
-                btn_connect_client: 'اتصال به هر ابزار',
+                btn_connect_client: 'اتصال',
                 modal_mcp_title: 'مرکز اتصال یکپارچه ابزارهای هوش مصنوعی (MCP)',
                 modal_mcp_subtitle: 'سازگار با Cursor، Claude Desktop، Windsurf، VS Code Copilot، Cline، Roo Code، Continue.dev، Zed و تمام ایجنت‌های هوش مصنوعی',
                 lbl_poll_interval: 'نرخ بروزرسانی خودکار پس‌زمینه:',
@@ -2971,7 +3137,7 @@
             // Update button label to current language name (title only, no flag)
             const labelEl = document.getElementById('currentLangLabel');
             if (labelEl) {
-                labelEl.innerText = currentLang === 'fa' ? 'فارسی' : 'English';
+                labelEl.innerText = currentLang === 'fa' ? 'فا' : 'EN';
             }
             
             // Update active state in menu
@@ -3016,11 +3182,10 @@
             // Refresh dynamic views
             if (window.fetchProjects) window.fetchProjects();
             if (window.updateGalaxyHUD) window.updateGalaxyHUD();
-            if (window.toggleDimensionMode) {
-                const dimStatus = document.getElementById('dimModeStatus');
-                if (dimStatus) {
-                    dimStatus.innerText = is3D ? (currentLang === 'fa' ? '🌌 سه‌بعدی' : '🌌 3D Galaxy') : (currentLang === 'fa' ? '⚡ دوبعدی' : '⚡ 2D Orbit');
-                }
+            if (window.syncSlimePlayButton) window.syncSlimePlayButton();
+            const dimStatus = document.getElementById('dimModeStatus');
+            if (dimStatus && typeof is3D !== 'undefined') {
+                dimStatus.innerText = is3D ? (currentLang === 'fa' ? '🌌 سه‌بعدی' : '🌌 3D Galaxy') : (currentLang === 'fa' ? '⚡ دوبعدی' : '⚡ 2D Orbit');
             }
         };
 
@@ -3240,6 +3405,7 @@
                 setCompleted(2);
                 setRunning(3);
                 window.showPipelineStage('physarum');
+                if (typeof window.startSlimePlay === 'function') window.startSlimePlay();
 
                 await new Promise(r => setTimeout(r, 180));
                 setCompleted(3);
@@ -3443,17 +3609,19 @@
                 
                 if (elScope) {
                     if (isAllScope) {
-                        elScope.innerText = currentLang === 'fa' ? '🌐 نمای تجمیعی همه پروژه‌ها' : '🌐 All Projects (Collective)';
+                        elScope.innerText = currentLang === 'fa' ? '🌐 همه پروژه‌ها' : '🌐 All projects';
                         if (elScopeBox) {
                             elScopeBox.style.borderColor = 'rgba(0, 210, 255, 0.4)';
                             elScopeBox.style.color = 'var(--accent-cyan)';
+                            elScopeBox.title = currentLang === 'fa' ? 'کلیک برای تعویض پروژه' : 'Switch project';
                         }
                     } else {
                         const pName = data.project_id || (currentProjectScope ? currentProjectScope.split(/[\/\\]/).pop() : 'Project');
-                        elScope.innerText = `${currentLang === 'fa' ? '📌 پروژه اختصاصی:' : '📌 Active Project:'} ${pName}`;
+                        elScope.innerText = `📌 ${pName}`;
                         if (elScopeBox) {
                             elScopeBox.style.borderColor = 'rgba(0, 240, 180, 0.4)';
                             elScopeBox.style.color = 'var(--accent-green)';
+                            elScopeBox.title = currentLang === 'fa' ? 'کلیک برای تعویض پروژه' : 'Switch project';
                         }
                     }
                 }
@@ -4905,7 +5073,7 @@
 
         // 🌌 MACRO ARCHITECTURAL CONSTELLATION & DRILLDOWN 3D GALAXY ENGINE
         const canvas = document.getElementById('neuralCanvas');
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas ? canvas.getContext('2d') : null;
         let rawNodes = [];
         let rawEdges = [];
         let clusterMap = new Map();
@@ -4935,6 +5103,13 @@
         let hasMovedSignificantly = false;
         let activeTypeFilter = 'all';
         let searchQuery = '';
+        let slimePlaying = false;
+        let slimeClock = 0;
+        let slimeVeins = [];
+        let slimeNutrients = [];
+        let lastInteractAt = 0;
+        let pipelineSlimeNodes = [];
+        let pipelineSlimeVeins = [];
 
         const defaultGalaxyLayers = {
             symbols: true,
@@ -5016,7 +5191,7 @@
             const boundsH = Math.max(60, maxY - minY);
 
             const fitScale = Math.min(availW / boundsW, availH / boundsH);
-            targetScale = Math.max(0.45, Math.min(1.4, fitScale * 0.95));
+            targetScale = Math.max(0.32, Math.min(1.55, fitScale * 0.9));
             scale = targetScale;
 
             const targetCenterX = (canvas.width - extraOffsetRight) / 2;
@@ -5053,13 +5228,30 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
+        if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                const radius = Math.max(0, Math.min(w / 2, h / 2, r || 0));
+                this.beginPath();
+                this.moveTo(x + radius, y);
+                this.arcTo(x + w, y, x + w, y + h, radius);
+                this.arcTo(x + w, y + h, x, y + h, radius);
+                this.arcTo(x, y + h, x, y, radius);
+                this.arcTo(x, y, x + w, y, radius);
+                this.closePath();
+                return this;
+            };
+        }
+
         for (let i = 0; i < 220; i++) {
             stars.push({
                 x: (Math.random() - 0.5) * 1600,
                 y: (Math.random() - 0.5) * 1600,
                 z: (Math.random() - 0.5) * 1600,
                 size: Math.random() * 1.6 + 0.4,
-                brightness: Math.random() * 0.7 + 0.3
+                brightness: Math.random() * 0.7 + 0.3,
+                speed: Math.random() * 1.4 + 0.35,
+                phase: Math.random() * Math.PI * 2,
+                alpha: Math.random() * 0.45 + 0.35
             });
         }
 
@@ -5071,6 +5263,7 @@
                 rawEdges = data.edges || [];
                 buildConstellation();
                 updateGalaxyHUD();
+                if (slimePlaying) seedSlimeDemo();
             } catch (e) {}
         };
 
@@ -5144,16 +5337,19 @@
             macroClusters = Array.from(clusterMap.values());
 
             if (activeClusterKey === null) {
-                // 🌌 MACRO CONSTELLATION MODE: Spacious, perfectly proportioned planetary orbit
+                // Dual-ring colony so blobs stay clickable as the mesh grows
                 const total = macroClusters.length;
-                const ringRadius = Math.max(220, Math.min(320, 180 + total * 22));
-                
+                const ringRadius = Math.max(260, Math.min(560, 210 + total * 24));
+
                 macroClusters.forEach((c, idx) => {
-                    const angle = (idx / Math.max(1, total)) * Math.PI * 2;
-                    c.x = ringRadius * Math.cos(angle);
-                    c.y = Math.sin(angle * 2) * 25;
-                    c.z = ringRadius * Math.sin(angle);
-                    c.radius = Math.min(38, Math.max(24, 20 + Math.sqrt(c.files.length * 4 + c.symbols.length * 0.4)));
+                    const dual = total > 10;
+                    const inner = dual && (idx % 2 === 0);
+                    const ringR = inner ? ringRadius * 0.58 : ringRadius;
+                    const angle = (idx / Math.max(1, total)) * Math.PI * 2 + (inner ? 0.28 : 0);
+                    c.x = ringR * Math.cos(angle);
+                    c.y = (inner ? -36 : 32) + Math.sin(idx * 1.7) * 18;
+                    c.z = ringR * Math.sin(angle);
+                    c.radius = Math.min(42, Math.max(26, 22 + Math.sqrt(c.files.length * 4 + c.symbols.length * 0.4)));
                     c.orbitAngle = angle;
                 });
 
@@ -5223,9 +5419,9 @@
                     symbolNodes = symbolNodes.filter(s => (s.name || '').toLowerCase().includes(searchQuery));
                 }
 
-                const filesPerRing = 8;
-                const fileBaseRadius = 180;
-                const fileRingSpacing = 75;
+                const filesPerRing = Math.max(8, Math.min(14, Math.ceil(Math.sqrt(Math.max(1, fileNodes.length)) * 1.6)));
+                const fileBaseRadius = 190;
+                const fileRingSpacing = fileNodes.length > 36 ? 92 : 78;
                 let maxFileRadius = fileBaseRadius;
 
                 fileNodes.forEach((f, idx) => {
@@ -5246,13 +5442,13 @@
                         x: ringR * Math.cos(angle),
                         y: (idx % 2 === 0 ? 15 : -15) + (ringIdx * 6),
                         z: ringR * Math.sin(angle),
-                        radius: 11
+                        radius: 13
                     });
                 });
 
-                const symbolsPerRing = 14;
-                const symBaseRadius = Math.max(260, maxFileRadius + (fileNodes.length > 0 ? 95 : 20));
-                const symRingSpacing = 80;
+                const symbolsPerRing = Math.max(12, Math.min(20, Math.ceil(Math.sqrt(Math.max(1, symbolNodes.length)) * 2.2)));
+                const symBaseRadius = Math.max(270, maxFileRadius + (fileNodes.length > 0 ? 110 : 28));
+                const symRingSpacing = symbolNodes.length > 70 ? 96 : 82;
 
                 symbolNodes.forEach((s, idx) => {
                     const ringIdx = Math.floor(idx / symbolsPerRing);
@@ -5271,7 +5467,7 @@
                         x: ringR * Math.cos(angle),
                         y: Math.sin(angle * 3 + ringIdx) * 28,
                         z: ringR * Math.sin(angle),
-                        radius: 8.0
+                        radius: 9.5
                     });
                 });
 
@@ -5289,6 +5485,7 @@
             rotX = 0.95;
             rotY = 0.05;
             window.autoFitGalaxyViewport(0);
+            if (slimePlaying) seedSlimeDemo();
         };
 
         window.enterClusterDrilldown = function(clusterKey) {
@@ -5298,6 +5495,7 @@
             rotX = 0.95;
             rotY = 0.05;
             window.autoFitGalaxyViewport(0);
+            if (slimePlaying) seedSlimeDemo();
         };
 
         window.fireNeuralImpulse = function() {
@@ -5309,22 +5507,144 @@
                         tgt: e.target,
                         progress: 0,
                         speed: 0.015 + Math.random() * 0.015,
-                        color: e.source.color || '#00f0b4'
+                        color: e.source.color || '#d4ec5a'
                     });
                 });
             } else {
-                for (let i = 0; i < Math.min(currentRenderNodes.length, 12); i++) {
+                for (let i = 0; i < Math.min(currentRenderNodes.length, 16); i++) {
                     const n = currentRenderNodes[i];
                     impulses.push({
                         src: currentRenderNodes[0],
                         tgt: n,
                         progress: 0,
                         speed: 0.02 + Math.random() * 0.02,
-                        color: n.color || '#00d2ff'
+                        color: n.color || '#d4ec5a'
                     });
                 }
             }
         };
+
+        function slimeLabel(keyPlay, keyPause) {
+            const dict = (i18n[currentLang] || i18n.en);
+            return slimePlaying ? (dict[keyPause] || dict[keyPlay]) : dict[keyPlay];
+        }
+
+        window.syncSlimePlayButton = function() {
+            const playText = slimeLabel('btn_slime_play', 'btn_slime_pause');
+            const icon = slimePlaying ? '⏸' : '▶';
+            ['btnSlimePlayIcon', 'btnSlimePlayIconPipe'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = icon;
+            });
+            const label = document.getElementById('btnSlimePlayLabel');
+            if (label) label.textContent = playText;
+            document.querySelectorAll('.btn-slime-play [data-i18n="btn_slime_play"]').forEach(el => {
+                if (el.id !== 'btnSlimePlayLabel') el.textContent = playText;
+            });
+            const btn = document.getElementById('btnSlimePlay');
+            if (btn) btn.classList.toggle('playing', slimePlaying);
+            document.querySelectorAll('.btn-slime-play').forEach(b => b.classList.toggle('playing', slimePlaying));
+            const banner = document.getElementById('slimePlayBanner');
+            if (banner) banner.classList.toggle('visible', slimePlaying);
+            const bannerText = document.getElementById('slimePlayBannerText');
+            if (bannerText) {
+                bannerText.textContent = (i18n[currentLang] || i18n.en).slime_playing || bannerText.textContent;
+            }
+        };
+
+        function seedSlimeDemo() {
+            slimeClock = 0;
+            slimeNutrients = [];
+            slimeVeins = [];
+            if (activeClusterKey === null) {
+                currentRenderEdges.forEach((e, i) => {
+                    slimeVeins.push({
+                        src: e.source,
+                        tgt: e.target,
+                        weight: e.weight || 1,
+                        delay: (i % 7) * 0.22 + Math.random() * 0.1,
+                        duration: 1.05 + Math.random() * 0.55,
+                        color: (e.source && e.source.color) || '#d4ec5a'
+                    });
+                });
+            } else {
+                const hub = currentRenderNodes[0];
+                const rest = currentRenderNodes.slice(1, 90);
+                rest.forEach((n, i) => {
+                    slimeVeins.push({
+                        src: hub,
+                        tgt: n,
+                        weight: n.isFile ? 2.2 : 1.1,
+                        delay: (i % 10) * 0.14 + Math.random() * 0.08,
+                        duration: 0.85 + Math.random() * 0.5,
+                        color: n.color || '#d4ec5a'
+                    });
+                });
+            }
+            window.fireNeuralImpulse();
+        }
+
+        window.startSlimePlay = function() {
+            slimePlaying = true;
+            seedSlimeDemo();
+            seedPipelineSlimeColony();
+            window.syncSlimePlayButton();
+        };
+
+        window.stopSlimePlay = function() {
+            slimePlaying = false;
+            slimeNutrients = [];
+            window.syncSlimePlayButton();
+        };
+
+        window.toggleSlimePlay = function() {
+            if (slimePlaying) window.stopSlimePlay();
+            else window.startSlimePlay();
+        };
+
+        function veinGrowth(vein) {
+            if (!slimePlaying) return 1;
+            const local = slimeClock - vein.delay;
+            if (local < 0) return 0;
+            const cycle = 9.5;
+            const phase = local % cycle;
+            if (phase < vein.duration) return phase / vein.duration;
+            if (phase < cycle - 1.6) return 1;
+            return Math.max(0.06, 1 - (phase - (cycle - 1.6)) / 1.6);
+        }
+
+        function seedPipelineSlimeColony() {
+            const hubs = [
+                { x: 90, y: 84, r: 22, color: '#d4ec5a' },
+                { x: 250, y: 48, r: 16, color: '#00f0b4' },
+                { x: 430, y: 92, r: 18, color: '#00d2ff' },
+                { x: 610, y: 44, r: 15, color: '#a855f7' },
+                { x: 790, y: 88, r: 20, color: '#f59e0b' }
+            ];
+            const droplets = [];
+            hubs.forEach((h, hi) => {
+                for (let i = 0; i < 5; i++) {
+                    const a = (i / 5) * Math.PI * 2 + hi * 0.4;
+                    droplets.push({
+                        x: h.x + Math.cos(a) * (36 + (i % 2) * 10),
+                        y: h.y + Math.sin(a) * (22 + (i % 2) * 8),
+                        r: 5 + (i % 3),
+                        color: h.color
+                    });
+                }
+            });
+            pipelineSlimeNodes = hubs.concat(droplets);
+            pipelineSlimeVeins = [];
+            for (let i = 0; i < hubs.length - 1; i++) {
+                pipelineSlimeVeins.push({ src: hubs[i], tgt: hubs[i + 1], delay: i * 0.35, duration: 1.1, color: hubs[i].color });
+            }
+            hubs.forEach((h, hi) => {
+                droplets.slice(hi * 5, hi * 5 + 5).forEach((d, i) => {
+                    pipelineSlimeVeins.push({ src: h, tgt: d, delay: 0.2 + hi * 0.2 + i * 0.08, duration: 0.7, color: h.color });
+                });
+            });
+        }
+        seedPipelineSlimeColony();
 
         function updateGalaxyHUD() {
             const badge = document.getElementById('nodeCountBadge');
@@ -5423,46 +5743,224 @@
             };
         }
 
+        function colorWithAlpha(color, alpha) {
+            const raw = (color || '#00f0b4').trim();
+            if (raw.startsWith('rgba') || raw.startsWith('rgb')) return raw;
+            let hex = raw.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+            if (hex.length < 6) return `rgba(0, 240, 180, ${alpha})`;
+            const n = parseInt(hex.slice(0, 6), 16);
+            if (Number.isNaN(n)) return `rgba(0, 240, 180, ${alpha})`;
+            return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+        }
+
+        function canvasToWorld(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left - panX) / scale,
+                y: (e.clientY - rect.top - panY) / scale,
+                sx: e.clientX - rect.left,
+                sy: e.clientY - rect.top
+            };
+        }
+
+        function nodePassesFilters(n) {
+            if (activeTypeFilter !== 'all' && !n.isMacroHub && !(n.node_type || '').toLowerCase().includes(activeTypeFilter.toLowerCase())) {
+                return false;
+            }
+            if (searchQuery && !(n.name || n.key || '').toLowerCase().includes(searchQuery)) {
+                return false;
+            }
+            return true;
+        }
+
         function findNodeAtScreenPos(mouseX, mouseY) {
-            for (let i = currentRenderNodes.length - 1; i >= 0; i--) {
+            let best = null;
+            let bestScore = Infinity;
+            for (let i = 0; i < currentRenderNodes.length; i++) {
                 const n = currentRenderNodes[i];
-                if (activeTypeFilter !== 'all' && !n.isMacroHub && !(n.node_type || '').toLowerCase().includes(activeTypeFilter.toLowerCase())) {
-                    continue;
-                }
-                if (searchQuery && !(n.name || n.key || '').toLowerCase().includes(searchQuery)) {
-                    continue;
-                }
+                if (!nodePassesFilters(n)) continue;
                 const p = project3D(n.x, n.y, n.z);
                 if (!p.visible || p.scale <= 0) continue;
 
-                const r = Math.max(2.0, (n.radius || 10) * p.scale);
-                const dx = p.px - mouseX;
-                const dy = p.py - mouseY;
+                const r = Math.max(3.5, (n.radius || 10) * p.scale);
+                const dist = Math.hypot(p.px - mouseX, p.py - mouseY);
+                const hitR = r * (n.isMacroHub ? 1.28 : 1.22) + (n.isMacroHub ? 8 : 5);
+                let hit = dist <= hitR;
 
-                // Sphere circle hit with generous magnetic tolerance
-                const hitRadius = n.isMacroHub ? Math.max(r + 30, 42) : Math.max(r + 18, 24);
-                if (Math.hypot(dx, dy) <= hitRadius) {
-                    return n;
+                if (!hit && n.isMacroHub) {
+                    const badgeW = Math.min(220, 120 + String(n.name || '').length * 6) * Math.min(1.15, p.scale);
+                    const badgeH = 40 * p.scale;
+                    const boxX = p.px - badgeW / 2;
+                    const boxY = p.py + r + 6 * p.scale;
+                    if (mouseX >= boxX && mouseX <= boxX + badgeW && mouseY >= boxY && mouseY <= boxY + badgeH) {
+                        hit = true;
+                    }
                 }
 
-                // Macro planetary badge hit
-                if (n.isMacroHub) {
-                    const badgeW = 200 * p.scale;
-                    const badgeH = 55 * p.scale;
-                    const boxX = p.px - badgeW / 2;
-                    const boxY = p.py + r + 4 * p.scale;
-                    if (mouseX >= boxX - 12 && mouseX <= boxX + badgeW + 12 && mouseY >= boxY - 12 && mouseY <= boxY + badgeH + 12) {
-                        return n;
-                    }
-                } else if (n.isFile) {
-                    // File pill hit
-                    const pillW = 140 * p.scale;
-                    if (mouseX >= p.px + r - 10 && mouseX <= p.px + r + pillW + 20 && mouseY >= p.py - 18 * p.scale && mouseY <= p.py + 18 * p.scale) {
-                        return n;
-                    }
+                if (!hit) continue;
+                // Front-most (smaller projected z) and closer to the cursor wins.
+                const score = (dist / Math.max(1, hitR)) + p.z * 0.0025;
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = n;
                 }
             }
-            return null;
+            return best;
+        }
+
+        function drawSlimeBlob(x, y, r, color, opts) {
+            const phase = (opts && opts.phase) || 0;
+            const hovered = !!(opts && opts.hovered);
+            const hub = !!(opts && opts.hub);
+            const swell = (opts && opts.swell) || 1;
+            const t = pulseTime * (slimePlaying ? 1.8 : 1.05) + phase;
+            const wobble = slimePlaying ? (hub ? 0.2 : 0.16) : (hub ? 0.1 : 0.07);
+            const lobes = hub ? 6 : 5;
+            const steps = hub ? 42 : 28;
+
+            ctx.beginPath();
+            for (let i = 0; i <= steps; i++) {
+                const a = (i / steps) * Math.PI * 2;
+                const w = 1 + wobble * Math.sin(a * lobes + t) + wobble * 0.45 * Math.sin(a * (lobes + 2) - t * 0.85);
+                const px = x + Math.cos(a) * r * w * swell;
+                const py = y + Math.sin(a) * r * w * swell;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+
+            const glowR = r * (hovered ? 3.4 : 2.6);
+            const grad = ctx.createRadialGradient(x - r * 0.22, y - r * 0.28, Math.max(0.5, r * 0.08), x, y, glowR);
+            grad.addColorStop(0, colorWithAlpha('#f7ffc4', hovered ? 0.9 : 0.62));
+            grad.addColorStop(0.28, colorWithAlpha(color, hovered ? 0.92 : 0.78));
+            grad.addColorStop(0.68, colorWithAlpha(color, 0.2));
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(x - r * 0.22, y - r * 0.28, Math.max(1.2, r * (hub ? 0.34 : 0.38)), 0, Math.PI * 2);
+            ctx.fillStyle = colorWithAlpha('#fff8d0', hovered ? 0.55 : 0.32);
+            ctx.fill();
+
+            if (hovered) {
+                ctx.beginPath();
+                ctx.arc(x, y, r * 1.45 * swell, 0, Math.PI * 2);
+                ctx.strokeStyle = colorWithAlpha('#f4ff9a', 0.85);
+                ctx.lineWidth = 1.6;
+                ctx.stroke();
+            }
+        }
+
+        function drawSlimeVein(x1, y1, x2, y2, opts) {
+            const growth = opts.growth == null ? 1 : opts.growth;
+            if (growth <= 0.02) return;
+            const bend = opts.bend || 0;
+            const mx = (x1 + x2) / 2 + Math.sin(pulseTime * 0.9 + bend) * (18 * (opts.scale || 1));
+            const my = (y1 + y2) / 2 + Math.cos(pulseTime * 0.7 + bend) * (12 * (opts.scale || 1));
+            const ex = x1 + (x2 - x1) * growth;
+            const ey = y1 + (y2 - y1) * growth;
+            const cmx = x1 + (mx - x1) * growth;
+            const cmy = y1 + (my - y1) * growth;
+            const cond = opts.conductivity == null ? 0.55 : opts.conductivity;
+            const width = Math.max(1.1, (opts.width || 2) * (0.55 + cond));
+
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.quadraticCurveTo(cmx, cmy, ex, ey);
+            ctx.strokeStyle = colorWithAlpha(opts.color || '#d4ec5a', 0.12 + 0.5 * cond);
+            ctx.lineWidth = width;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.quadraticCurveTo(cmx, cmy, ex, ey);
+            ctx.strokeStyle = colorWithAlpha('#f4ff9a', 0.18 + 0.35 * cond);
+            ctx.lineWidth = Math.max(0.6, width * 0.32);
+            ctx.stroke();
+        }
+
+        function updateHoverTip(node, sx, sy) {
+            const tip = document.getElementById('galaxyHoverTip');
+            if (!tip) return;
+            if (!node) {
+                tip.classList.remove('visible');
+                return;
+            }
+            const title = node.name || node.key || 'node';
+            const kind = node.isMacroHub
+                ? (activeClusterKey === null
+                    ? (currentLang === 'fa' ? 'ماژول — کلیک برای ورود' : 'Module — click to open')
+                    : (currentLang === 'fa' ? 'ماژول — کلیک برای بازگشت' : 'Module — click to go back'))
+                : (node.isFile
+                    ? (currentLang === 'fa' ? 'فایل — کلیک برای باز کردن' : 'File — click to inspect')
+                    : (currentLang === 'fa' ? 'نماد — کلیک برای باز کردن' : 'Symbol — click to inspect'));
+            tip.innerHTML = `${title}<small>${kind}</small>`;
+            tip.style.left = `${sx}px`;
+            tip.style.top = `${sy}px`;
+            tip.classList.add('visible');
+        }
+
+        function drawPipelineSlimePreview() {
+            const pcv = document.getElementById('pipelineSlimeCanvas');
+            if (!pcv) return;
+            const parent = pcv.parentElement;
+            if (parent) {
+                const w = Math.max(320, parent.clientWidth);
+                if (Math.abs(pcv.width - w) > 8) pcv.width = w;
+            }
+            const pctx = pcv.getContext('2d');
+            if (!pctx) return;
+            pctx.clearRect(0, 0, pcv.width, pcv.height);
+            const sx = pcv.width / 920;
+            const drawBlob = (node, swell) => {
+                const x = node.x * sx;
+                const y = node.y;
+                const r = node.r;
+                const t = pulseTime + x * 0.01;
+                pctx.beginPath();
+                for (let i = 0; i <= 28; i++) {
+                    const a = (i / 28) * Math.PI * 2;
+                    const w = 1 + 0.14 * Math.sin(a * 5 + t * 1.4);
+                    const px = x + Math.cos(a) * r * w * swell;
+                    const py = y + Math.sin(a) * r * w * swell;
+                    if (i === 0) pctx.moveTo(px, py); else pctx.lineTo(px, py);
+                }
+                pctx.closePath();
+                const g = pctx.createRadialGradient(x, y, 2, x, y, r * 2.4);
+                g.addColorStop(0, colorWithAlpha('#f7ffc4', 0.8));
+                g.addColorStop(0.45, colorWithAlpha(node.color, 0.7));
+                g.addColorStop(1, 'transparent');
+                pctx.fillStyle = g;
+                pctx.fill();
+            };
+            pipelineSlimeVeins.forEach((v, i) => {
+                const growth = slimePlaying ? veinGrowth({ delay: v.delay, duration: v.duration }) : 0.85;
+                const x1 = v.src.x * sx, y1 = v.src.y, x2 = v.tgt.x * sx, y2 = v.tgt.y;
+                const mx = (x1 + x2) / 2 + Math.sin(pulseTime + i) * 10;
+                const my = (y1 + y2) / 2 + Math.cos(pulseTime * 0.8 + i) * 8;
+                const ex = x1 + (x2 - x1) * growth;
+                const ey = y1 + (y2 - y1) * growth;
+                pctx.beginPath();
+                pctx.moveTo(x1, y1);
+                pctx.quadraticCurveTo(x1 + (mx - x1) * growth, y1 + (my - y1) * growth, ex, ey);
+                pctx.strokeStyle = colorWithAlpha(v.color, 0.25 + 0.45 * growth);
+                pctx.lineWidth = 2.4 + growth * 2;
+                pctx.lineCap = 'round';
+                pctx.stroke();
+                if (slimePlaying && growth > 0.05 && growth < 1) {
+                    pctx.beginPath();
+                    pctx.arc(ex, ey, 3.2, 0, Math.PI * 2);
+                    pctx.fillStyle = '#f4ff9a';
+                    pctx.fill();
+                }
+            });
+            pipelineSlimeNodes.forEach((n, i) => {
+                const swell = slimePlaying ? 1 + 0.08 * Math.sin(pulseTime * 2.2 + i) : 1;
+                drawBlob(n, swell);
+            });
         }
 
         let pulseTime = 0;
@@ -5470,7 +5968,11 @@
         let mouseDownPos = { x: 0, y: 0 };
 
         function animateGalaxy() {
-            // Smooth Camera Lerp Animation
+            if (!canvas || !ctx) {
+                drawPipelineSlimePreview();
+                requestAnimationFrame(animateGalaxy);
+                return;
+            }
             if (!isDragging) {
                 scale += (targetScale - scale) * 0.12;
                 panX += (targetPanX - panX) * 0.12;
@@ -5478,20 +5980,20 @@
             }
 
             pulseTime += 0.025;
+            if (slimePlaying) slimeClock += 0.016;
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 🌌 Draw Starfield Background
             if (galaxyLayers.stars) {
                 const cx = canvas.width / 2;
                 const cy = canvas.height / 2;
                 stars.forEach(s => {
                     const px = cx + (s.x - cx + panX * 0.05);
                     const py = cy + (s.y - cy + panY * 0.05);
-                    const alpha = (Math.sin(pulseTime * s.speed + s.phase) * 0.35 + 0.65) * s.alpha;
+                    const alpha = (Math.sin(pulseTime * s.speed + s.phase) * 0.35 + 0.65) * s.alpha * (s.brightness || 1);
                     ctx.beginPath();
                     ctx.arc(px, py, s.size, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(180, 220, 255, ${alpha})`;
+                    ctx.fillStyle = `rgba(180, 220, 255, ${Math.max(0, Math.min(1, alpha))})`;
                     ctx.fill();
                 });
             }
@@ -5500,22 +6002,17 @@
             ctx.translate(panX, panY);
             ctx.scale(scale, scale);
 
-            if (is3D && !isDragging) {
-                rotY += 0.0010;
+            const recentlyTouched = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - lastInteractAt < 1600;
+            if (is3D && !isDragging && !hoveredNode && !recentlyTouched) {
+                rotY += slimePlaying ? 0.00035 : 0.0010;
             }
 
-            // Project Nodes
             const nodeMap = new Map();
             const projectedNodes = [];
 
             for (let i = 0; i < currentRenderNodes.length; i++) {
                 const n = currentRenderNodes[i];
-                if (activeTypeFilter !== 'all' && !n.isMacroHub && !(n.node_type || '').toLowerCase().includes(activeTypeFilter.toLowerCase())) {
-                    continue;
-                }
-                if (searchQuery && !(n.name || n.key || '').toLowerCase().includes(searchQuery)) {
-                    continue;
-                }
+                if (!nodePassesFilters(n)) continue;
                 const p = project3D(n.x, n.y, n.z);
                 if (p.visible && p.scale > 0) {
                     const pn = { ...n, ...p };
@@ -5524,53 +6021,78 @@
                 }
             }
 
-            // ⚡ Draw Glowing Synapse Arteries
+            const resolveEdgeNode = (ref) => {
+                if (!ref) return null;
+                if (typeof ref === 'object') return nodeMap.get(ref.key || getNodeId(ref));
+                return nodeMap.get(ref);
+            };
+
             if (galaxyLayers.synapses) {
-                if (activeClusterKey === null) {
-                    currentRenderEdges.forEach(e => {
+                if (slimePlaying && slimeVeins.length) {
+                    slimeVeins.forEach((vein, i) => {
+                        const src = resolveEdgeNode(vein.src);
+                        const tgt = resolveEdgeNode(vein.tgt);
+                        if (!src || !tgt) return;
+                        const growth = veinGrowth(vein);
+                        drawSlimeVein(src.px, src.py, tgt.px, tgt.py, {
+                            growth,
+                            conductivity: 0.35 + 0.55 * growth,
+                            width: (vein.weight || 1) * 2.1 * src.scale,
+                            color: vein.color || src.color || '#d4ec5a',
+                            bend: i * 0.7,
+                            scale: src.scale
+                        });
+                    });
+                } else if (activeClusterKey === null) {
+                    currentRenderEdges.forEach((e, i) => {
                         const src = nodeMap.get(e.source.key);
                         const tgt = nodeMap.get(e.target.key);
                         if (src && tgt) {
-                            ctx.beginPath();
-                            ctx.moveTo(src.px, src.py);
-                            ctx.lineTo(tgt.px, tgt.py);
-                            const alpha = Math.sin(pulseTime * 2 + (src.px * 0.01)) * 0.15 + 0.35;
-                            ctx.strokeStyle = `rgba(0, 240, 180, ${Math.max(0.1, alpha * src.scale)})`;
-                            ctx.lineWidth = Math.max(1.2, (e.weight || 1.0) * 1.8 * src.scale);
-                            ctx.stroke();
+                            drawSlimeVein(src.px, src.py, tgt.px, tgt.py, {
+                                growth: 1,
+                                conductivity: 0.45 + 0.15 * Math.sin(pulseTime * 2 + src.px * 0.01),
+                                width: (e.weight || 1) * 1.8 * src.scale,
+                                color: src.color || '#d4ec5a',
+                                bend: i,
+                                scale: src.scale
+                            });
                         }
                     });
                 } else {
-                    ctx.beginPath();
-                    ctx.strokeStyle = 'rgba(0, 210, 255, 0.25)';
-                    ctx.lineWidth = 1.0;
-                    currentRenderEdges.forEach(e => {
+                    currentRenderEdges.forEach((e, i) => {
                         const src = nodeMap.get(e.source);
                         const tgt = nodeMap.get(e.target);
                         if (src && tgt) {
-                            ctx.moveTo(src.px, src.py);
-                            ctx.lineTo(tgt.px, tgt.py);
+                            drawSlimeVein(src.px, src.py, tgt.px, tgt.py, {
+                                growth: 1,
+                                conductivity: 0.28,
+                                width: 1.4 * src.scale,
+                                color: src.color || '#00d2ff',
+                                bend: i * 0.4,
+                                scale: src.scale
+                            });
                         }
                     });
-                    ctx.stroke();
                 }
             }
 
-            // ⚡ Draw Flowing Neural Sparks (Impulses)
             if (galaxyLayers.impulses) {
+                if (slimePlaying && impulses.length < 6 && Math.random() < 0.04) {
+                    window.fireNeuralImpulse();
+                }
                 for (let i = impulses.length - 1; i >= 0; i--) {
                     const imp = impulses[i];
-                    imp.progress += imp.speed;
+                    imp.progress += imp.speed * (slimePlaying ? 1.35 : 1);
                     const src = nodeMap.get(imp.src.key || getNodeId(imp.src));
                     const tgt = nodeMap.get(imp.tgt.key || getNodeId(imp.tgt));
                     if (src && tgt && imp.progress <= 1.0) {
                         const ix = src.px + (tgt.px - src.px) * imp.progress;
                         const iy = src.py + (tgt.py - src.py) * imp.progress;
                         ctx.beginPath();
-                        ctx.arc(ix, iy, 4.5 * src.scale, 0, Math.PI * 2);
-                        ctx.fillStyle = imp.color || '#00f0b4';
-                        ctx.shadowColor = imp.color || '#00f0b4';
-                        ctx.shadowBlur = 12;
+                        ctx.arc(ix, iy, (slimePlaying ? 5.5 : 4.2) * src.scale, 0, Math.PI * 2);
+                        ctx.fillStyle = imp.color || '#f4ff9a';
+                        ctx.shadowColor = imp.color || '#d4ec5a';
+                        ctx.shadowBlur = slimePlaying ? 16 : 10;
                         ctx.fill();
                         ctx.shadowBlur = 0;
                     } else if (imp.progress > 1.0) {
@@ -5579,111 +6101,57 @@
                 }
             }
 
-            // Sort and Draw Planetary Nodes
             projectedNodes.sort((a, b) => b.z - a.z);
 
+            const dense = projectedNodes.length > 48;
             projectedNodes.forEach(n => {
-                const r = Math.max(2.0, (n.radius || 10) * n.scale);
+                const r = Math.max(2.4, (n.radius || 10) * n.scale);
                 const isHovered = hoveredNode && (hoveredNode.key === n.key || getNodeId(hoveredNode) === getNodeId(n));
-                const color = n.color || '#00f0b4';
+                const color = n.color || '#d4ec5a';
+                const swell = slimePlaying ? 1 + 0.07 * Math.sin(pulseTime * 2.1 + (n.px || 0) * 0.02) : 1;
+
+                drawSlimeBlob(n.px, n.py, r, color, {
+                    hovered: isHovered,
+                    hub: !!n.isMacroHub,
+                    phase: (n.x || 0) * 0.02,
+                    swell
+                });
 
                 if (n.isMacroHub) {
-                    // 🪐 MACRO PLANETARY HUB RENDERING
-                    const glowGrad = ctx.createRadialGradient(n.px, n.py, r * 0.2, n.px, n.py, r * 2.8);
-                    glowGrad.addColorStop(0, color + (isHovered ? 'aa' : '66'));
-                    glowGrad.addColorStop(0.5, color + (isHovered ? '44' : '1a'));
-                    glowGrad.addColorStop(1, 'transparent');
-                    ctx.beginPath();
-                    ctx.arc(n.px, n.py, r * 2.8, 0, Math.PI * 2);
-                    ctx.fillStyle = glowGrad;
-                    ctx.fill();
-
-                    // Orbital Rings
-                    ctx.beginPath();
-                    ctx.ellipse(n.px, n.py, r * 2.2, r * 0.8, pulseTime * 0.5, 0, Math.PI * 2);
-                    ctx.strokeStyle = color + '55';
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
-
-                    // Orbiting Moonlet Satellites
-                    for (let m = 0; m < 3; m++) {
-                        const mAngle = pulseTime * (1.2 + m * 0.4) + (m * Math.PI * 0.66);
-                        const mx = n.px + (r * 2.2) * Math.cos(mAngle);
-                        const my = n.py + (r * 0.8) * Math.sin(mAngle);
-                        ctx.beginPath();
-                        ctx.arc(mx, my, Math.max(1.5, 3.0 * n.scale), 0, Math.PI * 2);
-                        ctx.fillStyle = '#fff';
-                        ctx.fill();
-                    }
-
-                    // Planetary Core Sphere
-                    ctx.beginPath();
-                    ctx.arc(n.px, n.py, r, 0, Math.PI * 2);
-                    ctx.fillStyle = color;
-                    ctx.fill();
-
-                    // Specular Highlight
-                    ctx.beginPath();
-                    ctx.arc(n.px - r * 0.35, n.py - r * 0.35, Math.max(0.8, r * 0.32), 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                    ctx.fill();
-
-                    // 🏷️ HIGH-CONTRAST SPACED-OUT GLASSMORPHIC BADGE
                     const badgeText = `${n.icon || '📦'} ${n.name}`;
                     const subText = `${n.files ? n.files.length : 0} files · ${n.symbols ? n.symbols.length : 0} symbols`;
-                    
                     ctx.font = `bold ${Math.max(12, Math.min(16, 14 * n.scale))}px Plus Jakarta Sans, Vazirmatn`;
                     const titleWidth = ctx.measureText(badgeText).width;
-                    
                     ctx.font = `${Math.max(10, Math.min(13, 11 * n.scale))}px Plus Jakarta Sans, Vazirmatn`;
                     const subWidth = ctx.measureText(subText).width;
-
                     const boxW = Math.max(titleWidth, subWidth) + 26;
                     const boxH = 42 * n.scale;
                     const boxX = n.px - boxW / 2;
-                    const boxY = n.py + r + 10 * n.scale;
+                    const boxY = n.py + r * swell + 10 * n.scale;
 
                     ctx.fillStyle = isHovered ? 'rgba(15, 21, 33, 0.98)' : 'rgba(8, 12, 22, 0.94)';
                     ctx.strokeStyle = isHovered ? color : 'rgba(255, 255, 255, 0.22)';
                     ctx.lineWidth = isHovered ? 2 : 1.2;
-                    
                     ctx.beginPath();
                     ctx.roundRect(boxX, boxY, boxW, boxH, 8);
                     ctx.fill();
                     ctx.stroke();
 
                     ctx.font = `bold ${Math.max(12, Math.min(16, 14 * n.scale))}px Plus Jakarta Sans, Vazirmatn`;
-                    ctx.fillStyle = isHovered ? '#00f0b4' : '#ffffff';
+                    ctx.fillStyle = isHovered ? '#e8ff8a' : '#ffffff';
                     ctx.textAlign = 'center';
                     ctx.fillText(badgeText, n.px, boxY + 17 * n.scale);
-
                     ctx.font = `${Math.max(10, Math.min(13, 11 * n.scale))}px Plus Jakarta Sans, Vazirmatn`;
                     ctx.fillStyle = '#94a3b8';
                     ctx.fillText(subText, n.px, boxY + 33 * n.scale);
                     ctx.textAlign = 'start';
                 } else {
-                    // 📄 DRILLDOWN NODE RENDERING
-                    ctx.beginPath();
-                    ctx.arc(n.px, n.py, Math.max(2.0, r * (isHovered ? 2.5 : 1.8)), 0, Math.PI * 2);
-                    ctx.fillStyle = color + (isHovered ? '55' : '22');
-                    ctx.fill();
-
-                    ctx.beginPath();
-                    ctx.arc(n.px, n.py, r, 0, Math.PI * 2);
-                    ctx.fillStyle = color;
-                    ctx.fill();
-
-                    ctx.beginPath();
-                    ctx.arc(n.px - r * 0.3, n.py - r * 0.3, Math.max(0.4, r * 0.35), 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                    ctx.fill();
-
-                    const showLabel = (n.isFile && (galaxyLayers.labels || currentRenderNodes.length <= 15 || isHovered)) || isHovered || galaxyLayers.labels || searchQuery.length > 0;
+                    const showLabel = isHovered || searchQuery.length > 0 || (!dense && (galaxyLayers.labels || (n.isFile && currentRenderNodes.length <= 18)));
                     if (showLabel) {
                         const fontSize = Math.max(10, Math.min(13, (n.isFile ? 11.5 : 10) * n.scale));
                         ctx.font = `${fontSize}px Plus Jakarta Sans, Vazirmatn`;
-                        const textW = ctx.measureText(n.name).width;
-                        
+                        const label = n.name || '';
+                        const textW = ctx.measureText(label).width;
                         ctx.fillStyle = isHovered ? 'rgba(15, 21, 33, 0.95)' : 'rgba(6, 9, 16, 0.82)';
                         ctx.strokeStyle = isHovered ? color : 'rgba(255, 255, 255, 0.12)';
                         ctx.lineWidth = 1;
@@ -5691,60 +6159,61 @@
                         ctx.roundRect(n.px + r + 4, n.py - fontSize * 0.75, textW + 10, fontSize + 8, 4);
                         ctx.fill();
                         ctx.stroke();
-
-                        ctx.fillStyle = isHovered ? '#00f0b4' : `rgba(248, 250, 252, ${Math.min(1.0, n.scale * 1.3)})`;
-                        ctx.fillText(n.name, n.px + r + 9, n.py + 3);
+                        ctx.fillStyle = isHovered ? '#e8ff8a' : `rgba(248, 250, 252, ${Math.min(1.0, n.scale * 1.3)})`;
+                        ctx.fillText(label, n.px + r + 9, n.py + 3);
                     }
                 }
             });
 
             ctx.restore();
+            drawPipelineSlimePreview();
             requestAnimationFrame(animateGalaxy);
         }
 
+        if (canvas) {
         canvas.addEventListener('contextmenu', e => {
             e.preventDefault();
         });
 
         canvas.addEventListener('mousedown', e => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = (e.clientX - rect.left - panX) / scale;
-            const mouseY = (e.clientY - rect.top - panY) / scale;
-
+            const pos = canvasToWorld(e);
             dragStartX = e.clientX;
             dragStartY = e.clientY;
             hasMovedSignificantly = false;
+            lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-            const isPanButton = (e.button === 2 || e.button === 1 || e.shiftKey || !is3D);
+            const hit = (e.button === 0 && !e.shiftKey) ? findNodeAtScreenPos(pos.x, pos.y) : null;
+            dragNode = hit;
 
-            if (!isPanButton && e.button === 0) {
-                dragNode = findNodeAtScreenPos(mouseX, mouseY);
-            } else {
-                dragNode = null;
-            }
-
+            const wantPan = e.button === 2 || e.button === 1 || e.shiftKey;
             isDragging = true;
-            isRightDragging = isPanButton;
+            isRightDragging = wantPan;
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
         });
 
         canvas.addEventListener('mousemove', e => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = (e.clientX - rect.left - panX) / scale;
-            const mouseY = (e.clientY - rect.top - panY) / scale;
-
-            hoveredNode = findNodeAtScreenPos(mouseX, mouseY);
-            canvas.style.cursor = hoveredNode ? 'pointer' : (isDragging ? (isRightDragging ? 'move' : 'grabbing') : 'grab');
+            const pos = canvasToWorld(e);
+            hoveredNode = findNodeAtScreenPos(pos.x, pos.y);
+            canvas.classList.toggle('can-click', !!hoveredNode);
+            canvas.style.cursor = hoveredNode ? 'pointer' : (isDragging ? (isRightDragging || !is3D ? 'move' : 'grabbing') : 'grab');
+            updateHoverTip(hoveredNode, pos.sx, pos.sy);
 
             if (isDragging) {
                 const deltaX = e.clientX - lastMouseX;
                 const deltaY = e.clientY - lastMouseY;
 
-                if (Math.abs(e.clientX - dragStartX) > 4 || Math.abs(e.clientY - dragStartY) > 4) {
+                if (Math.abs(e.clientX - dragStartX) > 8 || Math.abs(e.clientY - dragStartY) > 8) {
                     hasMovedSignificantly = true;
                 }
 
+                if (!hasMovedSignificantly) {
+                    lastMouseX = e.clientX;
+                    lastMouseY = e.clientY;
+                    return;
+                }
+
+                lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
                 if (isRightDragging || !is3D) {
                     panX += deltaX;
                     panY += deltaY;
@@ -5761,8 +6230,15 @@
             }
         });
 
+        canvas.addEventListener('mouseleave', () => {
+            hoveredNode = null;
+            canvas.classList.remove('can-click');
+            updateHoverTip(null, 0, 0);
+        });
+
         window.addEventListener('mouseup', () => {
             if (!hasMovedSignificantly && dragNode) {
+                lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
                 if (dragNode.isMacroHub) {
                     if (activeClusterKey === null) {
                         window.enterClusterDrilldown(dragNode.key);
@@ -5784,16 +6260,17 @@
 
         canvas.addEventListener('wheel', e => {
             e.preventDefault();
+            lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
             const rect = canvas.getBoundingClientRect();
             const factor = e.deltaY < 0 ? 1.12 : 0.89;
             const newScale = Math.max(0.25, Math.min(4.0, scale * factor));
-            
+
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
-            
+
             panX = mouseX - (mouseX - panX) * (newScale / scale);
             panY = mouseY - (mouseY - panY) * (newScale / scale);
-            
+
             scale = newScale;
             targetScale = newScale;
             targetPanX = panX;
@@ -5803,6 +6280,7 @@
         canvas.addEventListener('dblclick', () => {
             window.resetCanvas();
         });
+        }
 
         window.resetCanvas = function() {
             rotX = 0.95;
@@ -5860,6 +6338,7 @@
         window.fetchUsage();
         window.fetchMemory();
         window.fetchLogs();
+        if (typeof window.syncSlimePlayButton === 'function') window.syncSlimePlayButton();
         animateGalaxy();
 
         // ⚡ SMART ADAPTIVE BACKGROUND POLLING ENGINE (Default: 8s with Tab Visibility Auto-Pause)
