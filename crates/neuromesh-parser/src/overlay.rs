@@ -1690,4 +1690,26 @@ mod tests {
             router.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
         );
     }
+
+    #[test]
+    fn less_and_svg_extract_tokens_and_ids() {
+        let less = analyze(
+            "styles/sms.less",
+            "@smsUnread: #ef4444;\n.smsBadge(@color) { color: @smsUnread; }\n",
+            SourceLanguage::Less,
+        );
+        assert!(less.symbols.iter().any(|s| s.name == "smsUnread"));
+        assert!(less.symbols.iter().any(|s| s.name == "smsBadge"));
+
+        let svg = analyze(
+            "assets/sms-inbox.svg",
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><symbol id=\"smsInbox\" viewBox=\"0 0 24 24\"><path d=\"M2 4\"/></symbol></svg>\n",
+            SourceLanguage::Svg,
+        );
+        assert!(
+            svg.symbols.iter().any(|s| s.name == "smsInbox"),
+            "symbols = {:?}",
+            svg.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
 }

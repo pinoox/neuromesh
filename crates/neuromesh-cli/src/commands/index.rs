@@ -40,9 +40,12 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
 
     for (file, _) in &scanned_files {
         total_tokens += file.token_count;
-        let path_str = file.relative_path.to_string_lossy().to_lowercase();
-        if path_str.ends_with(".html") || path_str.ends_with(".htm") || path_str.ends_with(".twig")
-        {
+        if matches!(
+            file.language,
+            neuromesh_index::SourceLanguage::HTML
+                | neuromesh_index::SourceLanguage::Twig
+                | neuromesh_index::SourceLanguage::Svg
+        ) {
             has_html = true;
         }
         if file.language == neuromesh_index::SourceLanguage::Vue {
@@ -51,7 +54,12 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
         if file.language == neuromesh_index::SourceLanguage::Svelte {
             has_svelte = true;
         }
-        if file.language == neuromesh_index::SourceLanguage::SCSS || path_str.ends_with(".css") {
+        if matches!(
+            file.language,
+            neuromesh_index::SourceLanguage::SCSS
+                | neuromesh_index::SourceLanguage::CSS
+                | neuromesh_index::SourceLanguage::Less
+        ) {
             has_scss = true;
         }
         if file.language == neuromesh_index::SourceLanguage::TypeScript {
@@ -104,7 +112,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             project_id.clone(),
             "styling",
             "stylesheets",
-            "SCSS or CSS files are present",
+            "SCSS, CSS, or LESS files are present",
         ))?;
     }
     if has_ts {

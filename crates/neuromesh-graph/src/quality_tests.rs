@@ -996,4 +996,45 @@ class SmsReceiver : BroadcastReceiver() {
             40,
         );
     }
+
+    #[test]
+    fn stylesheet_import_does_not_explode_class_namesakes() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("css"));
+        let tokens = ".card { color: red; }\n";
+        let sms = "@import \"tokens.css\";\n.smsBadge { color: blue; }\n.card { padding: 1rem; }\n";
+        graph.ingest_file(
+            &indexed("styles/tokens.css"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("styles/tokens.css"),
+                tokens,
+                SourceLanguage::CSS,
+            ),
+            Some(tokens),
+        );
+        graph.ingest_file(
+            &indexed("styles/sms.css"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("styles/sms.css"),
+                sms,
+                SourceLanguage::CSS,
+            ),
+            Some(sms),
+        );
+        graph.finalize_links();
+        let stats = graph.stats();
+        assert!(
+            stats.total_edges < 20,
+            "edges exploded: {}",
+            stats.total_edges
+        );
+        assert!(
+            stats.resolved_imports >= 1,
+            "expected unique @import to tokens.css"
+        );
+        let card_hits = graph.search_symbols("card", 10);
+        assert!(
+            card_hits.len() >= 2,
+            "both card class definitions should stay searchable, got {card_hits:?}"
+        );
+    }
 }

@@ -11,6 +11,7 @@ pub enum SourceLanguage {
     JavaScript,
     SCSS,
     CSS,
+    Less,
     Rust,
     Python,
     Go,
@@ -27,6 +28,7 @@ pub enum SourceLanguage {
     YAML,
     Markdown,
     HTML,
+    Svg,
     Twig,
     Svelte,
     Astro,
@@ -61,6 +63,7 @@ impl SourceLanguage {
             "js" | "jsx" | "mjs" | "cjs" => SourceLanguage::JavaScript,
             "scss" | "sass" => SourceLanguage::SCSS,
             "css" => SourceLanguage::CSS,
+            "less" => SourceLanguage::Less,
             "rs" => SourceLanguage::Rust,
             "py" | "pyw" => SourceLanguage::Python,
             "go" => SourceLanguage::Go,
@@ -77,6 +80,7 @@ impl SourceLanguage {
             "yaml" | "yml" => SourceLanguage::YAML,
             "md" | "markdown" => SourceLanguage::Markdown,
             "html" | "htm" | "cshtml" | "razor" => SourceLanguage::HTML,
+            "svg" => SourceLanguage::Svg,
             "twig" => SourceLanguage::Twig,
             "svelte" => SourceLanguage::Svelte,
             "astro" => SourceLanguage::Astro,
@@ -96,6 +100,7 @@ impl SourceLanguage {
             Self::JavaScript => "javascript",
             Self::SCSS => "scss",
             Self::CSS => "css",
+            Self::Less => "less",
             Self::Rust => "rust",
             Self::Python => "python",
             Self::Go => "go",
@@ -112,6 +117,7 @@ impl SourceLanguage {
             Self::YAML => "yaml",
             Self::Markdown => "markdown",
             Self::HTML => "html",
+            Self::Svg => "svg",
             Self::Twig => "twig",
             Self::Svelte => "svelte",
             Self::Astro => "astro",
@@ -208,6 +214,24 @@ mod tests {
             SourceLanguage::from_path(Path::new("Inbox.razor")),
             SourceLanguage::HTML
         );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("styles/sms.less")),
+            SourceLanguage::Less
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("assets/sms-inbox.svg")),
+            SourceLanguage::Svg
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("theme/inbox.html")),
+            SourceLanguage::HTML
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("theme/badge.css")),
+            SourceLanguage::CSS
+        );
+        assert!(SourceLanguage::Less.is_code());
+        assert!(SourceLanguage::Svg.is_code());
         assert!(SourceLanguage::Twig.is_code());
         assert!(SourceLanguage::Svelte.is_code());
         assert!(SourceLanguage::Astro.is_code());

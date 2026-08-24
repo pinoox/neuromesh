@@ -33,6 +33,8 @@ enum Fallback {
     Generic,
     Html,
     Scss,
+    Css,
+    Less,
     None,
 }
 
@@ -123,14 +125,28 @@ impl LanguageSpec {
                 options: QueryOptions::typescript(),
                 fallback: Fallback::Vue,
             },
-            SourceLanguage::SCSS | SourceLanguage::CSS => Self {
+            SourceLanguage::SCSS => Self {
                 language,
                 grammar: None,
                 queries: None,
                 options: QueryOptions::typescript(),
                 fallback: Fallback::Scss,
             },
-            SourceLanguage::HTML | SourceLanguage::Twig => Self {
+            SourceLanguage::CSS => Self {
+                language,
+                grammar: None,
+                queries: None,
+                options: QueryOptions::typescript(),
+                fallback: Fallback::Css,
+            },
+            SourceLanguage::Less => Self {
+                language,
+                grammar: None,
+                queries: None,
+                options: QueryOptions::typescript(),
+                fallback: Fallback::Less,
+            },
+            SourceLanguage::HTML | SourceLanguage::Twig | SourceLanguage::Svg => Self {
                 language,
                 grammar: None,
                 queries: None,
@@ -178,6 +194,8 @@ impl Fallback {
             Fallback::Generic => GenericParser::parse(path, content),
             Fallback::Html => HtmlParser::parse(path, content),
             Fallback::Scss => ScssParser::parse(path, content),
+            Fallback::Css => ScssParser::parse_css(path, content),
+            Fallback::Less => ScssParser::parse_less(path, content),
             Fallback::None => AstAnalysisResult::default(),
         }
     }

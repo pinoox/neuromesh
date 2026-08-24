@@ -1743,6 +1743,7 @@ fn index_tokens(data: &mut GraphData, id: &NodeId, name: &str) {
 fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     let mut bonus = match node.node_type {
         NodeType::Function | NodeType::Class | NodeType::Component | NodeType::Api => 8.0,
+        NodeType::StyleToken => 6.0,
         NodeType::File => 1.0,
         _ => 0.0,
     };

@@ -305,6 +305,24 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 expect_seeds_missed: false,
             },
         ),
+        (
+            "mini-styles",
+            GoldTask {
+                id: "sms_badge".into(),
+                prompt: "How does smsBadge use smsUnread?".into(),
+                gold_files: vec!["styles/sms.less".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-styles",
+            GoldTask {
+                id: "sms_icon".into(),
+                prompt: "Where is smsInbox defined?".into(),
+                gold_files: vec!["assets/sms-inbox.svg".into()],
+                expect_seeds_missed: false,
+            },
+        ),
     ]
 }
 

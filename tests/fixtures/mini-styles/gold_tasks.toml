@@ -1,0 +1,11 @@
+[[task]]
+id = "sms_badge"
+prompt = "How does smsBadge use smsUnread?"
+gold_files = ["styles/sms.less"]
+expect_seeds_missed = false
+
+[[task]]
+id = "sms_icon"
+prompt = "Where is smsInbox defined?"
+gold_files = ["assets/sms-inbox.svg"]
+expect_seeds_missed = false
