@@ -20,10 +20,11 @@ impl GenericParser {
         static PHP_FN_RE: OnceLock<Regex> = OnceLock::new();
         static GO_FN_RE: OnceLock<Regex> = OnceLock::new();
         static JAVA_FN_RE: OnceLock<Regex> = OnceLock::new();
+        static KOTLIN_FN_RE: OnceLock<Regex> = OnceLock::new();
 
         let class_re = CLASS_RE.get_or_init(|| {
             Regex::new(
-                r"^\s*(?:public|private|protected|static|final|abstract|\s)*\s*(class|interface|struct|enum|trait|package)\s+([A-Za-z0-9_]+)",
+                r"^\s*(?:(?:public|private|protected|internal|open|abstract|final|sealed|data|annotation|inner|inline|value|actual|expect|static|enum)\s+)*(class|interface|object|struct|enum|trait)\s+([A-Za-z0-9_]+)",
             )
             .unwrap()
         });
@@ -40,6 +41,12 @@ impl GenericParser {
             Regex::new(r"^\s*(?:(?:public|private|protected|internal|static|final|async|override|virtual|abstract|synchronized|sealed|partial)\s+)+(?:[\w.<>\[\]]+\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(")
                 .unwrap()
         });
+        let kotlin_fn_re = KOTLIN_FN_RE.get_or_init(|| {
+            Regex::new(
+                r"\bfun\s+(?:<[^>\n]+>\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\.)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>\n]+>)?\s*\(",
+            )
+            .unwrap()
+        });
 
         let mut current_fn: Option<String> = None;
         let mut current_class: Option<String> = None;
@@ -54,11 +61,10 @@ impl GenericParser {
             if let Some(cap) = import_re.captures(line) {
                 if let Some(src) = cap.get(1) {
                     let source = src.as_str().to_string();
-                    let imported = source
-                        .split(['/', '\\'])
-                        .next_back()
-                        .unwrap_or(&source)
-                        .to_string();
+                    let imported = import_basename(&source);
+                    if imported.is_empty() || source.trim_end_matches(';').ends_with('*') {
+                        continue;
+                    }
                     result.imports.push(ParsedImport {
                         source_path: source.clone(),
                         imported_symbols: vec![imported.clone()],
@@ -91,7 +97,9 @@ impl GenericParser {
                 }
             }
 
-            if let Some(fn_name) = match_function(line, php_fn_re, go_fn_re, java_fn_re) {
+            if let Some(fn_name) =
+                match_function(line, php_fn_re, go_fn_re, java_fn_re, kotlin_fn_re)
+            {
                 if let Some(prev) = current_fn.take() {
                     close_function(&mut result, &prev, fn_line_start, line_no);
                 }
@@ -148,10 +156,20 @@ impl GenericParser {
     }
 }
 
-fn match_function(line: &str, php: &Regex, go: &Regex, java: &Regex) -> Option<String> {
-    let name = php
+fn match_function(
+    line: &str,
+    php: &Regex,
+    go: &Regex,
+    java: &Regex,
+    kotlin: &Regex,
+) -> Option<String> {
+    let name = kotlin
         .captures(line)
         .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
+        .or_else(|| {
+            php.captures(line)
+                .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
+        })
         .or_else(|| {
             go.captures(line)
                 .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
@@ -183,7 +201,22 @@ const SKIP_FN_NAMES: &[&str] = &[
     "new",
     "delete",
     "using",
+    "fun",
+    "object",
+    "constructor",
+    "when",
+    "package",
 ];
+
+fn import_basename(source: &str) -> String {
+    source
+        .trim_end_matches(['*', ';'])
+        .trim_end_matches('.')
+        .split(['/', '\\', '.'])
+        .rfind(|s| !s.is_empty() && *s != "*")
+        .unwrap_or("")
+        .to_string()
+}
 
 fn close_function(result: &mut AstAnalysisResult, name: &str, start: usize, end: usize) {
     if let Some(sym) = result
@@ -306,6 +339,88 @@ final class InstallPlatformCommand
             r.relationship == EdgeType::Calls
                 && r.source_symbol == "execute"
                 && r.target_symbol == "load"
+        }));
+    }
+
+    #[test]
+    fn kotlin_fun_object_and_imports() {
+        let store = r#"
+package com.example.app
+
+object SmsStore {
+    fun save(body: String?) {
+        persist(body)
+    }
+
+    private fun persist(body: String?) {
+    }
+}
+
+data class Message(val id: Long, val body: String)
+"#;
+        let receiver = r#"
+package com.example.app
+
+import com.example.app.SmsStore
+import android.content.Intent
+
+class SmsReceiver {
+    fun onReceive(intent: Intent) {
+        val body = intent.getStringExtra("sms")
+        try {
+            SmsStore.save(body)
+        } catch (e: SmsStoreException) {
+            return
+        }
+    }
+}
+
+class SmsStoreException : RuntimeException()
+"#;
+
+        let store_ast = GenericParser::parse(&PathBuf::from("SmsStore.kt"), store);
+        assert!(store_ast
+            .symbols
+            .iter()
+            .any(|s| s.name == "SmsStore" && s.symbol_type == NodeType::Class));
+        assert!(store_ast.symbols.iter().any(|s| s.name == "save"));
+        assert!(store_ast.symbols.iter().any(|s| s.name == "persist"));
+        assert!(store_ast.symbols.iter().any(|s| s.name == "Message"));
+        assert!(store_ast.relationships.iter().any(|r| {
+            r.relationship == EdgeType::Calls
+                && r.source_symbol == "save"
+                && r.target_symbol == "persist"
+        }));
+        assert!(
+            !store_ast.symbols.iter().any(|s| s.name == "com"),
+            "package line must not become a class: {:?}",
+            store_ast
+                .symbols
+                .iter()
+                .map(|s| &s.name)
+                .collect::<Vec<_>>()
+        );
+
+        let recv = GenericParser::parse(&PathBuf::from("SmsReceiver.kt"), receiver);
+        assert!(recv
+            .imports
+            .iter()
+            .any(|i| i.imported_symbols.contains(&"SmsStore".into())));
+        assert!(recv.symbols.iter().any(|s| s.name == "onReceive"));
+        assert!(recv.relationships.iter().any(|r| {
+            r.relationship == EdgeType::Calls
+                && r.source_symbol == "onReceive"
+                && r.target_symbol == "save"
+        }));
+        assert!(recv.relationships.iter().any(|r| {
+            r.relationship == EdgeType::Calls
+                && r.source_symbol == "onReceive"
+                && r.target_symbol == "getStringExtra"
+        }));
+        assert!(recv.relationships.iter().any(|r| {
+            r.relationship == EdgeType::Calls
+                && r.source_symbol == "onReceive"
+                && r.target_symbol == "SmsStoreException"
         }));
     }
 }

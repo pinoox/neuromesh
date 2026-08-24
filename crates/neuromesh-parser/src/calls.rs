@@ -74,6 +74,11 @@ const CALL_STOPWORDS: &[&str] = &[
     "catch",
     "throw",
     "yield",
+    "when",
+    "fun",
+    "object",
+    "val",
+    "var",
 ];
 
 /// Extract call-like identifiers from a line of source belonging to `caller`.
@@ -200,6 +205,17 @@ pub fn extract_type_uses_from_line(caller: &str, line: &str, result: &mut AstAna
         }
     }
 
+    static KT_CATCH_RE: OnceLock<Regex> = OnceLock::new();
+    let kt_catch_re = KT_CATCH_RE.get_or_init(|| {
+        Regex::new(r"\bcatch\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_.]*)")
+            .unwrap()
+    });
+    for cap in kt_catch_re.captures_iter(trimmed) {
+        if let Some(raw) = cap.get(1) {
+            record_type_use(caller, raw.as_str(), result);
+        }
+    }
+
     static THROW_RE: OnceLock<Regex> = OnceLock::new();
     let throw_re = THROW_RE
         .get_or_init(|| Regex::new(r"\bthrow\s+(?:new\s+)?\\?([A-Za-z_][A-Za-z0-9_\\]*)").unwrap());
@@ -224,7 +240,7 @@ pub fn extract_type_uses_from_line(caller: &str, line: &str, result: &mut AstAna
 }
 
 fn type_basename(name: &str) -> &str {
-    name.rsplit(['\\', '/']).next().unwrap_or(name)
+    name.rsplit(['\\', '/', '.']).next().unwrap_or(name)
 }
 
 fn record_type_use(caller: &str, raw: &str, result: &mut AstAnalysisResult) {

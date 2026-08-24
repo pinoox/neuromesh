@@ -4,11 +4,12 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## 0.5.3 — 2026-08-24
 
-Build on 1.80+, honest MCP args, and a less hollow PHP/Go/Java graph.
+Build on 1.80+, honest MCP args, Kotlin in the indexer, and a less hollow PHP/Go/Java graph.
 
 - **MSRV.** Even/odd uses `seed & 1` instead of `u64::is_multiple_of` (Rust 1.87). Workspace `rust-version` is 1.80. `rust-toolchain.toml` pins stable + rustfmt/clippy. Ubuntu `apt` rustc 1.75 still cannot parse lockfile v4 — use rustup.
 - **`task` alias.** `neuromesh_get_context` accepts `task_description`, `prompt`, or `task`. An empty prompt is a JSON-RPC error, not a silent empty packet.
-- **Generic languages.** PHP/Go/Java/C#/C/C++ extract functions and calls. `throw new X`, `catch (X`, and PHP `X $param` become inbound `Calls` edges, so `neuromesh_trace` inbound on an exception class is no longer always empty.
+- **Generic languages.** PHP/Go/Java/Kotlin/C#/C/C++ extract functions and calls. `.kt` / `.kts` are indexed (`fun`, `object`, `data class`, imports). `throw new X`, `catch (X`, Kotlin `catch (e: X)`, and PHP `X $param` become inbound `Calls` edges.
+- **Doctor skipped files.** `neuromesh doctor` (and `index`) report unsupported extensions so a Kotlin-only repo is no longer a silent empty scan.
 
 ## 0.5.2 — 2026-08-23
 

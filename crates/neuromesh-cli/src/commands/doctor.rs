@@ -30,8 +30,17 @@ pub fn execute() -> Result<()> {
     println!("Safety         : ok");
 
     let walker = ProjectWalker::new(root.clone(), neuromesh_core::ProjectId::new("doctor"));
-    match walker.scan() {
-        Ok(files) => println!("Scan           : {} source files", files.len()),
+    match walker.scan_report() {
+        Ok(report) => {
+            println!("Scan           : {} source files", report.files.len());
+            if report.skipped_count() > 0 {
+                println!(
+                    "Skipped        : {} files ({})",
+                    report.skipped_count(),
+                    report.skipped_summary()
+                );
+            }
+        }
         Err(e) => println!("Scan           : failed ({e})"),
     }
 

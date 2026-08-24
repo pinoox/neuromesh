@@ -52,6 +52,18 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
         ));
     }
 
+    if root.join("settings.gradle.kts").exists()
+        || root.join("settings.gradle").exists()
+        || root.join("build.gradle.kts").exists()
+    {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "android_kotlin",
+            "Gradle/Kotlin project (settings or build.gradle.kts)",
+        ));
+    }
+
     let mut doc_paths = vec![root.join("README.md")];
     if let Ok(entries) = fs::read_dir(root.join("docs")) {
         for entry in entries.flatten() {

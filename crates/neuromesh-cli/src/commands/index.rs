@@ -18,7 +18,10 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let walker = ProjectWalker::new(current_dir.clone(), project_id.clone());
 
     println!("🔍 Indexing Project Workspace...");
-    let scanned_files = walker.scan()?;
+    let report = walker.scan_report()?;
+    let skipped_count = report.skipped_count();
+    let skipped_summary = report.skipped_summary();
+    let scanned_files = report.files;
     let total_files = scanned_files.len();
 
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
@@ -32,6 +35,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let mut has_scss = false;
     let mut has_ts = false;
     let mut has_html = false;
+    let mut has_kotlin = false;
 
     for (file, content) in &scanned_files {
         total_tokens += file.token_count;
@@ -50,6 +54,9 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
         }
         if file.language == neuromesh_index::SourceLanguage::TypeScript {
             has_ts = true;
+        }
+        if file.language == neuromesh_index::SourceLanguage::Kotlin {
+            has_kotlin = true;
         }
     }
     graph.finalize_links();
@@ -92,6 +99,14 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             "TypeScript files are present",
         ))?;
     }
+    if has_kotlin {
+        memory_db.save_project_fact(&ProjectFact::new(
+            project_id.clone(),
+            "language",
+            "kotlin",
+            "Kotlin files are present",
+        ))?;
+    }
 
     for fact in neuromesh_memory::extract_project_facts(&current_dir, &project_id) {
         memory_db.save_project_fact(&fact)?;
@@ -100,6 +115,9 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let stats = graph.stats();
     println!("✓ Indexing Complete");
     println!("  Indexed Files  : {}", total_files);
+    if skipped_count > 0 {
+        println!("  Skipped        : {} ({})", skipped_count, skipped_summary);
+    }
     println!("  Total Tokens   : {}", total_tokens);
     println!("  Graph Nodes    : {}", stats.total_nodes);
     println!("  Pheromone Edges: {}", stats.total_edges);

@@ -27,6 +27,7 @@ impl CodeIntelligenceEngine {
             SourceLanguage::Go
             | SourceLanguage::PHP
             | SourceLanguage::Java
+            | SourceLanguage::Kotlin
             | SourceLanguage::CSharp
             | SourceLanguage::C
             | SourceLanguage::Cpp => GenericParser::parse(path, content),
