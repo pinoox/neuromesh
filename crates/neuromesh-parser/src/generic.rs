@@ -1,4 +1,4 @@
-use crate::calls::{brace_delta, extract_calls_from_line, extract_type_uses_from_line};
+use crate::calls::{brace_delta, extract_calls_from_line, extract_type_uses_from_body};
 use crate::types::{AstAnalysisResult, ParsedImport, ParsedRelationship, ParsedSymbol};
 use neuromesh_core::{EdgeType, NodeType};
 use regex::Regex;
@@ -58,6 +58,7 @@ impl GenericParser {
         let mut class_start_depth = 0i32;
         let mut depth = 0i32;
         let mut fn_line_start = 0usize;
+        let mut fn_body: Vec<String> = Vec::new();
 
         for (line_idx, line) in content.lines().enumerate() {
             let line_no = line_idx + 1;
@@ -110,11 +111,14 @@ impl GenericParser {
                 ruby_fn_re,
             ) {
                 if let Some(prev) = current_fn.take() {
+                    extract_type_uses_from_body(&prev, &fn_body.join("\n"), &mut result);
+                    fn_body.clear();
                     close_function(&mut result, &prev, fn_line_start, line_no);
                 }
                 current_fn = Some(fn_name.clone());
                 fn_start_depth = depth;
                 fn_line_start = line_no;
+                fn_body = vec![line.to_string()];
                 let exported = !line.contains("private") && !line.contains("protected");
                 result.symbols.push(ParsedSymbol {
                     name: fn_name.clone(),
@@ -127,16 +131,17 @@ impl GenericParser {
                     calls: Vec::new(),
                 });
                 extract_calls_from_line(&fn_name, line, &mut result);
-                extract_type_uses_from_line(&fn_name, line, &mut result);
             } else if let Some(caller) = current_fn.as_deref() {
+                fn_body.push(line.to_string());
                 extract_calls_from_line(caller, line, &mut result);
-                extract_type_uses_from_line(caller, line, &mut result);
             }
 
             depth += brace_delta(line);
 
             if current_fn.is_some() && depth <= fn_start_depth && line.contains('}') {
                 if let Some(prev) = current_fn.take() {
+                    extract_type_uses_from_body(&prev, &fn_body.join("\n"), &mut result);
+                    fn_body.clear();
                     close_function(&mut result, &prev, fn_line_start, line_no);
                 }
             }
@@ -146,6 +151,7 @@ impl GenericParser {
         }
 
         if let Some(prev) = current_fn.take() {
+            extract_type_uses_from_body(&prev, &fn_body.join("\n"), &mut result);
             close_function(
                 &mut result,
                 &prev,
@@ -355,6 +361,51 @@ final class InstallPlatformCommand
                 && r.source_symbol == "execute"
                 && r.target_symbol == "load"
         }));
+    }
+
+    #[test]
+    fn php_rethrow_and_ternary_new_become_calls() {
+        let matcher = r#"
+<?php
+class RedirectableUrlMatcher
+{
+    public function match(string $pathinfo): array
+    {
+        try {
+            return parent::match($pathinfo);
+        } catch (ResourceNotFoundException $e) {
+            if ($pathinfo === '/') {
+                throw $e;
+            }
+            throw 0 < count($this->allow)
+                ? new MethodNotAllowedException()
+                : new ResourceNotFoundException('no routes');
+        }
+    }
+}
+"#;
+        let ast = GenericParser::parse(&PathBuf::from("RedirectableUrlMatcher.php"), matcher);
+        for expected in ["ResourceNotFoundException", "MethodNotAllowedException"] {
+            assert!(
+                ast.relationships.iter().any(|r| {
+                    r.relationship == EdgeType::Calls
+                        && r.source_symbol == "match"
+                        && r.target_symbol == expected
+                }),
+                "missing inbound {expected}, got {:?}",
+                ast.relationships
+                    .iter()
+                    .filter(|r| r.source_symbol == "match")
+                    .map(|r| &r.target_symbol)
+                    .collect::<Vec<_>>()
+            );
+        }
+        assert!(
+            !ast.relationships.iter().any(|r| {
+                r.source_symbol == "match" && r.target_symbol == "RouteNotFoundException"
+            }),
+            "matcher must not be linked to RouteNotFoundException"
+        );
     }
 
     #[test]

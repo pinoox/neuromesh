@@ -1,6 +1,7 @@
 use crate::types::{AstAnalysisResult, ParsedRelationship};
 use neuromesh_core::EdgeType;
 use regex::Regex;
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 const CALL_STOPWORDS: &[&str] = &[
@@ -192,27 +193,25 @@ pub fn extract_calls_from_line_ctx(
     }
 }
 
-/// `throw new X`, `catch (X`, and PHP `X $param` type hints — inbound to the type.
+/// Scan a whole function body so `throw $e` can see the matching `catch`.
+pub fn extract_type_uses_from_body(caller: &str, body: &str, result: &mut AstAnalysisResult) {
+    let mut catch_vars: HashMap<String, Vec<String>> = HashMap::new();
+    for line in body.lines() {
+        collect_catch_bindings(strip_line_comment(line), &mut catch_vars);
+    }
+    for line in body.lines() {
+        extract_type_uses_from_line(caller, line, result);
+        record_typed_rethrows(caller, strip_line_comment(line), &catch_vars, result);
+    }
+}
+
+/// `throw new X`, `catch (X`, ternary `throw … new X`, and PHP `X $param` hints.
 pub fn extract_type_uses_from_line(caller: &str, line: &str, result: &mut AstAnalysisResult) {
     let trimmed = strip_line_comment(line);
 
-    static CATCH_RE: OnceLock<Regex> = OnceLock::new();
-    let catch_re = CATCH_RE
-        .get_or_init(|| Regex::new(r"\bcatch\s*\(\s*\\?([A-Za-z_][A-Za-z0-9_\\]*)").unwrap());
-    for cap in catch_re.captures_iter(trimmed) {
-        if let Some(raw) = cap.get(1) {
-            record_type_use(caller, raw.as_str(), result);
-        }
-    }
-
-    static KT_CATCH_RE: OnceLock<Regex> = OnceLock::new();
-    let kt_catch_re = KT_CATCH_RE.get_or_init(|| {
-        Regex::new(r"\bcatch\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_.]*)")
-            .unwrap()
-    });
-    for cap in kt_catch_re.captures_iter(trimmed) {
-        if let Some(raw) = cap.get(1) {
-            record_type_use(caller, raw.as_str(), result);
+    for (types, _) in catch_clauses(trimmed) {
+        for ty in types {
+            record_type_use(caller, &ty, result);
         }
     }
 
@@ -229,12 +228,125 @@ pub fn extract_type_uses_from_line(caller: &str, line: &str, result: &mut AstAna
         }
     }
 
+    if trimmed.contains("throw") {
+        static NEW_RE: OnceLock<Regex> = OnceLock::new();
+        let new_re =
+            NEW_RE.get_or_init(|| Regex::new(r"\bnew\s+\\?([A-Za-z_][A-Za-z0-9_\\]*)").unwrap());
+        for cap in new_re.captures_iter(trimmed) {
+            if let Some(raw) = cap.get(1) {
+                record_type_use(caller, raw.as_str(), result);
+            }
+        }
+    }
+
     static HINT_RE: OnceLock<Regex> = OnceLock::new();
     let hint_re =
         HINT_RE.get_or_init(|| Regex::new(r"\\?([A-Z][A-Za-z0-9_\\]*)\s+\$[A-Za-z_]").unwrap());
     for cap in hint_re.captures_iter(trimmed) {
         if let Some(raw) = cap.get(1) {
             record_type_use(caller, raw.as_str(), result);
+        }
+    }
+}
+
+fn catch_clauses(line: &str) -> Vec<(Vec<String>, Option<String>)> {
+    static CATCH_PAREN: OnceLock<Regex> = OnceLock::new();
+    let catch_paren = CATCH_PAREN.get_or_init(|| Regex::new(r"\bcatch\s*\(\s*([^)]*)\)").unwrap());
+    catch_paren
+        .captures_iter(line)
+        .filter_map(|cap| cap.get(1).map(|m| parse_catch_clause(m.as_str())))
+        .collect()
+}
+
+fn parse_catch_clause(inner: &str) -> (Vec<String>, Option<String>) {
+    let inner = inner.trim();
+    if inner.is_empty() {
+        return (Vec::new(), None);
+    }
+    if let Some((var, ty)) = inner.split_once(':') {
+        let var = var.trim();
+        if !var.is_empty()
+            && var.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            && !var.contains('$')
+        {
+            return (
+                vec![type_basename(ty.trim()).to_string()],
+                Some(var.to_string()),
+            );
+        }
+    }
+
+    let (types_part, php_var) = if let Some((types, var)) = inner.rsplit_once('$') {
+        (
+            types,
+            Some(var.split_whitespace().next().unwrap_or(var).to_string()),
+        )
+    } else {
+        (inner, None)
+    };
+
+    let mut types = Vec::new();
+    let mut java_var = None;
+    for piece in types_part.split('|') {
+        let piece = piece.trim().trim_start_matches('\\');
+        if piece.is_empty() {
+            continue;
+        }
+        let toks: Vec<&str> = piece.split_whitespace().collect();
+        if toks.len() >= 2 {
+            let last = toks[toks.len() - 1];
+            if last.chars().next().is_some_and(|c| c.is_lowercase()) {
+                java_var = Some(last.to_string());
+                types.push(type_basename(toks[0]).to_string());
+                continue;
+            }
+        }
+        types.push(type_basename(piece).to_string());
+    }
+    (types, php_var.or(java_var))
+}
+
+fn collect_catch_bindings(line: &str, catch_vars: &mut HashMap<String, Vec<String>>) {
+    for (types, var) in catch_clauses(line) {
+        if let Some(var) = var {
+            catch_vars.entry(var).or_default().extend(types);
+        }
+    }
+}
+
+fn record_typed_rethrows(
+    caller: &str,
+    line: &str,
+    catch_vars: &HashMap<String, Vec<String>>,
+    result: &mut AstAnalysisResult,
+) {
+    static PHP_VAR: OnceLock<Regex> = OnceLock::new();
+    let php_var =
+        PHP_VAR.get_or_init(|| Regex::new(r"\bthrow\s+\$([A-Za-z_][A-Za-z0-9_]*)").unwrap());
+    for cap in php_var.captures_iter(line) {
+        if let Some(var) = cap.get(1) {
+            if let Some(types) = catch_vars.get(var.as_str()) {
+                for ty in types {
+                    record_type_use(caller, ty, result);
+                }
+            }
+        }
+    }
+
+    static BARE_VAR: OnceLock<Regex> = OnceLock::new();
+    let bare_var =
+        BARE_VAR.get_or_init(|| Regex::new(r"\bthrow\s+([a-z_][A-Za-z0-9_]*)\b").unwrap());
+    for cap in bare_var.captures_iter(line) {
+        if let Some(var) = cap.get(1) {
+            let name = var.as_str();
+            if name == "new" {
+                continue;
+            }
+            if let Some(types) = catch_vars.get(name) {
+                for ty in types {
+                    record_type_use(caller, ty, result);
+                }
+            }
         }
     }
 }
