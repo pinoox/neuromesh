@@ -13,6 +13,7 @@ Thresholds locked in tests:
 - missed seeds reported as `partial`, not an empty silent packet
 - `expand_fold` restores a registered body without reading the disk
 - activation under **150 ms** in the debug gold test on this repo (cargo test is parallel; isolated runs sit nearer 60 ms)
+- skeletonizer folds **bodies** from graph/tree-sitter spans; seed callees stay exons; fill caps stay 0 / 5k / 16k extra tokens
 
 ```bash
 cargo test -p neuromesh-context gold_harness_on_neuromesh_repo -- --nocapture

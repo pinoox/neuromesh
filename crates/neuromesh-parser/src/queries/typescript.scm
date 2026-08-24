@@ -5,6 +5,10 @@
 (method_definition
   name: (_) @function.name) @function
 
+(variable_declarator
+  name: (identifier) @function.name
+  value: [(arrow_function) (function_expression)]) @function
+
 (class_declaration
   name: (_) @class.name) @class
 

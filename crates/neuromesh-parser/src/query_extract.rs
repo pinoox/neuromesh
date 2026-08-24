@@ -401,7 +401,7 @@ fn extract(
             name: func.name.clone(),
             symbol_type: NodeType::Function,
             signature: Some(first_line(func.node, src)),
-            line_range: line_range(func.node),
+            line_range: line_range_bytes(func.node.start_byte(), func.end_byte, src),
             docstring: None,
             exported: is_exported(func.node, &func.name, src, options.export),
             parent,
@@ -1060,6 +1060,23 @@ fn line_range(node: Node) -> std::ops::Range<usize> {
     (node.start_position().row + 1)..(node.end_position().row + 2)
 }
 
+/// Inclusive start .. exclusive end from a byte span (tree-sitter `end_byte` is exclusive).
+fn line_range_bytes(start_byte: usize, end_byte: usize, src: &[u8]) -> std::ops::Range<usize> {
+    let start_line = byte_to_line(start_byte, src);
+    let last_line = byte_to_line(
+        end_byte.saturating_sub(1).min(src.len().saturating_sub(1)),
+        src,
+    )
+    .max(start_line);
+    start_line..(last_line + 1)
+}
+
+fn byte_to_line(byte: usize, src: &[u8]) -> usize {
+    src.get(..byte.min(src.len()))
+        .map(|head| head.iter().filter(|b| **b == b'\n').count() + 1)
+        .unwrap_or(1)
+}
+
 fn attach_calls(result: &mut AstAnalysisResult) {
     for rel in &result.relationships {
         if rel.relationship != EdgeType::Calls {
@@ -1337,5 +1354,64 @@ func (s *Store) persist(body string) {}
                 && r.target_symbol == "save"
                 && r.receiver_hint.as_deref() == Some("type:SmsStore")
         }));
+    }
+
+    #[test]
+    fn dart_and_kotlin_spans_cover_the_function_body() {
+        let dart = parse_lang(
+            Grammar::Dart,
+            DART_QUERIES,
+            QueryOptions::dart(),
+            "sms_store.dart",
+            "void save(String body) {\n  persist(body);\n  keep(body);\n}\nvoid persist(String body) {}\n",
+        );
+        let save = dart
+            .symbols
+            .iter()
+            .find(|s| s.name == "save")
+            .expect("save");
+        assert!(
+            save.line_range.end - save.line_range.start >= 3,
+            "dart save should include the body, got {:?}",
+            save.line_range
+        );
+        assert!(save.calls.iter().any(|c| c == "persist"));
+
+        let kt = parse_lang(
+            Grammar::Kotlin,
+            KOTLIN_QUERIES,
+            QueryOptions::kotlin(),
+            "SmsStore.kt",
+            "fun save(body: String?) {\n  persist(body)\n  keep(body)\n}\nfun persist(body: String?) {}\n",
+        );
+        let save = kt.symbols.iter().find(|s| s.name == "save").expect("save");
+        assert!(
+            save.line_range.end - save.line_range.start >= 3,
+            "kotlin save should include the body, got {:?}",
+            save.line_range
+        );
+    }
+
+    #[test]
+    fn typescript_arrow_const_is_a_function() {
+        let ast = parse_lang(
+            Grammar::TypeScript,
+            TYPESCRIPT_QUERIES,
+            QueryOptions::typescript(),
+            "store.ts",
+            "export const saveSms = (body: string) => {\n  persist(body);\n  return body;\n};\nfunction persist(body: string) {}\n",
+        );
+        let save = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "saveSms")
+            .expect("saveSms");
+        assert_eq!(save.symbol_type, NodeType::Function);
+        assert!(
+            save.line_range.end - save.line_range.start >= 3,
+            "arrow body span {:?}",
+            save.line_range
+        );
+        assert!(save.calls.iter().any(|c| c == "persist"));
     }
 }
