@@ -204,6 +204,14 @@ impl McpServer {
                                         "type": "string",
                                         "description": "The user's prompt or coding task description"
                                     },
+                                    "prompt": {
+                                        "type": "string",
+                                        "description": "Alias for task_description"
+                                    },
+                                    "task": {
+                                        "type": "string",
+                                        "description": "Alias for task_description"
+                                    },
                                     "mode": {
                                         "type": "string",
                                         "enum": ["balanced", "max_quality", "max_savings"],

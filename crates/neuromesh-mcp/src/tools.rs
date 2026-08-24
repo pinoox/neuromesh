@@ -1,6 +1,6 @@
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
-use neuromesh_core::{NodeId, OptimizationMode, Result};
+use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_router::QualityGate;
@@ -100,10 +100,7 @@ impl McpToolHandler {
             // 1. Task-conditioned evidence packet (seed files + fill-budget connectors)
             "neuromesh_get_context" | "activate_context" => {
                 let start_time = std::time::Instant::now();
-                let task_desc = arguments["task_description"]
-                    .as_str()
-                    .or_else(|| arguments["prompt"].as_str())
-                    .unwrap_or("");
+                let task_desc = read_task_description(arguments)?;
 
                 let mode_str = arguments["mode"].as_str().unwrap_or("balanced");
                 let requested_mode = match mode_str {
@@ -112,7 +109,7 @@ impl McpToolHandler {
                     _ => OptimizationMode::Balanced,
                 };
 
-                let signature = TaskSignatureExtractor::extract(task_desc);
+                let signature = TaskSignatureExtractor::extract(&task_desc);
                 let gate = QualityGate::evaluate(&signature, requested_mode);
                 let view = self
                     .activator
@@ -573,6 +570,23 @@ impl McpToolHandler {
     }
 }
 
+fn read_task_description(arguments: &Value) -> Result<String> {
+    let raw = arguments
+        .get("task_description")
+        .and_then(Value::as_str)
+        .or_else(|| arguments.get("prompt").and_then(Value::as_str))
+        .or_else(|| arguments.get("task").and_then(Value::as_str))
+        .unwrap_or("")
+        .trim();
+    if raw.is_empty() {
+        Err(NeuroMeshError::Config(
+            "neuromesh_get_context requires 'task_description' (aliases: 'prompt', 'task')".into(),
+        ))
+    } else {
+        Ok(raw.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -640,5 +654,40 @@ mod tests {
             stats.total_hyphal_trails > 0 || stats.total_prefetches > 0,
             "mycelium should record packet transitions: {stats:?}"
         );
+    }
+
+    #[test]
+    fn get_context_accepts_task_alias_and_rejects_empty() {
+        let graph = Arc::new(NeuralProjectGraph::new(ProjectId::new("neuromesh")));
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let handler = McpToolHandler::new(
+            graph,
+            Arc::new(ContextActivator::new(registry.clone())),
+            Arc::new(ExpansionEngine::new(registry)),
+            Arc::new(MemoryDatabase::open_in_memory().unwrap()),
+            Arc::new(RwLock::new(WorkingMemory::default())),
+        );
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            assert!(handler
+                .handle_tool_call("neuromesh_get_context", &json!({}))
+                .await
+                .is_err());
+            assert!(handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "foo": "how does Router work" })
+                )
+                .await
+                .is_err());
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does start_job enqueue_job?" }),
+                )
+                .await
+                .expect("task alias should populate the prompt");
+            assert!(packet.get("evidence_packet").is_some());
+        });
     }
 }

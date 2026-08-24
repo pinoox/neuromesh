@@ -41,7 +41,7 @@ impl ContextChromosome {
 
     pub fn mutate(&mut self, mutation_rate: f32, seed: u64) {
         if (seed % 100) as f32 / 100.0 < mutation_rate {
-            let delta = if seed.is_multiple_of(2) { 1 } else { -1 };
+            let delta = if seed & 1 == 0 { 1 } else { -1 };
             self.fold_threshold_lines =
                 (self.fold_threshold_lines as isize + delta).clamp(2, 15) as usize;
             self.docstring_retention =

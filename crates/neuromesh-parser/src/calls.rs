@@ -187,6 +187,67 @@ pub fn extract_calls_from_line_ctx(
     }
 }
 
+/// `throw new X`, `catch (X`, and PHP `X $param` type hints — inbound to the type.
+pub fn extract_type_uses_from_line(caller: &str, line: &str, result: &mut AstAnalysisResult) {
+    let trimmed = strip_line_comment(line);
+
+    static CATCH_RE: OnceLock<Regex> = OnceLock::new();
+    let catch_re = CATCH_RE
+        .get_or_init(|| Regex::new(r"\bcatch\s*\(\s*\\?([A-Za-z_][A-Za-z0-9_\\]*)").unwrap());
+    for cap in catch_re.captures_iter(trimmed) {
+        if let Some(raw) = cap.get(1) {
+            record_type_use(caller, raw.as_str(), result);
+        }
+    }
+
+    static THROW_RE: OnceLock<Regex> = OnceLock::new();
+    let throw_re = THROW_RE
+        .get_or_init(|| Regex::new(r"\bthrow\s+(?:new\s+)?\\?([A-Za-z_][A-Za-z0-9_\\]*)").unwrap());
+    for cap in throw_re.captures_iter(trimmed) {
+        if let Some(raw) = cap.get(1) {
+            let name = type_basename(raw.as_str());
+            if name.eq_ignore_ascii_case("new") {
+                continue;
+            }
+            record_type_use(caller, raw.as_str(), result);
+        }
+    }
+
+    static HINT_RE: OnceLock<Regex> = OnceLock::new();
+    let hint_re =
+        HINT_RE.get_or_init(|| Regex::new(r"\\?([A-Z][A-Za-z0-9_\\]*)\s+\$[A-Za-z_]").unwrap());
+    for cap in hint_re.captures_iter(trimmed) {
+        if let Some(raw) = cap.get(1) {
+            record_type_use(caller, raw.as_str(), result);
+        }
+    }
+}
+
+fn type_basename(name: &str) -> &str {
+    name.rsplit(['\\', '/']).next().unwrap_or(name)
+}
+
+fn record_type_use(caller: &str, raw: &str, result: &mut AstAnalysisResult) {
+    let name = type_basename(raw);
+    if name.len() < 2 || name == caller || !is_callable_name(name) {
+        return;
+    }
+    if result.relationships.iter().any(|rel| {
+        rel.source_symbol == caller
+            && rel.target_symbol == name
+            && rel.relationship == EdgeType::Calls
+    }) {
+        return;
+    }
+    result.relationships.push(ParsedRelationship {
+        source_symbol: caller.to_string(),
+        target_symbol: name.to_string(),
+        relationship: EdgeType::Calls,
+        target_file_hint: None,
+        receiver_hint: Some("type".into()),
+    });
+}
+
 pub fn is_callable_name(name: &str) -> bool {
     if name.len() < 2 {
         return false;

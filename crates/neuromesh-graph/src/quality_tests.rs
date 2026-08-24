@@ -461,4 +461,88 @@ pub fn searcher(haystack: &str, needle: &str) -> bool {
             .replace('\\', "/")
             .ends_with("searcher/mod.rs"));
     }
+
+    #[test]
+    fn php_throw_and_catch_are_inbound_calls() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("php"));
+        let exception = r#"
+<?php
+namespace App\Installer\Component;
+final class InstallPlatformException extends \RuntimeException {}
+"#;
+        let config = r#"
+<?php
+namespace App\Installer\Component;
+final class InstallPlatformConfig
+{
+    public function load(): array
+    {
+        throw new InstallPlatformException('missing');
+    }
+    public function validate(array $config): void
+    {
+        throw new InstallPlatformException('invalid');
+    }
+}
+"#;
+        let command = r#"
+<?php
+use App\Installer\Component\InstallPlatformException;
+final class InstallPlatformCommand
+{
+    public function execute(): int
+    {
+        try {
+            (new InstallPlatformConfig())->load();
+        } catch (InstallPlatformException $e) {
+            return 1;
+        }
+        return 0;
+    }
+}
+"#;
+        graph.ingest_file(
+            &indexed("src/InstallPlatformException.php"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/InstallPlatformException.php"),
+                exception,
+                SourceLanguage::PHP,
+            ),
+            Some(exception),
+        );
+        graph.ingest_file(
+            &indexed("src/InstallPlatformConfig.php"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/InstallPlatformConfig.php"),
+                config,
+                SourceLanguage::PHP,
+            ),
+            Some(config),
+        );
+        graph.ingest_file(
+            &indexed("src/InstallPlatformCommand.php"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/InstallPlatformCommand.php"),
+                command,
+                SourceLanguage::PHP,
+            ),
+            Some(command),
+        );
+        graph.finalize_links();
+
+        let trace = graph.trace_symbol(
+            "InstallPlatformException",
+            crate::TraceDirection::Inbound,
+            3,
+        );
+        let callers: Vec<_> = trace.callers.iter().map(|h| h.name.as_str()).collect();
+        assert!(
+            callers.contains(&"load") && callers.contains(&"validate"),
+            "expected throw sites as callers, got {callers:?}"
+        );
+        assert!(
+            callers.contains(&"execute"),
+            "expected catch site as caller, got {callers:?}"
+        );
+    }
 }

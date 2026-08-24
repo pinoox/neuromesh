@@ -103,7 +103,7 @@ flowchart LR
 Tell the agent:
 
 ```
-neuromesh_get_context(task)
+neuromesh_get_context(task_description)
   → neuromesh_expand_fold if a body is still folded
   → neuromesh_trace for callers
   → neuromesh_record_feedback after a good edit
@@ -136,7 +136,7 @@ irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex
 ```
 
 ```bash
-# From source
+# From source (needs rustup 1.80+; distro rustc 1.75 cannot parse this Cargo.lock)
 git clone https://github.com/pinoox/neuromesh.git
 cd neuromesh
 cargo build --release --bin neuromesh
@@ -233,7 +233,7 @@ VS Code / Cursor: Settings → `neuromesh.port` must match the running monitor. 
 
 Each file in the packet has `path`, `why`, `line_range`, `folded_symbols`, and `seed_call_coverage`. Details: [docs/mcp.md](docs/mcp.md).
 
-Rust and TypeScript go through **tree-sitter**. Python, Vue, Go and friends use scoped extractors. Ambiguous names are not “resolved” by hope.
+Rust and TypeScript go through **tree-sitter**. Python and Vue have scoped extractors. PHP, Go, Java, C# and C/C++ use the generic regex parser (functions, `new Type`, `throw`, and `catch`). Ambiguous names are not “resolved” by hope.
 
 ---
 

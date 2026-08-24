@@ -19,7 +19,7 @@ Start with `get_context`. `next_actions` say when to `neuromesh_expand_fold`. Gr
 
 | Tool | Input | Returns |
 | :--- | :--- | :--- |
-| `neuromesh_get_context` | `task_description` or `prompt`, optional `mode` | Evidence packet |
+| `neuromesh_get_context` | `task_description`, `prompt`, or `task`; optional `mode` | Evidence packet |
 | `neuromesh_expand_fold` | `fold_id` or `node_id`, optional `reason` | Original folded body |
 | `neuromesh_get_file_skeleton` | `file_path`, optional `active_symbols` | One skeletonized file |
 | `neuromesh_search_symbols` | `query`, optional `limit` | Ranked hits |
