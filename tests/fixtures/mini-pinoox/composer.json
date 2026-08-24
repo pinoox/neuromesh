@@ -1,0 +1,6 @@
+{
+  "name": "pinoox/mini-pinoox",
+  "require": {
+    "pinoox/pincore": "*"
+  }
+}

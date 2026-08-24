@@ -14,6 +14,7 @@ use neuromesh_core::{
 use neuromesh_index::IndexedFile;
 use neuromesh_parser::AstAnalysisResult;
 use parking_lot::RwLock;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -1116,12 +1117,24 @@ impl NeuralProjectGraph {
             .map(|(file, _)| file.relative_path.to_string_lossy().replace('\\', "/"))
             .collect();
         self.prune_absent_files(&present);
-        for (file, content) in scanned {
-            let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
-                &file.relative_path,
-                content,
-                file.language,
-            );
+        // Parse in parallel (thread-local tree-sitter parsers). Unchanged
+        // hashes skip parse. Ingest stays serial so graph writes stay single-writer.
+        let parsed: Vec<_> = scanned
+            .par_iter()
+            .filter_map(|(file, content)| {
+                let rel = file.relative_path.to_string_lossy().replace('\\', "/");
+                if self.file_hash_matches(&rel, &file.blake3_hash) {
+                    return None;
+                }
+                let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
+                    &file.relative_path,
+                    content,
+                    file.language,
+                );
+                Some((file, ast, content.as_str()))
+            })
+            .collect();
+        for (file, ast, content) in parsed {
             self.ingest_file(file, &ast, Some(content));
         }
         self.apply_manifest_hints(scanned);
@@ -1496,6 +1509,12 @@ impl NeuralProjectGraph {
                         | "page.ts"
                         | "route.ts"
                         | "web.php"
+                        | "app.php"
+                        | "vite.config.ts"
+                        | "vite.config.js"
+                        | "tauri.conf.json"
+                        | "wp-config.php"
+                        | "+page.svelte"
                 ) {
                     entry_points.push(SearchHit::from_node(node, 1.0, "entry"));
                 }

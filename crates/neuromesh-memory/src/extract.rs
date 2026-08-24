@@ -41,13 +41,53 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             "javascript_toolchain",
             "Node/TypeScript project with package.json",
         ));
-        if pkg.contains("\"next\"") {
-            facts.push(ProjectFact::new(
-                project_id.clone(),
-                "framework",
+        for (needle, key, label) in [
+            (
+                "\"next\"",
                 "nextjs",
                 "Next.js app (package.json dependency)",
-            ));
+            ),
+            ("\"react\"", "react", "React app (package.json dependency)"),
+            ("\"vue\"", "vue", "Vue app (package.json dependency)"),
+            (
+                "\"svelte\"",
+                "svelte",
+                "Svelte app (package.json dependency)",
+            ),
+            (
+                "\"vite\"",
+                "vite",
+                "Vite toolchain (package.json dependency)",
+            ),
+            (
+                "\"electron\"",
+                "electron",
+                "Electron app (package.json dependency)",
+            ),
+            (
+                "\"@tauri-apps/",
+                "tauri",
+                "Tauri app (package.json dependency)",
+            ),
+            (
+                "\"primereact\"",
+                "primereact",
+                "PrimeReact UI (package.json dependency)",
+            ),
+            (
+                "\"primevue\"",
+                "primevue",
+                "PrimeVue UI (package.json dependency)",
+            ),
+        ] {
+            if pkg.contains(needle) {
+                facts.push(ProjectFact::new(
+                    project_id.clone(),
+                    "framework",
+                    key,
+                    label,
+                ));
+            }
         }
     }
 
@@ -126,6 +166,75 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
                 "Laravel project (composer.json)",
             ));
         }
+        if composer.contains("pinoox/pincore") || composer.contains("pinoox/pinx") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "pinoox",
+                "Pinoox/Pinx app (composer.json pinoox/pincore)",
+            ));
+        }
+        if composer.contains("symfony/framework-bundle") || composer.contains("symfony/symfony") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "symfony",
+                "Symfony project (composer.json)",
+            ));
+        }
+        if composer.contains("johnpbloch/wordpress") || composer.contains("wpackagist") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "wordpress",
+                "WordPress project (composer.json)",
+            ));
+        }
+        let lower = composer.to_ascii_lowercase();
+        if lower.contains("shopfa") || lower.contains("shopyfa") || composer.contains("شاپفا")
+        {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "shopfa",
+                "Shopfa/Shopyfa mention in composer.json (hosted store; no source router)",
+            ));
+        }
+    }
+
+    if root.join("app.php").exists()
+        && (root.join("Controller").is_dir()
+            || root.join("routes").is_dir()
+            || file_mentions(root, &["composer.json", "app.php"], "pinoox")
+            || file_mentions(root, &["app.php"], "package"))
+        && !facts
+            .iter()
+            .any(|f| f.category == "framework" && f.key == "pinoox")
+    {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "pinoox",
+            "Pinoox/Pinx layout (app.php + Controller/routes)",
+        ));
+    }
+
+    if root.join("wp-config.php").exists() || root.join("wp-content").is_dir() {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "wordpress",
+            "WordPress project (wp-config.php or wp-content)",
+        ));
+    }
+
+    if root.join("src-tauri").is_dir() || root.join("src-tauri/tauri.conf.json").exists() {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "tauri",
+            "Tauri desktop app (src-tauri)",
+        ));
     }
 
     if root.join("pubspec.yaml").exists() {
@@ -235,4 +344,50 @@ fn first_meaningful_lines(content: &str, max_lines: usize) -> String {
         .chars()
         .take(600)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neuromesh_core::ProjectId;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_root() -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("neuromesh-facts-{nanos}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn composer_detects_pinoox_and_shopfa() {
+        let dir = temp_root();
+        fs::write(
+            dir.join("composer.json"),
+            r#"{ "require": { "pinoox/pincore": "*", "shopfa/theme": "*" } }"#,
+        )
+        .unwrap();
+        let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
+        assert!(facts.iter().any(|f| f.key == "pinoox"));
+        assert!(facts.iter().any(|f| f.key == "shopfa"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn package_json_detects_react_and_vite() {
+        let dir = temp_root();
+        fs::write(
+            dir.join("package.json"),
+            r#"{ "dependencies": { "react": "19", "vite": "6" } }"#,
+        )
+        .unwrap();
+        let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
+        assert!(facts.iter().any(|f| f.key == "react"));
+        assert!(facts.iter().any(|f| f.key == "vite"));
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

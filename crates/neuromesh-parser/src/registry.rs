@@ -116,7 +116,7 @@ impl LanguageSpec {
                 options: QueryOptions::ruby(),
                 fallback: Fallback::Generic,
             },
-            SourceLanguage::Vue => Self {
+            SourceLanguage::Vue | SourceLanguage::Svelte => Self {
                 language,
                 grammar: None,
                 queries: None,
@@ -130,7 +130,7 @@ impl LanguageSpec {
                 options: QueryOptions::typescript(),
                 fallback: Fallback::Scss,
             },
-            SourceLanguage::HTML => Self {
+            SourceLanguage::HTML | SourceLanguage::Twig => Self {
                 language,
                 grammar: None,
                 queries: None,

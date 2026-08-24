@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_store"
+prompt = "How does SmsController store use SmsStore.save?"
+gold_files = ["Controller/SmsController.php", "Model/SmsStore.php"]
+expect_seeds_missed = false

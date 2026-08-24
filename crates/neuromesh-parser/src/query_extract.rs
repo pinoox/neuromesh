@@ -4,6 +4,7 @@ use crate::imports::{
 };
 use crate::types::{AstAnalysisResult, ParsedSymbol};
 use neuromesh_core::{EdgeType, NodeType};
+use std::cell::RefCell;
 use std::path::Path;
 use std::sync::OnceLock;
 use streaming_iterator::StreamingIterator;
@@ -21,7 +22,7 @@ pub const DART_QUERIES: &str = include_str!("queries/dart.scm");
 pub const SWIFT_QUERIES: &str = include_str!("queries/swift.scm");
 pub const RUBY_QUERIES: &str = include_str!("queries/ruby.scm");
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Grammar {
     Rust,
     TypeScript,
@@ -164,7 +165,12 @@ impl QueryOptions {
     }
 }
 
+thread_local! {
+    static TS_PARSER: RefCell<(Parser, Option<Grammar>)> = RefCell::new((Parser::new(), None));
+}
+
 /// Parse with a grammar + query profile. Returns None if the grammar or query fails to load.
+/// Reuses one tree-sitter `Parser` per thread so parallel ingest does not rebuild them.
 pub fn parse(
     path: &Path,
     content: &str,
@@ -174,10 +180,16 @@ pub fn parse(
 ) -> Option<AstAnalysisResult> {
     let language = grammar.language()?;
     let query = compiled_query(grammar, &language, query_src)?;
-    let mut parser = Parser::new();
-    parser.set_language(&language).ok()?;
-    let tree = parser.parse(content, None)?;
-    Some(extract(path, content, &tree, query, options))
+    TS_PARSER.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let (parser, last) = &mut *slot;
+        if *last != Some(grammar) {
+            parser.set_language(&language).ok()?;
+            *last = Some(grammar);
+        }
+        let tree = parser.parse(content, None)?;
+        Some(extract(path, content, &tree, query, options))
+    })
 }
 
 impl Grammar {

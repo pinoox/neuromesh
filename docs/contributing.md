@@ -34,7 +34,7 @@ Nature is the metaphor. Unique edges and fill caps are the contract.
 
 Do not add a fuzzy “link every namesake” pass. That is how a home-directory index grew a million edges.
 
-Rust and TypeScript already go through tree-sitter **queries** (`src/queries/*.scm`) via `LanguageSpec`. Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby use the same driver (regex/`GenericParser` fallback). Framework overlays tag Android/Spring/Django/Next/Laravel routes and components after extract. Vue has a scoped regex extractor. C / C++ stay on `GenericParser`. A new language is a registry row plus queries or a fallback — not a new `match` arm in the engine.
+Rust and TypeScript already go through tree-sitter **queries** (`src/queries/*.scm`) via `LanguageSpec`. Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby use the same driver (regex/`GenericParser` fallback). Framework overlays tag Android/Spring/Django/Next/Laravel/Pinoox/Symfony/WordPress/React/Vue/Svelte/Twig/Electron/Tauri/Vite/Prime routes and components after extract. Vue/Svelte share a scoped regex extractor. `.twig` uses the HTML fallback. C / C++ stay on `GenericParser`. A new language is a registry row plus queries or a fallback — not a new `match` arm in the engine. Do not add tree-sitter crates on ABI 15.
 
 ## Docs
 

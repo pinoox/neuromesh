@@ -1,7 +1,6 @@
 use neuromesh_core::{ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
-use neuromesh_parser::CodeIntelligenceEngine;
 
 pub fn execute() -> Result<()> {
     let current_dir = std::env::current_dir()?;
@@ -16,11 +15,7 @@ pub fn execute() -> Result<()> {
     let scanned = walker.scan().unwrap_or_default();
 
     let graph = NeuralProjectGraph::new(project_id);
-    for (file, content) in &scanned {
-        let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
-        graph.ingest_ast(file, &ast);
-    }
-    graph.finalize_links();
+    graph.ingest_workspace(&scanned);
 
     let stats = graph.stats();
     let nodes = graph.get_all_nodes();

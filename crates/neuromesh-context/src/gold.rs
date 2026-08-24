@@ -162,11 +162,14 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
-            "mini-next",
+            "mini-pinoox",
             GoldTask {
-                id: "sms_api".into(),
-                prompt: "How does POST /api/sms use saveSms?".into(),
-                gold_files: vec!["app/api/sms/route.ts".into(), "lib/sms_store.ts".into()],
+                id: "sms_store".into(),
+                prompt: "How does SmsController store use SmsStore.save?".into(),
+                gold_files: vec![
+                    "Controller/SmsController.php".into(),
+                    "Model/SmsStore.php".into(),
+                ],
                 expect_seeds_missed: false,
             },
         ),

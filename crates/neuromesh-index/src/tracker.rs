@@ -27,6 +27,8 @@ pub enum SourceLanguage {
     YAML,
     Markdown,
     HTML,
+    Twig,
+    Svelte,
     SQL,
     Unknown,
 }
@@ -74,6 +76,8 @@ impl SourceLanguage {
             "yaml" | "yml" => SourceLanguage::YAML,
             "md" | "markdown" => SourceLanguage::Markdown,
             "html" | "htm" => SourceLanguage::HTML,
+            "twig" => SourceLanguage::Twig,
+            "svelte" => SourceLanguage::Svelte,
             "sql" => SourceLanguage::SQL,
             _ => SourceLanguage::Unknown,
         }
@@ -106,6 +110,8 @@ impl SourceLanguage {
             Self::YAML => "yaml",
             Self::Markdown => "markdown",
             Self::HTML => "html",
+            Self::Twig => "twig",
+            Self::Svelte => "svelte",
             Self::SQL => "sql",
             Self::Unknown => "unknown",
         }
@@ -179,5 +185,15 @@ mod tests {
             SourceLanguage::from_path(Path::new("app/sms_store.rb")),
             SourceLanguage::Ruby
         );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("theme/home.twig")),
+            SourceLanguage::Twig
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("src/SmsCard.svelte")),
+            SourceLanguage::Svelte
+        );
+        assert!(SourceLanguage::Twig.is_code());
+        assert!(SourceLanguage::Svelte.is_code());
     }
 }

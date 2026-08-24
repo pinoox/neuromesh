@@ -11,7 +11,8 @@ Build on 1.80+, honest MCP args, Kotlin in the indexer, and a less hollow PHP/Go
 - **Generic languages.** PHP/Go/Java/Kotlin/C#/C/C++ extract functions and calls. `.kt` / `.kts` are indexed (`fun`, `object`, `data class`, imports). `throw new X`, `catch (X`, Kotlin `catch (e: X)`, and PHP `X $param` become inbound `Calls` edges.
 - **Doctor skipped files.** `neuromesh doctor` (and `index`) report unsupported extensions so a Kotlin-only repo is no longer a silent empty scan.
 - **Query extractors.** Rust and TypeScript parsing is driven by tree-sitter queries (`src/queries/*.scm`) behind a language registry. Regex remains the fallback. Gold on this repo must stay green.
-- **Wave 3 framework overlays.** Android Activity/Compose/BroadcastReceiver, Spring mappings, Django `urls.py`, Next `app/` routes, and Laravel `Route::` become `Component`/`Api` nodes from annotations and file layout — no compiler. Stack facts come from manifests (`com.android`, `next`, Django, Laravel). Gold: `mini-kotlin` “How is a received SMS stored?” and `mini-next`.
+- **Wave 3 framework overlays.** Android Activity/Compose/BroadcastReceiver, Spring mappings, Django `urls.py`, Next `app/` routes, Laravel `Route::`, Pinoox `action()`, Symfony `#[Route]`, WordPress REST, React/Vue/Svelte/Twig/Electron/Tauri/Vite/Prime UI become `Component`/`Api`/`Config` from layout and annotations — no compiler. Stack facts come from manifests (`pinoox/pincore`, `react`, `vite`, Shopfa mentions). Gold: `mini-kotlin` “How is a received SMS stored?”, `mini-next`, `mini-pinoox`.
+- **Index speed.** Workspace ingest parses files in parallel (rayon) and reuses a tree-sitter parser per thread. Hash skip is unchanged. `neuromesh index` uses the same ingest path as MCP.
 
 ## 0.5.2 — 2026-08-23
 

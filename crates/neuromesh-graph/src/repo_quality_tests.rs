@@ -29,11 +29,7 @@ mod tests {
         assert!(scanned.len() >= 20, "too few files: {}", scanned.len());
 
         let started = Instant::now();
-        for (file, content) in &scanned {
-            let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
-            graph.ingest_file(file, &ast, Some(content));
-        }
-        graph.finalize_links();
+        graph.ingest_workspace(&scanned);
         let index_ms = started.elapsed().as_millis();
 
         let stats = graph.stats();

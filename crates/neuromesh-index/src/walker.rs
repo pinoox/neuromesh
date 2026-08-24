@@ -64,6 +64,8 @@ impl ProjectWalker {
                 || current.join("pubspec.yaml").exists()
                 || current.join("Package.swift").exists()
                 || current.join("Gemfile").exists()
+                || current.join("composer.json").exists()
+                || current.join("app.php").exists()
             {
                 return current;
             }
@@ -131,6 +133,7 @@ impl ProjectWalker {
                 || s_lower == ".dart_tool"
                 || s_lower == "pods"
                 || s_lower == ".build"
+                || s_lower == ".svelte-kit"
             {
                 return true;
             }
