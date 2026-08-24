@@ -1488,6 +1488,14 @@ impl NeuralProjectGraph {
                         | "main.go"
                         | "main.dart"
                         | "Program.cs"
+                        | "AndroidManifest.xml"
+                        | "MainActivity.kt"
+                        | "MainActivity.java"
+                        | "urls.py"
+                        | "page.tsx"
+                        | "page.ts"
+                        | "route.ts"
+                        | "web.php"
                 ) {
                     entry_points.push(SearchHit::from_node(node, 1.0, "entry"));
                 }
@@ -1710,7 +1718,7 @@ fn index_tokens(data: &mut GraphData, id: &NodeId, name: &str) {
 
 fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     let mut bonus = match node.node_type {
-        NodeType::Function | NodeType::Class | NodeType::Component => 8.0,
+        NodeType::Function | NodeType::Class | NodeType::Component | NodeType::Api => 8.0,
         NodeType::File => 1.0,
         _ => 0.0,
     };

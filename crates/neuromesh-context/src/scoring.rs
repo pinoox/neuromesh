@@ -116,7 +116,7 @@ impl ActivationScorer {
 
     fn compute_task_impact(&self, node: &ContextNode, signature: &TaskSignature) -> f32 {
         match node.node_type {
-            NodeType::Component => 0.95,
+            NodeType::Component | NodeType::Api => 0.95,
             NodeType::File => 0.90,
             NodeType::Function | NodeType::Class => 0.85,
             NodeType::StyleToken => 0.80,

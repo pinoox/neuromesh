@@ -135,6 +135,15 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
+            "mini-kotlin",
+            GoldTask {
+                id: "sms_stored".into(),
+                prompt: "How is a received SMS stored?".into(),
+                gold_files: vec!["src/SmsReceiver.kt".into(), "src/SmsStore.kt".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
             "mini-dart",
             GoldTask {
                 id: "sms_receive".into(),
@@ -149,6 +158,15 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 id: "sms_receive".into(),
                 prompt: "How does OnReceive use SmsStore.Save?".into(),
                 gold_files: vec!["src/SmsReceiver.cs".into(), "src/SmsStore.cs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-next",
+            GoldTask {
+                id: "sms_api".into(),
+                prompt: "How does POST /api/sms use saveSms?".into(),
+                gold_files: vec!["app/api/sms/route.ts".into(), "lib/sms_store.ts".into()],
                 expect_seeds_missed: false,
             },
         ),

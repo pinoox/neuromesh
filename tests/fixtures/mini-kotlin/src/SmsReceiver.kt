@@ -1,9 +1,10 @@
 package com.example.app
 
+import android.content.BroadcastReceiver
 import com.example.app.SmsStore
 
-class SmsReceiver {
-    fun onReceive(body: String?) {
+class SmsReceiver : BroadcastReceiver() {
+    override fun onReceive(body: String?) {
         SmsStore.save(body)
     }
 }

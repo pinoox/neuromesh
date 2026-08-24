@@ -11,7 +11,7 @@ Build on 1.80+, honest MCP args, Kotlin in the indexer, and a less hollow PHP/Go
 - **Generic languages.** PHP/Go/Java/Kotlin/C#/C/C++ extract functions and calls. `.kt` / `.kts` are indexed (`fun`, `object`, `data class`, imports). `throw new X`, `catch (X`, Kotlin `catch (e: X)`, and PHP `X $param` become inbound `Calls` edges.
 - **Doctor skipped files.** `neuromesh doctor` (and `index`) report unsupported extensions so a Kotlin-only repo is no longer a silent empty scan.
 - **Query extractors.** Rust and TypeScript parsing is driven by tree-sitter queries (`src/queries/*.scm`) behind a language registry. Regex remains the fallback. Gold on this repo must stay green.
-- **Wave 2 languages.** Swift, Dart, Ruby, and C# are indexed (no longer skipped as unknown). Same query driver; regex/`GenericParser` fallback. Grammars stay on tree-sitter **ABI 14** (`tree-sitter-dart-orchard` 0.6.0, `tree-sitter-c-sharp` 0.23.1, `tree-sitter-swift` 0.6.0, `tree-sitter-ruby` 0.23.1). Fixtures: `mini-dart`, `mini-csharp`.
+- **Wave 3 framework overlays.** Android Activity/Compose/BroadcastReceiver, Spring mappings, Django `urls.py`, Next `app/` routes, and Laravel `Route::` become `Component`/`Api` nodes from annotations and file layout — no compiler. Stack facts come from manifests (`com.android`, `next`, Django, Laravel). Gold: `mini-kotlin` “How is a received SMS stored?” and `mini-next`.
 
 ## 0.5.2 — 2026-08-23
 

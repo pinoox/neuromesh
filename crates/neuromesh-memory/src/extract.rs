@@ -34,13 +34,21 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
         }
     }
 
-    if root.join("package.json").exists() {
+    if let Ok(pkg) = fs::read_to_string(root.join("package.json")) {
         facts.push(ProjectFact::new(
             project_id.clone(),
             "framework",
             "javascript_toolchain",
             "Node/TypeScript project with package.json",
         ));
+        if pkg.contains("\"next\"") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "nextjs",
+                "Next.js app (package.json dependency)",
+            ));
+        }
     }
 
     if root.join("pyproject.toml").exists() || root.join("requirements.txt").exists() {
@@ -50,11 +58,20 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             "python_toolchain",
             "Python project",
         ));
+        if file_mentions(root, &["pyproject.toml", "requirements.txt"], "Django") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "django",
+                "Django project (manifest names Django)",
+            ));
+        }
     }
 
     if root.join("settings.gradle.kts").exists()
         || root.join("settings.gradle").exists()
         || root.join("build.gradle.kts").exists()
+        || root.join("build.gradle").exists()
     {
         facts.push(ProjectFact::new(
             project_id.clone(),
@@ -62,6 +79,53 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             "android_kotlin",
             "Gradle/Kotlin project (settings or build.gradle.kts)",
         ));
+        if file_mentions(
+            root,
+            &[
+                "build.gradle.kts",
+                "build.gradle",
+                "settings.gradle.kts",
+                "settings.gradle",
+                "app/build.gradle.kts",
+                "app/build.gradle",
+            ],
+            "com.android",
+        ) {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "android",
+                "Android Gradle project (com.android plugin)",
+            ));
+        }
+        if file_mentions(
+            root,
+            &[
+                "build.gradle.kts",
+                "build.gradle",
+                "settings.gradle.kts",
+                "settings.gradle",
+            ],
+            "org.springframework",
+        ) {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "spring",
+                "Spring project (org.springframework in Gradle)",
+            ));
+        }
+    }
+
+    if let Ok(composer) = fs::read_to_string(root.join("composer.json")) {
+        if composer.contains("laravel/framework") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "laravel",
+                "Laravel project (composer.json)",
+            ));
+        }
     }
 
     if root.join("pubspec.yaml").exists() {
@@ -128,6 +192,12 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
     }
 
     facts
+}
+
+fn file_mentions(root: &Path, names: &[&str], needle: &str) -> bool {
+    names
+        .iter()
+        .any(|name| fs::read_to_string(root.join(name)).is_ok_and(|s| s.contains(needle)))
 }
 
 fn extract_workspace_members(cargo: &str) -> Option<String> {

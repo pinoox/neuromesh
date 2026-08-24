@@ -4,6 +4,7 @@ pub mod generic;
 pub mod html;
 pub mod identifiers;
 pub mod imports;
+pub mod overlay;
 pub mod python_lang;
 pub mod query_extract;
 pub mod registry;

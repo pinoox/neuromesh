@@ -566,8 +566,9 @@ object InboxStore {
 "#;
         let receiver = r#"
 package com.example.app
+import android.content.BroadcastReceiver
 import com.example.app.SmsStore
-class SmsReceiver {
+class SmsReceiver : BroadcastReceiver() {
     fun onReceive(intent: Intent) {
         SmsStore.save(intent.getStringExtra("sms"))
     }
