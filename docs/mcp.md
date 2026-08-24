@@ -13,7 +13,7 @@ neuromesh_get_context(task_description)
   → after a successful edit: neuromesh_record_feedback
 ```
 
-Start with `get_context`. `next_actions` say when to `neuromesh_expand_fold`. Grep (`neuromesh_search_symbols`) only when `coverage.claim` is `partial`. After a good edit, **always** call `neuromesh_record_feedback` — that is the synaptic learning step; without it the next packet does not change.
+Start with `get_context`. `next_actions` say when to `neuromesh_expand_fold`. Grep (`neuromesh_search_symbols`) when `coverage.claim` is `partial` **or** `no_seed_resolved` (zero identifiers resolved — do not treat a utility fallback file as the answer). After a good edit, **always** call `neuromesh_record_feedback` — that is the synaptic learning step; without it the next packet does not change.
 
 ## Tools
 

@@ -12,6 +12,10 @@ use walkdir::WalkDir;
 pub struct ScanReport {
     pub files: Vec<(IndexedFile, String)>,
     pub skipped_by_extension: BTreeMap<String, usize>,
+    /// True when more source files existed than `file_cap`.
+    pub truncated: bool,
+    pub omitted_over_cap: usize,
+    pub file_cap: usize,
 }
 
 impl ScanReport {
@@ -46,6 +50,12 @@ impl ProjectWalker {
             max_file_size: 2 * 1024 * 1024, // 2MB max text file
             max_files: 6_000,
         }
+    }
+
+    #[cfg(test)]
+    pub fn with_max_files(mut self, max_files: usize) -> Self {
+        self.max_files = max_files;
+        self
     }
 
     /// Walk up from `start` to a git/cargo root, refusing home and drive roots.
@@ -150,7 +160,12 @@ impl ProjectWalker {
     }
 
     pub fn scan_report(&self) -> Result<ScanReport> {
-        let mut report = ScanReport::default();
+        let mut report = ScanReport {
+            file_cap: self.max_files,
+            ..ScanReport::default()
+        };
+
+        let mut candidates: Vec<(PathBuf, PathBuf, u64, DateTime<Utc>)> = Vec::new();
 
         for entry in WalkDir::new(&self.root_path)
             .max_depth(10)
@@ -186,35 +201,55 @@ impl ProjectWalker {
                 continue;
             }
 
-            let content = match fs::read_to_string(&full_path) {
-                Ok(c) => c,
-                Err(_) => continue, // Skip binary or non-utf8 files
-            };
-
-            let hash = ContentHasher::hash_str(&content);
             let last_modified: DateTime<Utc> = metadata
                 .modified()
                 .map(|t| t.into())
                 .unwrap_or_else(|_| Utc::now());
+            candidates.push((relative_path, full_path, metadata.len(), last_modified));
+        }
 
+        candidates.sort_by(|a, b| {
+            is_test_like(&a.0)
+                .cmp(&is_test_like(&b.0))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+
+        if candidates.len() > self.max_files {
+            report.truncated = true;
+            report.omitted_over_cap = candidates.len() - self.max_files;
+            candidates.truncate(self.max_files);
+        }
+
+        for (relative_path, full_path, byte_size, last_modified) in candidates {
+            let content = match fs::read_to_string(&full_path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            let hash = ContentHasher::hash_str(&content);
             let indexed_file = IndexedFile::new(
                 self.project_id.clone(),
                 relative_path,
                 full_path,
                 &content,
                 hash,
-                metadata.len(),
+                byte_size,
                 last_modified,
             );
-
             report.files.push((indexed_file, content));
-            if report.files.len() >= self.max_files {
-                break;
-            }
         }
 
         Ok(report)
     }
+}
+
+/// Test trees are indexed, but after production sources so a 6k-file cap
+/// does not drop `HttpKernel.php` in favor of `Tests/`.
+fn is_test_like(path: &Path) -> bool {
+    path.components().any(|c| {
+        let s = c.as_os_str().to_string_lossy();
+        s.eq_ignore_ascii_case("tests") || s.eq_ignore_ascii_case("test")
+    })
 }
 
 fn reportable_unknown_extension(path: &Path) -> Option<String> {
@@ -285,7 +320,8 @@ fn is_noise_extension(ext: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::ProjectWalker;
-    use std::path::Path;
+    use std::fs;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn ignores_benches_examples_testdata_not_tests() {
@@ -301,6 +337,36 @@ mod tests {
         assert!(!ProjectWalker::is_ignored(Path::new(
             "crates/foo/tests/gold.rs"
         )));
+    }
+
+    #[test]
+    fn file_cap_keeps_sources_ahead_of_tests() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("walk_cap_tmp")
+            .join(format!("nm-walk-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(root.join("src/HttpKernel.php"), "<?php class HttpKernel {}").unwrap();
+        fs::write(root.join("tests/a.php"), "<?php class AaaTest {}").unwrap();
+        fs::write(root.join("tests/b.php"), "<?php class BbbTest {}").unwrap();
+        let walker = ProjectWalker::new(root.clone(), neuromesh_core::ProjectId::new("cap"))
+            .with_max_files(1);
+        let report = walker.scan_report().unwrap();
+        assert!(report.truncated);
+        assert_eq!(report.omitted_over_cap, 2);
+        assert_eq!(report.files.len(), 1);
+        assert!(
+            report.files[0]
+                .0
+                .relative_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .ends_with("src/HttpKernel.php"),
+            "cap must keep production sources, got {:?}",
+            report.files[0].0.relative_path
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

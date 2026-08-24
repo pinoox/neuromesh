@@ -10,7 +10,7 @@ Thresholds locked in tests:
 
 - recall ≥ **0.8**
 - precision ≥ **0.4**
-- missed seeds reported as `partial`, not an empty silent packet
+- missed seeds reported as `partial`, or `no_seed_resolved` when **every** identifier missed (empty packet, Grep immediately)
 - `expand_fold` restores a registered body without reading the disk
 - activation under **150 ms** in the debug gold test on this repo (cargo test is parallel; isolated runs sit nearer 60 ms)
 - skeletonizer folds **bodies** from graph/tree-sitter spans; seed callees stay exons; fill caps stay 0 / 5k / 16k extra tokens

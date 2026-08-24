@@ -20,6 +20,7 @@ Language registry, tree-sitter queries, framework overlays, parallel index, and 
 - **Eval honesty.** `neuromesh eval` prints fixture dirs with an empty scan instead of skipping them. README numbers from release eval (2026-08-24): 219 files, 1,323 nodes, 2,891 edges, ~209 ms index.
 - **Monitor galaxy.** 2D clicks open nodes (they used to pan instead). 3D picking chooses the front-most blob, pauses spin on hover, and ignores giant label hit-boxes. Nodes render as Physarum slime; **Play slime** grows, streams, and prunes tubes.
 - **Monitor header.** Drop the extra Projects & Switch button — click the active-project chip to open the switcher. Compact one-line labels.
+- **Scale search.** Exact class/interface names outrank fuzzy `Http`/`Kernel` tokens. `neuromesh_get_context` uses `coverage.claim = no_seed_resolved` when every identifier misses, and does not ship a utility fallback file. Index queues `tests/` after production sources and prints when the 6,000-file cap truncates.
 
 ## 0.5.2 — 2026-08-23
 

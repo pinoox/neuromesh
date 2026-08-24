@@ -33,6 +33,12 @@ pub fn execute() -> Result<()> {
     match walker.scan_report() {
         Ok(report) => {
             println!("Scan           : {} source files", report.files.len());
+            if report.truncated {
+                println!(
+                    "Truncated      : hit {}-file cap; {} more files not indexed (test trees queued last)",
+                    report.file_cap, report.omitted_over_cap
+                );
+            }
             if report.skipped_count() > 0 {
                 println!(
                     "Skipped        : {} files ({})",

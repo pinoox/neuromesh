@@ -831,7 +831,7 @@ impl HttpServer {
                         { "name": "neuromesh_get_context", "description": "Evidence packet: seeds always ship, Physarum tubes when two+ seeds, then fold. Grep only if coverage is partial.", "params": ["task_description", "mode"] },
                         { "name": "neuromesh_expand_fold", "description": "Restore a folded body by fold_id from the session registry (no disk re-read).", "params": ["fold_id", "reason"] },
                         { "name": "neuromesh_get_file_skeleton", "description": "Skeletonize one file; seed symbols stay as exons.", "params": ["file_path", "active_symbols"] },
-                        { "name": "neuromesh_search_symbols", "description": "Ranked symbol search. Use only when coverage.claim is partial.", "params": ["query", "limit"] },
+                        { "name": "neuromesh_search_symbols", "description": "Ranked search. Use when coverage.claim is partial or no_seed_resolved.", "params": ["query", "limit"] },
                         { "name": "neuromesh_get_dependencies", "description": "Typed neighbors (calls, imports) for a symbol or path.", "params": ["symbol_or_path"] },
                         { "name": "neuromesh_trace", "description": "Call/import chains from a seed.", "params": ["query", "direction", "depth"] },
                         { "name": "neuromesh_analyze_impact", "description": "Blast radius around a symbol.", "params": ["query", "depth"] },

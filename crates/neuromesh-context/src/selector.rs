@@ -81,6 +81,18 @@ pub fn select(
     mode: OptimizationMode,
 ) -> Selection {
     let fill_cap = fill_budget(mode);
+    if seeds.is_empty() {
+        return Selection {
+            node_ids: Vec::new(),
+            required: Vec::new(),
+            optional: Vec::new(),
+            scores: HashMap::new(),
+            budget_used: 0,
+            budget_cap: fill_cap,
+            optional_cap: 0,
+            method: "no_seed",
+        };
+    }
     let mut required: HashSet<NodeId> = HashSet::new();
     let mut scores: HashMap<NodeId, f32> = HashMap::new();
 

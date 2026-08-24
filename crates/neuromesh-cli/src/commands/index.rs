@@ -20,6 +20,9 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let report = walker.scan_report()?;
     let skipped_count = report.skipped_count();
     let skipped_summary = report.skipped_summary();
+    let truncated = report.truncated;
+    let omitted = report.omitted_over_cap;
+    let file_cap = report.file_cap;
     let scanned_files = report.files;
     let total_files = scanned_files.len();
 
@@ -141,6 +144,11 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     println!("  Indexed Files  : {}", total_files);
     if skipped_count > 0 {
         println!("  Skipped        : {} ({})", skipped_count, skipped_summary);
+    }
+    if truncated {
+        println!(
+            "  Truncated      : hit {file_cap}-file cap; {omitted} more files not indexed (test trees queued last)"
+        );
     }
     println!("  Total Tokens   : {}", total_tokens);
     println!("  Graph Nodes    : {}", stats.total_nodes);

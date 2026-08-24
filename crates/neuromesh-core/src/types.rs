@@ -223,8 +223,10 @@ impl CoverageReport {
             .filter(|s| s.resolved_id.is_none())
             .map(|s| s.query.clone())
             .collect();
-        let claim = if seeds_missed.is_empty() {
+        let claim = if seeds.is_empty() || seeds_missed.is_empty() {
             "no_recorded_gap".to_string()
+        } else if seeds_hit.is_empty() {
+            "no_seed_resolved".to_string()
         } else {
             "partial".to_string()
         };

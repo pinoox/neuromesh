@@ -547,6 +547,81 @@ final class InstallPlatformCommand
     }
 
     #[test]
+    fn exact_class_name_outranks_http_token_noise() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("symfony"));
+        for i in 0..40 {
+            let src = format!(
+                "<?php\nclass HttpUtils{i} {{\n    public function getKernel() {{}}\n    public function doSendHttp() {{}}\n}}\n"
+            );
+            let path = format!("src/HttpUtils{i}.php");
+            graph.ingest_file(
+                &indexed(&path),
+                &CodeIntelligenceEngine::analyze(&PathBuf::from(&path), &src, SourceLanguage::PHP),
+                Some(&src),
+            );
+        }
+        let kernel = "<?php\nclass HttpKernel {\n    public function handle($request) {}\n}\n";
+        graph.ingest_file(
+            &indexed("src/HttpKernel.php"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/HttpKernel.php"),
+                kernel,
+                SourceLanguage::PHP,
+            ),
+            Some(kernel),
+        );
+        graph.finalize_links();
+        let hits = graph.search_symbols("HttpKernel", 20);
+        assert_eq!(
+            hits.first().map(|h| h.name.as_str()),
+            Some("HttpKernel"),
+            "exact class must be rank 1, got {hits:?}"
+        );
+        assert_eq!(hits[0].match_reason, "exact_name");
+    }
+
+    #[test]
+    fn php_throw_inbound_recall_holds_with_many_callers() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("routing"));
+        let exception = "<?php\nclass RouteNotFoundException extends \\RuntimeException {}\n";
+        graph.ingest_file(
+            &indexed("src/RouteNotFoundException.php"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/RouteNotFoundException.php"),
+                exception,
+                SourceLanguage::PHP,
+            ),
+            Some(exception),
+        );
+        let sites = [
+            ("src/CompiledUrlGeneratorDumper.php", "dump"),
+            ("src/CompiledUrlGenerator.php", "generate"),
+            ("src/UrlGenerator.php", "doGenerate"),
+            ("src/CompiledUrlMatcherDumper.php", "dumpMatcher"),
+            ("src/RedirectableUrlMatcher.php", "redirect"),
+        ];
+        for (path, fn_name) in sites {
+            let src = format!(
+                "<?php\nclass Site {{\n    public function {fn_name}() {{\n        throw new RouteNotFoundException('x');\n    }}\n}}\n"
+            );
+            graph.ingest_file(
+                &indexed(path),
+                &CodeIntelligenceEngine::analyze(&PathBuf::from(path), &src, SourceLanguage::PHP),
+                Some(&src),
+            );
+        }
+        graph.finalize_links();
+        let trace = graph.trace_symbol("RouteNotFoundException", crate::TraceDirection::Inbound, 3);
+        let callers: Vec<_> = trace.callers.iter().map(|h| h.name.as_str()).collect();
+        for expected in ["dump", "generate", "doGenerate", "dumpMatcher", "redirect"] {
+            assert!(
+                callers.contains(&expected),
+                "missing throw site {expected}, got {callers:?}"
+            );
+        }
+    }
+
+    #[test]
     fn kotlin_unique_save_does_not_explode_or_cross_link() {
         let graph = NeuralProjectGraph::new(ProjectId::new("android"));
         let store = r#"

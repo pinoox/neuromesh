@@ -641,7 +641,7 @@ mod tests {
                     "missing seed must be reported: {:?}",
                     view.coverage
                 );
-                assert_eq!(metrics.coverage_claim, "partial");
+                assert_eq!(metrics.coverage_claim, "no_seed_resolved");
             } else {
                 assert!(
                     metrics.recall >= 0.8,

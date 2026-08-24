@@ -83,7 +83,7 @@ impl PacketSnapshot {
             budget_mode: view.budget_mode.clone(),
             seed_call_coverage: view.seed_call_coverage,
             next_action_count: view.next_actions.len(),
-            grep_needed: claim == "partial",
+            grep_needed: claim == "partial" || claim == "no_seed_resolved",
             file_paths: files.into_iter().take(12).collect(),
         }
     }
@@ -196,17 +196,21 @@ impl ContextActivator {
                     resolved_id: Some(id),
                     confidence: conf,
                 });
-            } else if let Some(hit) =
-                graph
-                    .search_symbols(&query, 1)
-                    .into_iter()
-                    .next()
-                    .filter(|hit| {
+            } else if let Some(hit) = {
+                let hits = graph.search_symbols(&query, 12);
+                hits.iter()
+                    .find(|hit| hit.name.eq_ignore_ascii_case(&query))
+                    .cloned()
+                    .or_else(|| {
                         let q = query.to_lowercase();
-                        let n = hit.name.to_lowercase();
-                        hit.score >= 86.0 && (n == q || n.starts_with(&q) || q.starts_with(&n))
+                        hits.into_iter().find(|hit| {
+                            let n = hit.name.to_lowercase();
+                            hit.match_reason != "token"
+                                && hit.score >= 86.0
+                                && (n.starts_with(&q) || q.starts_with(&n))
+                        })
                     })
-            {
+            } {
                 seed_energies
                     .entry(hit.id.clone())
                     .and_modify(|e| *e = (*e).max(energy * 0.8))
@@ -655,13 +659,18 @@ fn build_next_actions(
     unresolved: &[neuromesh_core::UnresolvedRef],
 ) -> Vec<NextAction> {
     let mut actions = Vec::new();
-    let partial = coverage.claim == "partial";
-    if partial {
+    let needs_search = coverage.claim == "partial" || coverage.claim == "no_seed_resolved";
+    if needs_search {
+        let why = if coverage.claim == "no_seed_resolved" {
+            "no seed resolved — Grep this identifier; do not trust an empty or utility packet"
+        } else {
+            "coverage is partial — Grep/search this missed seed"
+        };
         for missed in &coverage.seeds_missed {
             actions.push(NextAction {
                 tool: "neuromesh_search_symbols".into(),
                 query: missed.clone(),
-                why: "coverage is partial — Grep/search this missed seed".into(),
+                why: why.into(),
             });
         }
     }
@@ -689,7 +698,7 @@ fn build_next_actions(
             break;
         }
     }
-    if partial {
+    if needs_search {
         if let Some(u) = unresolved.first() {
             if !actions.iter().any(|a| a.query == u.name) {
                 actions.push(NextAction {
@@ -1134,7 +1143,18 @@ pub fn unused_helper() {
         );
         assert_eq!(
             miss.coverage.as_ref().map(|c| c.claim.as_str()),
-            Some("partial")
+            Some("no_seed_resolved")
+        );
+        assert!(
+            !miss
+                .active_nodes
+                .iter()
+                .any(|n| n.node.node_type == neuromesh_core::NodeType::File),
+            "missed seed must not ship a utility file: {:?}",
+            miss.active_nodes
+                .iter()
+                .map(|n| n.node.file_path.clone())
+                .collect::<Vec<_>>()
         );
         assert!(
             miss.next_actions
@@ -1142,6 +1162,58 @@ pub fn unused_helper() {
                 .any(|a| a.tool == "neuromesh_search_symbols"),
             "Grep only when partial: {:?}",
             miss.next_actions
+        );
+    }
+
+    #[test]
+    fn exact_class_seed_beats_handle_utility_noise() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("symfony"));
+        for i in 0..24 {
+            let src = format!(
+                "<?php\ninterface AccessDeniedHandlerInterface{i} {{\n    public function handle($request);\n}}\n"
+            );
+            let path = format!("src/AccessDeniedHandlerInterface{i}.php");
+            graph.ingest_file(
+                &indexed(&path),
+                &CodeIntelligenceEngine::analyze(&PathBuf::from(&path), &src, SourceLanguage::PHP),
+                Some(&src),
+            );
+        }
+        let kernel = "<?php\nclass HttpKernel {\n    public function handle($request) { return $request; }\n}\n";
+        graph.ingest_file(
+            &indexed("src/HttpKernel.php"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("src/HttpKernel.php"),
+                kernel,
+                SourceLanguage::PHP,
+            ),
+            Some(kernel),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "how does HttpKernel handle a request and produce a response",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        assert!(
+            coverage.seeds_hit.iter().any(|s| s == "HttpKernel"),
+            "HttpKernel must resolve, got {coverage:?}"
+        );
+        assert_ne!(coverage.claim, "no_seed_resolved");
+        assert!(
+            view.active_nodes.iter().any(|n| {
+                n.node.file_path.to_string_lossy().replace('\\', "/") == "src/HttpKernel.php"
+            }),
+            "packet must include HttpKernel.php, got {:?}",
+            view.active_nodes
+                .iter()
+                .map(|n| n.node.file_path.clone())
+                .collect::<Vec<_>>()
         );
     }
 

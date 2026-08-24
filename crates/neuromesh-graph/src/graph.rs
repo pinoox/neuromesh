@@ -583,9 +583,23 @@ impl NeuralProjectGraph {
         let data = self.inner.read();
         let mut scored: HashMap<NodeId, (f32, String)> = HashMap::new();
 
+        let mut exact_type_hit = false;
         if let Some(ids) = data.name_to_nodes.get(&query_lower) {
             for id in ids {
-                scored.insert(id.clone(), (100.0, "exact_name".into()));
+                let class_like = data.nodes.get(id).is_some_and(|n| {
+                    matches!(
+                        n.node_type,
+                        NodeType::Class | NodeType::Component | NodeType::Api
+                    )
+                });
+                if class_like {
+                    exact_type_hit = true;
+                }
+                // Exact names outrank every fuzzy token. Class/interface/trait
+                // nodes get a higher floor so `HttpKernel` cannot lose to
+                // `HttpUtils` / `getKernel` once the corpus is large.
+                let base = if class_like { 240.0 } else { 120.0 };
+                scored.insert(id.clone(), (base, "exact_name".into()));
             }
         }
 
@@ -596,7 +610,7 @@ impl NeuralProjectGraph {
                 }
                 let reason_score = if name.starts_with(&query_lower) {
                     Some((86.0, "prefix"))
-                } else if name.contains(&query_lower) {
+                } else if !exact_type_hit && name.contains(&query_lower) {
                     Some((68.0, "substring"))
                 } else {
                     None
@@ -609,10 +623,12 @@ impl NeuralProjectGraph {
             }
         }
 
-        for token in &query_tokens {
-            if let Some(ids) = data.token_to_nodes.get(token) {
-                for id in ids {
-                    scored.entry(id.clone()).or_insert((74.0, "token".into()));
+        if !exact_type_hit {
+            for token in &query_tokens {
+                if let Some(ids) = data.token_to_nodes.get(token) {
+                    for id in ids {
+                        scored.entry(id.clone()).or_insert((74.0, "token".into()));
+                    }
                 }
             }
         }
@@ -639,9 +655,15 @@ impl NeuralProjectGraph {
             .collect();
 
         hits.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            let exact = |reason: &str| reason == "exact_name";
+            exact(&b.match_reason)
+                .cmp(&exact(&a.match_reason))
+                .then_with(|| type_search_rank(&b.node_type).cmp(&type_search_rank(&a.node_type)))
+                .then_with(|| {
+                    b.score
+                        .partial_cmp(&a.score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .then_with(|| a.name.len().cmp(&b.name.len()))
         });
         hits.dedup_by(|a, b| a.id == b.id);
@@ -1737,6 +1759,15 @@ fn index_tokens(data: &mut GraphData, id: &NodeId, name: &str) {
         if !ids.iter().any(|existing| existing == id) {
             ids.push(id.clone());
         }
+    }
+}
+
+fn type_search_rank(node_type: &NodeType) -> u8 {
+    match node_type {
+        NodeType::Class | NodeType::Component | NodeType::Api => 3,
+        NodeType::Function => 2,
+        NodeType::File => 0,
+        _ => 1,
     }
 }
 

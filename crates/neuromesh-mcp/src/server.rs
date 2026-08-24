@@ -196,7 +196,7 @@ impl McpServer {
                     "tools": [
                         {
                             "name": "neuromesh_get_context",
-                            "description": "Return one evidence packet: seeds, skeletonized files, unresolved gaps, coverage (no_recorded_gap|partial), budget, and next_actions. Never treats silence as completeness.",
+                            "description": "Return one evidence packet: seeds, skeletonized files, unresolved gaps, coverage (no_recorded_gap|partial|no_seed_resolved), budget, and next_actions. Never treats silence as completeness. no_seed_resolved means every identifier missed — Grep immediately; do not read a utility fallback.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
