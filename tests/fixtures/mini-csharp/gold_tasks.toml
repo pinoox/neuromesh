@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_receive"
+prompt = "How does OnReceive use SmsStore.Save?"
+gold_files = ["src/SmsReceiver.cs", "src/SmsStore.cs"]
+expect_seeds_missed = false

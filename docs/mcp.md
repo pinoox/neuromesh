@@ -47,7 +47,7 @@ Aliases exist for older clients (`activate_context`, `expand_context`, `search_c
 - `next_actions` — `expand_fold` for sleeping exons; Grep/search only when `coverage` is `partial`
 - `physarum_used` / `physarum_ms` / `selection_method` — honest slime-mold telemetry
 
-`mode`: `balanced` (default), `max_savings`, `max_quality`. Critical tasks (auth / payment / secret) upgrade to max quality.
+`mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality.
 
 ## Folds
 

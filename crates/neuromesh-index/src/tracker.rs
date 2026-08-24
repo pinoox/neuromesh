@@ -11,6 +11,7 @@ pub enum SourceLanguage {
     JavaScript,
     SCSS,
     CSS,
+    Less,
     Rust,
     Python,
     Go,
@@ -18,12 +19,19 @@ pub enum SourceLanguage {
     Java,
     Kotlin,
     CSharp,
+    Swift,
+    Dart,
+    Ruby,
     C,
     Cpp,
     JSON,
     YAML,
     Markdown,
     HTML,
+    Svg,
+    Twig,
+    Svelte,
+    Astro,
     SQL,
     Unknown,
 }
@@ -55,6 +63,7 @@ impl SourceLanguage {
             "js" | "jsx" | "mjs" | "cjs" => SourceLanguage::JavaScript,
             "scss" | "sass" => SourceLanguage::SCSS,
             "css" => SourceLanguage::CSS,
+            "less" => SourceLanguage::Less,
             "rs" => SourceLanguage::Rust,
             "py" | "pyw" => SourceLanguage::Python,
             "go" => SourceLanguage::Go,
@@ -62,12 +71,19 @@ impl SourceLanguage {
             "java" => SourceLanguage::Java,
             "kt" | "kts" => SourceLanguage::Kotlin,
             "cs" => SourceLanguage::CSharp,
+            "swift" => SourceLanguage::Swift,
+            "dart" => SourceLanguage::Dart,
+            "rb" | "rake" => SourceLanguage::Ruby,
             "c" | "h" => SourceLanguage::C,
             "cpp" | "hpp" | "cc" | "cxx" => SourceLanguage::Cpp,
             "json" => SourceLanguage::JSON,
             "yaml" | "yml" => SourceLanguage::YAML,
             "md" | "markdown" => SourceLanguage::Markdown,
-            "html" | "htm" => SourceLanguage::HTML,
+            "html" | "htm" | "cshtml" | "razor" => SourceLanguage::HTML,
+            "svg" => SourceLanguage::Svg,
+            "twig" => SourceLanguage::Twig,
+            "svelte" => SourceLanguage::Svelte,
+            "astro" => SourceLanguage::Astro,
             "sql" => SourceLanguage::SQL,
             _ => SourceLanguage::Unknown,
         }
@@ -84,6 +100,7 @@ impl SourceLanguage {
             Self::JavaScript => "javascript",
             Self::SCSS => "scss",
             Self::CSS => "css",
+            Self::Less => "less",
             Self::Rust => "rust",
             Self::Python => "python",
             Self::Go => "go",
@@ -91,12 +108,19 @@ impl SourceLanguage {
             Self::Java => "java",
             Self::Kotlin => "kotlin",
             Self::CSharp => "csharp",
+            Self::Swift => "swift",
+            Self::Dart => "dart",
+            Self::Ruby => "ruby",
             Self::C => "c",
             Self::Cpp => "cpp",
             Self::JSON => "json",
             Self::YAML => "yaml",
             Self::Markdown => "markdown",
             Self::HTML => "html",
+            Self::Svg => "svg",
+            Self::Twig => "twig",
+            Self::Svelte => "svelte",
+            Self::Astro => "astro",
             Self::SQL => "sql",
             Self::Unknown => "unknown",
         }
@@ -158,5 +182,58 @@ mod tests {
         );
         assert_eq!(SourceLanguage::Kotlin.as_str(), "kotlin");
         assert!(SourceLanguage::Kotlin.is_code());
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("SmsStore.swift")),
+            SourceLanguage::Swift
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("lib/sms_store.dart")),
+            SourceLanguage::Dart
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("app/sms_store.rb")),
+            SourceLanguage::Ruby
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("theme/home.twig")),
+            SourceLanguage::Twig
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("src/SmsCard.svelte")),
+            SourceLanguage::Svelte
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("src/pages/sms.astro")),
+            SourceLanguage::Astro
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("Pages/Sms.cshtml")),
+            SourceLanguage::HTML
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("Inbox.razor")),
+            SourceLanguage::HTML
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("styles/sms.less")),
+            SourceLanguage::Less
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("assets/sms-inbox.svg")),
+            SourceLanguage::Svg
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("theme/inbox.html")),
+            SourceLanguage::HTML
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("theme/badge.css")),
+            SourceLanguage::CSS
+        );
+        assert!(SourceLanguage::Less.is_code());
+        assert!(SourceLanguage::Svg.is_code());
+        assert!(SourceLanguage::Twig.is_code());
+        assert!(SourceLanguage::Svelte.is_code());
+        assert!(SourceLanguage::Astro.is_code());
     }
 }

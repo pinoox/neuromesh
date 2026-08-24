@@ -61,6 +61,14 @@ impl ProjectWalker {
                 || current.join("pyproject.toml").exists()
                 || current.join("settings.gradle.kts").exists()
                 || current.join("settings.gradle").exists()
+                || current.join("pubspec.yaml").exists()
+                || current.join("Package.swift").exists()
+                || current.join("Gemfile").exists()
+                || current.join("composer.json").exists()
+                || current.join("app.php").exists()
+                || current.join("go.mod").exists()
+                || current.join("angular.json").exists()
+                || current.join("App.csproj").exists()
             {
                 return current;
             }
@@ -125,6 +133,11 @@ impl ProjectWalker {
                 || s_lower == ".tox"
                 || s_lower == ".mypy_cache"
                 || s_lower == ".pytest_cache"
+                || s_lower == ".dart_tool"
+                || s_lower == "pods"
+                || s_lower == ".build"
+                || s_lower == ".svelte-kit"
+                || s_lower == ".output"
             {
                 return true;
             }

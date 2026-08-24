@@ -17,9 +17,10 @@ members = [
     "crates/neuromesh-observability",
     "crates/neuromesh-cli",
 ]
+exclude = ["tests/fixtures/mini-axum"]
 
 [workspace.package]
-version = "0.5.3"
+version = "0.6.1"
 edition = "2021"
 rust-version = "1.80"
 authors = ["NeuroMesh Team <team@neuromesh.local>"]
@@ -41,4 +42,5 @@ walkdir = "2.5"
 thiserror = "2.0"
 parking_lot = "0.12"
 dirs = "6.0"
+rayon = "1.11"
 anyhow = "1.0"

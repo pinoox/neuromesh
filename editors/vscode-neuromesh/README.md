@@ -2,7 +2,7 @@
 
 Sidebar mesh stats, a packet inspector, fold CodeLens, and the galaxy UI — talking to a running `neuromesh monitor`.
 
-The agent loop in the editor matches 0.5: **get_context → expand_fold**. Grep (`search_symbols`) only when coverage is `partial`. After a good edit, **record_feedback**.
+The agent loop in the editor matches 0.6.1: **get_context → expand_fold**. Grep (`search_symbols`) only when coverage is `partial`. After a good edit, **record_feedback**.
 
 ## Install
 
@@ -48,7 +48,7 @@ neuromesh monitor
 | Set Membrane Mode | — |
 | Re-index Workspace | — |
 
-`max_savings` / `balanced` / `max_quality` are the same membrane as the MCP tools (`0` / `8k` / `16k` fill on top of seeds).
+`max_savings` / `balanced` / `max_quality` are the same membrane as the MCP tools (`0` / `5k` / `16k` fill on top of seeds).
 
 ## Settings
 

@@ -2,7 +2,6 @@ use neuromesh_core::{ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
 use neuromesh_memory::{MemoryDatabase, ProjectFact};
-use neuromesh_parser::CodeIntelligenceEngine;
 use std::fs;
 use std::sync::Arc;
 
@@ -36,35 +35,44 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let mut has_ts = false;
     let mut has_html = false;
     let mut has_kotlin = false;
+    let mut has_svelte = false;
+    let mut has_js = false;
 
-    for (file, content) in &scanned_files {
+    for (file, _) in &scanned_files {
         total_tokens += file.token_count;
-        let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
-        graph.ingest_file(file, &ast, Some(content));
-
-        let path_str = file.relative_path.to_string_lossy().to_lowercase();
-        if path_str.ends_with(".html") || path_str.ends_with(".htm") {
+        if matches!(
+            file.language,
+            neuromesh_index::SourceLanguage::HTML
+                | neuromesh_index::SourceLanguage::Twig
+                | neuromesh_index::SourceLanguage::Svg
+        ) {
             has_html = true;
         }
         if file.language == neuromesh_index::SourceLanguage::Vue {
             has_vue = true;
         }
-        if file.language == neuromesh_index::SourceLanguage::SCSS || path_str.ends_with(".css") {
+        if file.language == neuromesh_index::SourceLanguage::Svelte {
+            has_svelte = true;
+        }
+        if matches!(
+            file.language,
+            neuromesh_index::SourceLanguage::SCSS
+                | neuromesh_index::SourceLanguage::CSS
+                | neuromesh_index::SourceLanguage::Less
+        ) {
             has_scss = true;
         }
         if file.language == neuromesh_index::SourceLanguage::TypeScript {
             has_ts = true;
         }
+        if file.language == neuromesh_index::SourceLanguage::JavaScript {
+            has_js = true;
+        }
         if file.language == neuromesh_index::SourceLanguage::Kotlin {
             has_kotlin = true;
         }
     }
-    graph.finalize_links();
-    let present: std::collections::HashSet<String> = scanned_files
-        .iter()
-        .map(|(file, _)| file.relative_path.to_string_lossy().replace('\\', "/"))
-        .collect();
-    graph.prune_absent_files(&present);
+    graph.ingest_workspace(&scanned_files);
     graph.save_persisted(&current_dir)?;
 
     if has_html {
@@ -83,12 +91,28 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             "Vue single-file components are present",
         ))?;
     }
+    if has_svelte {
+        memory_db.save_project_fact(&ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "svelte",
+            "Svelte components are present",
+        ))?;
+    }
+    if has_js {
+        memory_db.save_project_fact(&ProjectFact::new(
+            project_id.clone(),
+            "language",
+            "javascript",
+            "JavaScript files are present",
+        ))?;
+    }
     if has_scss {
         memory_db.save_project_fact(&ProjectFact::new(
             project_id.clone(),
             "styling",
             "stylesheets",
-            "SCSS or CSS files are present",
+            "SCSS, CSS, or LESS files are present",
         ))?;
     }
     if has_ts {

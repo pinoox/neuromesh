@@ -1,6 +1,54 @@
 use crate::types::{AstAnalysisResult, ParsedImport, ParsedRelationship};
 use neuromesh_core::EdgeType;
 
+const SOURCE_EXTS: &[&str] = &[".dart", ".swift", ".rb", ".cs", ".kt", ".java", ".py"];
+
+fn strip_source_ext(spec: &str) -> String {
+    let mut spec = spec.to_string();
+    for ext in SOURCE_EXTS {
+        if let Some(stripped) = spec.strip_suffix(ext) {
+            spec = stripped.to_string();
+            break;
+        }
+    }
+    spec
+}
+
+/// Turn a module spec into a path-like hint so `path_hint_matches` can require
+/// more than the last dotted segment (`com.example.SmsStore` → `com/example/SmsStore`).
+pub fn normalize_module_hint(source: &str) -> String {
+    let trimmed = strip_source_ext(source.trim().trim_matches(['"', '\'', '`', ';']).trim());
+    if trimmed.starts_with('.') || trimmed.contains('/') {
+        return trimmed.replace('\\', "/");
+    }
+    trimmed.replace("::", "/").replace(['.', '\\'], "/")
+}
+
+/// Last identifier in a dotted / slashed / namespaced import spec.
+pub fn last_import_segment(source: &str) -> String {
+    let spec = strip_source_ext(
+        source
+            .trim()
+            .trim_matches(['"', '\'', '`', ';'])
+            .trim_end_matches(['*', ';'])
+            .trim_end_matches('.'),
+    );
+    spec.split(['/', '\\', '.', ':'])
+        .map(str::trim)
+        .rfind(|s| !s.is_empty() && *s != "*")
+        .unwrap_or("")
+        .to_string()
+}
+
+pub fn split_import_alias(spec: &str) -> (String, Option<String>) {
+    let spec = spec.trim().trim_end_matches(';').trim();
+    if let Some((left, right)) = spec.rsplit_once(" as ") {
+        (left.trim().to_string(), Some(right.trim().to_string()))
+    } else {
+        (spec.to_string(), None)
+    }
+}
+
 /// Expand `use foo::{Bar, baz as Qux}` into individual imported names.
 pub fn expand_rust_use(spec: &str) -> Vec<(String, String)> {
     let spec = spec.trim().trim_end_matches(';').trim();
@@ -136,5 +184,17 @@ mod tests {
     fn expands_alias() {
         let items = expand_rust_use("foo::bar as Baz");
         assert_eq!(items, vec![("Baz".into(), "foo::bar".into())]);
+    }
+
+    #[test]
+    fn dotted_module_becomes_slash_hint() {
+        assert_eq!(
+            normalize_module_hint("com.example.app.SmsStore"),
+            "com/example/app/SmsStore"
+        );
+        assert_eq!(normalize_module_hint("./store"), "./store");
+        assert_eq!(last_import_segment("App\\Installer\\Foo"), "Foo");
+        assert_eq!(last_import_segment("sms_store.dart"), "sms_store");
+        assert_eq!(normalize_module_hint("sms_store.dart"), "sms_store");
     }
 }

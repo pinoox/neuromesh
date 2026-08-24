@@ -97,7 +97,7 @@ flowchart LR
 
 1. **Read the task** as written. `handle_tool_call` survives; it is not lowercased into mush.  
 2. **Resolve on the mesh.** Edges exist when the target is unique. Ambiguous names stay sleepy — never a million fake links.  
-3. **Ship seeds, grow the tube, fill the rest.** The files that own those symbols always go in. With two or more seeds, Physarum traces the cheapest connecting tissue on a neighborhood subgraph. Callees and synaptic neighbors fill a **real** budget (`balanced` = 8k extra tokens).  
+3. **Ship seeds, grow the tube, fill the rest.** The files that own those symbols always go in. With two or more seeds, Physarum traces the cheapest connecting tissue on a neighborhood subgraph. Callees and synaptic neighbors fill a **real** budget (`balanced` = 5k extra tokens).  
 4. **Splice.** Untargeted bodies become fold markers. Coverage tells you if a seed was missed — only then is Grep fair. Folds stay in the MCP session so the next tool can wake them.
 
 Tell the agent:
@@ -233,7 +233,7 @@ VS Code / Cursor: Settings → `neuromesh.port` must match the running monitor. 
 
 Each file in the packet has `path`, `why`, `line_range`, `folded_symbols`, and `seed_call_coverage`. Details: [docs/mcp.md](docs/mcp.md).
 
-Rust and TypeScript go through **tree-sitter**. Python and Vue have scoped extractors. PHP, Go, Java, Kotlin, C# and C/C++ use the generic regex parser (functions, `new Type`, `throw`, and `catch`). Ambiguous names are not “resolved” by hope.
+Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go through **tree-sitter queries**. JavaScript uses the TypeScript grammar. `.svelte`, `.astro`, `.twig`, `.cshtml`, `.razor`, `.css`, `.scss`, `.less`, and `.svg` are indexed. Framework overlays tag Android/Spring/Django/FastAPI/Next/Nuxt/Laravel/Pinoox/Symfony/WordPress/React/Vue/SvelteKit/Astro/Electron/Tauri/Vite/Prime/Rails/Flutter/Express/Nest/Angular/Gin/Echo/Axum/ASP.NET/SwiftUI/Remix/Ktor routes without a compiler. Vue has a scoped extractor. C/C++ use the generic regex parser. Ambiguous names are not “resolved” by hope.
 
 ---
 
@@ -241,18 +241,18 @@ Rust and TypeScript go through **tree-sitter**. Python and Vue have scoped extra
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (debug, 2026-08-23, 268,124 workspace tokens):
+On this repo (release, 2026-08-24, 365,352 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | balanced | 268124 | 26017 | 17422 | 93.5% | 33.0% | 1.00 | 0.50 | **0** | 24 |
-| `physarum_usage` | balanced | 268124 | 7882 | 4476 | 98.3% | 43.2% | 1.00 | 0.50 | **0** | 19 |
+| `handle_tool_call_intent` | balanced | 365352 | 32889 | 27381 | 92.5% | 16.7% | 1.00 | 0.60 | **0** | 17 |
+| `physarum_usage` | balanced | 365352 | 7929 | 4547 | 98.8% | 42.7% | 1.00 | 0.67 | **0** | 8 |
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
-Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** five fixture projects. Packet activation **&lt; 50 ms** in the debug gold test.
+Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects. Packet activation **&lt; 150 ms** in the debug gold test.
 
-Index snapshot from that eval run: **159 files · 972 nodes · 2,001 edges · ~1.2 s**.
+Index snapshot from that eval run: **219 files · 1,323 nodes · 2,891 edges · ~209 ms** (release).
 
 ---
 
@@ -265,6 +265,6 @@ Index snapshot from that eval run: **159 files · 972 nodes · 2,001 edges · ~1
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.5 |
+| [Changelog](docs/CHANGELOG.md) | 0.6.1 |
 
 MIT · [LICENSE](LICENSE)

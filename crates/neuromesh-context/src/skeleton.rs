@@ -43,6 +43,39 @@ fn is_seed_exon(sym_name: &str, active_symbols: &HashSet<String>) -> bool {
             .any(|s| s.eq_ignore_ascii_case(sym_name) || s.rsplit("::").next() == Some(sym_name))
 }
 
+fn contains_span(outer: &FunctionSpan, inner: &FunctionSpan) -> bool {
+    inner.start_line > outer.start_line && inner.end_line <= outer.end_line
+}
+
+fn is_block_closer(line: &str) -> bool {
+    matches!(line.trim(), "}" | "};" | "}," | ")" | ");" | "end" | "end;")
+}
+
+/// Fold the body, keep the signature (and a trailing `}` / `end`) as the file map.
+fn interior_range(lines: &[&str], span: &FunctionSpan, min_lines: usize) -> Option<(usize, usize)> {
+    let start = span.start_line.saturating_sub(1);
+    let end = span.end_line.min(lines.len()).saturating_sub(1);
+    if start >= lines.len() || end < start {
+        return None;
+    }
+    let interior_start = start.saturating_add(1);
+    let mut interior_end = end;
+    if interior_end >= interior_start && is_block_closer(lines[interior_end]) {
+        if interior_end == interior_start {
+            return None;
+        }
+        interior_end -= 1;
+    }
+    if interior_start > interior_end {
+        return None;
+    }
+    let interior_len = interior_end.saturating_sub(interior_start) + 1;
+    if interior_len < min_lines {
+        return None;
+    }
+    Some((interior_start, interior_end))
+}
+
 /// Seed functions stay open (exons). Sibling functions fold. Import lines are kept as-is.
 pub fn fold_intron_min_lines() -> usize {
     ContextChromosome::default().fold_threshold_lines.max(2)
@@ -104,7 +137,14 @@ impl CodeSkeletonizer {
             || file_path.ends_with(".java")
             || file_path.ends_with(".cpp")
             || file_path.ends_with(".c")
-            || file_path.ends_with(".php");
+            || file_path.ends_with(".php")
+            || file_path.ends_with(".kt")
+            || file_path.ends_with(".kts")
+            || file_path.ends_with(".dart")
+            || file_path.ends_with(".cs")
+            || file_path.ends_with(".swift")
+            || file_path.ends_with(".svelte")
+            || file_path.ends_with(".rb");
 
         if is_python {
             Self::skeletonize_python(content, active_symbol_names, original_tokens, min_lines)
@@ -136,30 +176,42 @@ impl CodeSkeletonizer {
         min_lines: usize,
     ) -> SkeletonResult {
         let lines: Vec<&str> = content.lines().collect();
-        let mut fold_ranges: Vec<(usize, usize, FunctionSpan)> = Vec::new();
         let mut exons_count = 0;
         let mut ordered: Vec<FunctionSpan> = spans.to_vec();
-        ordered.sort_by_key(|s| s.start_line);
+        ordered.sort_by_key(|s| (s.start_line, std::cmp::Reverse(s.end_line)));
 
+        let exon_spans: Vec<FunctionSpan> = ordered
+            .iter()
+            .filter(|s| is_seed_exon(&s.name, active_symbols))
+            .cloned()
+            .collect();
+
+        let mut plans: Vec<(usize, usize, FunctionSpan)> = Vec::new();
         for span in ordered {
-            let start = span.start_line.saturating_sub(1);
-            let end = span.end_line.min(lines.len()).saturating_sub(1);
-            if start >= lines.len() || end < start {
-                continue;
-            }
-            let span_len = end.saturating_sub(start) + 1;
             if is_seed_exon(&span.name, active_symbols) {
                 exons_count += 1;
                 continue;
             }
-            if span_len < min_lines {
+            if exon_spans.iter().any(|exon| contains_span(&span, exon)) {
                 exons_count += 1;
                 continue;
             }
-            fold_ranges.push((start, end, span));
+            let Some((interior_start, interior_end)) = interior_range(&lines, &span, min_lines)
+            else {
+                exons_count += 1;
+                continue;
+            };
+            if plans
+                .iter()
+                .any(|(ps, pe, _)| *ps <= interior_start && interior_end <= *pe)
+            {
+                continue;
+            }
+            plans.push((interior_start, interior_end, span));
         }
+        plans.sort_by_key(|(s, _, _)| *s);
 
-        if fold_ranges.is_empty() {
+        if plans.is_empty() {
             return SkeletonResult {
                 skeleton_code: content.to_string(),
                 original_tokens,
@@ -174,10 +226,10 @@ impl CodeSkeletonizer {
         let mut result_lines: Vec<String> = Vec::new();
         let mut folds: Vec<FoldedIntron> = Vec::new();
         let mut i = 0usize;
-        let mut fold_idx = 0usize;
+        let mut plan_idx = 0usize;
         while i < lines.len() {
-            if fold_idx < fold_ranges.len() && i == fold_ranges[fold_idx].0 {
-                let (start, end, span) = &fold_ranges[fold_idx];
+            if plan_idx < plans.len() && i == plans[plan_idx].0 {
+                let (start, end, span) = &plans[plan_idx];
                 let body_content = lines[*start..=*end].join("\n");
                 let saved_tokens = TokenCounter::count_tokens(&body_content);
                 let indent = lines[*start]
@@ -197,12 +249,12 @@ impl CodeSkeletonizer {
                     symbol_name: span.name.clone(),
                     signature: span.signature.clone(),
                     original_body: body_content,
-                    start_line: span.start_line,
-                    end_line: span.end_line,
+                    start_line: *start + 1,
+                    end_line: *end + 1,
                     saved_tokens,
                 });
                 i = *end + 1;
-                fold_idx += 1;
+                plan_idx += 1;
                 continue;
             }
             result_lines.push(lines[i].to_string());
@@ -499,10 +551,52 @@ export function untargetedHeavyHelper2() {
         ];
         let res = CodeSkeletonizer::skeletonize_with_spans("x.rs", code, &active, &spans);
         assert!(res.skeleton_code.contains("fn keep()"));
+        assert!(
+            res.skeleton_code.contains("fn drop_me()"),
+            "signature stays as the file map: {}",
+            res.skeleton_code
+        );
         assert!(res.skeleton_code.contains("neuromesh:fold:fold_drop_me"));
         assert!(!res.skeleton_code.contains("let z = 3"));
         assert_eq!(res.folds.len(), 1);
-        assert_eq!(res.folds[0].original_body.lines().count(), 6);
+        assert!(
+            res.folds[0].original_body.contains("let z = 3"),
+            "folded interior must restore the body"
+        );
+        assert!(
+            !res.folds[0].original_body.contains("fn drop_me()"),
+            "signature is not part of the intron: {}",
+            res.folds[0].original_body
+        );
+    }
+
+    #[test]
+    fn does_not_fold_parent_that_contains_an_exon() {
+        let code = "fn outer() {\n    fn keep() {\n        let a = 1;\n        a\n    }\n    let noise = 1;\n    let more = 2;\n    noise + more\n}\n";
+        let mut active = HashSet::new();
+        active.insert("keep".into());
+        let spans = vec![
+            FunctionSpan {
+                name: "outer".into(),
+                start_line: 1,
+                end_line: 9,
+                signature: "fn outer()".into(),
+            },
+            FunctionSpan {
+                name: "keep".into(),
+                start_line: 2,
+                end_line: 5,
+                signature: "fn keep()".into(),
+            },
+        ];
+        let res = CodeSkeletonizer::skeletonize_with_spans("x.rs", code, &active, &spans);
+        assert!(
+            !res.folds.iter().any(|f| f.symbol_name == "outer"),
+            "folding outer would hide the keep exon: {:?}",
+            res.skeleton_code
+        );
+        assert!(res.skeleton_code.contains("fn keep()"));
+        assert!(res.skeleton_code.contains("let a = 1"));
     }
 
     #[test]

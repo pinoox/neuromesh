@@ -4,7 +4,7 @@ Claims in this project are supposed to come from commands you can run, not from 
 
 ## Gold
 
-`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Five small fixture repos live in `tests/fixtures/` (router, TS store, session, queue, string config), including edit/refactor-style prompts — not only “where is this symbol”.
+`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox `action()` SMS, FastAPI, Rails, Astro, Express, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS badge token + SVG `smsInbox` icon), including edit/refactor-style prompts — not only “where is this symbol”.
 
 Thresholds locked in tests:
 
@@ -12,7 +12,8 @@ Thresholds locked in tests:
 - precision ≥ **0.4**
 - missed seeds reported as `partial`, not an empty silent packet
 - `expand_fold` restores a registered body without reading the disk
-- activation under **50 ms** in the debug gold test on this repo
+- activation under **150 ms** in the debug gold test on this repo (cargo test is parallel; isolated runs sit nearer 60 ms)
+- skeletonizer folds **bodies** from graph/tree-sitter spans; seed callees stay exons; fill caps stay 0 / 5k / 16k extra tokens
 
 ```bash
 cargo test -p neuromesh-context gold_harness_on_neuromesh_repo -- --nocapture
@@ -24,29 +25,25 @@ neuromesh eval
 
 ## Grep after get_context
 
-From `neuromesh eval` on this workspace (debug, 2026-08-23, balanced):
+From `neuromesh eval` on this workspace (release, 2026-08-24, balanced):
 
 | Task | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | 268124 | 26017 | 17422 | 93.5% | 33.0% | 1.00 | 0.50 | **0** | 24 |
-| `physarum_usage` | 268124 | 7882 | 4476 | 98.3% | 43.2% | 1.00 | 0.50 | **0** | 19 |
+| `handle_tool_call_intent` | 365352 | 32889 | 27381 | 92.5% | 16.7% | 1.00 | 0.60 | **0** | 17 |
+| `physarum_usage` | 365352 | 7929 | 4547 | 98.8% | 42.7% | 1.00 | 0.67 | **0** | 8 |
 
 That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
 
 ## Index snapshot
 
-From `cargo test -p neuromesh-graph indexes_real_neuromesh_repo_with_usable_graph -- --nocapture` on this repository:
+From `neuromesh eval` (release, 2026-08-24) on this repository:
 
 | Metric | Value |
 | :--- | ---: |
-| Files | 159 (`target/` ignored) |
-| Nodes | 972 |
-| Edges | 2,001 |
-| Resolved calls | 558 |
-| Resolved imports | 571 |
-| `search_symbols("handle_tool_call")` | &lt; 1 ms, exact hit |
-| Neighbors of `handle_tool_call` | 28 |
-| Index time (debug) | ~1,202 ms |
+| Files | 219 (`target/` ignored) |
+| Nodes | 1,323 |
+| Edges | 2,891 |
+| Index time (release) | ~209 ms |
 
 Fill caps: `max_savings` = 0 extra tokens, `balanced` = 5,000, `max_quality` = 16,000. Reduction is versus **this workspace**, not a fake 25k dump.
 

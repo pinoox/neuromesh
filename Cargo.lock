@@ -121,6 +121,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-deque"
+version = "0.8.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5181e0de7b61eb03a81e347d6dd8797bae9da5146707b51077e2d71a54ec0ceb"
+dependencies = [
+ "crossbeam-epoch",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-epoch"
+version = "0.9.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d6914041f254d6e9176c01941b21115dcfb7089e55135a35411081bd106ef3f"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.8.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
+
+[[package]]
 name = "crypto-common"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -171,6 +196,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "either"
+version = "1.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 
 [[package]]
 name = "errno"
@@ -636,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-api"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "futures-util",
@@ -663,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-cache"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -676,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-cli"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -703,7 +734,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-context"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -720,7 +751,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-core"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -734,13 +765,14 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-graph"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "neuromesh-core",
  "neuromesh-index",
  "neuromesh-parser",
  "parking_lot",
+ "rayon",
  "serde",
  "serde_json",
  "tracing",
@@ -748,7 +780,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-index"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -763,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-local-ai"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "neuromesh-core",
  "parking_lot",
@@ -774,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-mcp"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "neuromesh-cache",
@@ -796,7 +828,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-memory"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -810,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-observability"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -825,22 +857,32 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-parser"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "neuromesh-core",
  "neuromesh-index",
  "regex",
  "serde",
  "serde_json",
+ "streaming-iterator",
  "tracing",
  "tree-sitter",
+ "tree-sitter-c-sharp",
+ "tree-sitter-dart-orchard",
+ "tree-sitter-go",
+ "tree-sitter-java",
+ "tree-sitter-kotlin-sg",
+ "tree-sitter-php",
+ "tree-sitter-python",
+ "tree-sitter-ruby",
  "tree-sitter-rust",
+ "tree-sitter-swift",
  "tree-sitter-typescript",
 ]
 
 [[package]]
 name = "neuromesh-provider"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "futures-util",
  "neuromesh-core",
@@ -853,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-router"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "neuromesh-context",
  "neuromesh-core",
@@ -866,7 +908,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-task"
-version = "0.5.3"
+version = "0.6.1"
 dependencies = [
  "neuromesh-core",
  "neuromesh-parser",
@@ -1014,6 +1056,26 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
+name = "rayon"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
+dependencies = [
+ "either",
+ "rayon-core",
+]
+
+[[package]]
+name = "rayon-core"
+version = "1.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
+dependencies = [
+ "crossbeam-deque",
+ "crossbeam-utils",
+]
 
 [[package]]
 name = "redox_syscall"
@@ -1491,16 +1553,106 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-c-sharp"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67f06accca7b45351758663b8215089e643d53bd9a660ce0349314263737fcb0"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-dart-orchard"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e9e47f28354ae26b1ecfe2b2baa157e5145665d78838fe189008e921c0971eb"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-go"
+version = "0.23.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b13d476345220dbe600147dd444165c5791bf85ef53e28acbedd46112ee18431"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-java"
+version = "0.23.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0aa6cbcdc8c679b214e616fd3300da67da0e492e066df01bcf5a5921a71e90d6"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-kotlin-sg"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c06ec43ae3c12165d4ac08afe4e1f5fc6757ffe274fa7bd5af9007ef11ba4319"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "tree-sitter-language"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782"
 
 [[package]]
+name = "tree-sitter-php"
+version = "0.23.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f066e94e9272cfe4f1dcb07a1c50c66097eca648f2d7233d299c8ae9ed8c130c"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-python"
+version = "0.23.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d065aaa27f3aaceaf60c1f0e0ac09e1cb9eb8ed28e7bcdaa52129cffc7f4b04"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-ruby"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be0484ea4ef6bb9c575b4fdabde7e31340a8d2dbc7d52b321ac83da703249f95"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "tree-sitter-rust"
 version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca8ccb3e3a3495c8a943f6c3fd24c3804c471fd7f4f16087623c7fa4c0068e8a"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-swift"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d65aeb41726119416567d0333ec17580ac4abfb96db1f67c4bd638c65f9992fe"
 dependencies = [
  "cc",
  "tree-sitter-language",

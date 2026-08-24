@@ -14,6 +14,7 @@ use neuromesh_core::{
 use neuromesh_index::IndexedFile;
 use neuromesh_parser::AstAnalysisResult;
 use parking_lot::RwLock;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -1116,15 +1117,43 @@ impl NeuralProjectGraph {
             .map(|(file, _)| file.relative_path.to_string_lossy().replace('\\', "/"))
             .collect();
         self.prune_absent_files(&present);
-        for (file, content) in scanned {
-            let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
-                &file.relative_path,
-                content,
-                file.language,
-            );
+        // Parse in parallel (thread-local tree-sitter parsers). Unchanged
+        // hashes skip parse. Ingest stays serial so graph writes stay single-writer.
+        let parsed: Vec<_> = scanned
+            .par_iter()
+            .filter_map(|(file, content)| {
+                let rel = file.relative_path.to_string_lossy().replace('\\', "/");
+                if self.file_hash_matches(&rel, &file.blake3_hash) {
+                    return None;
+                }
+                let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
+                    &file.relative_path,
+                    content,
+                    file.language,
+                );
+                Some((file, ast, content.as_str()))
+            })
+            .collect();
+        for (file, ast, content) in parsed {
             self.ingest_file(file, &ast, Some(content));
         }
+        self.apply_manifest_hints(scanned);
         self.finalize_links();
+    }
+
+    fn apply_manifest_hints(&self, scanned: &[(IndexedFile, String)]) {
+        let hints = crate::manifest::ManifestHints::from_scanned(scanned);
+        if hints.is_empty() {
+            return;
+        }
+        let mut data = self.inner.write();
+        for rel in &mut data.pending {
+            if let Some(hint) = rel.target_file_hint.as_ref() {
+                if let Some(rewritten) = hints.rewrite(hint) {
+                    rel.target_file_hint = Some(rewritten);
+                }
+            }
+        }
     }
 
     pub fn prune_absent_files(&self, present_rels: &HashSet<String>) {
@@ -1470,6 +1499,27 @@ impl NeuralProjectGraph {
                         | "index.js"
                         | "main.py"
                         | "main.go"
+                        | "main.dart"
+                        | "Program.cs"
+                        | "AndroidManifest.xml"
+                        | "MainActivity.kt"
+                        | "MainActivity.java"
+                        | "urls.py"
+                        | "page.tsx"
+                        | "page.ts"
+                        | "route.ts"
+                        | "web.php"
+                        | "app.php"
+                        | "vite.config.ts"
+                        | "vite.config.js"
+                        | "tauri.conf.json"
+                        | "wp-config.php"
+                        | "+page.svelte"
+                        | "routes.rb"
+                        | "go.mod"
+                        | "angular.json"
+                        | "nest-cli.json"
+                        | "App.csproj"
                 ) {
                     entry_points.push(SearchHit::from_node(node, 1.0, "entry"));
                 }
@@ -1692,7 +1742,8 @@ fn index_tokens(data: &mut GraphData, id: &NodeId, name: &str) {
 
 fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     let mut bonus = match node.node_type {
-        NodeType::Function | NodeType::Class | NodeType::Component => 8.0,
+        NodeType::Function | NodeType::Class | NodeType::Component | NodeType::Api => 8.0,
+        NodeType::StyleToken => 6.0,
         NodeType::File => 1.0,
         _ => 0.0,
     };

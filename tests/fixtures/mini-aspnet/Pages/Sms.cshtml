@@ -1,0 +1,8 @@
+@page "/sms"
+<p>SMS inbox</p>
+@code {
+    void Store(string body)
+    {
+        SmsStore.Save(body);
+    }
+}

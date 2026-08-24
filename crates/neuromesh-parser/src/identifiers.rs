@@ -92,12 +92,17 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     static QUAL_RE: OnceLock<Regex> = OnceLock::new();
     static IDENT_RE: OnceLock<Regex> = OnceLock::new();
     static TICK_RE: OnceLock<Regex> = OnceLock::new();
+    static HOW_DOES_RE: OnceLock<Regex> = OnceLock::new();
+    static DOTTED_RE: OnceLock<Regex> = OnceLock::new();
 
     let file_re = FILE_RE.get_or_init(|| {
         Regex::new(r"(?x)(?:[A-Za-z0-9_.-]+[/\\])+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+").unwrap()
     });
     let bare_file_re = BARE_FILE_RE.get_or_init(|| {
-        Regex::new(r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|py|vue|go|java|cs)\b").unwrap()
+        Regex::new(
+            r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|py|vue|go|java|cs|kt|kts|dart|rb|php|astro|svelte|twig|cshtml|razor|swift|css|scss|sass|less|html|htm|svg)\b",
+        )
+        .unwrap()
     });
     let qual_re = QUAL_RE.get_or_init(|| {
         Regex::new(r"\b[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+\b").unwrap()
@@ -109,6 +114,14 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
         .unwrap()
     });
     let tick_re = TICK_RE.get_or_init(|| Regex::new(r"`([^`]+)`").unwrap());
+    let how_does_re = HOW_DOES_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)\bhow\s+do(?:es)?\s+(?:(?:the|a|an|this|that)\s+)?([A-Za-z_][A-Za-z0-9_]*)\b",
+        )
+        .unwrap()
+    });
+    let dotted_re = DOTTED_RE
+        .get_or_init(|| Regex::new(r"\b([A-Z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b").unwrap());
 
     for cap in file_re.captures_iter(prompt) {
         let path = cap.get(0).unwrap().as_str().replace('\\', "/");
@@ -130,8 +143,26 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
         let inner = cap.get(1).unwrap().as_str().trim();
         if inner.contains('.') && inner.contains('/') || inner.contains('\\') {
             push_unique(&mut file_hints, inner.replace('\\', "/"));
-        } else if is_code_ident(inner) {
+        } else if is_code_ident(inner) || is_how_does_ident(inner) {
             push_unique(&mut identifiers, inner.to_string());
+        }
+    }
+
+    for cap in how_does_re.captures_iter(prompt) {
+        let ident = cap.get(1).unwrap().as_str();
+        if is_how_does_ident(ident) {
+            push_unique(&mut identifiers, ident.to_string());
+        }
+    }
+
+    for cap in dotted_re.captures_iter(prompt) {
+        let owner = cap.get(1).unwrap().as_str();
+        let member = cap.get(2).unwrap().as_str();
+        if is_code_ident(owner) {
+            push_unique(&mut identifiers, owner.to_string());
+        }
+        if is_code_ident(member) || is_how_does_ident(member) {
+            push_unique(&mut identifiers, member.to_string());
         }
     }
 
@@ -196,6 +227,33 @@ fn is_code_ident(value: &str) -> bool {
         || value.contains('/')
 }
 
+/// Subject of "how does X use Y" — keep real method names even when they are
+/// lowercase English (`store`, `create`) that `is_code_ident` would drop.
+fn is_how_does_ident(value: &str) -> bool {
+    if value.len() < 3 || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return false;
+    }
+    !matches!(
+        value.to_lowercase().as_str(),
+        "the"
+            | "and"
+            | "for"
+            | "how"
+            | "does"
+            | "what"
+            | "this"
+            | "that"
+            | "with"
+            | "from"
+            | "into"
+            | "using"
+            | "when"
+            | "where"
+            | "which"
+            | "about"
+    )
+}
+
 fn push_unique(list: &mut Vec<String>, value: String) {
     if value.is_empty() {
         return;
@@ -240,5 +298,44 @@ mod tests {
         assert!(camel.contains(&"neural".into()));
         assert!(camel.contains(&"project".into()));
         assert!(camel.contains(&"graph".into()));
+    }
+
+    #[test]
+    fn how_does_keeps_lowercase_method_and_dotted_save() {
+        let astro = extract_prompt_anchors("How does store use saveSms?");
+        assert!(
+            astro.identifiers.iter().any(|id| id == "store"),
+            "identifiers = {:?}",
+            astro.identifiers
+        );
+        assert!(astro.identifiers.iter().any(|id| id == "saveSms"));
+
+        let rails = extract_prompt_anchors("How does create use SmsStore.save?");
+        assert!(
+            rails.identifiers.iter().any(|id| id == "create"),
+            "identifiers = {:?}",
+            rails.identifiers
+        );
+        assert!(rails.identifiers.iter().any(|id| id == "SmsStore"));
+        assert!(rails.identifiers.iter().any(|id| id == "save"));
+
+        let csharp = extract_prompt_anchors("How does OnReceive use SmsStore.Save?");
+        assert!(csharp.identifiers.iter().any(|id| id == "OnReceive"));
+        assert!(csharp.identifiers.iter().any(|id| id == "SmsStore"));
+        assert!(csharp.identifiers.iter().any(|id| id == "Save"));
+    }
+
+    #[test]
+    fn extracts_stylesheet_and_svg_file_hints() {
+        let anchors = extract_prompt_anchors(
+            "How does smsBadge use smsUnread in styles/sms.less and assets/sms-inbox.svg?",
+        );
+        assert!(anchors.file_hints.iter().any(|p| p.contains("sms.less")));
+        assert!(anchors
+            .file_hints
+            .iter()
+            .any(|p| p.contains("sms-inbox.svg")));
+        assert!(anchors.identifiers.iter().any(|id| id == "smsBadge"));
+        assert!(anchors.identifiers.iter().any(|id| id == "smsUnread"));
     }
 }

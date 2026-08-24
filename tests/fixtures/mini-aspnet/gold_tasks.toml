@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_store"
+prompt = "How does Store use SmsStore.Save?"
+gold_files = ["Program.cs", "SmsStore.cs"]
+expect_seeds_missed = false

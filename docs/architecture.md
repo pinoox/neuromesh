@@ -20,7 +20,7 @@ Seed files always ship (skeletonized)
 Fill callees, usages, imports under fill_cap
   │
   ├─ max_savings: seeds only
-  ├─ balanced: +8k extra, soft crate cap
+  ├─ balanced: +5k extra, soft crate cap
   └─ max_quality: +16k extra
   │
   ▼
@@ -41,7 +41,7 @@ Evidence packet → MCP client
 
 | Crate | Role |
 | :--- | :--- |
-| `neuromesh-parser` | tree-sitter Rust/TS, regex fallbacks, prompt anchors |
+| `neuromesh-parser` | Language registry, tree-sitter queries, regex fallbacks, prompt anchors |
 | `neuromesh-graph` | Neural mesh: ingest, search, trace, Physarum, STDP synapses |
 | `neuromesh-task` | Intent + identifier extraction |
 | `neuromesh-context` | Genetic splice (skeletonizer), fold registry, gold harness |
@@ -63,10 +63,10 @@ Evidence packet → MCP client
 3. Ingest nodes.
 4. `finalize_links`: resolve pending `Imports` then `Calls`.
 
-Rust and TypeScript use tree-sitter so `fn` / `impl` ranges and in-function calls are real spans. PHP / Go / Java / Kotlin / C# / C / C++ share the generic regex parser (functions, calls, throw/catch). Python and Vue have their own extractors.
+Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby use tree-sitter **queries** (`function` / `class` / `import` / `call`) so spans stay real; regex is the fallback if a grammar fails to load. Grammars must stay on tree-sitter **ABI 13–14** (do not take crates that ship language version 15). Framework overlays (Android, Spring, Django, FastAPI, Next, Nuxt, Laravel, Pinoox, Symfony, WordPress, React, Vue router, SvelteKit, Astro, Twig, Electron, Tauri, Vite, Prime UI, Rails, Flutter, Express, Nest, Angular, Gin/Echo, Axum, ASP.NET, SwiftUI, Remix/React Router, Ktor) add `Api`/`Component`/`Config` nodes from annotations and file layout; unknown annotations are a soft miss. `.svelte`, `.astro`, `.twig`, `.cshtml`, and `.razor` are indexed (Vue-like SFC / HTML fallback; Razor `@code` is parsed as C#). `.css` / `.scss` / `.less` extract selectors, custom properties, and preprocessor tokens. `.svg` shares the HTML extractor (`id`, `<symbol>`, `<use href="#…">`). JavaScript uses the TypeScript query grammar. C / C++ share the generic regex parser. Vue has its own extractor. New languages plug in through `LanguageSpec`, not a growing engine `match`. Import hints from `composer.json` PSR-4 and `go.mod` are rewritten to workspace paths before unique-resolve. Parse runs in parallel per file; tree-sitter `Parser` is reused per thread; unchanged files still skip ingest by hash.
 
 ## Packet
 
 Selector: required seed files, then optional connectors ranked by outbound calls, inbound usage, imports, **pheromone / STDP weight**, Physarum tubes, and unresolved-call closers. Per-crate fill is a **soft** cap — a high-scoring extra file from the same crate can still enter.
 
-Activator: skeletonize with graph function spans (fold threshold from `ContextChromosome.fold_threshold_lines`), register folds **for the MCP session** (cleared only when the project changes), report budget (`seed_tokens`, `fill_used` / `fill_cap`) and coverage. `next_actions` tell the agent to `expand_fold` or to Grep only when coverage is `partial`.
+Activator: skeletonize with graph function spans (fold threshold from `ContextChromosome.fold_threshold_lines`). Spans use the tree-sitter function **body**, not just the name. Untargeted bodies fold; signatures and seed callees stay open. Fill caps stay real budgets. Register folds **for the MCP session** (cleared only when the project changes), report budget (`seed_tokens`, `fill_used` / `fill_cap`) and coverage. `next_actions` tell the agent to `expand_fold` or to Grep only when coverage is `partial`.

@@ -1,0 +1,11 @@
+[[task]]
+id = "sms_receive"
+prompt = "How does onReceive use SmsStore.save?"
+gold_files = ["src/SmsReceiver.kt", "src/SmsStore.kt"]
+expect_seeds_missed = false
+
+[[task]]
+id = "sms_stored"
+prompt = "How is a received SMS stored?"
+gold_files = ["src/SmsReceiver.kt", "src/SmsStore.kt"]
+expect_seeds_missed = false

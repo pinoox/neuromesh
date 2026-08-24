@@ -21,6 +21,7 @@ impl GenericParser {
         static GO_FN_RE: OnceLock<Regex> = OnceLock::new();
         static JAVA_FN_RE: OnceLock<Regex> = OnceLock::new();
         static KOTLIN_FN_RE: OnceLock<Regex> = OnceLock::new();
+        static RUBY_FN_RE: OnceLock<Regex> = OnceLock::new();
 
         let class_re = CLASS_RE.get_or_init(|| {
             Regex::new(
@@ -43,9 +44,12 @@ impl GenericParser {
         });
         let kotlin_fn_re = KOTLIN_FN_RE.get_or_init(|| {
             Regex::new(
-                r"\bfun\s+(?:<[^>\n]+>\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\.)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>\n]+>)?\s*\(",
+                r"\b(?:fun|func)\s+(?:<[^>\n]+>\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\.)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>\n]+>)?\s*\(",
             )
             .unwrap()
+        });
+        let ruby_fn_re = RUBY_FN_RE.get_or_init(|| {
+            Regex::new(r"^\s*def\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_?!]*)").unwrap()
         });
 
         let mut current_fn: Option<String> = None;
@@ -97,9 +101,14 @@ impl GenericParser {
                 }
             }
 
-            if let Some(fn_name) =
-                match_function(line, php_fn_re, go_fn_re, java_fn_re, kotlin_fn_re)
-            {
+            if let Some(fn_name) = match_function(
+                line,
+                php_fn_re,
+                go_fn_re,
+                java_fn_re,
+                kotlin_fn_re,
+                ruby_fn_re,
+            ) {
                 if let Some(prev) = current_fn.take() {
                     close_function(&mut result, &prev, fn_line_start, line_no);
                 }
@@ -162,10 +171,15 @@ fn match_function(
     go: &Regex,
     java: &Regex,
     kotlin: &Regex,
+    ruby: &Regex,
 ) -> Option<String> {
     let name = kotlin
         .captures(line)
         .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
+        .or_else(|| {
+            ruby.captures(line)
+                .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
+        })
         .or_else(|| {
             php.captures(line)
                 .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
@@ -206,6 +220,7 @@ const SKIP_FN_NAMES: &[&str] = &[
     "constructor",
     "when",
     "package",
+    "def",
 ];
 
 fn import_basename(source: &str) -> String {

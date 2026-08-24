@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_store"
+prompt = "How does store use saveSms?"
+gold_files = ["src/pages/sms.astro", "src/lib/sms_store.ts"]
+expect_seeds_missed = false

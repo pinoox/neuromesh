@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_api"
+prompt = "How does POST /api/sms use saveSms?"
+gold_files = ["app/api/sms/route.ts", "lib/sms_store.ts"]
+expect_seeds_missed = false

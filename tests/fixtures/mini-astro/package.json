@@ -1,0 +1,6 @@
+{
+  "name": "mini-astro",
+  "dependencies": {
+    "astro": "5.0.0"
+  }
+}

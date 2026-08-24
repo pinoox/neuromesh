@@ -1,0 +1,7 @@
+{
+  "name": "mini-express",
+  "private": true,
+  "dependencies": {
+    "express": "4.21.0"
+  }
+}
