@@ -14,6 +14,7 @@ Build on 1.80+, honest MCP args, Kotlin in the indexer, and a less hollow PHP/Go
 - **Wave 3 framework overlays.** Android Activity/Compose/BroadcastReceiver, Spring mappings, Django `urls.py`, Next `app/` routes, Laravel `Route::`, Pinoox `action()`, Symfony `#[Route]`, WordPress REST, React/Vue/Svelte/Twig/Electron/Tauri/Vite/Prime UI become `Component`/`Api`/`Config` from layout and annotations — no compiler. Stack facts come from manifests (`pinoox/pincore`, `react`, `vite`, Shopfa mentions). Gold: `mini-kotlin` “How is a received SMS stored?”, `mini-next`, `mini-pinoox`.
 - **Index speed.** Workspace ingest parses files in parallel (rayon) and reuses a tree-sitter parser per thread. Hash skip is unchanged. `neuromesh index` uses the same ingest path as MCP.
 - **Thinner packets.** Function spans follow the real tree-sitter body (Dart signature+body siblings, Kotlin `fun`, TS `const fn = () =>`). Folds replace the **body**, not the signature, so the file map stays; a parent that contains a seed exon is not folded. Fill caps are unchanged.
+- **Wave 4 overlays.** Astro `.astro` pages + frontmatter, FastAPI `@app.post`, Rails `routes.rb`, Flutter `StatelessWidget`, and Nuxt `pages/`. Gold: `mini-fastapi`, `mini-rails`, `mini-astro`, Flutter `SmsInbox` on `mini-dart`.
 
 ## 0.5.2 — 2026-08-23
 

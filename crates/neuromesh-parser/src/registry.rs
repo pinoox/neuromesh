@@ -116,7 +116,7 @@ impl LanguageSpec {
                 options: QueryOptions::ruby(),
                 fallback: Fallback::Generic,
             },
-            SourceLanguage::Vue | SourceLanguage::Svelte => Self {
+            SourceLanguage::Vue | SourceLanguage::Svelte | SourceLanguage::Astro => Self {
                 language,
                 grammar: None,
                 queries: None,

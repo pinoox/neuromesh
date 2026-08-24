@@ -233,7 +233,7 @@ VS Code / Cursor: Settings → `neuromesh.port` must match the running monitor. 
 
 Each file in the packet has `path`, `why`, `line_range`, `folded_symbols`, and `seed_call_coverage`. Details: [docs/mcp.md](docs/mcp.md).
 
-Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go through **tree-sitter queries**. JavaScript uses the TypeScript grammar. `.svelte` and `.twig` are indexed. Framework overlays tag Android/Spring/Django/Next/Laravel/Pinoox/Symfony/WordPress/React/Vue/SvelteKit/Electron/Tauri/Vite/Prime routes without a compiler. Vue has a scoped extractor. C/C++ use the generic regex parser. Ambiguous names are not “resolved” by hope.
+Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go through **tree-sitter queries**. JavaScript uses the TypeScript grammar. `.svelte`, `.astro`, and `.twig` are indexed. Framework overlays tag Android/Spring/Django/FastAPI/Next/Nuxt/Laravel/Pinoox/Symfony/WordPress/React/Vue/SvelteKit/Astro/Electron/Tauri/Vite/Prime/Rails/Flutter routes without a compiler. Vue has a scoped extractor. C/C++ use the generic regex parser. Ambiguous names are not “resolved” by hope.
 
 ---
 

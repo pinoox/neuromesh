@@ -3,3 +3,9 @@ id = "sms_receive"
 prompt = "How does onReceive use SmsStore.save?"
 gold_files = ["src/receiver.dart", "src/sms_store.dart"]
 expect_seeds_missed = false
+
+[[task]]
+id = "sms_inbox"
+prompt = "How does SmsInbox onReceive use SmsStore.save?"
+gold_files = ["src/sms_inbox.dart", "src/sms_store.dart"]
+expect_seeds_missed = false

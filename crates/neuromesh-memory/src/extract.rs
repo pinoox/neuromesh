@@ -79,6 +79,8 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
                 "primevue",
                 "PrimeVue UI (package.json dependency)",
             ),
+            ("\"astro\"", "astro", "Astro app (package.json dependency)"),
+            ("\"nuxt\"", "nuxt", "Nuxt app (package.json dependency)"),
         ] {
             if pkg.contains(needle) {
                 facts.push(ProjectFact::new(
@@ -104,6 +106,16 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
                 "framework",
                 "django",
                 "Django project (manifest names Django)",
+            ));
+        }
+        if file_mentions(root, &["pyproject.toml", "requirements.txt"], "fastapi")
+            || file_mentions(root, &["pyproject.toml", "requirements.txt"], "FastAPI")
+        {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "fastapi",
+                "FastAPI project (manifest names FastAPI)",
             ));
         }
     }
@@ -244,6 +256,14 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             "dart_flutter",
             "Dart/Flutter project (pubspec.yaml)",
         ));
+        if file_mentions(root, &["pubspec.yaml"], "flutter:") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "flutter",
+                "Flutter SDK in pubspec.yaml",
+            ));
+        }
     }
     if root.join("Package.swift").exists() {
         facts.push(ProjectFact::new(
@@ -260,6 +280,14 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             "ruby_toolchain",
             "Ruby project (Gemfile)",
         ));
+        if file_mentions(root, &["Gemfile"], "rails") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "rails",
+                "Rails project (Gemfile)",
+            ));
+        }
     }
 
     let mut doc_paths = vec![root.join("README.md")];
@@ -388,6 +416,15 @@ mod tests {
         let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
         assert!(facts.iter().any(|f| f.key == "react"));
         assert!(facts.iter().any(|f| f.key == "vite"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pyproject_detects_fastapi() {
+        let dir = temp_root();
+        fs::write(dir.join("requirements.txt"), "fastapi>=0.115\n").unwrap();
+        let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
+        assert!(facts.iter().any(|f| f.key == "fastapi"));
         let _ = fs::remove_dir_all(&dir);
     }
 }

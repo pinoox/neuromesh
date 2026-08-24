@@ -1,4 +1,5 @@
 use crate::types::{AstAnalysisResult, ParsedSymbol};
+use crate::typescript::TypeScriptParser;
 use neuromesh_core::NodeType;
 use neuromesh_index::SourceLanguage;
 use regex::Regex;
@@ -14,7 +15,12 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             android_overlay(path, content, ast);
             spring_overlay(content, ast);
         }
-        SourceLanguage::Python => django_overlay(path, content, ast),
+        SourceLanguage::Python => {
+            django_overlay(path, content, ast);
+            fastapi_overlay(content, ast);
+        }
+        SourceLanguage::Ruby => rails_overlay(path, content, ast),
+        SourceLanguage::Dart => flutter_overlay(content, ast),
         SourceLanguage::TypeScript | SourceLanguage::JavaScript => {
             next_overlay(path, ast);
             sveltekit_overlay(path, ast);
@@ -28,7 +34,9 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             sveltekit_overlay(path, ast);
             vue_router_overlay(path, content, ast);
             prime_overlay(content, ast);
+            nuxt_overlay(path, ast);
         }
+        SourceLanguage::Astro => astro_overlay(path, content, ast),
         SourceLanguage::PHP => {
             laravel_overlay(path, content, ast);
             pinoox_overlay(path, content, ast);
@@ -148,6 +156,89 @@ fn django_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
         }
         let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
         push_api(ast, route, format!("path(\"{route}\")"), line);
+    }
+}
+
+fn fastapi_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains("@app.") && !content.contains("@router.") && !content.contains("@api.") {
+        return;
+    }
+    static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    let route_re = ROUTE_RE.get_or_init(|| {
+        Regex::new(r#"@(?:app|router|api)\.(get|post|put|patch|delete|route)\(\s*["']([^"']+)["']"#)
+            .unwrap()
+    });
+    for cap in route_re.captures_iter(content) {
+        let verb = cap.get(1).map(|m| m.as_str()).unwrap_or("route");
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let method = if verb == "route" {
+            "ANY".into()
+        } else {
+            verb.to_uppercase()
+        };
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("{method} {route}"),
+            format!("@{verb}(\"{route}\")"),
+            line,
+        );
+    }
+}
+
+fn rails_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    if name != "routes.rb"
+        && !content.contains("Rails.application.routes")
+        && !content.contains("draw do")
+    {
+        return;
+    }
+    static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    let route_re = ROUTE_RE.get_or_init(|| {
+        Regex::new(r#"(?m)^\s*(get|post|put|patch|delete)\s+['"]([^'"]+)['"]"#).unwrap()
+    });
+    for cap in route_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("{method} {route}"),
+            format!("{method} \"{route}\""),
+            line,
+        );
+    }
+}
+
+fn flutter_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains("Widget") && !content.contains("flutter") {
+        return;
+    }
+    static CLASS_RE: OnceLock<Regex> = OnceLock::new();
+    let class_re = CLASS_RE.get_or_init(|| {
+        Regex::new(
+            r"(?m)^\s*(?:class|mixin)\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(?:StatelessWidget|StatefulWidget|Widget|ConsumerWidget)\b",
+        )
+        .unwrap()
+    });
+    for cap in class_re.captures_iter(content) {
+        if let Some(name) = cap.get(1) {
+            promote(ast, name.as_str(), NodeType::Component);
+        }
     }
 }
 
@@ -463,6 +554,64 @@ fn electron_overlay(content: &str, ast: &mut AstAnalysisResult) {
     if content.contains("BrowserWindow") {
         promote(ast, "BrowserWindow", NodeType::Component);
     }
+}
+
+fn astro_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    if let Some(route) = file_page_route(path, "pages", "astro") {
+        push_api(ast, &route, format!("Astro {route}"), 1);
+    }
+    let Some(frontmatter) = astro_frontmatter(content) else {
+        return;
+    };
+    let extra = TypeScriptParser::parse(path, frontmatter);
+    for sym in extra.symbols {
+        if ast.symbols.iter().any(|s| s.name == sym.name) {
+            continue;
+        }
+        ast.symbols.push(sym);
+    }
+    ast.imports.extend(extra.imports);
+    ast.relationships.extend(extra.relationships);
+}
+
+fn astro_frontmatter(content: &str) -> Option<&str> {
+    let trimmed = content.trim_start();
+    let rest = trimmed.strip_prefix("---")?;
+    let rest = rest
+        .strip_prefix('\n')
+        .or_else(|| rest.strip_prefix("\r\n"))?;
+    let end = rest.find("\n---").or_else(|| rest.find("\r\n---"))?;
+    Some(&rest[..end])
+}
+
+fn nuxt_overlay(path: &Path, ast: &mut AstAnalysisResult) {
+    let Some(route) = file_page_route(path, "pages", "vue") else {
+        return;
+    };
+    push_api(ast, &route, format!("Nuxt {route}"), 1);
+}
+
+fn file_page_route(path: &Path, folder: &str, ext: &str) -> Option<String> {
+    let s = path.to_string_lossy().replace('\\', "/");
+    let s = s.trim_start_matches("./");
+    let marker = format!("/{folder}/");
+    let after = s
+        .split(&marker)
+        .nth(1)
+        .or_else(|| s.strip_prefix(&format!("{folder}/")))?;
+    if !after.to_ascii_lowercase().ends_with(&format!(".{ext}")) {
+        return None;
+    }
+    let without_ext = after.rsplit_once('.').map(|(n, _)| n).unwrap_or(after);
+    let (dir, file) = without_ext.rsplit_once('/').unwrap_or(("", without_ext));
+    let rel = if file == "index" {
+        dir
+    } else if dir.is_empty() {
+        file
+    } else {
+        return Some(join_next_segments(&format!("{dir}/{file}")));
+    };
+    Some(join_next_segments(rel))
 }
 
 fn sveltekit_overlay(path: &Path, ast: &mut AstAnalysisResult) {
@@ -816,5 +965,66 @@ mod tests {
             .iter()
             .any(|s| s.name == "inbox" && s.symbol_type == NodeType::Component));
         assert!(has_api(&ast, "sms.store"));
+    }
+
+    #[test]
+    fn fastapi_post_is_api() {
+        let src = "from fastapi import FastAPI\napp = FastAPI()\n@app.post(\"/sms\")\ndef store(body: str):\n    SmsStore.save(body)\n";
+        let ast = analyze("main.py", src, SourceLanguage::Python);
+        assert!(
+            has_api(&ast, "POST /sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn rails_route_is_api() {
+        let src = "Rails.application.routes.draw do\n  post '/sms', to: 'sms#create'\nend\n";
+        let ast = analyze("config/routes.rb", src, SourceLanguage::Ruby);
+        assert!(
+            has_api(&ast, "POST /sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn flutter_widget_promotes_to_component() {
+        let src = "import 'package:flutter/material.dart';\nclass SmsInbox extends StatelessWidget {\n  void onReceive(String body) { SmsStore.save(body); }\n}\n";
+        let ast = analyze("lib/sms_inbox.dart", src, SourceLanguage::Dart);
+        let recv = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "SmsInbox")
+            .expect("SmsInbox");
+        assert_eq!(recv.symbol_type, NodeType::Component);
+    }
+
+    #[test]
+    fn astro_page_and_frontmatter() {
+        let src = "---\nimport { saveSms } from '../lib/sms_store';\nfunction store() { saveSms('x'); }\n---\n<p>inbox</p>\n";
+        let ast = analyze("src/pages/sms.astro", src, SourceLanguage::Astro);
+        assert!(
+            has_api(&ast, "/sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+        assert!(ast.symbols.iter().any(|s| s.name == "store"));
+        assert!(ast
+            .imports
+            .iter()
+            .any(|i| i.imported_symbols.iter().any(|n| n == "saveSms")));
+    }
+
+    #[test]
+    fn nuxt_page_is_api() {
+        let src = "<script setup>import { saveSms } from '~/lib/sms'</script>\n<template><button /></template>\n";
+        let ast = analyze("pages/sms.vue", src, SourceLanguage::Vue);
+        assert!(
+            has_api(&ast, "/sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
     }
 }

@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_store"
+prompt = "How does store use SmsStore.save?"
+gold_files = ["src/main.py", "src/sms_store.py"]
+expect_seeds_missed = false

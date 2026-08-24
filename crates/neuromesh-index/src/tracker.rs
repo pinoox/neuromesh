@@ -29,6 +29,7 @@ pub enum SourceLanguage {
     HTML,
     Twig,
     Svelte,
+    Astro,
     SQL,
     Unknown,
 }
@@ -78,6 +79,7 @@ impl SourceLanguage {
             "html" | "htm" => SourceLanguage::HTML,
             "twig" => SourceLanguage::Twig,
             "svelte" => SourceLanguage::Svelte,
+            "astro" => SourceLanguage::Astro,
             "sql" => SourceLanguage::SQL,
             _ => SourceLanguage::Unknown,
         }
@@ -112,6 +114,7 @@ impl SourceLanguage {
             Self::HTML => "html",
             Self::Twig => "twig",
             Self::Svelte => "svelte",
+            Self::Astro => "astro",
             Self::SQL => "sql",
             Self::Unknown => "unknown",
         }
@@ -193,7 +196,12 @@ mod tests {
             SourceLanguage::from_path(Path::new("src/SmsCard.svelte")),
             SourceLanguage::Svelte
         );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("src/pages/sms.astro")),
+            SourceLanguage::Astro
+        );
         assert!(SourceLanguage::Twig.is_code());
         assert!(SourceLanguage::Svelte.is_code());
+        assert!(SourceLanguage::Astro.is_code());
     }
 }

@@ -153,6 +153,15 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
+            "mini-dart",
+            GoldTask {
+                id: "sms_inbox".into(),
+                prompt: "How does SmsInbox onReceive use SmsStore.save?".into(),
+                gold_files: vec!["src/sms_inbox.dart".into(), "src/sms_store.dart".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
             "mini-csharp",
             GoldTask {
                 id: "sms_receive".into(),
@@ -170,6 +179,45 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "Controller/SmsController.php".into(),
                     "Model/SmsStore.php".into(),
                 ],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-next",
+            GoldTask {
+                id: "sms_api".into(),
+                prompt: "How does POST /api/sms use saveSms?".into(),
+                gold_files: vec!["app/api/sms/route.ts".into(), "lib/sms_store.ts".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-fastapi",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does store use SmsStore.save?".into(),
+                gold_files: vec!["src/main.py".into(), "src/sms_store.py".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-rails",
+            GoldTask {
+                id: "sms_create".into(),
+                prompt: "How does create use SmsStore.save?".into(),
+                gold_files: vec![
+                    "app/controllers/sms_controller.rb".into(),
+                    "app/models/sms_store.rb".into(),
+                ],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-astro",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does store use saveSms?".into(),
+                gold_files: vec!["src/pages/sms.astro".into(), "src/lib/sms_store.ts".into()],
                 expect_seeds_missed: false,
             },
         ),

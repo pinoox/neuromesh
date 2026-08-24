@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_create"
+prompt = "How does create use SmsStore.save?"
+gold_files = ["app/controllers/sms_controller.rb", "app/models/sms_store.rb"]
+expect_seeds_missed = false

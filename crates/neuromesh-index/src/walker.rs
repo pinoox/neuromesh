@@ -134,6 +134,7 @@ impl ProjectWalker {
                 || s_lower == "pods"
                 || s_lower == ".build"
                 || s_lower == ".svelte-kit"
+                || s_lower == ".output"
             {
                 return true;
             }
