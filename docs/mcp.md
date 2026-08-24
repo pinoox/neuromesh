@@ -24,7 +24,7 @@ Start with `get_context`. `next_actions` say when to `neuromesh_expand_fold`. Gr
 | `neuromesh_get_file_skeleton` | `file_path`, optional `active_symbols` | One skeletonized file |
 | `neuromesh_search_symbols` | `query`, optional `limit` | Ranked hits |
 | `neuromesh_get_dependencies` | name or path | Typed neighbors |
-| `neuromesh_trace` | `query`, `direction` (`in` / `out` / `both`), `depth` | Call/import chains |
+| `neuromesh_trace` | `query`, `direction` (`in` / `out` / `both`), `depth` | Call/import chains. Inbound includes `throw new`, `throw $e` after `catch (Type $e)`, and ternary `new Type`. Trace the exception that is actually thrown. |
 | `neuromesh_analyze_impact` | `query`, `depth` | Blast radius |
 | `neuromesh_get_architecture` | — | Languages, packages, entry points |
 | `neuromesh_get_project_memory` | — | Seeded facts |

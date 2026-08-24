@@ -622,6 +622,101 @@ final class InstallPlatformCommand
     }
 
     #[test]
+    fn php_matcher_rethrow_is_inbound_to_resource_not_route() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("routing"));
+        let route_ex = "<?php\nclass RouteNotFoundException extends \\RuntimeException {}\n";
+        let resource_ex = "<?php\nclass ResourceNotFoundException extends \\RuntimeException {}\n";
+        let method_ex = "<?php\nclass MethodNotAllowedException extends \\RuntimeException {}\n";
+        let generator = r#"
+<?php
+class UrlGenerator {
+    public function generate(string $name): string {
+        throw new RouteNotFoundException('missing');
+    }
+}
+"#;
+        let matcher = r#"
+<?php
+class RedirectableUrlMatcher {
+    public function match(string $pathinfo): array {
+        try {
+            return parent::match($pathinfo);
+        } catch (ResourceNotFoundException $e) {
+            throw $e;
+        }
+    }
+}
+"#;
+        let dumper = r#"
+<?php
+class CompiledUrlMatcherDumper {
+    public function dump(): string {
+        throw 0 < $this->allow
+            ? new MethodNotAllowedException()
+            : new ResourceNotFoundException('no routes');
+    }
+}
+"#;
+        for (path, src) in [
+            ("src/RouteNotFoundException.php", route_ex),
+            ("src/ResourceNotFoundException.php", resource_ex),
+            ("src/MethodNotAllowedException.php", method_ex),
+            ("src/UrlGenerator.php", generator),
+            ("src/RedirectableUrlMatcher.php", matcher),
+            ("src/CompiledUrlMatcherDumper.php", dumper),
+        ] {
+            graph.ingest_file(
+                &indexed(path),
+                &CodeIntelligenceEngine::analyze(&PathBuf::from(path), src, SourceLanguage::PHP),
+                Some(src),
+            );
+        }
+        graph.finalize_links();
+
+        let route_in =
+            graph.trace_symbol("RouteNotFoundException", crate::TraceDirection::Inbound, 3);
+        let route_files: Vec<_> = route_in
+            .callers
+            .iter()
+            .map(|h| h.file_path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        assert!(
+            route_files.iter().any(|p| p.ends_with("UrlGenerator.php")),
+            "generator throw site missing, callers {route_files:?}"
+        );
+        assert!(
+            !route_files
+                .iter()
+                .any(|p| p.contains("RedirectableUrlMatcher")
+                    || p.contains("CompiledUrlMatcherDumper")),
+            "matcher files must not be inbound to RouteNotFoundException, got {route_files:?}"
+        );
+
+        let resource_in = graph.trace_symbol(
+            "ResourceNotFoundException",
+            crate::TraceDirection::Inbound,
+            3,
+        );
+        let resource_files: Vec<_> = resource_in
+            .callers
+            .iter()
+            .map(|h| h.file_path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        assert!(
+            resource_files
+                .iter()
+                .any(|p| p.ends_with("RedirectableUrlMatcher.php")),
+            "rethrow site missing, callers {resource_files:?}"
+        );
+        assert!(
+            resource_files
+                .iter()
+                .any(|p| p.ends_with("CompiledUrlMatcherDumper.php")),
+            "ternary throw site missing, callers {resource_files:?}"
+        );
+    }
+
+    #[test]
     fn kotlin_unique_save_does_not_explode_or_cross_link() {
         let graph = NeuralProjectGraph::new(ProjectId::new("android"));
         let store = r#"

@@ -1,4 +1,4 @@
-use crate::calls::{extract_type_uses_from_line, is_callable_name};
+use crate::calls::{extract_type_uses_from_body, is_callable_name};
 use crate::imports::{
     expand_rust_use, last_import_segment, normalize_module_hint, record_import, split_import_alias,
 };
@@ -453,10 +453,7 @@ fn extract(
 
     if options.scan_type_uses {
         for func in &functions {
-            let body = text(func.node, src);
-            for line in body.lines() {
-                extract_type_uses_from_line(&func.name, line, &mut result);
-            }
+            extract_type_uses_from_body(&func.name, &text(func.node, src), &mut result);
         }
     }
 
@@ -1258,6 +1255,44 @@ func (s *Store) persist(body string) {}
         let save = php.symbols.iter().find(|s| s.name == "save").expect("save");
         assert_eq!(save.parent.as_deref(), Some("Store"));
         assert!(save.calls.iter().any(|c| c == "persist"));
+    }
+
+    #[test]
+    fn php_throw_rethrow_and_ternary_new_are_inbound() {
+        let php = parse_lang(
+            Grammar::Php,
+            PHP_QUERIES,
+            QueryOptions::php(),
+            "Matcher.php",
+            r#"<?php
+class RedirectableUrlMatcher {
+    public function match(string $pathinfo): array {
+        try {
+            return parent::match($pathinfo);
+        } catch (ResourceNotFoundException $e) {
+            if ($pathinfo === '/') {
+                throw $e;
+            }
+            throw 0 < count($this->allow)
+                ? new MethodNotAllowedException()
+                : new ResourceNotFoundException('no routes');
+        }
+    }
+}
+"#,
+        );
+        for expected in ["ResourceNotFoundException", "MethodNotAllowedException"] {
+            assert!(
+                php.relationships
+                    .iter()
+                    .any(|r| { r.source_symbol == "match" && r.target_symbol == expected }),
+                "php query extract missing {expected}: {:?}",
+                php.relationships
+                    .iter()
+                    .map(|r| format!("{}→{}", r.source_symbol, r.target_symbol))
+                    .collect::<Vec<_>>()
+            );
+        }
     }
 
     #[test]

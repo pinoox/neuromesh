@@ -2,6 +2,12 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
+## 0.6.3 — 2026-08-25
+
+Inbound throw edges for PHP rethrow and ternary `new Type`.
+
+- **Inbound throws.** `throw $e` after `catch (Type $e)`, catch unions, and ternary `throw … new Type` become inbound `Calls` edges. Symfony matchers throw `ResourceNotFoundException`, not `RouteNotFoundException` — trace the type that is actually constructed or caught.
+
 ## 0.6.2 — 2026-08-24
 
 Scale search on large repos, auto index cap, and `--max-files`.
