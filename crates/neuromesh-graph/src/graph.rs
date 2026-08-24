@@ -1516,6 +1516,9 @@ impl NeuralProjectGraph {
                         | "wp-config.php"
                         | "+page.svelte"
                         | "routes.rb"
+                        | "go.mod"
+                        | "angular.json"
+                        | "nest-cli.json"
                 ) {
                     entry_points.push(SearchHit::from_node(node, 1.0, "entry"));
                 }

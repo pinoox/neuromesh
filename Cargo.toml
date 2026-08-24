@@ -17,6 +17,7 @@ members = [
     "crates/neuromesh-observability",
     "crates/neuromesh-cli",
 ]
+exclude = ["tests/fixtures/mini-axum"]
 
 [workspace.package]
 version = "0.5.3"

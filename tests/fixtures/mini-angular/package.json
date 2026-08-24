@@ -1,0 +1,8 @@
+{
+  "name": "mini-angular",
+  "private": true,
+  "dependencies": {
+    "@angular/core": "19.0.0",
+    "@angular/router": "19.0.0"
+  }
+}

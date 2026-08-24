@@ -48,7 +48,7 @@ neuromesh monitor
 | Set Membrane Mode | — |
 | Re-index Workspace | — |
 
-`max_savings` / `balanced` / `max_quality` are the same membrane as the MCP tools (`0` / `8k` / `16k` fill on top of seeds).
+`max_savings` / `balanced` / `max_quality` are the same membrane as the MCP tools (`0` / `5k` / `16k` fill on top of seeds).
 
 ## Settings
 

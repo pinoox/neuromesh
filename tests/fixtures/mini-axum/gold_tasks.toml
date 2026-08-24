@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_store"
+prompt = "How does store use sms_store::save?"
+gold_files = ["src/main.rs", "src/sms_store.rs"]
+expect_seeds_missed = false

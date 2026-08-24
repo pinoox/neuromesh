@@ -32,6 +32,14 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
                 "NeuroMesh biomimetic MCP context engine",
             ));
         }
+        if cargo.contains("axum") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "axum",
+                "Axum HTTP app (Cargo.toml)",
+            ));
+        }
     }
 
     if let Ok(pkg) = fs::read_to_string(root.join("package.json")) {
@@ -81,6 +89,21 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             ),
             ("\"astro\"", "astro", "Astro app (package.json dependency)"),
             ("\"nuxt\"", "nuxt", "Nuxt app (package.json dependency)"),
+            (
+                "\"express\"",
+                "express",
+                "Express app (package.json dependency)",
+            ),
+            (
+                "\"@nestjs/core\"",
+                "nestjs",
+                "NestJS app (package.json dependency)",
+            ),
+            (
+                "\"@angular/core\"",
+                "angular",
+                "Angular app (package.json dependency)",
+            ),
         ] {
             if pkg.contains(needle) {
                 facts.push(ProjectFact::new(
@@ -273,6 +296,56 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             "Swift package (Package.swift)",
         ));
     }
+    if root.join("go.mod").exists() {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "go_module",
+            "Go module (go.mod)",
+        ));
+        if file_mentions(root, &["go.mod"], "gin-gonic/gin") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "gin",
+                "Gin HTTP app (go.mod)",
+            ));
+        }
+        if file_mentions(root, &["go.mod"], "labstack/echo") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "echo",
+                "Echo HTTP app (go.mod)",
+            ));
+        }
+    }
+
+    if root.join("angular.json").exists()
+        && !facts
+            .iter()
+            .any(|f| f.category == "framework" && f.key == "angular")
+    {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "angular",
+            "Angular workspace (angular.json)",
+        ));
+    }
+    if root.join("nest-cli.json").exists()
+        && !facts
+            .iter()
+            .any(|f| f.category == "framework" && f.key == "nestjs")
+    {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "nestjs",
+            "NestJS workspace (nest-cli.json)",
+        ));
+    }
+
     if root.join("Gemfile").exists() {
         facts.push(ProjectFact::new(
             project_id.clone(),
@@ -416,6 +489,33 @@ mod tests {
         let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
         assert!(facts.iter().any(|f| f.key == "react"));
         assert!(facts.iter().any(|f| f.key == "vite"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn manifests_detect_express_nest_angular_gin_axum() {
+        let dir = temp_root();
+        fs::write(
+            dir.join("package.json"),
+            r#"{ "dependencies": { "express": "4", "@nestjs/core": "11", "@angular/core": "19" } }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join("go.mod"),
+            "module x\nrequire github.com/gin-gonic/gin v1.10.0\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("Cargo.toml"),
+            "[package]\nname=\"x\"\n[dependencies]\naxum=\"0.8\"\n",
+        )
+        .unwrap();
+        let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
+        assert!(facts.iter().any(|f| f.key == "express"));
+        assert!(facts.iter().any(|f| f.key == "nestjs"));
+        assert!(facts.iter().any(|f| f.key == "angular"));
+        assert!(facts.iter().any(|f| f.key == "gin"));
+        assert!(facts.iter().any(|f| f.key == "axum"));
         let _ = fs::remove_dir_all(&dir);
     }
 

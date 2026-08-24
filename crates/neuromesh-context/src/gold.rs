@@ -221,6 +221,54 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 expect_seeds_missed: false,
             },
         ),
+        (
+            "mini-express",
+            GoldTask {
+                id: "sms_api".into(),
+                prompt: "How does store use saveSms?".into(),
+                gold_files: vec!["src/app.ts".into(), "src/sms_store.ts".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-nest",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does store use SmsStore.save?".into(),
+                gold_files: vec!["src/sms.controller.ts".into(), "src/sms_store.ts".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-angular",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does store use saveSms?".into(),
+                gold_files: vec![
+                    "src/sms-inbox.component.ts".into(),
+                    "src/sms_store.ts".into(),
+                ],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-gin",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does store use SmsStore.Save?".into(),
+                gold_files: vec!["src/main.go".into(), "src/sms_store.go".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-axum",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does store use sms_store::save?".into(),
+                gold_files: vec!["src/main.rs".into(), "src/sms_store.rs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
     ]
 }
 

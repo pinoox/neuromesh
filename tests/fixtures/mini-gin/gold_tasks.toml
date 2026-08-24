@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_store"
+prompt = "How does store use SmsStore.Save?"
+gold_files = ["src/main.go", "src/sms_store.go"]
+expect_seeds_missed = false

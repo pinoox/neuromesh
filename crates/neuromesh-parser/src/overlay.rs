@@ -29,7 +29,11 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             prime_overlay(content, ast);
             vite_overlay(path, ast);
             electron_overlay(content, ast);
+            express_overlay(content, ast);
+            nest_overlay(content, ast);
+            angular_overlay(content, ast);
         }
+        SourceLanguage::Go => gin_overlay(content, ast),
         SourceLanguage::Vue | SourceLanguage::Svelte => {
             sveltekit_overlay(path, ast);
             vue_router_overlay(path, content, ast);
@@ -44,7 +48,10 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             symfony_overlay(content, ast);
             wordpress_overlay(content, ast);
         }
-        SourceLanguage::Rust => tauri_overlay(content, ast),
+        SourceLanguage::Rust => {
+            tauri_overlay(content, ast);
+            axum_overlay(content, ast);
+        }
         SourceLanguage::Twig => twig_overlay(content, ast),
         _ => {}
     }
@@ -531,6 +538,213 @@ fn vite_overlay(path: &Path, ast: &mut AstAnalysisResult) {
         1..2,
         true,
     ));
+}
+
+fn express_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains(".get(")
+        && !content.contains(".post(")
+        && !content.contains(".put(")
+        && !content.contains(".patch(")
+        && !content.contains(".delete(")
+    {
+        return;
+    }
+    if !content.contains("express")
+        && !content.contains("Router(")
+        && !content.contains("app.post")
+        && !content.contains("app.get")
+        && !content.contains("router.post")
+        && !content.contains("router.get")
+    {
+        return;
+    }
+    static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    let route_re = ROUTE_RE.get_or_init(|| {
+        Regex::new(r#"(?:app|router|r)\.(get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)['"]"#)
+            .unwrap()
+    });
+    for cap in route_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("{method} {route}"),
+            format!("{method} {route}"),
+            line,
+        );
+    }
+}
+
+fn nest_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains("@Controller")
+        && !content.contains("@Get(")
+        && !content.contains("@Post(")
+        && !content.contains("@Put(")
+        && !content.contains("@Patch(")
+        && !content.contains("@Delete(")
+    {
+        return;
+    }
+    static CTRL_RE: OnceLock<Regex> = OnceLock::new();
+    static HTTP_RE: OnceLock<Regex> = OnceLock::new();
+    let ctrl_re =
+        CTRL_RE.get_or_init(|| Regex::new(r#"@Controller\(\s*['"]([^'"]*)['"]"#).unwrap());
+    let http_re = HTTP_RE.get_or_init(|| {
+        Regex::new(r#"@(Get|Post|Put|Patch|Delete)\(\s*(?:['"]([^'"]*)['"]\s*)?\)"#).unwrap()
+    });
+    let mut events: Vec<(usize, NestEvent<'_>)> = Vec::new();
+    for cap in ctrl_re.captures_iter(content) {
+        let start = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let prefix = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        events.push((start, NestEvent::Controller(prefix)));
+    }
+    for cap in http_re.captures_iter(content) {
+        let start = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let method = cap.get(1).map(|m| m.as_str()).unwrap_or("Get");
+        let path = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        events.push((start, NestEvent::Http(method, path)));
+    }
+    events.sort_by_key(|(pos, _)| *pos);
+    let mut prefix = "";
+    for (start, event) in events {
+        match event {
+            NestEvent::Controller(p) => prefix = p,
+            NestEvent::Http(method, path) => {
+                let route = nest_route(prefix, path);
+                let method = method.to_uppercase();
+                let line = line_of(content, start);
+                push_api(
+                    ast,
+                    &format!("{method} {route}"),
+                    format!("@{method}(\"{route}\")"),
+                    line,
+                );
+            }
+        }
+    }
+}
+
+enum NestEvent<'a> {
+    Controller(&'a str),
+    Http(&'a str, &'a str),
+}
+
+fn nest_route(prefix: &str, path: &str) -> String {
+    let prefix = prefix.trim().trim_matches('/');
+    let path = path.trim().trim_matches('/');
+    match (prefix.is_empty(), path.is_empty()) {
+        (true, true) => "/".into(),
+        (true, false) => format!("/{path}"),
+        (false, true) => format!("/{prefix}"),
+        (false, false) => format!("/{prefix}/{path}"),
+    }
+}
+
+fn angular_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    let looks_angular = content.contains("@angular/")
+        || content.contains("@Component(")
+        || content.contains("Routes")
+        || content.contains("RouterModule");
+    if !looks_angular {
+        return;
+    }
+    static CLASS_RE: OnceLock<Regex> = OnceLock::new();
+    let class_re = CLASS_RE.get_or_init(|| {
+        Regex::new(r"@Component\([\s\S]{0,400}?\)\s*(?:export\s+)?class\s+([A-Z][A-Za-z0-9_]*)")
+            .unwrap()
+    });
+    for cap in class_re.captures_iter(content) {
+        if let Some(name) = cap.get(1) {
+            promote(ast, name.as_str(), NodeType::Component);
+        }
+    }
+    static PATH_RE: OnceLock<Regex> = OnceLock::new();
+    let path_re = PATH_RE.get_or_init(|| {
+        Regex::new(r#"path:\s*['"](/?[A-Za-z0-9~_-]+(?:/[A-Za-z0-9~_-]+)*)['"]"#).unwrap()
+    });
+    for cap in path_re.captures_iter(content) {
+        let raw = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if raw.is_empty() || raw.contains('.') {
+            continue;
+        }
+        let route = if raw.starts_with('/') {
+            raw.to_string()
+        } else {
+            format!("/{raw}")
+        };
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(ast, &route, format!("Angular path:{route}"), line);
+    }
+}
+
+fn gin_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains(".GET(")
+        && !content.contains(".POST(")
+        && !content.contains(".PUT(")
+        && !content.contains(".PATCH(")
+        && !content.contains(".DELETE(")
+    {
+        return;
+    }
+    if !content.contains("gin") && !content.contains("echo") && !content.contains("Echo") {
+        return;
+    }
+    static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    let route_re = ROUTE_RE.get_or_init(|| {
+        Regex::new(r#"\.(GET|POST|PUT|PATCH|DELETE)\(\s*["']([^"']+)["']"#).unwrap()
+    });
+    for cap in route_re.captures_iter(content) {
+        let method = cap.get(1).map(|m| m.as_str()).unwrap_or("GET");
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("{method} {route}"),
+            format!("{method} {route}"),
+            line,
+        );
+    }
+}
+
+fn axum_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains(".route(") {
+        return;
+    }
+    if !content.contains("axum") && !content.contains("Router::new") {
+        return;
+    }
+    static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    let route_re = ROUTE_RE.get_or_init(|| {
+        Regex::new(r#"\.route\(\s*["']([^"']+)["']\s*,\s*(get|post|put|patch|delete)\s*\("#)
+            .unwrap()
+    });
+    for cap in route_re.captures_iter(content) {
+        let route = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let method = cap
+            .get(2)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("{method} {route}"),
+            format!("{method} {route}"),
+            line,
+        );
+    }
 }
 
 fn electron_overlay(content: &str, ast: &mut AstAnalysisResult) {
@@ -1023,6 +1237,76 @@ mod tests {
         let ast = analyze("pages/sms.vue", src, SourceLanguage::Vue);
         assert!(
             has_api(&ast, "/sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn express_post_is_api() {
+        let src = "import express from 'express';\nconst app = express();\napp.post('/sms', (req, res) => saveSms(req.body));\n";
+        let ast = analyze("src/app.ts", src, SourceLanguage::TypeScript);
+        assert!(
+            has_api(&ast, "POST /sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn nest_controller_post_is_api() {
+        let src = "@Controller('sms')\nexport class SmsController {\n  @Post()\n  store(body: string) { SmsStore.save(body); }\n}\n";
+        let ast = analyze("src/sms.controller.ts", src, SourceLanguage::TypeScript);
+        assert!(
+            has_api(&ast, "POST /sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn angular_component_and_path_are_overlayed() {
+        let src = "import { Component } from '@angular/core';\n@Component({ selector: 'sms-inbox', template: '' })\nexport class SmsInboxComponent {\n  store(body: string) { saveSms(body); }\n}\n";
+        let ast = analyze(
+            "src/sms-inbox.component.ts",
+            src,
+            SourceLanguage::TypeScript,
+        );
+        let recv = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "SmsInboxComponent")
+            .expect("SmsInboxComponent");
+        assert_eq!(recv.symbol_type, NodeType::Component);
+        let routes = analyze(
+            "src/sms.routes.ts",
+            "import { Routes } from '@angular/router';\nexport const routes: Routes = [{ path: 'sms', component: SmsInboxComponent }];\n",
+            SourceLanguage::TypeScript,
+        );
+        assert!(
+            has_api(&routes, "/sms"),
+            "symbols = {:?}",
+            routes.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn gin_post_is_api() {
+        let src = "package main\nimport \"github.com/gin-gonic/gin\"\nfunc main() { r := gin.Default(); r.POST(\"/sms\", store) }\nfunc store(c *gin.Context) { SmsStoreSave() }\n";
+        let ast = analyze("main.go", src, SourceLanguage::Go);
+        assert!(
+            has_api(&ast, "POST /sms"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn axum_route_is_api() {
+        let src = "use axum::{routing::post, Router};\nfn app() -> Router { Router::new().route(\"/sms\", post(store)) }\nasync fn store() { sms_store::save(); }\n";
+        let ast = analyze("src/main.rs", src, SourceLanguage::Rust);
+        assert!(
+            has_api(&ast, "POST /sms"),
             "symbols = {:?}",
             ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
         );

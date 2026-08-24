@@ -1,0 +1,5 @@
+[[task]]
+id = "sms_store"
+prompt = "How does store use saveSms?"
+gold_files = ["src/sms-inbox.component.ts", "src/sms_store.ts"]
+expect_seeds_missed = false

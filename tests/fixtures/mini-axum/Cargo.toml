@@ -1,0 +1,7 @@
+[package]
+name = "mini-axum"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.8"

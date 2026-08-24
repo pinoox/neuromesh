@@ -66,6 +66,8 @@ impl ProjectWalker {
                 || current.join("Gemfile").exists()
                 || current.join("composer.json").exists()
                 || current.join("app.php").exists()
+                || current.join("go.mod").exists()
+                || current.join("angular.json").exists()
             {
                 return current;
             }

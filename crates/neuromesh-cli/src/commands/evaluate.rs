@@ -120,17 +120,24 @@ pub fn execute() -> Result<()> {
     if fixtures.is_dir() {
         println!("\nFixture repos:");
         if let Ok(entries) = std::fs::read_dir(&fixtures) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_dir() {
-                    continue;
-                }
-                let name = entry.file_name().to_string_lossy().into_owned();
+            let mut dirs: Vec<_> = entries
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|path| path.is_dir())
+                .collect();
+            dirs.sort();
+            for path in dirs {
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
                 let walker = ProjectWalker::new(path.clone(), ProjectId::new(&name));
                 let Ok(scanned) = walker.scan() else {
+                    println!("  {name}: scan failed");
                     continue;
                 };
                 if scanned.is_empty() {
+                    println!("  {name}: 0 files (scan empty)");
                     continue;
                 }
                 let graph = NeuralProjectGraph::new(ProjectId::new(&name));
