@@ -16,6 +16,10 @@ pub const GO_QUERIES: &str = include_str!("queries/go.scm");
 pub const JAVA_QUERIES: &str = include_str!("queries/java.scm");
 pub const KOTLIN_QUERIES: &str = include_str!("queries/kotlin.scm");
 pub const PHP_QUERIES: &str = include_str!("queries/php.scm");
+pub const CSHARP_QUERIES: &str = include_str!("queries/csharp.scm");
+pub const DART_QUERIES: &str = include_str!("queries/dart.scm");
+pub const SWIFT_QUERIES: &str = include_str!("queries/swift.scm");
+pub const RUBY_QUERIES: &str = include_str!("queries/ruby.scm");
 
 #[derive(Clone, Copy)]
 pub enum Grammar {
@@ -26,9 +30,13 @@ pub enum Grammar {
     Java,
     Kotlin,
     Php,
+    CSharp,
+    Dart,
+    Swift,
+    Ruby,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ImportStyle {
     None,
     RustUse,
@@ -36,6 +44,7 @@ pub enum ImportStyle {
     Python,
     Go,
     Path,
+    Ruby,
 }
 
 #[derive(Clone, Copy)]
@@ -117,6 +126,42 @@ impl QueryOptions {
             scan_type_uses: true,
         }
     }
+
+    pub fn csharp() -> Self {
+        Self {
+            import: ImportStyle::Path,
+            export: ExportStyle::NotPrivate,
+            skip_cfg_test: false,
+            scan_type_uses: true,
+        }
+    }
+
+    pub fn dart() -> Self {
+        Self {
+            import: ImportStyle::Path,
+            export: ExportStyle::NotUnderscore,
+            skip_cfg_test: false,
+            scan_type_uses: false,
+        }
+    }
+
+    pub fn swift() -> Self {
+        Self {
+            import: ImportStyle::Path,
+            export: ExportStyle::NotPrivate,
+            skip_cfg_test: false,
+            scan_type_uses: false,
+        }
+    }
+
+    pub fn ruby() -> Self {
+        Self {
+            import: ImportStyle::Ruby,
+            export: ExportStyle::NotUnderscore,
+            skip_cfg_test: false,
+            scan_type_uses: false,
+        }
+    }
 }
 
 /// Parse with a grammar + query profile. Returns None if the grammar or query fails to load.
@@ -136,7 +181,7 @@ pub fn parse(
 }
 
 impl Grammar {
-    fn language(self) -> Option<Language> {
+    pub(crate) fn language(self) -> Option<Language> {
         Some(match self {
             Grammar::Rust => tree_sitter_rust::LANGUAGE.into(),
             Grammar::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
@@ -145,6 +190,10 @@ impl Grammar {
             Grammar::Java => tree_sitter_java::LANGUAGE.into(),
             Grammar::Kotlin => tree_sitter_kotlin_sg::LANGUAGE.into(),
             Grammar::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+            Grammar::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
+            Grammar::Dart => tree_sitter_dart_orchard::LANGUAGE.into(),
+            Grammar::Swift => tree_sitter_swift::LANGUAGE.into(),
+            Grammar::Ruby => tree_sitter_ruby::LANGUAGE.into(),
         })
     }
 }
@@ -197,11 +246,28 @@ fn compiled_query(
             static Q: OnceLock<Option<Query>> = OnceLock::new();
             load(&Q, language, source)
         }
+        Grammar::CSharp => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
+        }
+        Grammar::Dart => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
+        }
+        Grammar::Swift => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
+        }
+        Grammar::Ruby => {
+            static Q: OnceLock<Option<Query>> = OnceLock::new();
+            load(&Q, language, source)
+        }
     }
 }
 
 struct FnHit<'a> {
     node: Node<'a>,
+    end_byte: usize,
     name: String,
     parent_name: Option<String>,
 }
@@ -273,6 +339,7 @@ fn extract(
         if let Some(node) = function_node {
             functions.push(FnHit {
                 node,
+                end_byte: function_end_byte(node),
                 name: function_name.unwrap_or_else(|| "anonymous".into()),
                 parent_name: function_parent,
             });
@@ -353,7 +420,11 @@ fn extract(
             ImportStyle::Python => collect_python_import(node, filename, src, &mut result),
             ImportStyle::Go => collect_go_import(node, filename, src, &mut result),
             ImportStyle::Path => collect_path_import(node, filename, src, &mut result),
+            ImportStyle::Ruby => {}
         }
+    }
+    if options.import == ImportStyle::Ruby {
+        collect_ruby_requires(content, filename, &mut result);
     }
 
     for call in call_nodes {
@@ -390,8 +461,27 @@ fn extract(
 fn innermost_fn<'a>(functions: &'a [FnHit<'a>], byte: usize) -> Option<&'a FnHit<'a>> {
     functions
         .iter()
-        .filter(|f| f.node.start_byte() <= byte && byte < f.node.end_byte())
-        .min_by_key(|f| f.node.end_byte() - f.node.start_byte())
+        .filter(|f| f.node.start_byte() <= byte && byte < f.end_byte)
+        .min_by_key(|f| f.end_byte - f.node.start_byte())
+}
+
+/// Dart orchard (and similar) keep `function_signature` and `function_body` as
+/// siblings. Extend the captured signature so calls in the body stay in-scope.
+fn function_end_byte(node: Node) -> usize {
+    let mut span = node;
+    if node.kind() == "function_signature" {
+        if let Some(parent) = node.parent() {
+            if parent.kind() == "method_signature" {
+                span = parent;
+            }
+        }
+    }
+    if let Some(next) = span.next_named_sibling() {
+        if next.kind() == "function_body" {
+            return next.end_byte();
+        }
+    }
+    span.end_byte()
 }
 
 fn innermost_impl<'a>(impls: &'a [ImplHit<'a>], byte: usize) -> Option<&'a ImplHit<'a>> {
@@ -454,6 +544,21 @@ fn call_name_and_hint(
         }
     }
 
+    if node.kind() == "selector" {
+        return dart_selector_call(node, impl_parent, src);
+    }
+
+    if let Some(method) = node.child_by_field_name("method") {
+        if node.child_by_field_name("function").is_none() {
+            let name = last_ident(method, src);
+            let recv = node.child_by_field_name("receiver");
+            return (
+                name,
+                recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
+            );
+        }
+    }
+
     if let Some(name_node) = node.child_by_field_name("name") {
         if node.child_by_field_name("function").is_none() {
             let name = last_ident(name_node, src);
@@ -477,6 +582,33 @@ fn call_name_and_hint(
     }
 
     (String::new(), None)
+}
+
+fn dart_selector_call(
+    node: Node,
+    impl_parent: Option<&str>,
+    src: &[u8],
+) -> (String, Option<String>) {
+    let method = (0..node.named_child_count())
+        .filter_map(|i| node.named_child(i))
+        .find(|c| {
+            matches!(
+                c.kind(),
+                "unconditional_assignable_selector" | "conditional_assignable_selector"
+            )
+        });
+    if let Some(method) = method {
+        let name = last_ident(method, src);
+        let hint = node
+            .prev_named_sibling()
+            .and_then(|r| hint_from_receiver(r, impl_parent, src));
+        return (name, hint);
+    }
+    let name = node
+        .prev_named_sibling()
+        .map(|n| last_ident(n, src))
+        .unwrap_or_default();
+    (name, None)
 }
 
 fn callee_child(node: Node) -> Option<Node> {
@@ -536,13 +668,23 @@ fn call_target(func: Node, impl_parent: Option<&str>, src: &[u8]) -> (String, Op
                 recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
             )
         }
-        "field_expression" | "member_expression" => {
+        "unconditional_assignable_selector" | "conditional_assignable_selector" => {
+            let name = last_ident(func, src);
+            let recv = func.named_child(0).filter(|n| last_ident(*n, src) != name);
+            (
+                name,
+                recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
+            )
+        }
+        "field_expression" | "member_expression" | "member_access_expression" => {
             let name = field_text(func, "field", src)
                 .or_else(|| field_text(func, "property", src))
+                .or_else(|| field_text(func, "name", src))
                 .unwrap_or_default();
             let recv = func
                 .child_by_field_name("value")
-                .or_else(|| func.child_by_field_name("object"));
+                .or_else(|| func.child_by_field_name("object"))
+                .or_else(|| func.child_by_field_name("expression"));
             (
                 name,
                 recv.and_then(|r| hint_from_receiver(r, impl_parent, src)),
@@ -584,7 +726,7 @@ fn hint_from_receiver(recv: Node, impl_parent: Option<&str>, src: &[u8]) -> Opti
             impl_parent.map(|p| format!("impl:{p}"))
         }
         "identifier" | "simple_identifier" | "name" | "type_identifier" | "package_identifier"
-        | "field_identifier" => {
+        | "field_identifier" | "constant" => {
             let t = text(recv, src);
             if matches!(t.as_str(), "self" | "this" | "Super" | "super" | "Me") {
                 impl_parent.map(|p| format!("impl:{p}"))
@@ -722,7 +864,14 @@ fn collect_go_import(node: Node, filename: &str, src: &[u8], result: &mut AstAna
 fn collect_path_import(node: Node, filename: &str, src: &[u8], result: &mut AstAnalysisResult) {
     let line = node.start_position().row + 1;
     let mut spec = text(node, src).trim().trim_end_matches(';').to_string();
-    for prefix in ["import static", "import", "use"] {
+    for prefix in [
+        "import static",
+        "require_relative",
+        "import",
+        "using",
+        "use",
+        "require",
+    ] {
         if let Some(rest) = spec.strip_prefix(prefix) {
             spec = rest.trim().to_string();
             break;
@@ -743,6 +892,31 @@ fn collect_path_import(node: Node, filename: &str, src: &[u8], result: &mut AstA
         normalize_module_hint(&path),
         line,
     );
+}
+
+fn collect_ruby_requires(content: &str, filename: &str, result: &mut AstAnalysisResult) {
+    for (idx, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+        let rest = if let Some(rest) = trimmed.strip_prefix("require_relative ") {
+            rest
+        } else if let Some(rest) = trimmed.strip_prefix("require ") {
+            rest
+        } else {
+            continue;
+        };
+        let spec = rest.trim().trim_end_matches(';');
+        let imported = last_import_segment(spec);
+        if imported.is_empty() {
+            continue;
+        }
+        record_import(
+            result,
+            filename,
+            imported,
+            normalize_module_hint(spec),
+            idx + 1,
+        );
+    }
 }
 
 fn in_cfg_test_mod(mut node: Node, src: &[u8]) -> bool {
@@ -821,7 +995,8 @@ fn last_ident(node: Node, src: &[u8]) -> String {
         | "type_identifier"
         | "name"
         | "property_identifier"
-        | "package_identifier" => return text(node, src),
+        | "package_identifier"
+        | "constant" => return text(node, src),
         _ => {}
     }
     let mut found = String::new();
@@ -833,7 +1008,8 @@ fn last_ident(node: Node, src: &[u8]) -> String {
             | "type_identifier"
             | "name"
             | "property_identifier"
-            | "package_identifier" => {
+            | "package_identifier"
+            | "constant" => {
                 *found = text(n, src);
             }
             _ => {
@@ -902,7 +1078,8 @@ mod tests {
         path: &str,
         code: &str,
     ) -> AstAnalysisResult {
-        parse(&PathBuf::from(path), code, grammar, queries, options).expect("query extract")
+        parse(&PathBuf::from(path), code, grammar, queries, options)
+            .unwrap_or_else(|| panic!("query extract failed for {path}"))
     }
 
     #[test]
@@ -1052,5 +1229,101 @@ func (s *Store) persist(body string) {}
         let save = php.symbols.iter().find(|s| s.name == "save").expect("save");
         assert_eq!(save.parent.as_deref(), Some("Store"));
         assert!(save.calls.iter().any(|c| c == "persist"));
+    }
+
+    #[test]
+    fn wave2_queries_extract_typed_save() {
+        for (grammar, queries, label) in [
+            (Grammar::Dart, DART_QUERIES, "dart"),
+            (Grammar::CSharp, CSHARP_QUERIES, "csharp"),
+            (Grammar::Swift, SWIFT_QUERIES, "swift"),
+            (Grammar::Ruby, RUBY_QUERIES, "ruby"),
+        ] {
+            let language = grammar
+                .language()
+                .unwrap_or_else(|| panic!("{label} language"));
+            let mut parser = tree_sitter::Parser::new();
+            parser
+                .set_language(&language)
+                .unwrap_or_else(|e| panic!("{label} set_language: {e}"));
+            tree_sitter::Query::new(&language, queries)
+                .unwrap_or_else(|e| panic!("{label} query: {e}"));
+        }
+        let dart = parse_lang(
+            Grammar::Dart,
+            DART_QUERIES,
+            QueryOptions::dart(),
+            "sms_store.dart",
+            "class SmsStore {\n  void save(String body) { persist(body); }\n  void persist(String body) {}\n}\n",
+        );
+        let save = dart
+            .symbols
+            .iter()
+            .find(|s| s.name == "save")
+            .expect("save");
+        assert_eq!(save.parent.as_deref(), Some("SmsStore"));
+        assert!(save.calls.iter().any(|c| c == "persist"));
+
+        let recv = parse_lang(
+            Grammar::Dart,
+            DART_QUERIES,
+            QueryOptions::dart(),
+            "receiver.dart",
+            "import 'sms_store.dart';\nvoid onReceive(String body) { SmsStore.save(body); }\n",
+        );
+        assert!(recv
+            .imports
+            .iter()
+            .any(|i| i.imported_symbols.iter().any(|n| n == "sms_store")));
+        assert!(
+            recv.relationships.iter().any(|r| {
+                r.source_symbol == "onReceive"
+                    && r.target_symbol == "save"
+                    && r.receiver_hint.as_deref() == Some("type:SmsStore")
+            }),
+            "dart SmsStore.save hint missing: {:?}",
+            recv.relationships
+        );
+
+        let cs = parse_lang(
+            Grammar::CSharp,
+            CSHARP_QUERIES,
+            QueryOptions::csharp(),
+            "SmsStore.cs",
+            "class SmsStore { public static void Save(string body) { Persist(body); } static void Persist(string body) {} }",
+        );
+        assert!(cs.symbols.iter().any(|s| s.name == "SmsStore"));
+        assert!(cs.symbols.iter().any(|s| s.name == "Save"));
+
+        let swift = parse_lang(
+            Grammar::Swift,
+            SWIFT_QUERIES,
+            QueryOptions::swift(),
+            "SmsStore.swift",
+            "class SmsStore {\n  func save(body: String?) { persist(body: body) }\n  private func persist(body: String?) {}\n}\n",
+        );
+        let save = swift
+            .symbols
+            .iter()
+            .find(|s| s.name == "save")
+            .expect("swift save");
+        assert_eq!(save.parent.as_deref(), Some("SmsStore"));
+
+        let ruby = parse_lang(
+            Grammar::Ruby,
+            RUBY_QUERIES,
+            QueryOptions::ruby(),
+            "receiver.rb",
+            "require_relative 'sms_store'\nclass SmsReceiver\n  def on_receive(body)\n    SmsStore.save(body)\n  end\nend\n",
+        );
+        assert!(ruby
+            .imports
+            .iter()
+            .any(|i| i.imported_symbols.contains(&"sms_store".into())));
+        assert!(ruby.relationships.iter().any(|r| {
+            r.source_symbol == "on_receive"
+                && r.target_symbol == "save"
+                && r.receiver_hint.as_deref() == Some("type:SmsStore")
+        }));
     }
 }

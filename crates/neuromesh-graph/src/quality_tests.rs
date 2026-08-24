@@ -817,4 +817,182 @@ class SmsReceiver {
             40,
         );
     }
+
+    #[test]
+    fn dart_unique_save_does_not_explode_or_cross_link() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("dart"));
+        let store = "class SmsStore {\n  void save(String body) { persist(body); }\n  void persist(String body) {}\n}\n";
+        let inbox = "class InboxStore {\n  void save(String body) {}\n}\n";
+        let receiver =
+            "import 'sms_store.dart';\nvoid onReceive(String body) { SmsStore.save(body); }\n";
+        graph.ingest_file(
+            &indexed("lib/sms_store.dart"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("lib/sms_store.dart"),
+                store,
+                SourceLanguage::Dart,
+            ),
+            Some(store),
+        );
+        graph.ingest_file(
+            &indexed("lib/inbox_store.dart"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("lib/inbox_store.dart"),
+                inbox,
+                SourceLanguage::Dart,
+            ),
+            Some(inbox),
+        );
+        graph.ingest_file(
+            &indexed("lib/receiver.dart"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("lib/receiver.dart"),
+                receiver,
+                SourceLanguage::Dart,
+            ),
+            Some(receiver),
+        );
+        graph.finalize_links();
+        assert_unique_call(
+            &graph,
+            "onReceive",
+            "lib/receiver.dart",
+            "save",
+            "sms_store.dart",
+            40,
+        );
+    }
+
+    #[test]
+    fn csharp_unique_save_does_not_explode_or_cross_link() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("cs"));
+        let store = "namespace App { class SmsStore { public static void Save(string body) { Persist(body); } static void Persist(string body) {} } }";
+        let inbox =
+            "namespace App { class InboxStore { public static void Save(string body) {} } }";
+        let receiver = "namespace App { using App; class SmsReceiver { public void OnReceive(string body) { SmsStore.Save(body); } } }";
+        graph.ingest_file(
+            &indexed("SmsStore.cs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("SmsStore.cs"),
+                store,
+                SourceLanguage::CSharp,
+            ),
+            Some(store),
+        );
+        graph.ingest_file(
+            &indexed("InboxStore.cs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("InboxStore.cs"),
+                inbox,
+                SourceLanguage::CSharp,
+            ),
+            Some(inbox),
+        );
+        graph.ingest_file(
+            &indexed("SmsReceiver.cs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("SmsReceiver.cs"),
+                receiver,
+                SourceLanguage::CSharp,
+            ),
+            Some(receiver),
+        );
+        graph.finalize_links();
+        assert_unique_call(
+            &graph,
+            "OnReceive",
+            "SmsReceiver.cs",
+            "Save",
+            "SmsStore.cs",
+            40,
+        );
+    }
+
+    #[test]
+    fn swift_unique_save_does_not_explode_or_cross_link() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("swift"));
+        let store = "class SmsStore {\n  func save(body: String?) { persist(body: body) }\n  private func persist(body: String?) {}\n}\n";
+        let inbox = "class InboxStore {\n  func save(body: String?) {}\n}\n";
+        let receiver = "class SmsReceiver {\n  func onReceive(body: String?) { SmsStore.save(body: body) }\n}\n";
+        graph.ingest_file(
+            &indexed("SmsStore.swift"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("SmsStore.swift"),
+                store,
+                SourceLanguage::Swift,
+            ),
+            Some(store),
+        );
+        graph.ingest_file(
+            &indexed("InboxStore.swift"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("InboxStore.swift"),
+                inbox,
+                SourceLanguage::Swift,
+            ),
+            Some(inbox),
+        );
+        graph.ingest_file(
+            &indexed("SmsReceiver.swift"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("SmsReceiver.swift"),
+                receiver,
+                SourceLanguage::Swift,
+            ),
+            Some(receiver),
+        );
+        graph.finalize_links();
+        assert_unique_call(
+            &graph,
+            "onReceive",
+            "SmsReceiver.swift",
+            "save",
+            "SmsStore.swift",
+            40,
+        );
+    }
+
+    #[test]
+    fn ruby_unique_save_does_not_explode_or_cross_link() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("ruby"));
+        let store = "class SmsStore\n  def self.save(body)\n    persist(body)\n  end\n  def self.persist(body)\n  end\nend\n";
+        let inbox = "class InboxStore\n  def self.save(body)\n  end\nend\n";
+        let receiver = "require_relative 'sms_store'\nclass SmsReceiver\n  def on_receive(body)\n    SmsStore.save(body)\n  end\nend\n";
+        graph.ingest_file(
+            &indexed("sms_store.rb"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("sms_store.rb"),
+                store,
+                SourceLanguage::Ruby,
+            ),
+            Some(store),
+        );
+        graph.ingest_file(
+            &indexed("inbox_store.rb"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("inbox_store.rb"),
+                inbox,
+                SourceLanguage::Ruby,
+            ),
+            Some(inbox),
+        );
+        graph.ingest_file(
+            &indexed("receiver.rb"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("receiver.rb"),
+                receiver,
+                SourceLanguage::Ruby,
+            ),
+            Some(receiver),
+        );
+        graph.finalize_links();
+        assert_unique_call(
+            &graph,
+            "on_receive",
+            "receiver.rb",
+            "save",
+            "sms_store.rb",
+            40,
+        );
+    }
 }

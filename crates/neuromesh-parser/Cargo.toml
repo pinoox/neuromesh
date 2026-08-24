@@ -21,3 +21,8 @@ tree-sitter-go = "0.23.4"
 tree-sitter-java = "0.23.5"
 tree-sitter-php = "0.23.11"
 tree-sitter-kotlin-sg = "0.4.1"
+# ABI 13–14 only (tree-sitter 0.24). Newer c-sharp/swift/dart crates ship ABI 15.
+tree-sitter-ruby = "=0.23.1"
+tree-sitter-c-sharp = "=0.23.1"
+tree-sitter-dart-orchard = "0.6.0"
+tree-sitter-swift = "=0.6.0"

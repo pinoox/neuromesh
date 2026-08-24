@@ -63,7 +63,7 @@ Evidence packet → MCP client
 3. Ingest nodes.
 4. `finalize_links`: resolve pending `Imports` then `Calls`.
 
-Rust, TypeScript, Python, Go, Java, Kotlin, and PHP use tree-sitter **queries** (`function` / `class` / `import` / `call`) so spans stay real; regex is the fallback if a grammar fails to load. C# / C / C++ share the generic regex parser. Vue has its own extractor. New languages plug in through `LanguageSpec`, not a growing engine `match`. Import hints from `composer.json` PSR-4 and `go.mod` are rewritten to workspace paths before unique-resolve.
+Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby use tree-sitter **queries** (`function` / `class` / `import` / `call`) so spans stay real; regex is the fallback if a grammar fails to load. Grammars must stay on tree-sitter **ABI 13–14** (do not take crates that ship language version 15). C / C++ share the generic regex parser. Vue has its own extractor. New languages plug in through `LanguageSpec`, not a growing engine `match`. Import hints from `composer.json` PSR-4 and `go.mod` are rewritten to workspace paths before unique-resolve.
 
 ## Packet
 

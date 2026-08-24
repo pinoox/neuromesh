@@ -64,6 +64,31 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
         ));
     }
 
+    if root.join("pubspec.yaml").exists() {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "dart_flutter",
+            "Dart/Flutter project (pubspec.yaml)",
+        ));
+    }
+    if root.join("Package.swift").exists() {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "swift_package",
+            "Swift package (Package.swift)",
+        ));
+    }
+    if root.join("Gemfile").exists() {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "ruby_toolchain",
+            "Ruby project (Gemfile)",
+        ));
+    }
+
     let mut doc_paths = vec![root.join("README.md")];
     if let Ok(entries) = fs::read_dir(root.join("docs")) {
         for entry in entries.flatten() {

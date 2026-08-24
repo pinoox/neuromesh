@@ -18,6 +18,9 @@ pub enum SourceLanguage {
     Java,
     Kotlin,
     CSharp,
+    Swift,
+    Dart,
+    Ruby,
     C,
     Cpp,
     JSON,
@@ -62,6 +65,9 @@ impl SourceLanguage {
             "java" => SourceLanguage::Java,
             "kt" | "kts" => SourceLanguage::Kotlin,
             "cs" => SourceLanguage::CSharp,
+            "swift" => SourceLanguage::Swift,
+            "dart" => SourceLanguage::Dart,
+            "rb" | "rake" => SourceLanguage::Ruby,
             "c" | "h" => SourceLanguage::C,
             "cpp" | "hpp" | "cc" | "cxx" => SourceLanguage::Cpp,
             "json" => SourceLanguage::JSON,
@@ -91,6 +97,9 @@ impl SourceLanguage {
             Self::Java => "java",
             Self::Kotlin => "kotlin",
             Self::CSharp => "csharp",
+            Self::Swift => "swift",
+            Self::Dart => "dart",
+            Self::Ruby => "ruby",
             Self::C => "c",
             Self::Cpp => "cpp",
             Self::JSON => "json",
@@ -158,5 +167,17 @@ mod tests {
         );
         assert_eq!(SourceLanguage::Kotlin.as_str(), "kotlin");
         assert!(SourceLanguage::Kotlin.is_code());
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("SmsStore.swift")),
+            SourceLanguage::Swift
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("lib/sms_store.dart")),
+            SourceLanguage::Dart
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("app/sms_store.rb")),
+            SourceLanguage::Ruby
+        );
     }
 }

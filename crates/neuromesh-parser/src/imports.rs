@@ -1,10 +1,23 @@
 use crate::types::{AstAnalysisResult, ParsedImport, ParsedRelationship};
 use neuromesh_core::EdgeType;
 
+const SOURCE_EXTS: &[&str] = &[".dart", ".swift", ".rb", ".cs", ".kt", ".java", ".py"];
+
+fn strip_source_ext(spec: &str) -> String {
+    let mut spec = spec.to_string();
+    for ext in SOURCE_EXTS {
+        if let Some(stripped) = spec.strip_suffix(ext) {
+            spec = stripped.to_string();
+            break;
+        }
+    }
+    spec
+}
+
 /// Turn a module spec into a path-like hint so `path_hint_matches` can require
 /// more than the last dotted segment (`com.example.SmsStore` → `com/example/SmsStore`).
 pub fn normalize_module_hint(source: &str) -> String {
-    let trimmed = source.trim().trim_matches(['"', '\'', '`', ';']).trim();
+    let trimmed = strip_source_ext(source.trim().trim_matches(['"', '\'', '`', ';']).trim());
     if trimmed.starts_with('.') || trimmed.contains('/') {
         return trimmed.replace('\\', "/");
     }
@@ -13,12 +26,14 @@ pub fn normalize_module_hint(source: &str) -> String {
 
 /// Last identifier in a dotted / slashed / namespaced import spec.
 pub fn last_import_segment(source: &str) -> String {
-    source
-        .trim()
-        .trim_matches(['"', '\'', '`', ';'])
-        .trim_end_matches(['*', ';'])
-        .trim_end_matches('.')
-        .split(['/', '\\', '.', ':'])
+    let spec = strip_source_ext(
+        source
+            .trim()
+            .trim_matches(['"', '\'', '`', ';'])
+            .trim_end_matches(['*', ';'])
+            .trim_end_matches('.'),
+    );
+    spec.split(['/', '\\', '.', ':'])
         .map(str::trim)
         .rfind(|s| !s.is_empty() && *s != "*")
         .unwrap_or("")
@@ -179,5 +194,7 @@ mod tests {
         );
         assert_eq!(normalize_module_hint("./store"), "./store");
         assert_eq!(last_import_segment("App\\Installer\\Foo"), "Foo");
+        assert_eq!(last_import_segment("sms_store.dart"), "sms_store");
+        assert_eq!(normalize_module_hint("sms_store.dart"), "sms_store");
     }
 }

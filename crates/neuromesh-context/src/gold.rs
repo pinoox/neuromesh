@@ -134,6 +134,24 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 expect_seeds_missed: false,
             },
         ),
+        (
+            "mini-dart",
+            GoldTask {
+                id: "sms_receive".into(),
+                prompt: "How does onReceive use SmsStore.save?".into(),
+                gold_files: vec!["src/receiver.dart".into(), "src/sms_store.dart".into()],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
+            "mini-csharp",
+            GoldTask {
+                id: "sms_receive".into(),
+                prompt: "How does OnReceive use SmsStore.Save?".into(),
+                gold_files: vec!["src/SmsReceiver.cs".into(), "src/SmsStore.cs".into()],
+                expect_seeds_missed: false,
+            },
+        ),
     ]
 }
 

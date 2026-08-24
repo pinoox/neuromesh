@@ -2,8 +2,9 @@ use crate::generic::GenericParser;
 use crate::html::HtmlParser;
 use crate::python_lang::PythonParser;
 use crate::query_extract::{
-    self, Grammar, QueryOptions, GO_QUERIES, JAVA_QUERIES, KOTLIN_QUERIES, PHP_QUERIES,
-    PYTHON_QUERIES, RUST_QUERIES, TYPESCRIPT_QUERIES,
+    self, Grammar, QueryOptions, CSHARP_QUERIES, DART_QUERIES, GO_QUERIES, JAVA_QUERIES,
+    KOTLIN_QUERIES, PHP_QUERIES, PYTHON_QUERIES, RUBY_QUERIES, RUST_QUERIES, SWIFT_QUERIES,
+    TYPESCRIPT_QUERIES,
 };
 use crate::rust_lang::RustParser;
 use crate::scss::ScssParser;
@@ -87,6 +88,34 @@ impl LanguageSpec {
                 options: QueryOptions::php(),
                 fallback: Fallback::Generic,
             },
+            SourceLanguage::CSharp => Self {
+                language,
+                grammar: Some(Grammar::CSharp),
+                queries: Some(CSHARP_QUERIES),
+                options: QueryOptions::csharp(),
+                fallback: Fallback::Generic,
+            },
+            SourceLanguage::Dart => Self {
+                language,
+                grammar: Some(Grammar::Dart),
+                queries: Some(DART_QUERIES),
+                options: QueryOptions::dart(),
+                fallback: Fallback::Generic,
+            },
+            SourceLanguage::Swift => Self {
+                language,
+                grammar: Some(Grammar::Swift),
+                queries: Some(SWIFT_QUERIES),
+                options: QueryOptions::swift(),
+                fallback: Fallback::Generic,
+            },
+            SourceLanguage::Ruby => Self {
+                language,
+                grammar: Some(Grammar::Ruby),
+                queries: Some(RUBY_QUERIES),
+                options: QueryOptions::ruby(),
+                fallback: Fallback::Generic,
+            },
             SourceLanguage::Vue => Self {
                 language,
                 grammar: None,
@@ -108,7 +137,7 @@ impl LanguageSpec {
                 options: QueryOptions::typescript(),
                 fallback: Fallback::Html,
             },
-            SourceLanguage::CSharp | SourceLanguage::C | SourceLanguage::Cpp => Self {
+            SourceLanguage::C | SourceLanguage::Cpp => Self {
                 language,
                 grammar: None,
                 queries: None,
@@ -160,7 +189,7 @@ mod tests {
     use neuromesh_index::SourceLanguage;
 
     #[test]
-    fn wave1_languages_use_tree_sitter_queries() {
+    fn wave2_languages_use_tree_sitter_queries() {
         for language in [
             SourceLanguage::Rust,
             SourceLanguage::TypeScript,
@@ -169,6 +198,10 @@ mod tests {
             SourceLanguage::Java,
             SourceLanguage::Kotlin,
             SourceLanguage::PHP,
+            SourceLanguage::CSharp,
+            SourceLanguage::Dart,
+            SourceLanguage::Swift,
+            SourceLanguage::Ruby,
         ] {
             let spec = LanguageSpec::get(language);
             assert!(
@@ -176,7 +209,7 @@ mod tests {
                 "{language:?} should have a query grammar"
             );
         }
-        let csharp = LanguageSpec::get(SourceLanguage::CSharp);
-        assert!(csharp.grammar.is_none());
+        let c = LanguageSpec::get(SourceLanguage::C);
+        assert!(c.grammar.is_none());
     }
 }

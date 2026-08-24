@@ -1486,6 +1486,8 @@ impl NeuralProjectGraph {
                         | "index.js"
                         | "main.py"
                         | "main.go"
+                        | "main.dart"
+                        | "Program.cs"
                 ) {
                     entry_points.push(SearchHit::from_node(node, 1.0, "entry"));
                 }

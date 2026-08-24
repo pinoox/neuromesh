@@ -11,7 +11,7 @@ Build on 1.80+, honest MCP args, Kotlin in the indexer, and a less hollow PHP/Go
 - **Generic languages.** PHP/Go/Java/Kotlin/C#/C/C++ extract functions and calls. `.kt` / `.kts` are indexed (`fun`, `object`, `data class`, imports). `throw new X`, `catch (X`, Kotlin `catch (e: X)`, and PHP `X $param` become inbound `Calls` edges.
 - **Doctor skipped files.** `neuromesh doctor` (and `index`) report unsupported extensions so a Kotlin-only repo is no longer a silent empty scan.
 - **Query extractors.** Rust and TypeScript parsing is driven by tree-sitter queries (`src/queries/*.scm`) behind a language registry. Regex remains the fallback. Gold on this repo must stay green.
-- **Wave 1 languages.** Python, Go, Java, Kotlin, and PHP use the same query driver (0.23 grammars). Classes parent methods, `SmsStore.save` stays unique-resolve, and `composer.json` / `go.mod` rewrite import hints. Fixtures: `tests/fixtures/mini-python`, `mini-kotlin`. Debug gold activation on this repo is gated at 150 ms (parallel `cargo test`; isolated runs are nearer 60 ms).
+- **Wave 2 languages.** Swift, Dart, Ruby, and C# are indexed (no longer skipped as unknown). Same query driver; regex/`GenericParser` fallback. Grammars stay on tree-sitter **ABI 14** (`tree-sitter-dart-orchard` 0.6.0, `tree-sitter-c-sharp` 0.23.1, `tree-sitter-swift` 0.6.0, `tree-sitter-ruby` 0.23.1). Fixtures: `mini-dart`, `mini-csharp`.
 
 ## 0.5.2 — 2026-08-23
 
