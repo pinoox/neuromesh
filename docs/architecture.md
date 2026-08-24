@@ -34,7 +34,7 @@ Evidence packet → MCP client
 1. **Structural honesty.** Import and call edges exist when the target resolves uniquely (same file, imported files, same crate, impl/field, or a single global definition). Several hits in one file are not a fake `Proven` edge. Failures stay `Likely` or unresolved — they are not dropped silently and they are not exploded into every namesake.
 2. **Bounded activation.** `get_context` seeds from the prompt and fills a neighborhood under a token cap. It does not score the entire graph on every request.
 3. **Reversible folds.** Untargeted function bodies become `[neuromesh:fold]` markers. The original text is registered; `neuromesh_expand_fold` returns it by `fold_id`.
-4. **Safe workspace.** Indexing walks up to a git, Cargo, or `package.json` root and refuses `$HOME` and drive roots.
+4. **Safe workspace.** Indexing walks up to a git, Cargo, or `package.json` root and refuses `$HOME` and drive roots. The file cap is **auto** (production sources first, tests last, ceiling 50,000) unless `--max-files` / `NEUROMESH_MAX_FILES` sets a limit.
 5. **Local.** MCP over stdio. No hosted service, no API key for indexing.
 
 ## Crates

@@ -3,7 +3,9 @@ use neuromesh_index::ProjectWalker;
 use std::env;
 use std::net::TcpListener;
 
-pub fn execute() -> Result<()> {
+use super::{configured_walker, print_file_cap, FileCapArg};
+
+pub fn execute(cap: FileCapArg) -> Result<()> {
     println!("\nNeuroMesh doctor");
     println!(
         "OS             : {} ({})",
@@ -19,6 +21,11 @@ pub fn execute() -> Result<()> {
         Err(_) => println!("Monitor port   : {addr} in use"),
     }
     println!("Change with    : neuromesh port <n>  |  --port <n>  |  NEUROMESH_PORT");
+    match cfg.max_files {
+        Some(n) => println!("Max files      : {n} (explicit)"),
+        None => println!("Max files      : auto (production sources, ceiling 50,000)"),
+    }
+    println!("Change with    : neuromesh index --max-files <n|auto>  |  NEUROMESH_MAX_FILES");
 
     let cwd = env::current_dir()?;
     let root = ProjectWalker::discover_workspace(&cwd);
@@ -29,16 +36,11 @@ pub fn execute() -> Result<()> {
     }
     println!("Safety         : ok");
 
-    let walker = ProjectWalker::new(root.clone(), neuromesh_core::ProjectId::new("doctor"));
+    let walker = configured_walker(root.clone(), neuromesh_core::ProjectId::new("doctor"), cap);
     match walker.scan_report() {
         Ok(report) => {
             println!("Scan           : {} source files", report.files.len());
-            if report.truncated {
-                println!(
-                    "Truncated      : hit {}-file cap; {} more files not indexed (test trees queued last)",
-                    report.file_cap, report.omitted_over_cap
-                );
-            }
+            print_file_cap(&report, "");
             if report.skipped_count() > 0 {
                 println!(
                     "Skipped        : {} files ({})",

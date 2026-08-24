@@ -46,3 +46,20 @@ Priority: `--port` / `-p` → env `NEUROMESH_PORT` → project `.neuromesh/confi
 `neuromesh start` honors the same flag. VS Code / Cursor setting `neuromesh.port` must match the process that is actually listening.
 
 `neuromesh mcp` does **not** bind a port (stdio only). Remote MCP is the monitor: `neuromesh monitor --port 9000`, then `http://127.0.0.1:9000/sse`.
+
+## Index file cap
+
+Default is **auto**. After a walk, production sources (`src/`, not `tests/` / `test/`) are indexed first. The cap grows to that production count (minimum 6,000) and never past **50,000**. Tests are queued last, so a Symfony-scale tree is not truncated in the middle of `src/`.
+
+```bash
+neuromesh index --max-files auto     # persist auto (default)
+neuromesh index --max-files 20000    # persist a hard limit
+neuromesh index --max-files=20000    # same
+neuromesh doctor --max-files 20000   # one scan only, does not save
+```
+
+`auto` and `0` mean auto-grow. Priority: `--max-files` → env `NEUROMESH_MAX_FILES` → project `.neuromesh/config.json` → `~/.neuromesh/config.json` → auto.
+
+`neuromesh index --max-files …` writes `max_files` next to the monitor port in `<cwd>/.neuromesh/config.json`, so `neuromesh mcp` / `monitor` pick it up. `neuromesh monitor --max-files 20000` is one run only (same idea as `--port`).
+
+`index` and `doctor` print `File cap: auto → N (ceiling 50000)` and `Truncated` when files were omitted. Re-index after changing the cap.

@@ -1,6 +1,6 @@
 # HTTP monitor
 
-`neuromesh monitor` binds **http://127.0.0.1:8765** by default (local only). Change it with `neuromesh port 9000`, `neuromesh monitor --port 9000`, or `NEUROMESH_PORT`. See [cli.md](cli.md#monitor-port). Use this for the graph UI and for clients that speak HTTP/SSE instead of stdio MCP.
+`neuromesh monitor` binds **http://127.0.0.1:8765** by default (local only). Change it with `neuromesh port 9000`, `neuromesh monitor --port 9000`, or `NEUROMESH_PORT`. See [cli.md](cli.md#monitor-port). Re-index honors the same file cap as the CLI (`--max-files` / `NEUROMESH_MAX_FILES` / config; default auto, ceiling 50,000 — [cli.md](cli.md#index-file-cap)). Use this for the graph UI and for clients that speak HTTP/SSE instead of stdio MCP.
 
 ## UI
 

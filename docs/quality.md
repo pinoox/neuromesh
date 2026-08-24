@@ -45,6 +45,8 @@ From `neuromesh eval` (release, 2026-08-24) on this repository:
 | Edges | 2,891 |
 | Index time (release) | ~209 ms |
 
+Index file cap is **auto** by default (production sources first, tests last, ceiling 50,000). Override with `neuromesh index --max-files N`. See [cli.md](cli.md#index-file-cap).
+
 Fill caps: `max_savings` = 0 extra tokens, `balanced` = 5,000, `max_quality` = 16,000. Reduction is versus **this workspace**, not a fake 25k dump.
 
 Token savings from skeletonization are **per file and per task**. There is no universal 99% claim.

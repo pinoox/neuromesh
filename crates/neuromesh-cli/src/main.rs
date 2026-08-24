@@ -42,7 +42,8 @@ fn main() -> Result<()> {
             return commands::memory::execute();
         }
         "doctor" => {
-            return commands::doctor::execute();
+            let cap = commands::max_files_from_args(&args)?;
+            return commands::doctor::execute(cap);
         }
         "models" => {
             return commands::models::execute();
@@ -76,15 +77,18 @@ fn main() -> Result<()> {
 async fn async_main(command: &str, args: &[String]) -> Result<()> {
     match command {
         "index" => {
-            let _ = commands::index::execute()?;
+            let cap = commands::max_files_from_args(args)?;
+            let _ = commands::index::execute(cap)?;
         }
         "start" => {
             let port = commands::port_from_args(args)?;
-            commands::start::execute(port).await?;
+            let cap = commands::max_files_from_args(args)?;
+            commands::start::execute(port, cap).await?;
         }
         "monitor" | "ui" | "dashboard" => {
             let port = commands::port_from_args(args)?;
-            commands::monitor::execute(port).await?;
+            let cap = commands::max_files_from_args(args)?;
+            commands::monitor::execute(port, cap).await?;
         }
         "optimize" => {
             let prompt = args.get(2).cloned();
@@ -138,12 +142,13 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             let bg_graph = graph.clone();
             let bg_dir = current_dir.clone();
             let bg_pid = project_id.clone();
+            let cap = commands::max_files_from_args(args)?;
             let _ = graph.load_persisted(&current_dir);
             tokio::task::spawn_blocking(move || {
                 if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
                     return;
                 }
-                let walker = neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid);
+                let walker = commands::configured_walker(bg_dir.clone(), bg_pid, cap);
                 if let Ok(scanned) = walker.scan() {
                     bg_graph.ingest_workspace(&scanned);
                     let _ = bg_graph.save_persisted(&bg_dir);
@@ -192,5 +197,11 @@ fn print_help() {
     println!("  neuromesh mcp                   # what IDEs launch");
     println!("  neuromesh port 9000             # persist galaxy UI port");
     println!("  neuromesh monitor --port 9000   # one run only");
+    println!("  neuromesh index --max-files auto");
     println!("  neuromesh connect               # copy-paste MCP config\n");
+    println!("Index file cap:");
+    println!("  Default is auto: every production source, then tests, up to 50,000.");
+    println!("  neuromesh index --max-files 20000   persist a limit");
+    println!("  neuromesh index --max-files auto    persist auto (or --max-files=auto)");
+    println!("  NEUROMESH_MAX_FILES=20000           env override (auto / 0 = auto)");
 }

@@ -137,7 +137,10 @@ impl McpServer {
                             let _ = self.handler.graph().load_persisted(&p_buf);
                             tokio::task::spawn_blocking(move || {
                                 let walker =
-                                    neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid);
+                                    neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid)
+                                        .with_optional_max_files(
+                                            neuromesh_core::Config::load().max_files,
+                                        );
                                 if let Ok(scanned) = walker.scan() {
                                     bg_graph.ingest_workspace(&scanned);
                                     let _ = bg_graph.save_persisted(&bg_dir);

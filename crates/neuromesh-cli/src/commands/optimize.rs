@@ -2,10 +2,11 @@ use neuromesh_context::gold::packet_file_names;
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{OptimizationMode, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
-use neuromesh_index::ProjectWalker;
 use neuromesh_task::TaskSignatureExtractor;
 use std::sync::Arc;
 use std::time::Instant;
+
+use super::{configured_walker, FileCapArg};
 
 pub fn execute(task_prompt: Option<String>) -> Result<()> {
     let prompt =
@@ -18,7 +19,11 @@ pub fn execute(task_prompt: Option<String>) -> Result<()> {
         .unwrap_or("project")
         .to_string();
     let project_id = ProjectId::new(&project_name);
-    let walker = ProjectWalker::new(current_dir.clone(), project_id.clone());
+    let walker = configured_walker(
+        current_dir.clone(),
+        project_id.clone(),
+        FileCapArg::Unspecified,
+    );
     let scanned = walker.scan().unwrap_or_default();
 
     let graph = NeuralProjectGraph::new(project_id);
