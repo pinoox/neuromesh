@@ -18,7 +18,11 @@ pub fn execute() -> Result<()> {
         .unwrap_or("project")
         .to_string();
     let project_id = ProjectId::new(&project_name);
-    let walker = ProjectWalker::new(current_dir.clone(), project_id.clone());
+    let walker = super::configured_walker(
+        current_dir.clone(),
+        project_id.clone(),
+        super::FileCapArg::Unspecified,
+    );
     let scanned = walker.scan()?;
     if scanned.is_empty() {
         println!(

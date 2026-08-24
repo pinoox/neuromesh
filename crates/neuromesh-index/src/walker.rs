@@ -16,6 +16,9 @@ pub struct ScanReport {
     pub truncated: bool,
     pub omitted_over_cap: usize,
     pub file_cap: usize,
+    /// True when the cap grew to fit production sources (not `--max-files`).
+    pub auto_cap: bool,
+    pub hard_cap: usize,
 }
 
 impl ScanReport {
@@ -39,22 +42,45 @@ pub struct ProjectWalker {
     root_path: PathBuf,
     project_id: ProjectId,
     max_file_size: u64,
-    max_files: usize,
+    /// `None` = auto: index every non-test source, then tests, up to `hard_cap`.
+    max_files: Option<usize>,
+    soft_cap: usize,
+    hard_cap: usize,
 }
 
 impl ProjectWalker {
+    pub const SOFT_CAP: usize = 6_000;
+    pub const HARD_CAP: usize = 50_000;
+
     pub fn new(root_path: PathBuf, project_id: ProjectId) -> Self {
         Self {
             root_path,
             project_id,
             max_file_size: 2 * 1024 * 1024, // 2MB max text file
-            max_files: 6_000,
+            max_files: None,
+            soft_cap: Self::SOFT_CAP,
+            hard_cap: Self::HARD_CAP,
+        }
+    }
+
+    pub fn with_max_files(mut self, max_files: usize) -> Self {
+        self.max_files = Some(max_files.max(1));
+        self
+    }
+
+    /// `None` keeps auto-grow. Used by CLI/MCP/API after reading config.
+    pub fn with_optional_max_files(self, max_files: Option<usize>) -> Self {
+        match max_files {
+            Some(n) => self.with_max_files(n),
+            None => self,
         }
     }
 
     #[cfg(test)]
-    pub fn with_max_files(mut self, max_files: usize) -> Self {
-        self.max_files = max_files;
+    fn with_auto_caps(mut self, soft: usize, hard: usize) -> Self {
+        self.max_files = None;
+        self.soft_cap = soft.max(1);
+        self.hard_cap = hard.max(self.soft_cap);
         self
     }
 
@@ -161,7 +187,8 @@ impl ProjectWalker {
 
     pub fn scan_report(&self) -> Result<ScanReport> {
         let mut report = ScanReport {
-            file_cap: self.max_files,
+            hard_cap: self.hard_cap,
+            auto_cap: self.max_files.is_none(),
             ..ScanReport::default()
         };
 
@@ -214,10 +241,20 @@ impl ProjectWalker {
                 .then_with(|| a.0.cmp(&b.0))
         });
 
-        if candidates.len() > self.max_files {
+        let production = candidates
+            .iter()
+            .filter(|(rel, _, _, _)| !is_test_like(rel))
+            .count();
+        let cap = match self.max_files {
+            Some(n) => n.clamp(1, self.hard_cap),
+            None => production.max(self.soft_cap).min(self.hard_cap),
+        };
+        report.file_cap = cap;
+
+        if candidates.len() > cap {
             report.truncated = true;
-            report.omitted_over_cap = candidates.len() - self.max_files;
-            candidates.truncate(self.max_files);
+            report.omitted_over_cap = candidates.len() - cap;
+            candidates.truncate(cap);
         }
 
         for (relative_path, full_path, byte_size, last_modified) in candidates {
@@ -243,7 +280,7 @@ impl ProjectWalker {
     }
 }
 
-/// Test trees are indexed, but after production sources so a 6k-file cap
+/// Test trees are indexed, but after production sources so a file cap
 /// does not drop `HttpKernel.php` in favor of `Tests/`.
 fn is_test_like(path: &Path) -> bool {
     path.components().any(|c| {
@@ -353,6 +390,7 @@ mod tests {
         let walker = ProjectWalker::new(root.clone(), neuromesh_core::ProjectId::new("cap"))
             .with_max_files(1);
         let report = walker.scan_report().unwrap();
+        assert!(!report.auto_cap);
         assert!(report.truncated);
         assert_eq!(report.omitted_over_cap, 2);
         assert_eq!(report.files.len(), 1);
@@ -366,6 +404,33 @@ mod tests {
             "cap must keep production sources, got {:?}",
             report.files[0].0.relative_path
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn auto_cap_grows_to_cover_production_sources() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("walk_cap_tmp")
+            .join(format!("nm-walk-auto-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::write(root.join("src/A.php"), "<?php class A {}").unwrap();
+        fs::write(root.join("src/B.php"), "<?php class B {}").unwrap();
+        fs::write(root.join("src/C.php"), "<?php class C {}").unwrap();
+        fs::write(root.join("tests/z.php"), "<?php class Z {}").unwrap();
+        let walker = ProjectWalker::new(root.clone(), neuromesh_core::ProjectId::new("auto"))
+            .with_auto_caps(2, 10);
+        let report = walker.scan_report().unwrap();
+        assert!(report.auto_cap);
+        assert_eq!(report.file_cap, 3, "auto cap should match production count");
+        assert_eq!(report.files.len(), 3);
+        assert!(report.truncated);
+        assert_eq!(report.omitted_over_cap, 1);
+        assert!(report
+            .files
+            .iter()
+            .all(|(f, _)| !f.relative_path.to_string_lossy().contains("tests")));
         let _ = fs::remove_dir_all(&root);
     }
 

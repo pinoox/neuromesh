@@ -50,6 +50,11 @@ impl HttpServer {
         }
     }
 
+    fn project_walker(state: &AppState, root: PathBuf, pid: ProjectId) -> ProjectWalker {
+        let max_files = state.config.read().max_files;
+        ProjectWalker::new(root, pid).with_optional_max_files(max_files)
+    }
+
     async fn handle_connection(mut stream: TcpStream, state: Arc<AppState>) -> Result<()> {
         let mut header_bytes = Vec::new();
         let mut buf = [0u8; 8192];
@@ -445,8 +450,11 @@ impl HttpServer {
                                                 .map(|n| n.to_string_lossy().into_owned())
                                                 .unwrap_or_default();
                                             project_names.push(p_name.clone());
-                                            let walker =
-                                                ProjectWalker::new(p, ProjectId::new(&p_name));
+                                            let walker = Self::project_walker(
+                                                &state,
+                                                p,
+                                                ProjectId::new(&p_name),
+                                            );
                                             if let Ok(scanned) = walker.scan() {
                                                 indexed_count += scanned.len();
                                                 for (file, content) in &scanned {
@@ -491,7 +499,8 @@ impl HttpServer {
 
                             let new_project_id = ProjectId::new(&project_name);
                             state.graph.clear(Some(new_project_id.clone()));
-                            let walker = ProjectWalker::new(target_path, new_project_id.clone());
+                            let walker =
+                                Self::project_walker(&state, target_path, new_project_id.clone());
                             let mut indexed_count = 0;
                             if let Ok(scanned) = walker.scan() {
                                 indexed_count = scanned.len();
@@ -589,7 +598,7 @@ impl HttpServer {
                             .unwrap_or_else(|| "project".to_string());
                         let new_pid = ProjectId::new(&fallback_name);
                         state.graph.clear(Some(new_pid.clone()));
-                        let walker = ProjectWalker::new(fallback_dir, new_pid);
+                        let walker = Self::project_walker(&state, fallback_dir, new_pid);
                         if let Ok(scanned) = walker.scan() {
                             for (file, content) in &scanned {
                                 let ast = CodeIntelligenceEngine::analyze(
@@ -627,7 +636,7 @@ impl HttpServer {
                 let current_ws = state.workspace_path.read().clone();
                 let project_id = state.graph.project_id();
                 state.graph.clear(Some(project_id.clone()));
-                let walker = ProjectWalker::new(current_ws, project_id.clone());
+                let walker = Self::project_walker(&state, current_ws, project_id.clone());
                 let scanned = walker.scan().unwrap_or_default();
 
                 for (file, content) in &scanned {

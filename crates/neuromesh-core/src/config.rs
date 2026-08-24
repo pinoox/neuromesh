@@ -112,6 +112,9 @@ pub struct Config {
     pub provider: ProviderConfig,
     pub local_ai: LocalAiConfig,
     pub thresholds: Thresholds,
+    /// Explicit index file cap. `None` (default) auto-grows to fit production sources.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_files: Option<usize>,
 }
 
 impl Default for Config {
@@ -127,6 +130,7 @@ impl Default for Config {
             provider: ProviderConfig::default(),
             local_ai: LocalAiConfig::default(),
             thresholds: Thresholds::default(),
+            max_files: None,
         }
     }
 }
@@ -135,7 +139,7 @@ impl Config {
     pub const DEFAULT_PORT: u16 = 8765;
 
     /// Project `.neuromesh/config.json`, then `~/.neuromesh/config.json`, then defaults.
-    /// `NEUROMESH_PORT` wins over files.
+    /// `NEUROMESH_PORT` and `NEUROMESH_MAX_FILES` win over files.
     pub fn load() -> Self {
         Self::from_files().with_env_overrides()
     }
@@ -170,6 +174,13 @@ impl Config {
                 self.port = port;
             }
         }
+        if let Ok(raw) = std::env::var("NEUROMESH_MAX_FILES") {
+            match parse_max_files(&raw) {
+                Ok(None) => self.max_files = None,
+                Ok(Some(n)) => self.max_files = Some(n),
+                Err(_) => {}
+            }
+        }
         self
     }
 
@@ -178,7 +189,12 @@ impl Config {
         self
     }
 
-    /// Write `port` / `host` into `<cwd>/.neuromesh/config.json`.
+    pub fn with_max_files(mut self, max_files: Option<usize>) -> Self {
+        self.max_files = max_files;
+        self
+    }
+
+    /// Write `port` / `host` / `max_files` into `<cwd>/.neuromesh/config.json`.
     /// Merges into the existing project file; never copies `~/.neuromesh` secrets.
     pub fn save_local(&self) -> Result<PathBuf> {
         let dir = std::env::current_dir()?.join(".neuromesh");
@@ -191,6 +207,7 @@ impl Config {
         };
         merged.port = self.port;
         merged.host = self.host.clone();
+        merged.max_files = self.max_files;
         fs::write(&path, serde_json::to_string_pretty(&merged)?)?;
         Ok(path)
     }
@@ -207,6 +224,21 @@ pub fn parse_port(raw: &str) -> Result<u16> {
     Ok(port)
 }
 
+/// `auto` / `0` = grow to production sources. Otherwise a positive file count.
+pub fn parse_max_files(raw: &str) -> Result<Option<usize>> {
+    let raw = raw.trim();
+    if raw.eq_ignore_ascii_case("auto") || raw == "0" {
+        return Ok(None);
+    }
+    let n: usize = raw
+        .parse()
+        .map_err(|_| NeuroMeshError::Config(format!("invalid --max-files: {raw}")))?;
+    if n == 0 {
+        return Ok(None);
+    }
+    Ok(Some(n))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,5 +253,13 @@ mod tests {
         assert!(parse_port("0").is_err());
         assert!(parse_port("abc").is_err());
         assert_eq!(parse_port("9000").unwrap(), 9000);
+    }
+
+    #[test]
+    fn parse_max_files_auto_and_limit() {
+        assert_eq!(parse_max_files("auto").unwrap(), None);
+        assert_eq!(parse_max_files("0").unwrap(), None);
+        assert_eq!(parse_max_files("20000").unwrap(), Some(20000));
+        assert!(parse_max_files("nope").is_err());
     }
 }

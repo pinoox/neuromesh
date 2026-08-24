@@ -1,13 +1,14 @@
 use neuromesh_api::{AppState, HttpServer};
 use neuromesh_core::{Config, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
-use neuromesh_index::ProjectWalker;
 use neuromesh_memory::MemoryDatabase;
 use neuromesh_provider::ProviderFactory;
 use std::io::Write;
 use std::sync::Arc;
 
-pub async fn execute(port_override: Option<u16>) -> Result<()> {
+use super::{apply_file_cap, configured_walker, FileCapArg};
+
+pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> {
     let current_dir = std::env::current_dir()?;
     println!("NeuroMesh monitor: starting in {}", current_dir.display());
     let _ = std::io::stdout().flush();
@@ -16,6 +17,7 @@ pub async fn execute(port_override: Option<u16>) -> Result<()> {
     if let Some(port) = port_override {
         config = config.with_port(port);
     }
+    config = apply_file_cap(config, cap);
 
     let project_name = current_dir
         .file_name()
@@ -45,11 +47,11 @@ pub async fn execute(port_override: Option<u16>) -> Result<()> {
     let bg_dir = current_dir.clone();
     let bg_pid = project_id.clone();
     tokio::task::spawn_blocking(move || {
-        if !ProjectWalker::is_safe_workspace(&bg_dir) {
+        if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
             eprintln!("NeuroMesh monitor: refused to index an unsafe workspace root");
             return;
         }
-        let walker = ProjectWalker::new(bg_dir.clone(), bg_pid);
+        let walker = configured_walker(bg_dir.clone(), bg_pid, cap);
         match walker.scan() {
             Ok(scanned) => {
                 bg_graph.ingest_workspace(&scanned);

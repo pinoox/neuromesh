@@ -50,7 +50,8 @@ impl WorkspaceWatcher {
         let thread_running = running.clone();
 
         // Initial scan to populate known hashes
-        let walker = ProjectWalker::new(root.clone(), project_id.clone());
+        let walker = ProjectWalker::new(root.clone(), project_id.clone())
+            .with_optional_max_files(neuromesh_core::Config::load().max_files);
         if let Ok(initial_files) = walker.scan() {
             for (file, _) in initial_files {
                 self.known_hashes
@@ -69,7 +70,8 @@ impl WorkspaceWatcher {
                 if last_scan.elapsed() >= interval {
                     last_scan = Instant::now();
 
-                    let walker = ProjectWalker::new(root.clone(), project_id.clone());
+                    let walker = ProjectWalker::new(root.clone(), project_id.clone())
+                        .with_optional_max_files(neuromesh_core::Config::load().max_files);
                     if let Ok(current_files) = walker.scan() {
                         let mut current_map = HashMap::new();
 

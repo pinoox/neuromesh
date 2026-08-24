@@ -1,7 +1,8 @@
 use neuromesh_core::{ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
-use neuromesh_index::ProjectWalker;
 use neuromesh_memory::MemoryDatabase;
+
+use super::{configured_walker, FileCapArg};
 
 pub fn execute() -> Result<()> {
     let current_dir = std::env::current_dir()?;
@@ -11,7 +12,11 @@ pub fn execute() -> Result<()> {
         .unwrap_or("project")
         .to_string();
     let project_id = ProjectId::new(&project_name);
-    let walker = ProjectWalker::new(current_dir.clone(), project_id.clone());
+    let walker = configured_walker(
+        current_dir.clone(),
+        project_id.clone(),
+        FileCapArg::Unspecified,
+    );
     let scanned = walker.scan().unwrap_or_default();
 
     let graph = NeuralProjectGraph::new(project_id.clone());

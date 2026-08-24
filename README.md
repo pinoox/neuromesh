@@ -213,6 +213,17 @@ HTTP / SSE MCP (`GET /sse`, `POST /mcp`) rides on the **monitor** process. Chang
 
 VS Code / Cursor: Settings → `neuromesh.port` must match the running monitor. After `neuromesh port 9000`, restart `neuromesh monitor` and set the editor to 9000.
 
+### Index file cap
+
+Default is **auto**: every production source, then tests, up to 50,000 files. The old silent 6,000-file stop is gone for large `src/` trees.
+
+```bash
+neuromesh index --max-files auto     # persist auto (default)
+neuromesh index --max-files 20000    # persist a hard limit
+```
+
+Priority: `--max-files` → `NEUROMESH_MAX_FILES` (`auto` / `0` = auto) → `.neuromesh/config.json` → auto. See [cli.md](docs/cli.md#index-file-cap).
+
 ---
 
 ## Tools
@@ -265,6 +276,6 @@ Index snapshot from that eval run: **219 files · 1,323 nodes · 2,891 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.6.1 |
+| [Changelog](docs/CHANGELOG.md) | 0.6.2 |
 
 MIT · [LICENSE](LICENSE)

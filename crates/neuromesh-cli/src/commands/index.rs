@@ -1,11 +1,12 @@
 use neuromesh_core::{ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
-use neuromesh_index::ProjectWalker;
 use neuromesh_memory::{MemoryDatabase, ProjectFact};
 use std::fs;
 use std::sync::Arc;
 
-pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
+use super::{configured_walker, persist_file_cap, print_file_cap, FileCapArg};
+
+pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let current_dir = std::env::current_dir()?;
     let project_name = current_dir
         .file_name()
@@ -13,18 +14,23 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
         .unwrap_or("neuromesh-project")
         .to_string();
 
+    if let Some(path) = persist_file_cap(cap)? {
+        let label = match cap {
+            FileCapArg::Auto => "auto".to_string(),
+            FileCapArg::Limit(n) => n.to_string(),
+            FileCapArg::Unspecified => unreachable!(),
+        };
+        println!("Saved          : {} (max_files = {label})", path.display());
+    }
+
     let project_id = ProjectId::new(&project_name);
-    let walker = ProjectWalker::new(current_dir.clone(), project_id.clone());
+    let walker = configured_walker(current_dir.clone(), project_id.clone(), cap);
 
     println!("🔍 Indexing Project Workspace...");
     let report = walker.scan_report()?;
     let skipped_count = report.skipped_count();
     let skipped_summary = report.skipped_summary();
-    let truncated = report.truncated;
-    let omitted = report.omitted_over_cap;
-    let file_cap = report.file_cap;
-    let scanned_files = report.files;
-    let total_files = scanned_files.len();
+    let total_files = report.files.len();
 
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let _ = graph.load_persisted(&current_dir);
@@ -41,7 +47,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let mut has_svelte = false;
     let mut has_js = false;
 
-    for (file, _) in &scanned_files {
+    for (file, _) in &report.files {
         total_tokens += file.token_count;
         if matches!(
             file.language,
@@ -75,7 +81,7 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
             has_kotlin = true;
         }
     }
-    graph.ingest_workspace(&scanned_files);
+    graph.ingest_workspace(&report.files);
     graph.save_persisted(&current_dir)?;
 
     if has_html {
@@ -142,13 +148,9 @@ pub fn execute() -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
     let stats = graph.stats();
     println!("✓ Indexing Complete");
     println!("  Indexed Files  : {}", total_files);
+    print_file_cap(&report, "  ");
     if skipped_count > 0 {
         println!("  Skipped        : {} ({})", skipped_count, skipped_summary);
-    }
-    if truncated {
-        println!(
-            "  Truncated      : hit {file_cap}-file cap; {omitted} more files not indexed (test trees queued last)"
-        );
     }
     println!("  Total Tokens   : {}", total_tokens);
     println!("  Graph Nodes    : {}", stats.total_nodes);
