@@ -4,6 +4,6 @@ pub mod walker;
 pub mod watcher;
 
 pub use hasher::ContentHasher;
-pub use tracker::{IndexedFile, SourceLanguage};
+pub use tracker::{FileFingerprint, IndexedFile, SourceLanguage};
 pub use walker::{ProjectWalker, ScanReport};
 pub use watcher::{FileChangeEvent, WorkspaceWatcher};

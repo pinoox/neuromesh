@@ -37,9 +37,7 @@ impl CollectiveMemory {
     }
 
     pub fn open_global() -> Result<Self> {
-        let global_dir = dirs::home_dir()
-            .map(|h| h.join(".neuromesh"))
-            .unwrap_or_else(|| PathBuf::from("."));
+        let global_dir = neuromesh_core::neuromesh_home();
 
         let file_path = global_dir.join("collective_memory.json");
         let mut patterns = HashMap::new();

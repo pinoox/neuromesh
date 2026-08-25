@@ -2,6 +2,20 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
+## 0.6.9 — 2026-08-25
+
+Compact incremental mesh, managed store, usage telemetry, and multi-client MCP connect.
+
+- **No file bodies in the mesh.** File nodes keep path, hash, mtime, and token cost. Source is read on demand for skeletonization, `expand_fold`, and `neuromesh_get_file_skeleton`, so the in-RAM graph no longer holds N copies of the workspace.
+- **Binary snapshot.** The persisted graph is `graph.bin` (bincode, bodies stripped). An existing `graph.json` is still read once for migration. Cold load on this repo is **28 ms** against a **346 ms** full index; a one-file reindex is **27 ms** (`docs/quality.md`).
+- **Compact graph store.** Nodes and edges live in slot vectors with `u32` adjacency; `NodeId`/`EdgeId` are `Arc<str>`, so lookups, neighborhood walks, and Physarum tubes stop cloning whole maps. Spreading activation walks the adjacency arrays under one read lock, and ingesting a file takes a single write lock instead of one per symbol.
+- **Prefix symbol index.** `search_symbols` resolves prefixes through a sorted name index instead of scanning every symbol name.
+- **Real incremental index.** The walker compares size + mtime first and reads only changed files; `neuromesh index` reports `Unchanged skip`. Live sync (CLI `start`/`monitor`/`mcp` and the MCP handshake) uses an OS watcher (`notify`, 200 ms debounce) instead of a 150 ms full-tree poll. Hashing is now really Blake3.
+- **Inbound relink.** Re-ingesting a file re-queues the inbound `Calls`/`Imports` edges that pointed at its old symbols, so callers no longer lose edges until the next full reindex.
+- **`neuromesh usage`.** Print MCP token telemetry from `~/.neuromesh/telemetry_history.json` (`--all`, `--limit N`). The file is the source of truth so stats show even when the monitor is down. Duplicate `request_id`s are ignored; the monitor reloads the file on each usage fetch.
+- **Managed store.** Graph, memory, and per-project config default to `~/.neuromesh/projects/<name>-<hash>/`. A workspace `.neuromesh` folder is not trusted. Opt in with `neuromesh store local` or `trust_local` in `~/.neuromesh/config.json`. Existing in-repo files are copied into the managed slot once, then ignored.
+- **MCP clients.** `neuromesh connect` writes stdio configs (absolute binary + `NEUROMESH_WORKSPACE`) for Cursor, VS Code, Codex, Antigravity, Kilo Code, Trae, MiniMax, Claude, Windsurf, Cline/Roo. Handshake accepts Windows `file://` URIs, `prompt`/`task`/`input` tool args, and returns tool errors as `isError` so picky agents keep going.
+
 ## 0.6.3 — 2026-08-25
 
 Inbound throw edges for PHP rethrow and ternary `new Type`.
@@ -38,7 +52,7 @@ Language registry, tree-sitter queries, framework overlays, parallel index, and 
 
 Monitor port is a first-class CLI setting, not a hardcoded 8765.
 
-- **`neuromesh port`.** Print the effective port, or persist it with `neuromesh port 9000` (`<cwd>/.neuromesh/config.json`).
+- **`neuromesh port`.** Print the effective port, or persist it with `neuromesh port 9000` (managed project slot, or `<cwd>/.neuromesh` if trusted).
 - **One-shot override.** `neuromesh monitor --port 9000` (`-p`, `--port=`) and the same flag on `start`. Env `NEUROMESH_PORT` wins over files.
 - **Clients follow.** `doctor`, `connect`, and telemetry POST use the loaded host/port. VS Code / Cursor still uses Settings → `neuromesh.port` — keep it in sync.
 

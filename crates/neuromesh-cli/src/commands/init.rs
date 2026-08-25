@@ -1,24 +1,27 @@
-use neuromesh_core::{Config, Result};
-use std::fs;
+use neuromesh_core::{
+    ensure_project_data_dir, leftover_workspace_dotdir, neuromesh_home, uses_local_dotdir, Result,
+};
 
 pub fn execute() -> Result<()> {
     let current_dir = std::env::current_dir()?;
-    let neuromesh_dir = current_dir.join(".neuromesh");
+    let dir = ensure_project_data_dir(&current_dir)?;
+    let mode = if uses_local_dotdir(&current_dir) {
+        "local (this workspace)"
+    } else {
+        "managed"
+    };
 
-    if neuromesh_dir.exists() {
-        println!("✓ NeuroMesh already initialized in this project.");
-        return Ok(());
+    println!("✓ NeuroMesh data directory ready");
+    println!("  Store     : {mode}");
+    println!("  Directory : {}", dir.display());
+    println!("  Home      : {}", neuromesh_home().display());
+    if leftover_workspace_dotdir(&current_dir).is_some() {
+        println!(
+            "  Leftover  : {}/.neuromesh exists and is ignored",
+            current_dir.display()
+        );
+        println!("             neuromesh store local   to trust it");
     }
-
-    fs::create_dir_all(&neuromesh_dir)?;
-    let config = Config::default();
-    let config_json = serde_json::to_string_pretty(&config)?;
-    fs::write(neuromesh_dir.join("config.json"), config_json)?;
-
-    println!("🧠 NeuroMesh V1 Initialized Successfully");
-    println!("  Directory: {}", neuromesh_dir.display());
-    println!("  Configuration: config.json created");
-    println!("  Next step: run 'neuromesh index' to index your repository.");
-
+    println!("  Next      : neuromesh index");
     Ok(())
 }

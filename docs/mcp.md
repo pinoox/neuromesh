@@ -1,8 +1,33 @@
 # MCP tools
 
-Transport: **stdio JSON-RPC** (`neuromesh mcp`). That is what Cursor, Claude, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, `.neuromesh/config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
+Transport: **stdio JSON-RPC** (`neuromesh mcp`). That is what Cursor, Claude, Codex, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
 
 Remote / multi-agent: `neuromesh monitor` (optionally `--port 9000` / `neuromesh port 9000`), then SSE and HTTP as in [api.md](api.md).
+
+## Connect
+
+```bash
+neuromesh connect           # write project MCP configs + globals for installed apps
+neuromesh connect --print   # snippets only
+neuromesh connect --project # this repo only
+neuromesh connect --global  # also create user-level files
+```
+
+The command points each client at **this binary** (absolute path) and the current workspace (`args: ["mcp", "<workspace>"]` plus `NEUROMESH_WORKSPACE`). PATH is not required. It merges a `neuromesh` server into existing files and does not delete other MCP servers.
+
+| Client | Project file | User file (if the app is installed) |
+| :--- | :--- | :--- |
+| Cursor | `.cursor/mcp.json` | `~/.cursor/mcp.json` |
+| VS Code / Copilot | `.vscode/mcp.json` (`servers`) | — |
+| Codex | `.codex/config.toml` | `~/.codex/config.toml` |
+| [Antigravity](https://antigravity.google/) | `.agents/mcp_config.json` | `~/.gemini/config/mcp_config.json` |
+| Kilo Code | `.kilo/kilo.jsonc` (`mcp` + command array) | `kilo.jsonc` in the user config dir |
+| Trae | `.trae/mcp.json` | `Trae/User/mcp.json` |
+| MiniMax Code | `.minimax/mcp.json` | same `mcpServers` snippet as Cursor |
+| Claude Desktop / Code | `.mcp.json` | `claude_desktop_config.json` |
+| Windsurf / Cline / Roo | — | their existing MCP settings files |
+
+Stdout is JSON-RPC only (NDJSON). Handshake logs go to stderr so Antigravity and other strict hosts stay happy.
 
 ## Agent loop
 

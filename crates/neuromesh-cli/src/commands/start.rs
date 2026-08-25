@@ -6,7 +6,7 @@ use neuromesh_provider::ProviderFactory;
 use std::io::Write;
 use std::sync::Arc;
 
-use super::{apply_file_cap, configured_walker, FileCapArg};
+use super::{apply_file_cap, FileCapArg};
 
 pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> {
     let current_dir = std::env::current_dir()?;
@@ -28,22 +28,9 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
     let project_id = ProjectId::new(&project_name);
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let _ = graph.load_persisted(&current_dir);
+    super::spawn_live_sync(graph.clone(), current_dir.clone(), project_id.clone(), cap);
 
-    let bg_graph = graph.clone();
-    let bg_dir = current_dir.clone();
-    let bg_pid = project_id.clone();
-    tokio::task::spawn_blocking(move || {
-        if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
-            return;
-        }
-        let walker = configured_walker(bg_dir.clone(), bg_pid, cap);
-        if let Ok(scanned) = walker.scan() {
-            bg_graph.ingest_workspace(&scanned);
-            let _ = bg_graph.save_persisted(&bg_dir);
-        }
-    });
-
-    let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
+    let db_path = neuromesh_core::memory_db_path(&current_dir);
     let memory_db = Arc::new(MemoryDatabase::open(&db_path)?);
     let provider = ProviderFactory::create(&config.provider);
 

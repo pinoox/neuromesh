@@ -69,7 +69,7 @@ impl McpToolHandler {
         for window in path.windows(2) {
             self.mycelium.record_transition(&window[0], &window[1]);
             if let Some(node) = self.graph.get_node(&window[1]) {
-                if let Some(content) = node.content.clone() {
+                if let Some(content) = self.graph.read_source(&node.file_path) {
                     self.mycelium.prewarm_node(window[1].clone(), content);
                 }
             }
@@ -87,7 +87,7 @@ impl McpToolHandler {
         if let Some(last) = files.last() {
             for tip in self.mycelium.predict_next_nodes(last) {
                 if let Some(node) = self.graph.get_node(&tip.target_node) {
-                    if let Some(content) = node.content.clone() {
+                    if let Some(content) = self.graph.read_source(&node.file_path) {
                         self.mycelium.prewarm_node(tip.target_node, content);
                     }
                 }
@@ -251,7 +251,11 @@ impl McpToolHandler {
             // 2. Get File Skeleton with Folded Introns
             "neuromesh_get_file_skeleton" => {
                 let start_time = std::time::Instant::now();
-                let file_path = arguments["file_path"].as_str().unwrap_or("");
+                let file_path = arguments["file_path"]
+                    .as_str()
+                    .or_else(|| arguments["path"].as_str())
+                    .or_else(|| arguments["file"].as_str())
+                    .unwrap_or("");
                 let active_symbols: HashSet<String> = arguments["active_symbols"]
                     .as_array()
                     .map(|arr| {
@@ -265,16 +269,8 @@ impl McpToolHandler {
                 let content_opt = self
                     .graph
                     .get_node(&node_id)
-                    .and_then(|n| n.content.clone())
-                    .or_else(|| std::fs::read_to_string(file_path).ok())
-                    .or_else(|| {
-                        let candidate = std::path::Path::new(file_path);
-                        if candidate.exists() {
-                            std::fs::read_to_string(candidate).ok()
-                        } else {
-                            None
-                        }
-                    });
+                    .and_then(|n| self.graph.read_source(&n.file_path))
+                    .or_else(|| std::fs::read_to_string(file_path).ok());
 
                 if let Some(content) = content_opt {
                     let res = CodeSkeletonizer::skeletonize(file_path, &content, &active_symbols);
@@ -489,15 +485,8 @@ impl McpToolHandler {
 
             // 6. Record Feedback & Trigger Synaptic STDP Plasticity Learning
             "neuromesh_record_feedback" => {
-                let success = arguments["task_success"].as_bool().unwrap_or(true);
-                let touched_nodes: Vec<String> = arguments["touched_nodes"]
-                    .as_array()
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let success = read_bool(&arguments["task_success"], true);
+                let touched_nodes = read_string_list(arguments, "touched_nodes");
 
                 let mut path: Vec<NodeId> = Vec::new();
                 for node_name in &touched_nodes {
@@ -571,19 +560,53 @@ impl McpToolHandler {
 }
 
 fn read_task_description(arguments: &Value) -> Result<String> {
-    let raw = arguments
-        .get("task_description")
-        .and_then(Value::as_str)
-        .or_else(|| arguments.get("prompt").and_then(Value::as_str))
-        .or_else(|| arguments.get("task").and_then(Value::as_str))
-        .unwrap_or("")
-        .trim();
+    let raw = [
+        "task_description",
+        "prompt",
+        "task",
+        "description",
+        "text",
+        "message",
+        "query",
+    ]
+    .into_iter()
+    .find_map(|k| arguments.get(k).and_then(Value::as_str))
+    .unwrap_or("")
+    .trim();
     if raw.is_empty() {
         Err(NeuroMeshError::Config(
-            "neuromesh_get_context requires 'task_description' (aliases: 'prompt', 'task')".into(),
+            "neuromesh_get_context requires a prompt (task_description, prompt, or task)".into(),
         ))
     } else {
         Ok(raw.to_string())
+    }
+}
+
+fn read_bool(value: &Value, default: bool) -> bool {
+    if let Some(b) = value.as_bool() {
+        return b;
+    }
+    match value.as_str().map(|s| s.trim()) {
+        Some("true") | Some("1") | Some("yes") => true,
+        Some("false") | Some("0") | Some("no") => false,
+        _ => default,
+    }
+}
+
+fn read_string_list(arguments: &Value, key: &str) -> Vec<String> {
+    match arguments.get(key) {
+        Some(Value::Array(arr)) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect(),
+        Some(Value::String(s)) => s
+            .split([',', '\n'])
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .map(ToString::to_string)
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -688,6 +711,14 @@ mod tests {
                 .await
                 .expect("task alias should populate the prompt");
             assert!(packet.get("evidence_packet").is_some());
+            let via_text = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "text": "How does start_job enqueue_job?" }),
+                )
+                .await
+                .expect("text alias should populate the prompt");
+            assert!(via_text.get("evidence_packet").is_some());
         });
     }
 }

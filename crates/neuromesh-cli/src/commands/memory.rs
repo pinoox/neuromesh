@@ -10,7 +10,7 @@ pub fn execute() -> Result<()> {
         .to_string();
 
     let project_id = ProjectId::new(&project_name);
-    let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
+    let db_path = neuromesh_core::memory_db_path(&current_dir);
 
     println!("\n🧠 NeuroMesh Persistent Memory");
     println!("===============================================");

@@ -390,7 +390,7 @@ impl ContextActivator {
             });
             let mut folds = Vec::new();
             let mut folded_symbols = Vec::new();
-            let raw = if let Some(content) = node.content.clone() {
+            let raw = if let Some(content) = graph.read_source(&node.file_path) {
                 let raw = neuromesh_core::TokenCounter::count_tokens(&content);
                 let spans = function_spans_for_file(graph, &node.file_path);
                 let skeleton_res = CodeSkeletonizer::skeletonize_with_spans(

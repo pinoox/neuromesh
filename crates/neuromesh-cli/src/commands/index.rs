@@ -27,14 +27,17 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
     let walker = configured_walker(current_dir.clone(), project_id.clone(), cap);
 
     println!("🔍 Indexing Project Workspace...");
-    let report = walker.scan_report()?;
-    let skipped_count = report.skipped_count();
-    let skipped_summary = report.skipped_summary();
-    let total_files = report.files.len();
-
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let _ = graph.load_persisted(&current_dir);
-    let db_dir = current_dir.join(".neuromesh");
+    let report = walker.scan_report_with(&graph.file_fingerprints())?;
+    let skipped_count = report.skipped_count();
+    let skipped_summary = report.skipped_summary();
+    let total_files = if report.present.is_empty() {
+        report.files.len()
+    } else {
+        report.present.len()
+    };
+    let db_dir = neuromesh_core::ensure_project_data_dir(&current_dir)?;
     fs::create_dir_all(&db_dir)?;
     let memory_db = Arc::new(MemoryDatabase::open(&db_dir.join("neuromesh.json"))?);
 
@@ -81,7 +84,7 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
             has_kotlin = true;
         }
     }
-    graph.ingest_workspace(&report.files);
+    graph.ingest_scan_report(&report);
     graph.save_persisted(&current_dir)?;
 
     if has_html {

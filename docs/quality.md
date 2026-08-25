@@ -14,6 +14,8 @@ Thresholds locked in tests:
 - `expand_fold` restores a registered body without reading the disk
 - activation under **150 ms** in the debug gold test on this repo (cargo test is parallel; isolated runs sit nearer 60 ms)
 - skeletonizer folds **bodies** from graph/tree-sitter spans; seed callees stay exons; fill caps stay 0 / 5k / 16k extra tokens
+- the graph stores **no file bodies**: a loaded snapshot has `content = None` on every node, and source is read on demand for skeleton/fold
+- snapshot cold load and a single-file reindex must each stay at or under a full workspace index
 
 ```bash
 cargo test -p neuromesh-context gold_harness_on_neuromesh_repo -- --nocapture
@@ -46,6 +48,29 @@ From `neuromesh eval` (release, 2026-08-24) on this repository:
 | Index time (release) | ~209 ms |
 
 Index file cap is **auto** by default (production sources first, tests last, ceiling 50,000). Override with `neuromesh index --max-files N`. See [cli.md](cli.md#index-file-cap).
+
+## Compact mesh: snapshot load and one-file reindex
+
+The mesh keeps a structural skeleton in RAM. File bodies are not stored in nodes and not written to the snapshot; source is read on demand when a packet is spliced. The snapshot is `graph.bin` (bincode); `graph.json` is still read once for migration.
+
+From `snapshot_load_and_single_file_reindex_beat_full_index` (release, this repo):
+
+| Metric | Value |
+| :--- | ---: |
+| Files scanned | 247 |
+| Nodes | 1,733 |
+| Full workspace index | 346 ms |
+| Snapshot size | 2.2 MB |
+| **Snapshot cold load** | **28 ms** |
+| **One-file reindex** (parse + local relink) | **27 ms** |
+
+```bash
+cargo test --release -p neuromesh-graph --lib snapshot_load_and_single_file_reindex -- --nocapture
+```
+
+The walker compares size + mtime before reading, so an unchanged tree is a metadata walk with zero `read_to_string` calls (`metadata_walk_skips_unchanged_files`). `neuromesh index` prints `Unchanged skip` for those files. Live sync uses an OS watcher (`notify`, 200 ms debounce) instead of a full-tree poll.
+
+Re-ingesting one file re-queues the **inbound** `Calls`/`Imports` edges that pointed at its symbols, so callers keep their edges without a full reindex (`reingest_file_relinks_inbound_calls`).
 
 Fill caps: `max_savings` = 0 extra tokens, `balanced` = 5,000, `max_quality` = 16,000. Reduction is versus **this workspace**, not a fake 25k dump.
 

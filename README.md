@@ -15,7 +15,7 @@ NeuroMesh does the same thing to your repository: a neural graph in RAM, reversi
 [![MCP](https://img.shields.io/badge/MCP-stdio-5b21b6.svg?style=flat-square)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
-Local-first [MCP](https://modelcontextprotocol.io/) · Cursor · Claude · VS Code · Windsurf · Cline · Zed
+Local-first [MCP](https://modelcontextprotocol.io/) · Cursor · Codex · Antigravity · VS Code · Claude · Kilo · Trae
 
 [The pain](#the-pain) · [The idea](#dont-delete-fold) · [Install](#install) · [Connect](#connect) · [Docs](docs/README.md)
 
@@ -147,7 +147,7 @@ cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin 
 
 ```bash
 neuromesh doctor
-neuromesh connect    # MCP JSON for the binary on your PATH
+neuromesh connect    # write MCP configs for this repo (absolute binary, no PATH)
 ```
 
 ### Update / uninstall
@@ -168,28 +168,29 @@ Two copies are common: installer vs Cargo.
 
 ## Connect
 
-Native **MCP stdio** — what Cursor, Claude, VS Code, Windsurf, Cline, and Zed actually launch:
+Native **MCP stdio** — what Cursor, Claude, Codex, [Antigravity](https://antigravity.google/), VS Code, Kilo Code, Trae, MiniMax, Windsurf, Cline, and Zed launch.
 
-```json
-{
-  "mcpServers": {
-    "neuromesh": {
-      "command": "neuromesh",
-      "args": ["mcp"]
-    }
-  }
-}
+```bash
+neuromesh connect           # merge NeuroMesh into project + installed-app configs
+neuromesh connect --print   # copy-paste snippets only
 ```
+
+That writes an **absolute** `command` (this binary) plus `args: ["mcp", "<workspace>"]` and `NEUROMESH_WORKSPACE`, so the agent does not need `neuromesh` on PATH.
 
 | Client | Config |
 | :--- | :--- |
-| Cursor | `.cursor/mcp.json` or Settings → MCP |
-| VS Code / Copilot | `.vscode/mcp.json` |
+| Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
+| VS Code / Copilot | `.vscode/mcp.json` (`servers`) |
+| [Codex](https://openai.com/codex/) | `.codex/config.toml` or `~/.codex/config.toml` |
+| [Antigravity](https://antigravity.google/) | `.agents/mcp_config.json` or `~/.gemini/config/mcp_config.json` |
+| Kilo Code | `.kilo/kilo.jsonc` (`mcp` + command array) |
+| Trae | `.trae/mcp.json` or `Trae/User/mcp.json` |
+| MiniMax Code | `.minimax/mcp.json` (same `mcpServers` shape) |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` |
 | Claude Desktop | `claude_desktop_config.json` |
-| Claude Code | `claude mcp add neuromesh -- neuromesh mcp` |
-| Cline | `cline_mcp_settings.json` |
-| Zed | `context_servers` in settings |
+| Claude Code | `.mcp.json` or `claude mcp add neuromesh -- neuromesh mcp` |
+| Cline / Roo | `cline_mcp_settings.json` / Roo MCP settings |
+| Zed | `context_servers` in settings (`neuromesh connect --print`) |
 
 It finds the git / Cargo / `package.json` root. It **refuses** `$HOME` and drive roots (that is how you accidentally index 11k junk files).
 
@@ -201,11 +202,11 @@ Default is **8765**. Persist it for this repo, override one run, or use an env v
 
 ```bash
 neuromesh port                 # print effective port
-neuromesh port 9000            # save to <cwd>/.neuromesh/config.json
+neuromesh port 9000            # save to the managed project slot (see `neuromesh store`)
 neuromesh monitor --port 9000  # this process only (`-p` works too)
 ```
 
-Priority: `--port` / `-p` → `NEUROMESH_PORT` → `.neuromesh/config.json` → `~/.neuromesh/config.json` → 8765.
+Priority: `--port` / `-p` → `NEUROMESH_PORT` → project slot `config.json` → `~/.neuromesh/config.json` → 8765.
 
 **`neuromesh mcp` has no TCP port.** Cursor / Claude talk JSON-RPC over stdin/stdout (`args: ["mcp"]`). Do not put `--port` on that command.
 
@@ -222,7 +223,7 @@ neuromesh index --max-files auto     # persist auto (default)
 neuromesh index --max-files 20000    # persist a hard limit
 ```
 
-Priority: `--max-files` → `NEUROMESH_MAX_FILES` (`auto` / `0` = auto) → `.neuromesh/config.json` → auto. See [cli.md](docs/cli.md#index-file-cap).
+Priority: `--max-files` → `NEUROMESH_MAX_FILES` (`auto` / `0` = auto) → project slot `config.json` → auto. See [cli.md](docs/cli.md#index-file-cap).
 
 ---
 
@@ -276,6 +277,6 @@ Index snapshot from that eval run: **219 files · 1,323 nodes · 2,891 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.6.3 |
+| [Changelog](docs/CHANGELOG.md) | 0.6.9 |
 
 MIT · [LICENSE](LICENSE)

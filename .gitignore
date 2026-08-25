@@ -35,6 +35,12 @@ package-lock.json
 .idea/
 .cursor/
 .vscode/
+.agents/
+.codex/
+.kilo/
+.trae/
+.minimax/
+.mcp.json
 *.swp
 *.swo
 *~

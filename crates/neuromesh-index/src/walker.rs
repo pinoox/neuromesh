@@ -1,8 +1,8 @@
 use crate::hasher::ContentHasher;
-use crate::tracker::{IndexedFile, SourceLanguage};
+use crate::tracker::{FileFingerprint, IndexedFile, SourceLanguage};
 use chrono::{DateTime, Utc};
 use neuromesh_core::{ProjectId, Result};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -11,6 +11,9 @@ use walkdir::WalkDir;
 #[derive(Debug, Default)]
 pub struct ScanReport {
     pub files: Vec<(IndexedFile, String)>,
+    /// Every kept relative path (changed and unchanged).
+    pub present: Vec<String>,
+    pub unchanged: usize,
     pub skipped_by_extension: BTreeMap<String, usize>,
     /// True when more source files existed than `file_cap`.
     pub truncated: bool,
@@ -173,6 +176,8 @@ impl ProjectWalker {
                 || s_lower == "pods"
                 || s_lower == ".build"
                 || s_lower == ".svelte-kit"
+                || s_lower == ".playwright-cli"
+                || s_lower == ".playwright"
                 || s_lower == ".output"
             {
                 return true;
@@ -186,6 +191,11 @@ impl ProjectWalker {
     }
 
     pub fn scan_report(&self) -> Result<ScanReport> {
+        self.scan_report_with(&HashMap::new())
+    }
+
+    /// Walk metadata first. Read+hash only files whose size/mtime miss `known`.
+    pub fn scan_report_with(&self, known: &HashMap<String, FileFingerprint>) -> Result<ScanReport> {
         let mut report = ScanReport {
             hard_cap: self.hard_cap,
             auto_cap: self.max_files.is_none(),
@@ -258,6 +268,15 @@ impl ProjectWalker {
         }
 
         for (relative_path, full_path, byte_size, last_modified) in candidates {
+            let rel = relative_path.to_string_lossy().replace('\\', "/");
+            report.present.push(rel.clone());
+            if let Some(fp) = known.get(&rel) {
+                if fp.size == byte_size && fp.mtime_unix == last_modified.timestamp() {
+                    report.unchanged += 1;
+                    continue;
+                }
+            }
+
             let content = match fs::read_to_string(&full_path) {
                 Ok(c) => c,
                 Err(_) => continue,
@@ -277,6 +296,40 @@ impl ProjectWalker {
         }
 
         Ok(report)
+    }
+
+    /// Read one workspace file for the live watcher.
+    pub fn read_indexed(&self, full_path: &Path) -> Option<(IndexedFile, String)> {
+        if Self::is_ignored(full_path) {
+            return None;
+        }
+        let relative_path = full_path.strip_prefix(&self.root_path).ok()?.to_path_buf();
+        let language = SourceLanguage::from_path(&relative_path);
+        if language == SourceLanguage::Unknown {
+            return None;
+        }
+        let metadata = fs::metadata(full_path).ok()?;
+        if metadata.len() > self.max_file_size {
+            return None;
+        }
+        let content = fs::read_to_string(full_path).ok()?;
+        let last_modified: DateTime<Utc> = metadata
+            .modified()
+            .map(|t| t.into())
+            .unwrap_or_else(|_| Utc::now());
+        let hash = ContentHasher::hash_str(&content);
+        Some((
+            IndexedFile::new(
+                self.project_id.clone(),
+                relative_path,
+                full_path.to_path_buf(),
+                &content,
+                hash,
+                metadata.len(),
+                last_modified,
+            ),
+            content,
+        ))
     }
 }
 
@@ -431,6 +484,58 @@ mod tests {
             .files
             .iter()
             .all(|(f, _)| !f.relative_path.to_string_lossy().contains("tests")));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn metadata_walk_skips_unchanged_files() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("walk_cap_tmp")
+            .join(format!("nm-walk-incr-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/a.rs"), "pub fn a() {}\n").unwrap();
+        fs::write(root.join("src/b.rs"), "pub fn b() {}\n").unwrap();
+        let walker = ProjectWalker::new(root.clone(), neuromesh_core::ProjectId::new("incr"));
+
+        let first = walker.scan_report().unwrap();
+        assert_eq!(first.files.len(), 2);
+        assert_eq!(first.unchanged, 0);
+        assert_eq!(first.present.len(), 2);
+
+        let known: std::collections::HashMap<String, crate::tracker::FileFingerprint> = first
+            .files
+            .iter()
+            .map(|(f, _)| {
+                (
+                    f.relative_path.to_string_lossy().replace('\\', "/"),
+                    f.fingerprint(),
+                )
+            })
+            .collect();
+
+        let second = walker.scan_report_with(&known).unwrap();
+        assert!(
+            second.files.is_empty(),
+            "unchanged files must not be read again"
+        );
+        assert_eq!(second.unchanged, 2);
+        assert_eq!(
+            second.present.len(),
+            2,
+            "present still lists every kept file"
+        );
+
+        fs::write(root.join("src/a.rs"), "pub fn a() { let _ = 1; }\n").unwrap();
+        let third = walker.scan_report_with(&known).unwrap();
+        assert_eq!(third.files.len(), 1, "only the edited file is re-read");
+        assert!(third.files[0]
+            .0
+            .relative_path
+            .to_string_lossy()
+            .replace('\\', "/")
+            .ends_with("src/a.rs"));
+        assert_eq!(third.unchanged, 1);
         let _ = fs::remove_dir_all(&root);
     }
 

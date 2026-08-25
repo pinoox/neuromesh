@@ -1,6 +1,7 @@
 use crate::state::AppState;
-use neuromesh_core::{NodeId, OptimizationMode, ProjectId, Result};
+use neuromesh_core::{project_data_dir, NodeId, OptimizationMode, ProjectId, Result};
 use neuromesh_index::ProjectWalker;
+use neuromesh_observability::{filter_history, summarize_history};
 use neuromesh_parser::CodeIntelligenceEngine;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
@@ -145,54 +146,16 @@ impl HttpServer {
                 let mode_str = state.config.read().mode.to_string();
                 let total_tokens = state.graph.total_tokens();
                 let current_pid = state.graph.project_id();
-
                 let is_collective = current_ws == "__all__" || current_pid.0.contains("collective");
-                let project_history: Vec<_> = if is_collective {
-                    history.clone()
-                } else {
-                    let pid_lower = current_pid.0.to_lowercase();
-                    let ws_lower = current_ws.to_lowercase().replace('\\', "/");
-                    history
-                        .iter()
-                        .filter(|h| {
-                            let h_pid = h.project_id.0.to_lowercase();
-                            h_pid == pid_lower
-                                || h_pid.contains(&pid_lower)
-                                || pid_lower.contains(&h_pid)
-                                || ws_lower.ends_with(&format!("/{}", h_pid))
-                                || ws_lower.ends_with(&h_pid)
-                        })
-                        .cloned()
-                        .collect()
-                };
-
-                let total_requests = project_history.len();
-                let total_tokens_before: usize =
-                    project_history.iter().map(|m| m.tokens_before).sum();
-                let total_tokens_after: usize =
-                    project_history.iter().map(|m| m.tokens_after).sum();
-                let total_tokens_saved: usize = project_history
-                    .iter()
-                    .map(|m| m.tokens_before.saturating_sub(m.tokens_after))
-                    .sum();
-                let overall_reduction_pct: f32 = if !project_history.is_empty() {
-                    project_history
-                        .iter()
-                        .map(|m| m.token_reduction_pct)
-                        .sum::<f32>()
-                        / project_history.len() as f32
-                } else {
-                    0.0
-                };
-                let avg_latency_ms: f64 = if !project_history.is_empty() {
-                    project_history
-                        .iter()
-                        .map(|m| m.latency_ms as f64)
-                        .sum::<f64>()
-                        / project_history.len() as f64
-                } else {
-                    0.0
-                };
+                let project_history =
+                    filter_history(&history, &current_pid, &current_ws, is_collective);
+                let usage = summarize_history(&project_history);
+                let total_requests = usage.total_requests as usize;
+                let total_tokens_before = usage.total_tokens_before as usize;
+                let total_tokens_after = usage.total_tokens_after as usize;
+                let total_tokens_saved = usage.total_tokens_saved as usize;
+                let overall_reduction_pct = usage.mean_reduction_pct;
+                let avg_latency_ms = usage.average_latency_ms as f64;
 
                 let fill_cap = neuromesh_context::fill_budget(state.config.read().mode);
                 let resp = json!({
@@ -313,7 +276,8 @@ impl HttpServer {
                 // Helper to count files in an inactive project quickly
                 let scan_inactive_counts = |proj_path: &std::path::Path| -> (usize, usize, usize) {
                     // Never walk sibling trees on the request path — that blocked the UI.
-                    if proj_path.join(".neuromesh").join("graph.json").exists()
+                    if project_data_dir(proj_path).join("graph.bin").exists()
+                        || project_data_dir(proj_path).join("graph.json").exists()
                         || proj_path.join("Cargo.toml").exists()
                         || proj_path.join("package.json").exists()
                         || proj_path.join("pyproject.toml").exists()
@@ -365,10 +329,11 @@ impl HttpServer {
                                         && !deleted.contains(&path_canonical.display().to_string())
                                         && !seen_paths.contains(&path_canonical)
                                     {
-                                        let has_manifest = path.join(".neuromesh").exists()
-                                            || path.join("Cargo.toml").exists()
+                                        let has_manifest = path.join("Cargo.toml").exists()
                                             || path.join("package.json").exists()
-                                            || path.join("pyproject.toml").exists();
+                                            || path.join("pyproject.toml").exists()
+                                            || project_data_dir(&path).join("graph.bin").exists()
+                                            || project_data_dir(&path).join("graph.json").exists();
 
                                         if has_manifest {
                                             seen_paths.insert(path_canonical);
@@ -440,10 +405,11 @@ impl HttpServer {
                                 if let Ok(ft) = entry.file_type() {
                                     if ft.is_dir() {
                                         let p = entry.path();
-                                        let has_manifest = p.join(".neuromesh").exists()
-                                            || p.join("Cargo.toml").exists()
+                                        let has_manifest = p.join("Cargo.toml").exists()
                                             || p.join("package.json").exists()
-                                            || p.join("pyproject.toml").exists();
+                                            || p.join("pyproject.toml").exists()
+                                            || project_data_dir(&p).join("graph.bin").exists()
+                                            || project_data_dir(&p).join("graph.json").exists();
                                         if has_manifest {
                                             let p_name = p
                                                 .file_name()
@@ -573,10 +539,13 @@ impl HttpServer {
                         .write()
                         .insert(canonical.display().to_string());
 
-                    // Delete .neuromesh directory if it exists
-                    let dot_neuromesh = target_path.join(".neuromesh");
-                    if dot_neuromesh.exists() {
-                        let _ = std::fs::remove_dir_all(&dot_neuromesh);
+                    let managed = project_data_dir(&target_path);
+                    if managed.exists() {
+                        let _ = std::fs::remove_dir_all(&managed);
+                    }
+                    let leftover = target_path.join(".neuromesh");
+                    if leftover.exists() {
+                        let _ = std::fs::remove_dir_all(&leftover);
                     }
 
                     state.log(
@@ -1009,55 +978,9 @@ impl HttpServer {
                 let current_ws = state.workspace_path.read().display().to_string();
                 let current_pid = state.graph.project_id();
                 let is_collective = current_ws == "__all__" || current_pid.0.contains("collective");
-
-                let filtered_history: Vec<_> = if is_collective {
-                    history
-                } else {
-                    let pid_lower = current_pid.0.to_lowercase();
-                    let ws_lower = current_ws.to_lowercase().replace('\\', "/");
-                    history
-                        .into_iter()
-                        .filter(|h| {
-                            let h_pid = h.project_id.0.to_lowercase();
-                            h_pid == pid_lower
-                                || h_pid.contains(&pid_lower)
-                                || pid_lower.contains(&h_pid)
-                                || ws_lower.ends_with(&format!("/{}", h_pid))
-                                || ws_lower.ends_with(&h_pid)
-                        })
-                        .collect()
-                };
-
-                let req_count = filtered_history.len();
-                let total_saved: usize = filtered_history
-                    .iter()
-                    .map(|m| m.tokens_before.saturating_sub(m.tokens_after))
-                    .sum();
-                let total_raw: usize = filtered_history.iter().map(|m| m.tokens_before).sum();
-                let avg_red: f32 = if !filtered_history.is_empty() {
-                    filtered_history
-                        .iter()
-                        .map(|m| m.token_reduction_pct)
-                        .sum::<f32>()
-                        / req_count as f32
-                } else {
-                    0.0
-                };
-                let avg_lat: f64 = if !filtered_history.is_empty() {
-                    filtered_history
-                        .iter()
-                        .map(|m| m.latency_ms as f64)
-                        .sum::<f64>()
-                        / req_count as f64
-                } else {
-                    0.0
-                };
-                let cache_count = filtered_history.iter().filter(|m| m.cache_hit).count();
-                let cache_rate: f64 = if req_count > 0 {
-                    (cache_count as f64 / req_count as f64) * 100.0
-                } else {
-                    0.0
-                };
+                let filtered_history =
+                    filter_history(&history, &current_pid, &current_ws, is_collective);
+                let usage = summarize_history(&filtered_history);
 
                 Self::send_json(
                     &mut stream,
@@ -1067,13 +990,13 @@ impl HttpServer {
                         "project_id": current_pid.0,
                         "is_collective": is_collective,
                         "summary": {
-                            "total_requests": req_count,
-                            "total_tokens_saved": total_saved,
-                            "total_raw_tokens": total_raw,
-                            "overall_reduction_pct": avg_red,
-                            "average_latency_ms": avg_lat,
-                            "cache_hit_rate": cache_rate,
-                            "cache_hits": cache_count
+                            "total_requests": usage.total_requests,
+                            "total_tokens_saved": usage.total_tokens_saved,
+                            "total_raw_tokens": usage.total_tokens_before,
+                            "overall_reduction_pct": usage.mean_reduction_pct,
+                            "average_latency_ms": usage.average_latency_ms,
+                            "cache_hit_rate": usage.cache_hit_rate,
+                            "cache_hits": usage.cache_hits
                         },
                         "history": filtered_history
                     }),

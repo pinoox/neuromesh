@@ -26,8 +26,14 @@ fn main() -> Result<()> {
         "status" | "stats" => {
             return commands::status::execute();
         }
+        "usage" | "telemetry" => {
+            return commands::usage::execute(&args);
+        }
+        "store" => {
+            return commands::store::execute(args.get(2).map(|s| s.as_str()));
+        }
         "connect" => {
-            return commands::connect::execute();
+            return commands::connect::execute(&args);
         }
         "port" => {
             return commands::port::execute(args.get(2).map(|s| s.as_str()));
@@ -60,7 +66,7 @@ fn main() -> Result<()> {
         }
         "logs" => {
             println!("\nNo durable audit log is written.");
-            println!("Use neuromesh_get_stats over MCP, or `neuromesh status` after `neuromesh index`.\n");
+            println!("Use `neuromesh usage` for MCP token telemetry, or `neuromesh status` after `neuromesh index`.\n");
             return Ok(());
         }
         "stop" => {
@@ -100,9 +106,19 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             // Handshake over stdio must start immediately. Index on a blocking
             // pool thread so we never starve stdin/stdout worker threads.
             eprintln!("NeuroMesh MCP listening on stdio");
-            let current_dir = neuromesh_index::ProjectWalker::discover_workspace(
-                &env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-            );
+            let target_dir = args
+                .get(2)
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    std::env::var("NEUROMESH_WORKSPACE")
+                        .ok()
+                        .map(std::path::PathBuf::from)
+                })
+                .unwrap_or_else(|| {
+                    env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+                });
+
+            let current_dir = neuromesh_index::ProjectWalker::discover_workspace(&target_dir);
             let project_name = current_dir
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -112,7 +128,7 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             let project_id = ProjectId::new(&project_name);
             let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
 
-            let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
+            let db_path = neuromesh_core::memory_db_path(&current_dir);
             let memory_db = Arc::new(
                 MemoryDatabase::open(&db_path)
                     .or_else(|_| MemoryDatabase::open_in_memory())
@@ -139,21 +155,9 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 working_memory,
             ));
 
-            let bg_graph = graph.clone();
-            let bg_dir = current_dir.clone();
-            let bg_pid = project_id.clone();
             let cap = commands::max_files_from_args(args)?;
             let _ = graph.load_persisted(&current_dir);
-            tokio::task::spawn_blocking(move || {
-                if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
-                    return;
-                }
-                let walker = commands::configured_walker(bg_dir.clone(), bg_pid, cap);
-                if let Ok(scanned) = walker.scan() {
-                    bg_graph.ingest_workspace(&scanned);
-                    let _ = bg_graph.save_persisted(&bg_dir);
-                }
-            });
+            commands::spawn_live_sync(graph.clone(), current_dir.clone(), project_id.clone(), cap);
 
             let server = neuromesh_mcp::McpServer::new(handler);
             server.run_stdio().await?;
@@ -177,11 +181,13 @@ fn print_help() {
     );
     println!("Usage: neuromesh <COMMAND> [OPTIONS]\n");
     println!("Commands:");
-    println!("  mcp        MCP server over stdio (Cursor / Claude / Cline)");
+    println!("  mcp        MCP server over stdio (Cursor, Codex, Antigravity, …)");
     println!("  monitor    Web UI + SSE (default http://127.0.0.1:8765)");
     println!("  port       Show or set the monitor port (`neuromesh port 9000`)");
     println!("  index      Index the current workspace into the project graph");
     println!("  status     Node/edge counts after index (or a fresh scan)");
+    println!("  usage      MCP token telemetry (`--all`, `--limit N`)");
+    println!("  store      Where project data lives (managed home vs trusted local)");
     println!("  graph      Print graph stats");
     println!("  memory     Print project memory facts");
     println!("  optimize   Activate one prompt and print the packet");
@@ -189,7 +195,7 @@ fn print_help() {
         "  eval       Gold-task recall / precision / fill budget on this repo and tests/fixtures"
     );
     println!("  benchmark  Same as eval");
-    println!("  connect    Print MCP JSON for the current binary");
+    println!("  connect    Install MCP configs (or `--print` snippets)");
     println!("  doctor     Workspace root, scan, persisted graph, monitor port");
     println!("  version    Print version (-v, --version)");
     println!("  help       Print this help (-h, --help)\n");
@@ -198,7 +204,7 @@ fn print_help() {
     println!("  neuromesh port 9000             # persist galaxy UI port");
     println!("  neuromesh monitor --port 9000   # one run only");
     println!("  neuromesh index --max-files auto");
-    println!("  neuromesh connect               # copy-paste MCP config\n");
+    println!("  neuromesh connect               # write MCP configs for this repo\n");
     println!("Index file cap:");
     println!("  Default is auto: every production source, then tests, up to 50,000.");
     println!("  neuromesh index --max-files 20000   persist a limit");

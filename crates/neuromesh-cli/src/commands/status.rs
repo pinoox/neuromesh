@@ -26,7 +26,7 @@ pub fn execute() -> Result<()> {
     }
     let stats = graph.stats();
 
-    let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
+    let db_path = neuromesh_core::memory_db_path(&current_dir);
     let memory_entries = if db_path.exists() {
         MemoryDatabase::open(&db_path)
             .ok()
