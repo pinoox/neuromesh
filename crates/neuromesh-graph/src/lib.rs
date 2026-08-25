@@ -1,6 +1,7 @@
 pub mod activation;
 pub mod edge;
 pub mod graph;
+mod intern;
 pub mod manifest;
 pub mod node;
 pub mod physarum;

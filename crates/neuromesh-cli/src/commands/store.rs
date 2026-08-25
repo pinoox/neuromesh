@@ -70,7 +70,7 @@ fn print_help() {
         "\
 Usage: neuromesh store [managed|local]
 
-Where graph.json, memory, and per-project config live.
+Where graph.bin, memory, and per-project config live.
 
   Default is managed: ~/.neuromesh/projects/<name>-<hash>/
   A <workspace>/.neuromesh folder is not read or written.

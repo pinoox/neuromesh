@@ -3,6 +3,13 @@ use neuromesh_core::{ProjectId, TokenCounter};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FileFingerprint {
+    pub size: u64,
+    pub mtime_unix: i64,
+    pub hash: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SourceLanguage {
@@ -152,6 +159,36 @@ impl IndexedFile {
         let language = SourceLanguage::from_path(&relative_path);
         let token_count = TokenCounter::count_tokens(content);
 
+        Self {
+            project_id,
+            relative_path,
+            full_path,
+            blake3_hash: hash,
+            byte_size,
+            token_count,
+            language,
+            last_modified,
+        }
+    }
+
+    pub fn fingerprint(&self) -> FileFingerprint {
+        FileFingerprint {
+            size: self.byte_size,
+            mtime_unix: self.last_modified.timestamp(),
+            hash: self.blake3_hash.clone(),
+        }
+    }
+
+    pub fn from_meta(
+        project_id: ProjectId,
+        relative_path: PathBuf,
+        full_path: PathBuf,
+        hash: String,
+        byte_size: u64,
+        last_modified: DateTime<Utc>,
+        token_count: usize,
+    ) -> Self {
+        let language = SourceLanguage::from_path(&relative_path);
         Self {
             project_id,
             relative_path,

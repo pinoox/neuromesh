@@ -18,6 +18,85 @@ mod tests {
         None
     }
 
+    /// Compact mesh gates: snapshot cold load and one-file reindex must both stay
+    /// far under a full workspace index, and the snapshot must carry no file bodies.
+    #[test]
+    fn snapshot_load_and_single_file_reindex_beat_full_index() {
+        let Some(root) = workspace_root() else {
+            return;
+        };
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let walker = ProjectWalker::new(root.clone(), ProjectId::new("neuromesh"));
+        let report = walker.scan_report().expect("scan workspace");
+        assert!(report.files.len() >= 20);
+
+        let started = Instant::now();
+        graph.ingest_scan_report(&report);
+        let full_index_ms = started.elapsed().as_millis();
+        let nodes_before = graph.stats().total_nodes;
+        assert!(nodes_before > 50);
+
+        let dir = std::env::temp_dir().join(format!("neuromesh-gate-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let snapshot_path = dir.join("graph.bin");
+        graph.save_to(&snapshot_path).expect("save snapshot");
+        let snapshot_bytes = std::fs::metadata(&snapshot_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        let reloaded = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let load_started = Instant::now();
+        assert!(reloaded.load_from(&snapshot_path).expect("load snapshot"));
+        let load_ms = load_started.elapsed().as_millis();
+        assert_eq!(reloaded.stats().total_nodes, nodes_before);
+        assert!(
+            reloaded.get_all_nodes().iter().all(|n| n.content.is_none()),
+            "snapshot must not carry file bodies"
+        );
+        assert!(
+            load_ms <= full_index_ms.max(1),
+            "snapshot load {load_ms}ms should not exceed full index {full_index_ms}ms"
+        );
+
+        // One changed file: parse that file plus local relink, not a whole-mesh rebuild.
+        let (file, content) = report
+            .files
+            .iter()
+            .find(|(f, _)| {
+                f.relative_path
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                    .ends_with("crates/neuromesh-graph/src/node.rs")
+            })
+            .or_else(|| report.files.first())
+            .expect("a scanned file");
+        let mut edited = file.clone();
+        edited.blake3_hash = format!("{}-edited", file.blake3_hash);
+        let ast = CodeIntelligenceEngine::analyze(&file.relative_path, content, file.language);
+
+        let reindex_started = Instant::now();
+        reloaded.ingest_file(&edited, &ast, Some(content));
+        reloaded.finalize_links();
+        let reindex_ms = reindex_started.elapsed().as_millis();
+        assert!(
+            reindex_ms <= full_index_ms.max(1),
+            "single-file reindex {reindex_ms}ms should not exceed full index {full_index_ms}ms"
+        );
+        assert!(reloaded.stats().total_nodes >= nodes_before - 50);
+
+        eprintln!(
+            "compact mesh gates: files={} nodes={} full_index_ms={} snapshot_kb={} snapshot_load_ms={} one_file_reindex_ms={} unchanged_skipped={}",
+            report.files.len(),
+            nodes_before,
+            full_index_ms,
+            snapshot_bytes / 1024,
+            load_ms,
+            reindex_ms,
+            report.unchanged
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn indexes_real_neuromesh_repo_with_usable_graph() {
         let Some(root) = workspace_root() else {

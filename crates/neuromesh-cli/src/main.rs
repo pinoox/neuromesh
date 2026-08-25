@@ -155,21 +155,9 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 working_memory,
             ));
 
-            let bg_graph = graph.clone();
-            let bg_dir = current_dir.clone();
-            let bg_pid = project_id.clone();
             let cap = commands::max_files_from_args(args)?;
             let _ = graph.load_persisted(&current_dir);
-            tokio::task::spawn_blocking(move || {
-                if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
-                    return;
-                }
-                let walker = commands::configured_walker(bg_dir.clone(), bg_pid, cap);
-                if let Ok(scanned) = walker.scan() {
-                    bg_graph.ingest_workspace(&scanned);
-                    let _ = bg_graph.save_persisted(&bg_dir);
-                }
-            });
+            commands::spawn_live_sync(graph.clone(), current_dir.clone(), project_id.clone(), cap);
 
             let server = neuromesh_mcp::McpServer::new(handler);
             server.run_stdio().await?;

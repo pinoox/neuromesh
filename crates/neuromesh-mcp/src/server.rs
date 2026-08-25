@@ -120,16 +120,22 @@ impl McpServer {
             .unwrap_or_else(|| "project".to_string());
         let pid = neuromesh_core::ProjectId::new(&p_name);
         self.handler.graph().set_project_id(pid.clone());
+        let _ = self.handler.graph().load_persisted(&p_buf);
         let bg_graph = self.handler.graph().clone();
         let bg_dir = p_buf.clone();
         let bg_pid = pid.clone();
-        let _ = self.handler.graph().load_persisted(&p_buf);
         tokio::task::spawn_blocking(move || {
-            let walker = neuromesh_index::ProjectWalker::new(bg_dir.clone(), bg_pid)
-                .with_optional_max_files(neuromesh_core::Config::load().max_files);
-            if let Ok(scanned) = walker.scan() {
-                bg_graph.ingest_workspace(&scanned);
-                let _ = bg_graph.save_persisted(&bg_dir);
+            bg_graph.reindex_incremental(&bg_dir, bg_pid, neuromesh_core::Config::load().max_files);
+        });
+        let watch_graph = self.handler.graph().clone();
+        let watch_dir = p_buf;
+        let watch_pid = pid;
+        tokio::spawn(async move {
+            let mut watcher = neuromesh_index::WorkspaceWatcher::new(watch_dir.clone(), watch_pid);
+            let (mut rx, _running) = watcher.start();
+            while let Some(ev) = rx.recv().await {
+                watch_graph.apply_file_event(ev);
+                let _ = watch_graph.save_persisted(&watch_dir);
             }
         });
     }

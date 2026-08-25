@@ -276,7 +276,8 @@ impl HttpServer {
                 // Helper to count files in an inactive project quickly
                 let scan_inactive_counts = |proj_path: &std::path::Path| -> (usize, usize, usize) {
                     // Never walk sibling trees on the request path — that blocked the UI.
-                    if project_data_dir(proj_path).join("graph.json").exists()
+                    if project_data_dir(proj_path).join("graph.bin").exists()
+                        || project_data_dir(proj_path).join("graph.json").exists()
                         || proj_path.join("Cargo.toml").exists()
                         || proj_path.join("package.json").exists()
                         || proj_path.join("pyproject.toml").exists()
@@ -331,6 +332,7 @@ impl HttpServer {
                                         let has_manifest = path.join("Cargo.toml").exists()
                                             || path.join("package.json").exists()
                                             || path.join("pyproject.toml").exists()
+                                            || project_data_dir(&path).join("graph.bin").exists()
                                             || project_data_dir(&path).join("graph.json").exists();
 
                                         if has_manifest {
@@ -406,6 +408,7 @@ impl HttpServer {
                                         let has_manifest = p.join("Cargo.toml").exists()
                                             || p.join("package.json").exists()
                                             || p.join("pyproject.toml").exists()
+                                            || project_data_dir(&p).join("graph.bin").exists()
                                             || project_data_dir(&p).join("graph.json").exists();
                                         if has_manifest {
                                             let p_name = p

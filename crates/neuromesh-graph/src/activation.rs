@@ -44,44 +44,12 @@ impl SpreadingActivation {
         graph: &NeuralProjectGraph,
         seed_energies: &HashMap<NodeId, f32>,
     ) -> HashMap<NodeId, f32> {
-        let mut current_energies: HashMap<NodeId, f32> = seed_energies.clone();
-        let mut final_energies: HashMap<NodeId, f32> = seed_energies.clone();
-
-        for hop in 0..self.config.max_hops {
-            let mut next_energies: HashMap<NodeId, f32> = HashMap::new();
-            let mut visited_in_hop = HashSet::new();
-
-            for (node_id, &energy) in &current_energies {
-                if energy < self.config.min_energy_cutoff {
-                    continue;
-                }
-
-                // Get outgoing and incoming neighbors
-                let neighbors = graph.get_connected_neighbors(node_id);
-                for (neighbor_id, edge) in neighbors {
-                    let weight = edge.pheromone_weight;
-                    let attenuation = edge.edge_type.attenuation();
-                    let spread_energy = energy * self.config.decay_factor * weight * attenuation;
-
-                    if spread_energy >= self.config.min_energy_cutoff {
-                        let entry = next_energies.entry(neighbor_id.clone()).or_insert(0.0);
-                        *entry = (*entry).max(spread_energy);
-                        visited_in_hop.insert(neighbor_id);
-                    }
-                }
-            }
-
-            if next_energies.is_empty() {
-                break;
-            }
-
-            for (node_id, &energy) in &next_energies {
-                let current_val = final_energies.entry(node_id.clone()).or_insert(0.0);
-                *current_val = (*current_val).max(energy * (1.0 - (hop as f32 * 0.15)));
-            }
-
-            current_energies = next_energies;
-        }
+        let final_energies = graph.spread_energies(
+            seed_energies,
+            self.config.decay_factor,
+            self.config.max_hops,
+            self.config.min_energy_cutoff,
+        );
 
         // Apply Physarum only on modest graphs. Full-graph SOR on 10k+ edges times out.
         if self.config.enable_physarum
@@ -89,8 +57,8 @@ impl SpreadingActivation {
             && graph.stats().total_edges <= 8_000
         {
             let seed_set: HashSet<NodeId> = seed_energies.keys().cloned().collect();
-            let nodes_map = graph.get_nodes_map();
-            let edges_map = graph.get_edges_map();
+            let neighborhood = graph.neighborhood(&seed_set, self.config.max_hops);
+            let (nodes_map, edges_map) = graph.subgraph_maps(&neighborhood);
 
             let physarum_res = self
                 .physarum_solver
@@ -120,8 +88,7 @@ impl SpreadingActivation {
         graph: &NeuralProjectGraph,
         seed_nodes: &HashSet<NodeId>,
     ) -> PhysarumResult {
-        let nodes_map = graph.get_nodes_map();
-        let edges_map = graph.get_edges_map();
+        let (nodes_map, edges_map) = graph.subgraph_maps(seed_nodes);
         self.physarum_solver
             .optimize_subgraph(&nodes_map, &edges_map, seed_nodes)
     }

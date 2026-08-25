@@ -11,7 +11,7 @@ impl NodeFactory {
         file_path: PathBuf,
         token_cost: usize,
         content_hash: String,
-        content: Option<String>,
+        _content: Option<String>,
     ) -> ContextNode {
         let path_str = file_path.to_string_lossy();
         let name = file_path
@@ -29,7 +29,7 @@ impl NodeFactory {
             signature: None,
             line_range: None,
             token_cost,
-            content,
+            content: None,
             content_hash,
             parent: None,
             base_relevance: 1.0,

@@ -6,7 +6,7 @@ use neuromesh_provider::ProviderFactory;
 use std::io::Write;
 use std::sync::Arc;
 
-use super::{apply_file_cap, configured_walker, FileCapArg};
+use super::{apply_file_cap, FileCapArg};
 
 pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> {
     let current_dir = std::env::current_dir()?;
@@ -46,28 +46,7 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
     let bg_graph = graph.clone();
     let bg_dir = current_dir.clone();
     let bg_pid = project_id.clone();
-    tokio::task::spawn_blocking(move || {
-        if !neuromesh_index::ProjectWalker::is_safe_workspace(&bg_dir) {
-            eprintln!("NeuroMesh monitor: refused to index an unsafe workspace root");
-            return;
-        }
-        let walker = configured_walker(bg_dir.clone(), bg_pid, cap);
-        match walker.scan() {
-            Ok(scanned) => {
-                bg_graph.ingest_workspace(&scanned);
-                let _ = bg_graph.save_persisted(&bg_dir);
-                let stats = bg_graph.stats();
-                println!(
-                    "Indexed {} files · {} nodes · {} edges · {} workspace tokens",
-                    scanned.len(),
-                    stats.total_nodes,
-                    stats.total_edges,
-                    bg_graph.total_tokens()
-                );
-            }
-            Err(e) => eprintln!("NeuroMesh monitor: index failed: {e}"),
-        }
-    });
+    super::spawn_live_sync(bg_graph, bg_dir, bg_pid, cap);
 
     let state = AppState::new(config, graph, memory_db, provider);
     let server = HttpServer::new(state);

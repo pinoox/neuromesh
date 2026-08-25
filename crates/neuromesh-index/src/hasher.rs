@@ -1,15 +1,11 @@
-use sha2::{Digest, Sha256};
-use std::fs::File;
-use std::io::{self, Read};
+use std::io;
 use std::path::Path;
 
 pub struct ContentHasher;
 
 impl ContentHasher {
     pub fn hash_bytes(data: &[u8]) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(data);
-        format!("{:x}", hasher.finalize())
+        blake3::hash(data).to_hex().to_string()
     }
 
     pub fn hash_str(text: &str) -> String {
@@ -17,18 +13,9 @@ impl ContentHasher {
     }
 
     pub fn hash_file(path: &Path) -> io::Result<String> {
-        let mut file = File::open(path)?;
-        let mut hasher = Sha256::new();
-        let mut buffer = [0u8; 16384];
-
-        loop {
-            let bytes_read = file.read(&mut buffer)?;
-            if bytes_read == 0 {
-                break;
-            }
-            hasher.update(&buffer[..bytes_read]);
-        }
-
-        Ok(format!("{:x}", hasher.finalize()))
+        let mut hasher = blake3::Hasher::new();
+        let mut file = std::fs::File::open(path)?;
+        std::io::copy(&mut file, &mut hasher)?;
+        Ok(hasher.finalize().to_hex().to_string())
     }
 }

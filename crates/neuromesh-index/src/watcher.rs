@@ -1,11 +1,12 @@
 use crate::tracker::IndexedFile;
 use crate::walker::ProjectWalker;
 use neuromesh_core::ProjectId;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
@@ -18,9 +19,8 @@ pub enum FileChangeEvent {
 pub struct WorkspaceWatcher {
     root_path: PathBuf,
     project_id: ProjectId,
-    poll_interval: Duration,
+    debounce: Duration,
     running: Arc<AtomicBool>,
-    known_hashes: HashMap<PathBuf, String>,
 }
 
 impl WorkspaceWatcher {
@@ -28,83 +28,55 @@ impl WorkspaceWatcher {
         Self {
             root_path,
             project_id,
-            poll_interval: Duration::from_millis(150),
+            debounce: Duration::from_millis(200),
             running: Arc::new(AtomicBool::new(false)),
-            known_hashes: HashMap::new(),
         }
     }
 
     pub fn with_interval(mut self, interval: Duration) -> Self {
-        self.poll_interval = interval;
+        self.debounce = interval;
         self
     }
 
     pub fn start(&mut self) -> (mpsc::Receiver<FileChangeEvent>, Arc<AtomicBool>) {
-        let (tx, rx) = mpsc::channel(100);
+        let (tx, rx) = mpsc::channel(64);
         let running = self.running.clone();
         running.store(true, Ordering::SeqCst);
 
         let root = self.root_path.clone();
         let project_id = self.project_id.clone();
-        let interval = self.poll_interval;
+        let debounce = self.debounce;
         let thread_running = running.clone();
+        let (raw_tx, raw_rx) = std::sync::mpsc::channel();
 
-        // Initial scan to populate known hashes
-        let walker = ProjectWalker::new(root.clone(), project_id.clone())
-            .with_optional_max_files(neuromesh_core::Config::load().max_files);
-        if let Ok(initial_files) = walker.scan() {
-            for (file, _) in initial_files {
-                self.known_hashes
-                    .insert(file.full_path.clone(), file.blake3_hash.clone());
-            }
+        let mut watcher = match RecommendedWatcher::new(
+            move |res: notify::Result<notify::Event>| {
+                if let Ok(event) = res {
+                    let _ = raw_tx.send(event);
+                }
+            },
+            notify::Config::default(),
+        ) {
+            Ok(w) => w,
+            Err(_) => return (rx, running),
+        };
+        if watcher.watch(&root, RecursiveMode::Recursive).is_err() {
+            return (rx, running);
         }
 
-        let mut known = self.known_hashes.clone();
-
-        tokio::spawn(async move {
-            let mut last_scan = Instant::now();
+        tokio::task::spawn_blocking(move || {
+            let _watcher = watcher;
+            let walker = ProjectWalker::new(root.clone(), project_id);
+            let mut pending: HashSet<PathBuf> = HashSet::new();
+            let mut deleted: HashSet<PathBuf> = HashSet::new();
 
             while thread_running.load(Ordering::SeqCst) {
-                tokio::time::sleep(interval).await;
-
-                if last_scan.elapsed() >= interval {
-                    last_scan = Instant::now();
-
-                    let walker = ProjectWalker::new(root.clone(), project_id.clone())
-                        .with_optional_max_files(neuromesh_core::Config::load().max_files);
-                    if let Ok(current_files) = walker.scan() {
-                        let mut current_map = HashMap::new();
-
-                        for (file, content) in current_files {
-                            let path = file.full_path.clone();
-                            let current_hash = file.blake3_hash.clone();
-                            current_map.insert(path.clone(), (file.clone(), content.clone()));
-
-                            match known.get(&path) {
-                                Some(old_hash) if old_hash != &current_hash => {
-                                    known.insert(path.clone(), current_hash);
-                                    let _ = tx.send(FileChangeEvent::Modified(file, content)).await;
-                                }
-                                None => {
-                                    known.insert(path.clone(), current_hash);
-                                    let _ = tx.send(FileChangeEvent::Created(file, content)).await;
-                                }
-                                _ => {}
-                            }
-                        }
-
-                        // Check for deletions
-                        let deleted_paths: Vec<PathBuf> = known
-                            .keys()
-                            .filter(|k| !current_map.contains_key(*k))
-                            .cloned()
-                            .collect();
-
-                        for del in deleted_paths {
-                            known.remove(&del);
-                            let _ = tx.send(FileChangeEvent::Deleted(del)).await;
-                        }
+                match raw_rx.recv_timeout(debounce) {
+                    Ok(event) => collect_event(&root, event, &mut pending, &mut deleted),
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                        flush_pending(&walker, &root, &tx, &mut pending, &mut deleted);
                     }
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
                 }
             }
         });
@@ -117,6 +89,49 @@ impl WorkspaceWatcher {
     }
 }
 
+fn collect_event(
+    root: &Path,
+    event: notify::Event,
+    pending: &mut HashSet<PathBuf>,
+    deleted: &mut HashSet<PathBuf>,
+) {
+    let is_delete = matches!(event.kind, EventKind::Remove(_));
+    for path in event.paths {
+        if ProjectWalker::is_ignored(&path) {
+            continue;
+        }
+        if !path.starts_with(root) {
+            continue;
+        }
+        if is_delete {
+            deleted.insert(path);
+        } else {
+            pending.insert(path);
+        }
+    }
+}
+
+fn flush_pending(
+    walker: &ProjectWalker,
+    root: &Path,
+    tx: &mpsc::Sender<FileChangeEvent>,
+    pending: &mut HashSet<PathBuf>,
+    deleted: &mut HashSet<PathBuf>,
+) {
+    for path in deleted.drain() {
+        let rel = path
+            .strip_prefix(root)
+            .map(|p| p.to_path_buf())
+            .unwrap_or(path);
+        let _ = tx.blocking_send(FileChangeEvent::Deleted(rel));
+    }
+    for path in pending.drain() {
+        if let Some((file, content)) = walker.read_indexed(&path) {
+            let _ = tx.blocking_send(FileChangeEvent::Modified(file, content));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -124,6 +139,6 @@ mod tests {
     #[test]
     fn test_watcher_creation() {
         let watcher = WorkspaceWatcher::new(PathBuf::from("."), ProjectId::new("test"));
-        assert_eq!(watcher.poll_interval, Duration::from_millis(150));
+        assert_eq!(watcher.debounce, Duration::from_millis(200));
     }
 }

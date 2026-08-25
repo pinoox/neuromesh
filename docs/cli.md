@@ -38,7 +38,7 @@ By default NeuroMesh does **not** write `<workspace>/.neuromesh`. Graph, memory,
 
 ```
 ~/.neuromesh/projects/<folder>-<hash>/
-  graph.json
+  graph.bin
   neuromesh.json
   config.json
 ```

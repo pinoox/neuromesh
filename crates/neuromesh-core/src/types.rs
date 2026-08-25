@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use std::path::PathBuf;
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -24,25 +25,30 @@ impl std::fmt::Display for ProjectId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct NodeId(pub String);
+#[serde(transparent)]
+pub struct NodeId(pub Arc<str>);
 
 impl NodeId {
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
+    pub fn new(id: impl AsRef<str>) -> Self {
+        Self(Arc::from(id.as_ref()))
     }
 
     pub fn from_file_path(path: &str) -> Self {
         let normalized = path.replace('\\', "/");
-        Self(format!("file:{}", normalized))
+        Self(Arc::from(format!("file:{normalized}")))
     }
 
     pub fn from_symbol(file_path: &str, symbol: &str) -> Self {
         let normalized = file_path.replace('\\', "/");
-        Self(format!("sym:{}:{}", normalized, symbol))
+        Self(Arc::from(format!("sym:{normalized}:{symbol}")))
     }
 
     pub fn random() -> Self {
-        Self(Uuid::new_v4().to_string())
+        Self(Arc::from(Uuid::new_v4().to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -53,11 +59,21 @@ impl std::fmt::Display for NodeId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct EdgeId(pub String);
+#[serde(transparent)]
+pub struct EdgeId(pub Arc<str>);
 
 impl EdgeId {
     pub fn new(source: &NodeId, target: &NodeId, edge_type: &EdgeType) -> Self {
-        Self(format!("{}->{}::{:?}", source.0, target.0, edge_type))
+        Self(Arc::from(format!(
+            "{}->{}::{:?}",
+            source.as_str(),
+            target.as_str(),
+            edge_type
+        )))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 

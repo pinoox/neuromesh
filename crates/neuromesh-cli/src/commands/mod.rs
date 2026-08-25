@@ -114,6 +114,42 @@ pub fn print_file_cap(report: &neuromesh_index::ScanReport, indent: &str) {
             report.omitted_over_cap
         );
     }
+    if report.unchanged > 0 {
+        println!(
+            "{indent}Unchanged skip : {} files (mtime/size match)",
+            report.unchanged
+        );
+    }
+}
+
+pub fn spawn_live_sync(
+    graph: std::sync::Arc<neuromesh_graph::NeuralProjectGraph>,
+    dir: std::path::PathBuf,
+    pid: ProjectId,
+    cap: FileCapArg,
+) {
+    let bg_graph = graph.clone();
+    let bg_dir = dir.clone();
+    let bg_pid = pid.clone();
+    tokio::task::spawn_blocking(move || {
+        if !ProjectWalker::is_safe_workspace(&bg_dir) {
+            return;
+        }
+        let max_files = match cap {
+            FileCapArg::Unspecified => Config::load().max_files,
+            FileCapArg::Auto => None,
+            FileCapArg::Limit(n) => Some(n),
+        };
+        bg_graph.reindex_incremental(&bg_dir, bg_pid, max_files);
+    });
+    tokio::spawn(async move {
+        let mut watcher = neuromesh_index::WorkspaceWatcher::new(dir.clone(), pid);
+        let (mut rx, _running) = watcher.start();
+        while let Some(ev) = rx.recv().await {
+            graph.apply_file_event(ev);
+            let _ = graph.save_persisted(&dir);
+        }
+    });
 }
 
 #[cfg(test)]

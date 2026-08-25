@@ -337,6 +337,95 @@ impl ContextActivator {
     }
 
     #[test]
+    fn persist_snapshot_strips_file_bodies() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let src = "pub fn persist_me() { let x = 1; let y = 2; x + y }\n";
+        let mut file = indexed("src/persist.rs");
+        file.blake3_hash = "hash-body".into();
+        graph.ingest_file(
+            &file,
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("persist.rs"),
+                src,
+                SourceLanguage::Rust,
+            ),
+            Some(src),
+        );
+        graph.finalize_links();
+        let node = graph
+            .get_node(&neuromesh_core::NodeId::from_file_path("src/persist.rs"))
+            .expect("file node");
+        assert!(node.content.is_none(), "graph must not store source bodies");
+        assert!(graph.read_source(&node.file_path).is_some());
+
+        let dir = std::env::temp_dir().join(format!("neuromesh-bin-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("graph.bin");
+        graph.save_to(&path).expect("save bin");
+        let loaded = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let started = Instant::now();
+        assert!(loaded.load_from(&path).expect("load bin"));
+        let load_ms = started.elapsed().as_millis();
+        assert!(load_ms < 2_000, "snapshot load too slow: {load_ms}ms");
+        assert!(loaded
+            .get_node(&neuromesh_core::NodeId::from_file_path("src/persist.rs"))
+            .is_some_and(|n| n.content.is_none()));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn reingest_file_relinks_inbound_calls() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let lib = "pub fn persist_me() {}\n";
+        let app = "pub fn run() { persist_me(); }\n";
+        let mut lib_file = indexed("src/lib.rs");
+        lib_file.blake3_hash = "lib-a".into();
+        let mut app_file = indexed("src/app.rs");
+        app_file.blake3_hash = "app-a".into();
+        graph.ingest_file(
+            &lib_file,
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("lib.rs"), lib, SourceLanguage::Rust),
+            Some(lib),
+        );
+        graph.ingest_file(
+            &app_file,
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("app.rs"), app, SourceLanguage::Rust),
+            Some(app),
+        );
+        graph.finalize_links();
+        let persist = graph
+            .resolve_unique("persist_me", Some("lib.rs"))
+            .expect("persist_me");
+        let inbound_before = graph
+            .get_connected_neighbors(&persist)
+            .into_iter()
+            .filter(|(_, e)| e.edge_type == neuromesh_core::EdgeType::Calls)
+            .count();
+        assert!(inbound_before >= 1, "run should call persist_me");
+
+        let lib2 = "pub fn persist_me() { let _ = 1; }\n";
+        lib_file.blake3_hash = "lib-b".into();
+        graph.ingest_file(
+            &lib_file,
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("lib.rs"), lib2, SourceLanguage::Rust),
+            Some(lib2),
+        );
+        graph.finalize_links();
+        let persist = graph
+            .resolve_unique("persist_me", Some("lib.rs"))
+            .expect("persist_me after replace");
+        let inbound_after = graph
+            .get_connected_neighbors(&persist)
+            .into_iter()
+            .filter(|(_, e)| e.edge_type == neuromesh_core::EdgeType::Calls)
+            .count();
+        assert!(
+            inbound_after >= 1,
+            "inbound Calls must be re-queued after file replace"
+        );
+    }
+
+    #[test]
     fn typescript_export_table_resolves_import() {
         let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
         let lib = "export function extractIntent() { return 1; }\n";

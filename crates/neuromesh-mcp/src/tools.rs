@@ -69,7 +69,7 @@ impl McpToolHandler {
         for window in path.windows(2) {
             self.mycelium.record_transition(&window[0], &window[1]);
             if let Some(node) = self.graph.get_node(&window[1]) {
-                if let Some(content) = node.content.clone() {
+                if let Some(content) = self.graph.read_source(&node.file_path) {
                     self.mycelium.prewarm_node(window[1].clone(), content);
                 }
             }
@@ -87,7 +87,7 @@ impl McpToolHandler {
         if let Some(last) = files.last() {
             for tip in self.mycelium.predict_next_nodes(last) {
                 if let Some(node) = self.graph.get_node(&tip.target_node) {
-                    if let Some(content) = node.content.clone() {
+                    if let Some(content) = self.graph.read_source(&node.file_path) {
                         self.mycelium.prewarm_node(tip.target_node, content);
                     }
                 }
@@ -269,16 +269,8 @@ impl McpToolHandler {
                 let content_opt = self
                     .graph
                     .get_node(&node_id)
-                    .and_then(|n| n.content.clone())
-                    .or_else(|| std::fs::read_to_string(file_path).ok())
-                    .or_else(|| {
-                        let candidate = std::path::Path::new(file_path);
-                        if candidate.exists() {
-                            std::fs::read_to_string(candidate).ok()
-                        } else {
-                            None
-                        }
-                    });
+                    .and_then(|n| self.graph.read_source(&n.file_path))
+                    .or_else(|| std::fs::read_to_string(file_path).ok());
 
                 if let Some(content) = content_opt {
                     let res = CodeSkeletonizer::skeletonize(file_path, &content, &active_symbols);
