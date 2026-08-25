@@ -8,6 +8,7 @@ neuromesh monitor      # Web UI + SSE (default http://127.0.0.1:8765)
 neuromesh port         # show or persist the monitor port
 neuromesh index        # build the graph and seed project memory
 neuromesh status       # node / edge counts
+neuromesh usage        # MCP token telemetry (`--all`, `--limit N`)
 neuromesh graph        # graph stats
 neuromesh memory       # project facts
 neuromesh optimize     # one prompt → print the packet
@@ -17,6 +18,18 @@ neuromesh connect      # ready-to-paste MCP JSON
 neuromesh doctor       # workspace root, scan, skipped extensions, graph, port
 neuromesh version
 ```
+
+## Usage telemetry
+
+MCP tool calls (`neuromesh_get_context`, skeleton, search, expand) append to `~/.neuromesh/telemetry_history.json`. That file is the source of truth. The monitor UI reads the same file (and also accepts `POST /api/telemetry/record` when `neuromesh monitor` is running).
+
+```bash
+neuromesh usage              # this project
+neuromesh usage --all        # every project on disk
+neuromesh usage --limit 50   # more recent rows
+```
+
+Rows appear when an agent **calls a NeuroMesh MCP tool**. Saving a file in Cursor, switching the editor theme, or restarting the IDE does not add a row. `neuromesh mcp` has no HTTP port; if the monitor is down, `usage` still prints the file.
 
 ## Everyday
 

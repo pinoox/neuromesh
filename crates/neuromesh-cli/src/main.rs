@@ -26,6 +26,9 @@ fn main() -> Result<()> {
         "status" | "stats" => {
             return commands::status::execute();
         }
+        "usage" | "telemetry" => {
+            return commands::usage::execute(&args);
+        }
         "connect" => {
             return commands::connect::execute();
         }
@@ -60,7 +63,7 @@ fn main() -> Result<()> {
         }
         "logs" => {
             println!("\nNo durable audit log is written.");
-            println!("Use neuromesh_get_stats over MCP, or `neuromesh status` after `neuromesh index`.\n");
+            println!("Use `neuromesh usage` for MCP token telemetry, or `neuromesh status` after `neuromesh index`.\n");
             return Ok(());
         }
         "stop" => {
@@ -100,9 +103,19 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             // Handshake over stdio must start immediately. Index on a blocking
             // pool thread so we never starve stdin/stdout worker threads.
             eprintln!("NeuroMesh MCP listening on stdio");
-            let current_dir = neuromesh_index::ProjectWalker::discover_workspace(
-                &env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-            );
+            let target_dir = args
+                .get(2)
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    std::env::var("NEUROMESH_WORKSPACE")
+                        .ok()
+                        .map(std::path::PathBuf::from)
+                })
+                .unwrap_or_else(|| {
+                    env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+                });
+
+            let current_dir = neuromesh_index::ProjectWalker::discover_workspace(&target_dir);
             let project_name = current_dir
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -182,6 +195,7 @@ fn print_help() {
     println!("  port       Show or set the monitor port (`neuromesh port 9000`)");
     println!("  index      Index the current workspace into the project graph");
     println!("  status     Node/edge counts after index (or a fresh scan)");
+    println!("  usage      MCP token telemetry (`--all`, `--limit N`)");
     println!("  graph      Print graph stats");
     println!("  memory     Print project memory facts");
     println!("  optimize   Activate one prompt and print the packet");

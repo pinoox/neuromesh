@@ -15,6 +15,7 @@
 | `GET` | `/sse` | MCP-over-SSE for remote / multi-agent setups |
 | `POST` | `/mcp` | JSON-RPC MCP messages |
 | `GET` | `/api/v1/status` | Health, project, cache-ish stats |
+| `GET` | `/api/usage` | Aggregated MCP telemetry + history (same source as `neuromesh usage`) |
 | `POST` | `/api/v1/projects/index` | Re-index |
 | `POST` | `/api/v1/context/activate` | Packet without an LLM in the middle |
 | `POST` | `/api/v1/context/expand` | Expand a fold or inactive node |

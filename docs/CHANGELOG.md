@@ -4,9 +4,10 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## 0.6.3 — 2026-08-25
 
-Inbound throw edges for PHP rethrow and ternary `new Type`.
+Inbound throw edges for PHP rethrow and ternary `new Type`. CLI usage telemetry.
 
 - **Inbound throws.** `throw $e` after `catch (Type $e)`, catch unions, and ternary `throw … new Type` become inbound `Calls` edges. Symfony matchers throw `ResourceNotFoundException`, not `RouteNotFoundException` — trace the type that is actually constructed or caught.
+- **`neuromesh usage`.** Print MCP token telemetry from `~/.neuromesh/telemetry_history.json` (`--all`, `--limit N`). The file is the source of truth so stats show even when the monitor is down. Duplicate `request_id`s are ignored; the monitor reloads the file on each usage fetch.
 
 ## 0.6.2 — 2026-08-24
 
