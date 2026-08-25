@@ -2,13 +2,19 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
-## 0.6.3 — 2026-08-25
+## 0.6.4 — 2026-08-25
 
-Inbound throw edges for PHP rethrow and ternary `new Type`. CLI usage telemetry. Managed project data dir.
+CLI usage telemetry, managed project store, and multi-client MCP connect.
 
-- **Inbound throws.** `throw $e` after `catch (Type $e)`, catch unions, and ternary `throw … new Type` become inbound `Calls` edges. Symfony matchers throw `ResourceNotFoundException`, not `RouteNotFoundException` — trace the type that is actually constructed or caught.
 - **`neuromesh usage`.** Print MCP token telemetry from `~/.neuromesh/telemetry_history.json` (`--all`, `--limit N`). The file is the source of truth so stats show even when the monitor is down. Duplicate `request_id`s are ignored; the monitor reloads the file on each usage fetch.
 - **Managed store.** Graph, memory, and per-project config default to `~/.neuromesh/projects/<name>-<hash>/`. A workspace `.neuromesh` folder is not trusted. Opt in with `neuromesh store local` or `trust_local` in `~/.neuromesh/config.json`. Existing in-repo files are copied into the managed slot once, then ignored.
+- **MCP clients.** `neuromesh connect` writes stdio configs (absolute binary + `NEUROMESH_WORKSPACE`) for Cursor, VS Code, Codex, Antigravity, Kilo Code, Trae, MiniMax, Claude, Windsurf, Cline/Roo. Handshake accepts Windows `file://` URIs, `prompt`/`task`/`input` tool args, and returns tool errors as `isError` so picky agents keep going.
+
+## 0.6.3 — 2026-08-25
+
+Inbound throw edges for PHP rethrow and ternary `new Type`.
+
+- **Inbound throws.** `throw $e` after `catch (Type $e)`, catch unions, and ternary `throw … new Type` become inbound `Calls` edges. Symfony matchers throw `ResourceNotFoundException`, not `RouteNotFoundException` — trace the type that is actually constructed or caught.
 
 ## 0.6.2 — 2026-08-24
 

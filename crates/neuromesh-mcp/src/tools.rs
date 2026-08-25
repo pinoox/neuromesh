@@ -251,7 +251,11 @@ impl McpToolHandler {
             // 2. Get File Skeleton with Folded Introns
             "neuromesh_get_file_skeleton" => {
                 let start_time = std::time::Instant::now();
-                let file_path = arguments["file_path"].as_str().unwrap_or("");
+                let file_path = arguments["file_path"]
+                    .as_str()
+                    .or_else(|| arguments["path"].as_str())
+                    .or_else(|| arguments["file"].as_str())
+                    .unwrap_or("");
                 let active_symbols: HashSet<String> = arguments["active_symbols"]
                     .as_array()
                     .map(|arr| {
@@ -489,15 +493,8 @@ impl McpToolHandler {
 
             // 6. Record Feedback & Trigger Synaptic STDP Plasticity Learning
             "neuromesh_record_feedback" => {
-                let success = arguments["task_success"].as_bool().unwrap_or(true);
-                let touched_nodes: Vec<String> = arguments["touched_nodes"]
-                    .as_array()
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let success = read_bool(&arguments["task_success"], true);
+                let touched_nodes = read_string_list(arguments, "touched_nodes");
 
                 let mut path: Vec<NodeId> = Vec::new();
                 for node_name in &touched_nodes {
@@ -571,19 +568,53 @@ impl McpToolHandler {
 }
 
 fn read_task_description(arguments: &Value) -> Result<String> {
-    let raw = arguments
-        .get("task_description")
-        .and_then(Value::as_str)
-        .or_else(|| arguments.get("prompt").and_then(Value::as_str))
-        .or_else(|| arguments.get("task").and_then(Value::as_str))
-        .unwrap_or("")
-        .trim();
+    let raw = [
+        "task_description",
+        "prompt",
+        "task",
+        "description",
+        "text",
+        "message",
+        "query",
+    ]
+    .into_iter()
+    .find_map(|k| arguments.get(k).and_then(Value::as_str))
+    .unwrap_or("")
+    .trim();
     if raw.is_empty() {
         Err(NeuroMeshError::Config(
-            "neuromesh_get_context requires 'task_description' (aliases: 'prompt', 'task')".into(),
+            "neuromesh_get_context requires a prompt (task_description, prompt, or task)".into(),
         ))
     } else {
         Ok(raw.to_string())
+    }
+}
+
+fn read_bool(value: &Value, default: bool) -> bool {
+    if let Some(b) = value.as_bool() {
+        return b;
+    }
+    match value.as_str().map(|s| s.trim()) {
+        Some("true") | Some("1") | Some("yes") => true,
+        Some("false") | Some("0") | Some("no") => false,
+        _ => default,
+    }
+}
+
+fn read_string_list(arguments: &Value, key: &str) -> Vec<String> {
+    match arguments.get(key) {
+        Some(Value::Array(arr)) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .filter(|s| !s.is_empty())
+            .collect(),
+        Some(Value::String(s)) => s
+            .split([',', '\n'])
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .map(ToString::to_string)
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -688,6 +719,14 @@ mod tests {
                 .await
                 .expect("task alias should populate the prompt");
             assert!(packet.get("evidence_packet").is_some());
+            let via_text = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "text": "How does start_job enqueue_job?" }),
+                )
+                .await
+                .expect("text alias should populate the prompt");
+            assert!(via_text.get("evidence_packet").is_some());
         });
     }
 }

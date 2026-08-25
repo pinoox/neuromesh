@@ -1,0 +1,256 @@
+use serde_json::{json, Value};
+
+fn read_only() -> Value {
+    json!({
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+    })
+}
+
+fn mutating() -> Value {
+    json!({
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+    })
+}
+
+fn tool(name: &str, title: &str, description: &str, schema: Value, annotations: Value) -> Value {
+    json!({
+        "name": name,
+        "title": title,
+        "description": description,
+        "inputSchema": schema,
+        "annotations": annotations
+    })
+}
+
+/// MCP `tools/list` payload. `get_context` does not require a single key name —
+/// clients send `task_description`, `prompt`, or `task`.
+pub fn tools_list() -> Vec<Value> {
+    vec![
+        tool(
+            "neuromesh_get_context",
+            "Get evidence packet",
+            "Return one evidence packet: seeds, skeletonized files, unresolved gaps, coverage (no_recorded_gap|partial|no_seed_resolved), budget, and next_actions. Never treats silence as completeness. no_seed_resolved means every identifier missed — Grep immediately; do not read a utility fallback. Pass the user prompt as task_description, prompt, or task.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "task_description": {
+                        "type": "string",
+                        "description": "The user's prompt or coding task"
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "Alias for task_description"
+                    },
+                    "task": {
+                        "type": "string",
+                        "description": "Alias for task_description"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["balanced", "max_quality", "max_savings"],
+                        "description": "Optimization mode (default: balanced)"
+                    }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_get_file_skeleton",
+            "Skeletonize file",
+            "Skeletonize one file: seed symbols stay open as exons; sibling functions fold to reversible one-line markers. Token reduction is measured per request (original_tokens vs skeleton_tokens), not a global percentage.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Relative file path in workspace"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Alias for file_path"
+                    },
+                    "active_symbols": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Symbol/function names to keep unfolded"
+                    }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_expand_fold",
+            "Expand fold",
+            "Reversibly expand a folded intron or inactive node to retrieve full source code.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "node_id": {
+                        "type": "string",
+                        "description": "Fold id from the packet (fold_*) or an inactive node id"
+                    },
+                    "fold_id": {
+                        "type": "string",
+                        "description": "Alias for node_id when expanding a [neuromesh:fold] marker"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for expansion"
+                    }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_search_symbols",
+            "Search symbols",
+            "Search the Neural Project Graph for symbol definitions, function signatures, classes, and types.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Symbol name or keyword to search"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Alias for query"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results (default 20)"
+                    }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_get_dependencies",
+            "Get dependencies",
+            "Get weighted graph dependencies, synaptic connections, and imports for a symbol or file.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "symbol_or_path": {
+                        "type": "string",
+                        "description": "Symbol name or relative file path"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Alias for symbol_or_path"
+                    }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_record_feedback",
+            "Record feedback",
+            "Required after a successful edit: spike the nodes you touched so STDP/pheromone can change the next get_context packet. Without this call there is no synaptic learning.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "task_success": {
+                        "type": "boolean",
+                        "description": "Whether the code change succeeded without errors"
+                    },
+                    "touched_nodes": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Node or symbol IDs modified or verified"
+                    }
+                },
+                "required": ["task_success"]
+            }),
+            mutating(),
+        ),
+        tool(
+            "neuromesh_trace",
+            "Trace calls",
+            "Trace inbound/outbound call and import chains for a symbol.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Function, type, or file to trace"
+                    },
+                    "direction": {
+                        "type": "string",
+                        "enum": ["inbound", "outbound", "both", "in", "out"],
+                        "description": "Traversal direction (default both)"
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Max hops, 1-6 (default 3)"
+                    }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_analyze_impact",
+            "Analyze impact",
+            "Compute the blast radius of changing a symbol or file.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Symbol or file path"
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Max hops (default 3)"
+                    }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_get_architecture",
+            "Architecture",
+            "Summarize languages, packages, entry points, and graph hotspots from the live index.",
+            json!({ "type": "object", "properties": {} }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_get_project_memory",
+            "Project memory",
+            "Retrieve project architectural rules, tech stack decisions, and framework conventions.",
+            json!({ "type": "object", "properties": {} }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_get_stats",
+            "Graph stats",
+            "Graph size plus honest biomimetic flags: physarum_solver is active only when the last get_context actually ran neighborhood tubes.",
+            json!({ "type": "object", "properties": {} }),
+            read_only(),
+        ),
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tools_list;
+
+    #[test]
+    fn get_context_does_not_require_one_key() {
+        let tools = tools_list();
+        let ctx = tools
+            .iter()
+            .find(|t| t["name"] == "neuromesh_get_context")
+            .unwrap();
+        assert!(ctx["inputSchema"].get("required").is_none());
+        assert!(ctx["inputSchema"]["properties"].get("prompt").is_some());
+        assert!(ctx["inputSchema"]["properties"].get("task").is_some());
+        assert_eq!(ctx["annotations"]["readOnlyHint"], true);
+    }
+}

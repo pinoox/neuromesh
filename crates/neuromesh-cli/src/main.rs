@@ -33,7 +33,7 @@ fn main() -> Result<()> {
             return commands::store::execute(args.get(2).map(|s| s.as_str()));
         }
         "connect" => {
-            return commands::connect::execute();
+            return commands::connect::execute(&args);
         }
         "port" => {
             return commands::port::execute(args.get(2).map(|s| s.as_str()));
@@ -193,7 +193,7 @@ fn print_help() {
     );
     println!("Usage: neuromesh <COMMAND> [OPTIONS]\n");
     println!("Commands:");
-    println!("  mcp        MCP server over stdio (Cursor / Claude / Cline)");
+    println!("  mcp        MCP server over stdio (Cursor, Codex, Antigravity, …)");
     println!("  monitor    Web UI + SSE (default http://127.0.0.1:8765)");
     println!("  port       Show or set the monitor port (`neuromesh port 9000`)");
     println!("  index      Index the current workspace into the project graph");
@@ -207,7 +207,7 @@ fn print_help() {
         "  eval       Gold-task recall / precision / fill budget on this repo and tests/fixtures"
     );
     println!("  benchmark  Same as eval");
-    println!("  connect    Print MCP JSON for the current binary");
+    println!("  connect    Install MCP configs (or `--print` snippets)");
     println!("  doctor     Workspace root, scan, persisted graph, monitor port");
     println!("  version    Print version (-v, --version)");
     println!("  help       Print this help (-h, --help)\n");
@@ -216,7 +216,7 @@ fn print_help() {
     println!("  neuromesh port 9000             # persist galaxy UI port");
     println!("  neuromesh monitor --port 9000   # one run only");
     println!("  neuromesh index --max-files auto");
-    println!("  neuromesh connect               # copy-paste MCP config\n");
+    println!("  neuromesh connect               # write MCP configs for this repo\n");
     println!("Index file cap:");
     println!("  Default is auto: every production source, then tests, up to 50,000.");
     println!("  neuromesh index --max-files 20000   persist a limit");

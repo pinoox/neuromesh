@@ -15,7 +15,7 @@ neuromesh optimize     # one prompt → print the packet
 neuromesh eval         # gold recall / precision / fill on cwd and tests/fixtures
 neuromesh benchmark    # same as eval
 neuromesh store        # managed home vs trusted local `.neuromesh`
-neuromesh connect      # ready-to-paste MCP JSON
+neuromesh connect      # write MCP configs (or `--print` snippets)
 neuromesh doctor       # workspace root, scan, skipped extensions, graph, port
 neuromesh version
 ```
@@ -73,7 +73,19 @@ neuromesh eval
 
 `eval` scores `tests/gold_tasks.toml` if present, otherwise the builtin set. It also walks `tests/fixtures/*/gold_tasks.toml`.
 
-The process uses the **current working directory** as the project. Point your MCP config at a command that starts in the repo you care about.
+The process uses the **current working directory** as the project. `neuromesh connect` writes that path into each client's MCP config so the IDE does not have to guess.
+
+## Connect MCP clients
+
+```bash
+neuromesh connect              # project files + globals for apps already installed
+neuromesh connect --print      # snippets only
+neuromesh connect --dry-run    # list target files
+neuromesh connect --project    # this repo only
+neuromesh connect --global     # also create user-level configs
+```
+
+Uses the absolute path of this `neuromesh` binary and `NEUROMESH_WORKSPACE`. See [mcp.md](mcp.md#connect).
 
 ## Monitor port
 
