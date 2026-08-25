@@ -2,6 +2,15 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
+## Unreleased
+
+Task-aware folds: keep the method that matches the bug report, recover it by the printed `fold_id`, and stop suggesting unrelated folds first.
+
+- **Task exons.** Skeletonization scores each function against the prompt (`nullSafe` + `TypeAdapter` → `NullSafeTypeAdapter.write`, `serialized` → `write`). The closest match stays open instead of folding the exact body an agent needs to diagnose.
+- **Stable fold ids.** Markers are unique across files (`fold_write_4_<tag>`), so a later `JsonWriter.write` cannot overwrite `TypeAdapter.write` in the session registry.
+- **`expand_fold` accepts `query`.** `next_actions` already pass `query`; the tool now reads `fold_id`, `node_id`, or `query`, including the full `[neuromesh:fold:…]` marker. Prefix lookup still finds the printed id.
+- **Ranked `next_actions`.** Expand suggestions prefer high-scoring folds, not the first three in packet order.
+
 ## 0.6.9 — 2026-08-25
 
 Compact incremental mesh, managed store, usage telemetry, and multi-client MCP connect.

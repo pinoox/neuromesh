@@ -109,7 +109,7 @@ pub fn canonical_tool_name(name: &str) -> String {
 }
 
 pub fn initialize_instructions() -> &'static str {
-    "Start every coding task with neuromesh_get_context. Pass the user prompt as task_description, prompt, or task. If coverage.claim is partial or no_seed_resolved, call neuromesh_search_symbols — do not treat a utility fallback file as the answer. Expand folds with neuromesh_expand_fold. After a successful edit, call neuromesh_record_feedback with the nodes you touched."
+    "Start every coding task with neuromesh_get_context. Pass the user prompt as task_description, prompt, or task. If coverage.claim is partial or no_seed_resolved, call neuromesh_search_symbols — do not treat a utility fallback file as the answer. Expand folds with neuromesh_expand_fold (fold_id, node_id, or query from next_actions). After a successful edit, call neuromesh_record_feedback with the nodes you touched."
 }
 
 pub fn tool_success(id: Option<Value>, val: &Value) -> Value {

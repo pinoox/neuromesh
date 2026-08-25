@@ -1,3 +1,4 @@
+use crate::fold::normalize_fold_query;
 use crate::skeleton::FoldedIntron;
 use neuromesh_core::{ContextNode, InactiveContextDescriptor, NodeId, ProjectId};
 use parking_lot::RwLock;
@@ -60,7 +61,52 @@ impl ReversibleContextRegistry {
     }
 
     pub fn get_fold(&self, fold_id: &str) -> Option<StoredFold> {
-        self.folds.read().get(fold_id).cloned()
+        let query = normalize_fold_query(fold_id);
+        if query.is_empty() {
+            return None;
+        }
+        let folds = self.folds.read();
+        if let Some(hit) = folds.get(&query) {
+            return Some(hit.clone());
+        }
+        let prefix = format!("{query}_");
+        let mut prefixed: Vec<StoredFold> = folds
+            .values()
+            .filter(|stored| {
+                stored.fold.fold_id == query || stored.fold.fold_id.starts_with(&prefix)
+            })
+            .cloned()
+            .collect();
+        if prefixed.len() == 1 {
+            return prefixed.pop();
+        }
+        if prefixed.len() > 1 {
+            prefixed.sort_by(|a, b| {
+                b.fold
+                    .task_score
+                    .partial_cmp(&a.fold.task_score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            return prefixed.into_iter().next();
+        }
+        let mut by_symbol: Vec<StoredFold> = folds
+            .values()
+            .filter(|stored| stored.fold.symbol_name.eq_ignore_ascii_case(&query))
+            .cloned()
+            .collect();
+        if by_symbol.len() == 1 {
+            return by_symbol.pop();
+        }
+        if by_symbol.len() > 1 {
+            by_symbol.sort_by(|a, b| {
+                b.fold
+                    .task_score
+                    .partial_cmp(&a.fold.task_score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            return by_symbol.into_iter().next();
+        }
+        None
     }
 
     pub fn get_inactive_descriptors(&self) -> Vec<InactiveContextDescriptor> {

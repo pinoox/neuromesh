@@ -1,6 +1,7 @@
 pub mod activator;
 pub mod dedup;
 pub mod expansion;
+pub mod fold;
 pub mod genetic_optimizer;
 pub mod gold;
 pub mod registry;
@@ -11,6 +12,7 @@ pub mod skeleton;
 pub use activator::{ContextActivator, PacketSnapshot, PhysarumTelemetry};
 pub use dedup::ContextDeduplicator;
 pub use expansion::{ExpansionAuditRecord, ExpansionEngine, FoldExpansion};
+pub use fold::{normalize_fold_query, FoldPolicy};
 pub use genetic_optimizer::{ContextChromosome, GeneticContextOptimizer};
 pub use registry::ReversibleContextRegistry;
 pub use scoring::{ActivationScorer, ScoringWeights};

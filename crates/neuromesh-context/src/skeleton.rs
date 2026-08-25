@@ -1,3 +1,4 @@
+use crate::fold::{make_fold_id, FoldPolicy};
 use crate::genetic_optimizer::ContextChromosome;
 use neuromesh_core::TokenCounter;
 use regex::Regex;
@@ -10,6 +11,8 @@ pub struct FunctionSpan {
     pub start_line: usize,
     pub end_line: usize,
     pub signature: String,
+    #[serde(default)]
+    pub owner: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +24,10 @@ pub struct FoldedIntron {
     pub start_line: usize,
     pub end_line: usize,
     pub saved_tokens: usize,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub task_score: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,15 +39,6 @@ pub struct SkeletonResult {
     pub exons_count: usize,
     pub introns_folded: usize,
     pub folds: Vec<FoldedIntron>,
-}
-
-fn is_seed_exon(sym_name: &str, active_symbols: &HashSet<String>) -> bool {
-    let lower = sym_name.to_lowercase();
-    active_symbols.contains(sym_name)
-        || active_symbols.contains(&lower)
-        || active_symbols
-            .iter()
-            .any(|s| s.eq_ignore_ascii_case(sym_name) || s.rsplit("::").next() == Some(sym_name))
 }
 
 fn contains_span(outer: &FunctionSpan, inner: &FunctionSpan) -> bool {
@@ -76,10 +74,20 @@ fn interior_range(lines: &[&str], span: &FunctionSpan, min_lines: usize) -> Opti
     Some((interior_start, interior_end))
 }
 
+fn span_body(lines: &[&str], span: &FunctionSpan) -> String {
+    let start = span.start_line.saturating_sub(1).min(lines.len());
+    let end = span.end_line.min(lines.len()).saturating_sub(1);
+    if start >= lines.len() || end < start {
+        return String::new();
+    }
+    lines[start..=end].join("\n")
+}
+
 /// Seed functions stay open (exons). Sibling functions fold. Import lines are kept as-is.
 pub fn fold_intron_min_lines() -> usize {
     ContextChromosome::default().fold_threshold_lines.max(2)
 }
+
 pub struct CodeSkeletonizer;
 
 impl CodeSkeletonizer {
@@ -89,7 +97,12 @@ impl CodeSkeletonizer {
         content: &str,
         active_symbol_names: &HashSet<String>,
     ) -> SkeletonResult {
-        Self::skeletonize_with_spans(file_path, content, active_symbol_names, &[])
+        Self::skeletonize_with_policy(
+            file_path,
+            content,
+            &FoldPolicy::from_symbols(active_symbol_names),
+            &[],
+        )
     }
 
     /// Prefer parser/graph function spans when available (accurate bodies).
@@ -97,6 +110,20 @@ impl CodeSkeletonizer {
         file_path: &str,
         content: &str,
         active_symbol_names: &HashSet<String>,
+        spans: &[FunctionSpan],
+    ) -> SkeletonResult {
+        Self::skeletonize_with_policy(
+            file_path,
+            content,
+            &FoldPolicy::from_symbols(active_symbol_names),
+            spans,
+        )
+    }
+
+    pub fn skeletonize_with_policy(
+        file_path: &str,
+        content: &str,
+        policy: &FoldPolicy,
         spans: &[FunctionSpan],
     ) -> SkeletonResult {
         let original_tokens = TokenCounter::count_tokens(content);
@@ -118,8 +145,9 @@ impl CodeSkeletonizer {
 
         if !spans.is_empty() {
             return Self::skeletonize_from_spans(
+                file_path,
                 content,
-                active_symbol_names,
+                policy,
                 original_tokens,
                 spans,
                 min_lines,
@@ -147,14 +175,9 @@ impl CodeSkeletonizer {
             || file_path.ends_with(".rb");
 
         if is_python {
-            Self::skeletonize_python(content, active_symbol_names, original_tokens, min_lines)
+            Self::skeletonize_python(file_path, content, policy, original_tokens, min_lines)
         } else if is_c_like {
-            Self::skeletonize_brace_language(
-                content,
-                active_symbol_names,
-                original_tokens,
-                min_lines,
-            )
+            Self::skeletonize_brace_language(file_path, content, policy, original_tokens, min_lines)
         } else {
             SkeletonResult {
                 skeleton_code: content.to_string(),
@@ -169,8 +192,9 @@ impl CodeSkeletonizer {
     }
 
     fn skeletonize_from_spans(
+        file_path: &str,
         content: &str,
-        active_symbols: &HashSet<String>,
+        policy: &FoldPolicy,
         original_tokens: usize,
         spans: &[FunctionSpan],
         min_lines: usize,
@@ -182,13 +206,14 @@ impl CodeSkeletonizer {
 
         let exon_spans: Vec<FunctionSpan> = ordered
             .iter()
-            .filter(|s| is_seed_exon(&s.name, active_symbols))
+            .filter(|s| policy.keep_open(&s.name, s.owner.as_deref(), &span_body(&lines, s)))
             .cloned()
             .collect();
 
         let mut plans: Vec<(usize, usize, FunctionSpan)> = Vec::new();
         for span in ordered {
-            if is_seed_exon(&span.name, active_symbols) {
+            let body = span_body(&lines, &span);
+            if policy.keep_open(&span.name, span.owner.as_deref(), &body) {
                 exons_count += 1;
                 continue;
             }
@@ -236,7 +261,7 @@ impl CodeSkeletonizer {
                     .chars()
                     .take_while(|c| c.is_whitespace())
                     .collect::<String>();
-                let fold_id = format!("fold_{}_{}", span.name, folds.len() + 1);
+                let fold_id = make_fold_id(file_path, &span.name, folds.len() + 1, *start + 1);
                 result_lines.push(format!(
                     "{}/* [neuromesh:fold:{} | {} lines folded | {}] */",
                     indent,
@@ -248,10 +273,17 @@ impl CodeSkeletonizer {
                     fold_id,
                     symbol_name: span.name.clone(),
                     signature: span.signature.clone(),
-                    original_body: body_content,
+                    original_body: body_content.clone(),
                     start_line: *start + 1,
                     end_line: *end + 1,
                     saved_tokens,
+                    owner: span.owner.clone(),
+                    task_score: policy.score(
+                        &span.name,
+                        span.owner.as_deref(),
+                        &span.signature,
+                        &body_content,
+                    ),
                 });
                 i = *end + 1;
                 plan_idx += 1;
@@ -281,8 +313,9 @@ impl CodeSkeletonizer {
     }
 
     fn skeletonize_brace_language(
+        file_path: &str,
         content: &str,
-        active_symbols: &HashSet<String>,
+        policy: &FoldPolicy,
         original_tokens: usize,
         min_lines: usize,
     ) -> SkeletonResult {
@@ -300,7 +333,6 @@ impl CodeSkeletonizer {
 
             if let Some(caps) = fn_regex.captures(line) {
                 let sym_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-                let is_active = is_seed_exon(sym_name, active_symbols);
 
                 // Find brace body
                 let mut brace_count = 0;
@@ -324,12 +356,18 @@ impl CodeSkeletonizer {
                     }
                 }
 
+                let body_content = if found_open {
+                    lines[body_start..=body_end].join("\n")
+                } else {
+                    String::new()
+                };
+                let is_active = policy.keep_open(sym_name, None, &body_content);
+
                 let span = body_end - body_start + 1;
                 if found_open && span >= min_lines && !is_active {
                     // Fold this intron
                     introns_folded += 1;
-                    let fold_id = format!("fold_{}_{}", sym_name, introns_folded);
-                    let body_content = lines[body_start..=body_end].join("\n");
+                    let fold_id = make_fold_id(file_path, sym_name, introns_folded, body_start + 1);
                     let saved_tokens = TokenCounter::count_tokens(&body_content);
 
                     let indent = line
@@ -354,10 +392,12 @@ impl CodeSkeletonizer {
                         fold_id,
                         symbol_name: sym_name.to_string(),
                         signature: clean_header.to_string(),
-                        original_body: body_content,
+                        original_body: body_content.clone(),
                         start_line: body_start + 1,
                         end_line: body_end + 1,
                         saved_tokens,
+                        owner: None,
+                        task_score: policy.score(sym_name, None, clean_header, &body_content),
                     });
 
                     i = body_end + 1;
@@ -392,8 +432,9 @@ impl CodeSkeletonizer {
     }
 
     fn skeletonize_python(
+        file_path: &str,
         content: &str,
-        active_symbols: &HashSet<String>,
+        policy: &FoldPolicy,
         original_tokens: usize,
         min_lines: usize,
     ) -> SkeletonResult {
@@ -414,8 +455,6 @@ impl CodeSkeletonizer {
                 let indent_len = indent_str.len();
                 let sym_name = caps.get(2).map(|m| m.as_str()).unwrap_or("");
 
-                let is_active = is_seed_exon(sym_name, active_symbols);
-
                 // Find end of indentation block
                 let mut body_end = i;
                 for (j, l) in lines.iter().enumerate().skip(i + 1) {
@@ -430,11 +469,12 @@ impl CodeSkeletonizer {
                     body_end = j;
                 }
 
+                let body_content = lines[i..=body_end].join("\n");
+                let is_active = policy.keep_open(sym_name, None, &body_content);
                 let span = body_end - i + 1;
                 if span >= min_lines && !is_active {
                     introns_folded += 1;
-                    let fold_id = format!("fold_{}_{}", sym_name, introns_folded);
-                    let body_content = lines[i..=body_end].join("\n");
+                    let fold_id = make_fold_id(file_path, sym_name, introns_folded, i + 1);
                     let saved_tokens = TokenCounter::count_tokens(&body_content);
 
                     result_lines.push(format!(
@@ -447,10 +487,17 @@ impl CodeSkeletonizer {
                         fold_id,
                         symbol_name: sym_name.to_string(),
                         signature: format!("def {}(...)", sym_name),
-                        original_body: body_content,
+                        original_body: body_content.clone(),
                         start_line: i + 1,
                         end_line: body_end + 1,
                         saved_tokens,
+                        owner: None,
+                        task_score: policy.score(
+                            sym_name,
+                            None,
+                            &format!("def {}(...)", sym_name),
+                            &body_content,
+                        ),
                     });
 
                     i = body_end + 1;
@@ -541,12 +588,14 @@ export function untargetedHeavyHelper2() {
                 start_line: 1,
                 end_line: 5,
                 signature: "fn keep()".into(),
+                owner: None,
             },
             FunctionSpan {
                 name: "drop_me".into(),
                 start_line: 6,
                 end_line: 11,
                 signature: "fn drop_me()".into(),
+                owner: None,
             },
         ];
         let res = CodeSkeletonizer::skeletonize_with_spans("x.rs", code, &active, &spans);
@@ -581,12 +630,14 @@ export function untargetedHeavyHelper2() {
                 start_line: 1,
                 end_line: 9,
                 signature: "fn outer()".into(),
+                owner: None,
             },
             FunctionSpan {
                 name: "keep".into(),
                 start_line: 2,
                 end_line: 5,
                 signature: "fn keep()".into(),
+                owner: None,
             },
         ];
         let res = CodeSkeletonizer::skeletonize_with_spans("x.rs", code, &active, &spans);
