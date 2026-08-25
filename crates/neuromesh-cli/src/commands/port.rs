@@ -33,7 +33,7 @@ Usage: neuromesh port [PORT]
 Show or persist the galaxy monitor HTTP port (default {}).
 
   neuromesh port           print effective port (config + NEUROMESH_PORT)
-  neuromesh port 9000      write <cwd>/.neuromesh/config.json
+  neuromesh port 9000      write project config (managed: ~/.neuromesh/projects/…/config.json)
   neuromesh monitor --port 9000   one run only, does not save
 
 `neuromesh mcp` is stdio — it does not bind a port.

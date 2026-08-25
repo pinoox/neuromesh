@@ -35,7 +35,7 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
         );
     }
 
-    let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
+    let db_path = neuromesh_core::memory_db_path(&current_dir);
     let memory_db = Arc::new(
         MemoryDatabase::open(&db_path)
             .or_else(|_| MemoryDatabase::open_in_memory())

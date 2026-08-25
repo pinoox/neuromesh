@@ -4,10 +4,11 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## 0.6.3 — 2026-08-25
 
-Inbound throw edges for PHP rethrow and ternary `new Type`. CLI usage telemetry.
+Inbound throw edges for PHP rethrow and ternary `new Type`. CLI usage telemetry. Managed project data dir.
 
 - **Inbound throws.** `throw $e` after `catch (Type $e)`, catch unions, and ternary `throw … new Type` become inbound `Calls` edges. Symfony matchers throw `ResourceNotFoundException`, not `RouteNotFoundException` — trace the type that is actually constructed or caught.
 - **`neuromesh usage`.** Print MCP token telemetry from `~/.neuromesh/telemetry_history.json` (`--all`, `--limit N`). The file is the source of truth so stats show even when the monitor is down. Duplicate `request_id`s are ignored; the monitor reloads the file on each usage fetch.
+- **Managed store.** Graph, memory, and per-project config default to `~/.neuromesh/projects/<name>-<hash>/`. A workspace `.neuromesh` folder is not trusted. Opt in with `neuromesh store local` or `trust_local` in `~/.neuromesh/config.json`. Existing in-repo files are copied into the managed slot once, then ignored.
 
 ## 0.6.2 — 2026-08-24
 
@@ -39,7 +40,7 @@ Language registry, tree-sitter queries, framework overlays, parallel index, and 
 
 Monitor port is a first-class CLI setting, not a hardcoded 8765.
 
-- **`neuromesh port`.** Print the effective port, or persist it with `neuromesh port 9000` (`<cwd>/.neuromesh/config.json`).
+- **`neuromesh port`.** Print the effective port, or persist it with `neuromesh port 9000` (managed project slot, or `<cwd>/.neuromesh` if trusted).
 - **One-shot override.** `neuromesh monitor --port 9000` (`-p`, `--port=`) and the same flag on `start`. Env `NEUROMESH_PORT` wins over files.
 - **Clients follow.** `doctor`, `connect`, and telemetry POST use the loaded host/port. VS Code / Cursor still uses Settings → `neuromesh.port` — keep it in sync.
 

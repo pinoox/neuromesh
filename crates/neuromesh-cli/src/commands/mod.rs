@@ -12,6 +12,7 @@ pub mod optimize;
 pub mod port;
 pub mod start;
 pub mod status;
+pub mod store;
 pub mod usage;
 
 use neuromesh_core::{parse_max_files, parse_port, Config, ProjectId, Result};

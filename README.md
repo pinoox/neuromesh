@@ -201,11 +201,11 @@ Default is **8765**. Persist it for this repo, override one run, or use an env v
 
 ```bash
 neuromesh port                 # print effective port
-neuromesh port 9000            # save to <cwd>/.neuromesh/config.json
+neuromesh port 9000            # save to the managed project slot (see `neuromesh store`)
 neuromesh monitor --port 9000  # this process only (`-p` works too)
 ```
 
-Priority: `--port` / `-p` → `NEUROMESH_PORT` → `.neuromesh/config.json` → `~/.neuromesh/config.json` → 8765.
+Priority: `--port` / `-p` → `NEUROMESH_PORT` → project slot `config.json` → `~/.neuromesh/config.json` → 8765.
 
 **`neuromesh mcp` has no TCP port.** Cursor / Claude talk JSON-RPC over stdin/stdout (`args: ["mcp"]`). Do not put `--port` on that command.
 
@@ -222,7 +222,7 @@ neuromesh index --max-files auto     # persist auto (default)
 neuromesh index --max-files 20000    # persist a hard limit
 ```
 
-Priority: `--max-files` → `NEUROMESH_MAX_FILES` (`auto` / `0` = auto) → `.neuromesh/config.json` → auto. See [cli.md](docs/cli.md#index-file-cap).
+Priority: `--max-files` → `NEUROMESH_MAX_FILES` (`auto` / `0` = auto) → project slot `config.json` → auto. See [cli.md](docs/cli.md#index-file-cap).
 
 ---
 

@@ -52,7 +52,19 @@ pub fn execute(cap: FileCapArg) -> Result<()> {
         Err(e) => println!("Scan           : failed ({e})"),
     }
 
-    let graph_path = root.join(".neuromesh").join("graph.json");
+    let graph_path = neuromesh_core::graph_path(&root);
+    println!(
+        "Data directory : {}",
+        neuromesh_core::project_data_dir(&root).display()
+    );
+    println!(
+        "Store          : {}",
+        if neuromesh_core::uses_local_dotdir(&root) {
+            "local (workspace .neuromesh is trusted)"
+        } else {
+            "managed (~/.neuromesh/projects/…)"
+        }
+    );
     println!(
         "Persisted graph: {}",
         if graph_path.exists() {
@@ -61,6 +73,13 @@ pub fn execute(cap: FileCapArg) -> Result<()> {
             "missing (run neuromesh index)"
         }
     );
+    if let Some(left) = neuromesh_core::leftover_workspace_dotdir(&root) {
+        println!(
+            "Leftover       : {} exists and is not trusted",
+            left.display()
+        );
+        println!("Trust with     : neuromesh store local");
+    }
     println!();
     Ok(())
 }

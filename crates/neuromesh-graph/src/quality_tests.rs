@@ -326,9 +326,10 @@ impl ContextActivator {
 
         let dir = std::env::temp_dir().join(format!("neuromesh-persist-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
-        graph.save_persisted(&dir).expect("save");
+        let path = dir.join("graph.json");
+        graph.save_to(&path).expect("save");
         let loaded = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
-        assert!(loaded.load_persisted(&dir));
+        assert!(loaded.load_from(&path).expect("load"));
         assert!(loaded
             .resolve_unique("persist_me", Some("persist.rs"))
             .is_some());

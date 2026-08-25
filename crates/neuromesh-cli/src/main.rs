@@ -29,6 +29,9 @@ fn main() -> Result<()> {
         "usage" | "telemetry" => {
             return commands::usage::execute(&args);
         }
+        "store" => {
+            return commands::store::execute(args.get(2).map(|s| s.as_str()));
+        }
         "connect" => {
             return commands::connect::execute();
         }
@@ -125,7 +128,7 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             let project_id = ProjectId::new(&project_name);
             let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
 
-            let db_path = current_dir.join(".neuromesh").join("neuromesh.json");
+            let db_path = neuromesh_core::memory_db_path(&current_dir);
             let memory_db = Arc::new(
                 MemoryDatabase::open(&db_path)
                     .or_else(|_| MemoryDatabase::open_in_memory())
@@ -196,6 +199,7 @@ fn print_help() {
     println!("  index      Index the current workspace into the project graph");
     println!("  status     Node/edge counts after index (or a fresh scan)");
     println!("  usage      MCP token telemetry (`--all`, `--limit N`)");
+    println!("  store      Where project data lives (managed home vs trusted local)");
     println!("  graph      Print graph stats");
     println!("  memory     Print project memory facts");
     println!("  optimize   Activate one prompt and print the packet");

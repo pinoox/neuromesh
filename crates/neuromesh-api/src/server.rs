@@ -1,5 +1,5 @@
 use crate::state::AppState;
-use neuromesh_core::{NodeId, OptimizationMode, ProjectId, Result};
+use neuromesh_core::{project_data_dir, NodeId, OptimizationMode, ProjectId, Result};
 use neuromesh_index::ProjectWalker;
 use neuromesh_observability::{filter_history, summarize_history};
 use neuromesh_parser::CodeIntelligenceEngine;
@@ -276,7 +276,7 @@ impl HttpServer {
                 // Helper to count files in an inactive project quickly
                 let scan_inactive_counts = |proj_path: &std::path::Path| -> (usize, usize, usize) {
                     // Never walk sibling trees on the request path — that blocked the UI.
-                    if proj_path.join(".neuromesh").join("graph.json").exists()
+                    if project_data_dir(proj_path).join("graph.json").exists()
                         || proj_path.join("Cargo.toml").exists()
                         || proj_path.join("package.json").exists()
                         || proj_path.join("pyproject.toml").exists()
@@ -328,10 +328,10 @@ impl HttpServer {
                                         && !deleted.contains(&path_canonical.display().to_string())
                                         && !seen_paths.contains(&path_canonical)
                                     {
-                                        let has_manifest = path.join(".neuromesh").exists()
-                                            || path.join("Cargo.toml").exists()
+                                        let has_manifest = path.join("Cargo.toml").exists()
                                             || path.join("package.json").exists()
-                                            || path.join("pyproject.toml").exists();
+                                            || path.join("pyproject.toml").exists()
+                                            || project_data_dir(&path).join("graph.json").exists();
 
                                         if has_manifest {
                                             seen_paths.insert(path_canonical);
@@ -403,10 +403,10 @@ impl HttpServer {
                                 if let Ok(ft) = entry.file_type() {
                                     if ft.is_dir() {
                                         let p = entry.path();
-                                        let has_manifest = p.join(".neuromesh").exists()
-                                            || p.join("Cargo.toml").exists()
+                                        let has_manifest = p.join("Cargo.toml").exists()
                                             || p.join("package.json").exists()
-                                            || p.join("pyproject.toml").exists();
+                                            || p.join("pyproject.toml").exists()
+                                            || project_data_dir(&p).join("graph.json").exists();
                                         if has_manifest {
                                             let p_name = p
                                                 .file_name()
@@ -536,10 +536,13 @@ impl HttpServer {
                         .write()
                         .insert(canonical.display().to_string());
 
-                    // Delete .neuromesh directory if it exists
-                    let dot_neuromesh = target_path.join(".neuromesh");
-                    if dot_neuromesh.exists() {
-                        let _ = std::fs::remove_dir_all(&dot_neuromesh);
+                    let managed = project_data_dir(&target_path);
+                    if managed.exists() {
+                        let _ = std::fs::remove_dir_all(&managed);
+                    }
+                    let leftover = target_path.join(".neuromesh");
+                    if leftover.exists() {
+                        let _ = std::fs::remove_dir_all(&leftover);
                     }
 
                     state.log(

@@ -1,6 +1,6 @@
 # MCP tools
 
-Transport: **stdio JSON-RPC** (`neuromesh mcp`). That is what Cursor, Claude, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, `.neuromesh/config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
+Transport: **stdio JSON-RPC** (`neuromesh mcp`). That is what Cursor, Claude, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
 
 Remote / multi-agent: `neuromesh monitor` (optionally `--port 9000` / `neuromesh port 9000`), then SSE and HTTP as in [api.md](api.md).
 

@@ -1121,7 +1121,9 @@ impl NeuralProjectGraph {
     }
 
     pub fn persist_path(workspace: &Path) -> PathBuf {
-        workspace.join(".neuromesh").join("graph.json")
+        neuromesh_core::ensure_project_data_dir(workspace)
+            .unwrap_or_else(|_| neuromesh_core::project_data_dir(workspace))
+            .join("graph.json")
     }
 
     pub fn load_persisted(&self, workspace: &Path) -> bool {

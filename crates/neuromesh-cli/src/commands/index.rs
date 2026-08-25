@@ -34,7 +34,7 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
 
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let _ = graph.load_persisted(&current_dir);
-    let db_dir = current_dir.join(".neuromesh");
+    let db_dir = neuromesh_core::ensure_project_data_dir(&current_dir)?;
     fs::create_dir_all(&db_dir)?;
     let memory_db = Arc::new(MemoryDatabase::open(&db_dir.join("neuromesh.json"))?);
 

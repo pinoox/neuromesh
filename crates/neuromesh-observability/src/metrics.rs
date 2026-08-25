@@ -14,9 +14,7 @@ pub fn telemetry_file_path() -> PathBuf {
         }
         return path;
     }
-    let base = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".neuromesh");
+    let base = neuromesh_core::neuromesh_home();
     let _ = std::fs::create_dir_all(&base);
     base.join("telemetry_history.json")
 }

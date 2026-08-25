@@ -115,22 +115,29 @@ pub struct Config {
     /// Explicit index file cap. `None` (default) auto-grows to fit production sources.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_files: Option<usize>,
+    /// Default `managed`: per-project data under `~/.neuromesh/projects/`.
+    /// `local` writes `<workspace>/.neuromesh` for every repo.
+    #[serde(default)]
+    pub project_store: crate::paths::ProjectStore,
+    /// Canonical workspace paths allowed to use `<workspace>/.neuromesh`
+    /// while `project_store` stays `managed`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trust_local: Vec<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        let data_dir = home_dir.join(".neuromesh");
-
         Self {
             host: "127.0.0.1".into(),
             port: Self::DEFAULT_PORT,
-            data_dir,
+            data_dir: crate::paths::neuromesh_home(),
             mode: OptimizationMode::Balanced,
             provider: ProviderConfig::default(),
             local_ai: LocalAiConfig::default(),
             thresholds: Thresholds::default(),
             max_files: None,
+            project_store: crate::paths::ProjectStore::Managed,
+            trust_local: Vec::new(),
         }
     }
 }
@@ -138,29 +145,48 @@ impl Default for Config {
 impl Config {
     pub const DEFAULT_PORT: u16 = 8765;
 
-    /// Project `.neuromesh/config.json`, then `~/.neuromesh/config.json`, then defaults.
-    /// `NEUROMESH_PORT` and `NEUROMESH_MAX_FILES` win over files.
+    /// Home `config.json`, then the resolved project slot (managed or trusted local).
+    /// Workspace `.neuromesh/config.json` is ignored unless the workspace is trusted.
+    /// `NEUROMESH_PORT`, `NEUROMESH_MAX_FILES`, and `NEUROMESH_STORE` win over files.
     pub fn load() -> Self {
         Self::from_files().with_env_overrides()
     }
 
     pub fn from_files() -> Self {
-        let local = std::env::current_dir()
-            .ok()
-            .map(|d| d.join(".neuromesh").join("config.json"));
-        if let Some(path) = local.as_ref().filter(|p| p.exists()) {
-            if let Some(cfg) = Self::read_file(path) {
-                return cfg;
+        let home = crate::paths::neuromesh_home();
+        let mut cfg = Self::default();
+        let home_cfg = home.join("config.json");
+        if home_cfg.exists() {
+            if let Some(loaded) = Self::read_file(&home_cfg) {
+                cfg = loaded;
             }
         }
-        if let Some(path) = dirs::home_dir().map(|h| h.join(".neuromesh").join("config.json")) {
-            if path.exists() {
-                if let Some(cfg) = Self::read_file(&path) {
-                    return cfg;
+        cfg.data_dir = home;
+        if let Ok(raw) = std::env::var("NEUROMESH_STORE") {
+            if let Ok(store) = crate::paths::ProjectStore::parse(&raw) {
+                cfg.project_store = store;
+            }
+        }
+        if let Ok(ws) = std::env::current_dir() {
+            let _ = crate::paths::ensure_project_data_dir(&ws);
+            let project_cfg = crate::paths::project_config_path(&ws);
+            if project_cfg.exists() {
+                if let Some(over) = Self::read_file(&project_cfg) {
+                    cfg.overlay_project(over);
                 }
             }
         }
-        Self::default()
+        cfg
+    }
+
+    fn overlay_project(&mut self, other: Self) {
+        self.host = other.host;
+        self.port = other.port;
+        self.max_files = other.max_files;
+        self.mode = other.mode;
+        self.provider = other.provider;
+        self.local_ai = other.local_ai;
+        self.thresholds = other.thresholds;
     }
 
     fn read_file(path: &Path) -> Option<Self> {
@@ -194,11 +220,12 @@ impl Config {
         self
     }
 
-    /// Write `port` / `host` / `max_files` into `<cwd>/.neuromesh/config.json`.
-    /// Merges into the existing project file; never copies `~/.neuromesh` secrets.
+    /// Write `port` / `host` / `max_files` into the resolved project data dir.
+    /// Managed default: `~/.neuromesh/projects/<id>/config.json`.
+    /// Trusted local: `<cwd>/.neuromesh/config.json`.
     pub fn save_local(&self) -> Result<PathBuf> {
-        let dir = std::env::current_dir()?.join(".neuromesh");
-        fs::create_dir_all(&dir)?;
+        let ws = std::env::current_dir()?;
+        let dir = crate::paths::ensure_project_data_dir(&ws)?;
         let path = dir.join("config.json");
         let mut merged = if path.exists() {
             Self::read_file(&path).unwrap_or_default()
