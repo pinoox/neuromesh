@@ -676,6 +676,14 @@ mod tests {
                 assert!(metrics.reduction_vs_workspace >= 0.0);
                 assert!(metrics.reduction_vs_selected >= 0.0);
                 assert_eq!(view.budget_fill_cap, 5_000);
+                if task.id == "handle_tool_call_intent" {
+                    assert!(
+                        view.active_tokens < 27_381,
+                        "{} packet tokens {} must be below the previous 27381 gold table",
+                        task.id,
+                        view.active_tokens
+                    );
+                }
                 assert!(
                     view.budget_fill_used <= view.budget_fill_cap,
                     "{} fill {} exceeded cap {}",

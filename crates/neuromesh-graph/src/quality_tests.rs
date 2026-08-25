@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::NeuralProjectGraph;
-    use neuromesh_core::ProjectId;
+    use neuromesh_core::{NodeType, ProjectId};
     use neuromesh_index::{IndexedFile, SourceLanguage};
     use neuromesh_parser::CodeIntelligenceEngine;
     use std::path::PathBuf;
@@ -1295,6 +1295,69 @@ class SmsReceiver : BroadcastReceiver() {
         assert!(
             card_hits.len() >= 2,
             "both card class definitions should stay searchable, got {card_hits:?}"
+        );
+    }
+
+    #[test]
+    fn java_inner_class_write_nodes_are_distinct() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("gson"));
+        let src = r#"
+package com.google.gson;
+public class TypeAdapter<T> {
+    public void write(JsonWriter out, T value) throws IOException {
+        out.value(String.valueOf(value));
+    }
+    private final class NullSafeTypeAdapter extends TypeAdapter<T> {
+        public void write(JsonWriter out, T value) throws IOException {
+            if (value != null) {
+                out.nullValue();
+            }
+        }
+    }
+}
+"#;
+        let mut file = indexed("gson/TypeAdapter.java");
+        file.language = SourceLanguage::Java;
+        graph.ingest_file(
+            &file,
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("TypeAdapter.java"),
+                src,
+                SourceLanguage::Java,
+            ),
+            Some(src),
+        );
+        graph.finalize_links();
+        let writes: Vec<_> = graph
+            .find_nodes_by_name("write")
+            .into_iter()
+            .filter(|n| n.node_type == NodeType::Function && n.name == "write")
+            .collect();
+        assert_eq!(
+            writes.len(),
+            2,
+            "inner and outer write must both exist: {:?}",
+            writes
+                .iter()
+                .map(|n| (n.id.as_str().to_string(), n.parent.clone()))
+                .collect::<Vec<_>>()
+        );
+        assert_ne!(writes[0].id, writes[1].id);
+        let parents: Vec<Option<String>> = writes.iter().map(|n| n.parent.clone()).collect();
+        assert!(
+            parents.iter().any(|p| p.as_deref() == Some("TypeAdapter")),
+            "outer write parent: {parents:?}"
+        );
+        assert!(
+            parents
+                .iter()
+                .any(|p| p.as_deref() == Some("NullSafeTypeAdapter")),
+            "inner write parent: {parents:?}"
+        );
+        let hits = graph.search_symbols("write", 10);
+        assert!(
+            hits.iter().filter(|h| h.name == "write").count() >= 2,
+            "search must return both write spans: {hits:?}"
         );
     }
 }

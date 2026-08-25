@@ -1,8 +1,8 @@
-use crate::fold::FoldPolicy;
+use crate::fold::{FoldPolicy, OPTIONAL_EXON_BUDGET, SEED_EXON_BUDGET};
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
 use crate::selector::{
-    budget_mode_name, fill_budget, is_noise_path, seed_callee_exon_names, select,
+    budget_mode_name, fill_budget, is_noise_path, packet_cap, seed_callee_exon_names, select,
 };
 use crate::skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan};
 use neuromesh_core::{
@@ -352,12 +352,26 @@ impl ContextActivator {
             active_symbol_names.insert(name);
         }
 
-        let fold_policy = FoldPolicy::from_task(&active_symbol_names, signature);
+        let mut priority_symbols: HashSet<String> = HashSet::new();
+        for seed in &seed_resolutions {
+            if let Some(id) = &seed.resolved_id {
+                if let Some(node) = graph.get_node(id) {
+                    if node.node_type != NodeType::File {
+                        priority_symbols.insert(node.name.to_lowercase());
+                    }
+                }
+            }
+            if !seed.query.contains(['/', '\\', '.']) {
+                priority_symbols.insert(seed.query.to_lowercase());
+            }
+        }
+
+        let fold_policy = FoldPolicy::from_task(&active_symbol_names, signature)
+            .with_priority_symbols(priority_symbols);
+        let packet_limit = packet_cap(effective_mode);
 
         let mut active_nodes = Vec::new();
         let mut included: HashSet<NodeId> = HashSet::new();
-        let mut active_tokens = 0;
-        let mut seed_tokens = 0;
         let mut fill_used: usize = 0;
         let mut total_raw_tokens = 0;
         let mut fold_ids = Vec::new();
@@ -368,7 +382,8 @@ impl ContextActivator {
                            scores: &HashMap<NodeId, f32>,
                            seed_energies: &HashMap<NodeId, f32>,
                            seed_reasons: &HashMap<NodeId, String>,
-                           scorer: &crate::scoring::ActivationScorer|
+                           scorer: &crate::scoring::ActivationScorer,
+                           exon_budget: usize|
          -> Option<MaterializedNode> {
             let mut node = graph.get_node(id)?;
             if is_noise_path(&node.file_path) && !seed_set.contains(id) {
@@ -394,13 +409,14 @@ impl ContextActivator {
             });
             let mut folds = Vec::new();
             let mut folded_symbols = Vec::new();
+            let policy = fold_policy.clone().with_exon_budget(exon_budget);
             let raw = if let Some(content) = graph.read_source(&node.file_path) {
                 let raw = neuromesh_core::TokenCounter::count_tokens(&content);
                 let spans = function_spans_for_file(graph, &node.file_path);
                 let skeleton_res = CodeSkeletonizer::skeletonize_with_policy(
                     &node.file_path.to_string_lossy(),
                     &content,
-                    &fold_policy,
+                    &policy,
                     &spans,
                 );
                 for fold in skeleton_res.folds {
@@ -424,6 +440,7 @@ impl ContextActivator {
             })
         };
 
+        let mut seed_items: Vec<MaterializedNode> = Vec::new();
         for id in &selection.required {
             if included.contains(id) {
                 continue;
@@ -434,24 +451,17 @@ impl ContextActivator {
                 &seed_energies,
                 &seed_reasons,
                 &self.scorer,
+                SEED_EXON_BUDGET,
             ) else {
                 continue;
             };
             included.insert(id.clone());
             total_raw_tokens += item.raw_tokens;
-            seed_tokens += item.node.token_cost;
-            active_tokens += item.node.token_cost;
-            fold_ids.extend(item.folds.iter().map(|f| f.fold_id.clone()));
-            all_folds.extend(item.folds);
-            active_nodes.push(ActivatedNodeView {
-                node: item.node,
-                activation_score: item.score,
-                status: ContextStatus::Active,
-                expansion_reason: Some(item.reason),
-                folded_symbols: item.folded_symbols,
-            });
+            seed_items.push(item);
         }
+        let mut seed_tokens = unique_file_tokens(seed_items.iter());
 
+        let mut fill_items: Vec<MaterializedNode> = Vec::new();
         for id in &selection.optional {
             if included.contains(id) {
                 continue;
@@ -462,6 +472,7 @@ impl ContextActivator {
                 &seed_energies,
                 &seed_reasons,
                 &self.scorer,
+                OPTIONAL_EXON_BUDGET,
             ) else {
                 continue;
             };
@@ -479,7 +490,44 @@ impl ContextActivator {
             included.insert(id.clone());
             total_raw_tokens += item.raw_tokens;
             fill_used += cost;
-            active_tokens += cost;
+            fill_items.push(item);
+        }
+
+        let packet_tokens = |seeds: &[MaterializedNode], fill: &[MaterializedNode]| -> usize {
+            unique_file_tokens(seeds.iter().chain(fill.iter()))
+        };
+        while packet_tokens(&seed_items, &fill_items) > packet_limit && !fill_items.is_empty() {
+            let dropped = fill_items.pop().expect("non-empty");
+            fill_used = fill_used.saturating_sub(dropped.node.token_cost.max(1));
+            total_raw_tokens = total_raw_tokens.saturating_sub(dropped.raw_tokens);
+            included.remove(&dropped.node.id);
+            self.registry.register_inactive(
+                &dropped.node,
+                0.2,
+                signature.confidence,
+                dropped.score,
+                None,
+            );
+        }
+        if packet_tokens(&seed_items, &fill_items) > packet_limit {
+            for item in &mut seed_items {
+                let Some(shrunk) = materialize(
+                    &item.node.id,
+                    &selection.scores,
+                    &seed_energies,
+                    &seed_reasons,
+                    &self.scorer,
+                    2,
+                ) else {
+                    continue;
+                };
+                *item = shrunk;
+            }
+            seed_tokens = unique_file_tokens(seed_items.iter());
+        }
+
+        let active_tokens = packet_tokens(&seed_items, &fill_items);
+        for item in seed_items.into_iter().chain(fill_items) {
             fold_ids.extend(item.folds.iter().map(|f| f.fold_id.clone()));
             all_folds.extend(item.folds);
             active_nodes.push(ActivatedNodeView {
@@ -567,7 +615,7 @@ impl ContextActivator {
             budget_seed_tokens: seed_tokens,
             budget_fill_used: fill_used,
             budget_fill_cap: fill_cap,
-            over_budget: fill_used > fill_cap,
+            over_budget: fill_used > fill_cap || active_tokens > packet_limit,
             fold_ids,
             seed_call_coverage: compute_seed_call_coverage(graph, &seed_set, &selected_paths),
             workspace_tokens,
@@ -601,6 +649,32 @@ fn prefer_search_seed(
         return ranked_id;
     }
     hit.id
+}
+
+fn unique_file_tokens<'a, I>(items: I) -> usize
+where
+    I: Iterator<Item = &'a MaterializedNode>,
+{
+    let mut by_path: HashMap<String, (bool, usize)> = HashMap::new();
+    for item in items {
+        let path = item.node.file_path.to_string_lossy().replace('\\', "/");
+        let is_file = item.node.node_type == NodeType::File;
+        let cost = item.node.token_cost;
+        match by_path.get_mut(&path) {
+            Some((had_file, stored)) => {
+                if is_file {
+                    *had_file = true;
+                    *stored = cost;
+                } else if !*had_file {
+                    *stored = (*stored).max(cost);
+                }
+            }
+            None => {
+                by_path.insert(path, (is_file, cost));
+            }
+        }
+    }
+    by_path.values().map(|(_, cost)| *cost).sum()
 }
 
 fn function_spans_for_file(
@@ -879,8 +953,19 @@ pub fn unused_helper() {
         let adapter = r#"
 package com.google.gson;
 public class TypeAdapter<T> {
+    public void write(JsonWriter out, T value) throws IOException {
+        out.value("outer-write");
+        out.value(String.valueOf(value));
+    }
     public TypeAdapter<T> nullSafe() {
         return new NullSafeTypeAdapter();
+    }
+    public void unusedHelper() {
+        int a = 1;
+        int b = 2;
+        int c = 3;
+        int d = 4;
+        int e = a + b + c + d;
     }
     public void writeValue(JsonWriter out, T value) throws IOException {
         out.value(String.valueOf(value));
@@ -950,6 +1035,29 @@ public final class JsonArray {
         );
         graph.finalize_links();
 
+        let writes: Vec<_> = graph
+            .find_nodes_by_name("write")
+            .into_iter()
+            .filter(|n| {
+                n.node_type == NodeType::Function
+                    && n.name == "write"
+                    && n.file_path
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                        .ends_with("TypeAdapter.java")
+            })
+            .collect();
+        assert_eq!(
+            writes.len(),
+            2,
+            "TypeAdapter.write and NullSafeTypeAdapter.write must be distinct: {:?}",
+            writes
+                .iter()
+                .map(|n| (n.id.as_str().to_string(), n.parent.clone()))
+                .collect::<Vec<_>>()
+        );
+        assert_ne!(writes[0].id, writes[1].id);
+
         let registry = Arc::new(ReversibleContextRegistry::new());
         let activator = ContextActivator::new(registry.clone());
         let signature = TaskSignatureExtractor::extract(
@@ -968,15 +1076,20 @@ public final class JsonArray {
                         .ends_with("TypeAdapter.java")
             })
             .expect("TypeAdapter.java in packet");
-        assert!(
-            !adapter_node.folded_symbols.iter().any(|s| s == "write"),
-            "NullSafeTypeAdapter.write must stay an exon, folded={:?}",
-            adapter_node.folded_symbols
-        );
         let skeleton = adapter_node.node.content.as_deref().unwrap_or("");
         assert!(
             skeleton.contains("out.nullValue()"),
-            "buggy write body must be visible: {skeleton}"
+            "buggy NullSafeTypeAdapter.write body must be visible: {skeleton}"
+        );
+        assert!(
+            !skeleton.contains("int e = a + b + c + d"),
+            "unrelated helper body must not ship: {skeleton}"
+        );
+        assert!(
+            skeleton.len() < adapter.len(),
+            "windowed skeleton {} should be thinner than the raw file {}",
+            skeleton.len(),
+            adapter.len()
         );
         if !view.fold_ids.is_empty() {
             let engine = crate::expansion::ExpansionEngine::new(registry);
@@ -1001,6 +1114,66 @@ public final class JsonArray {
                 "marker text from the packet must resolve"
             );
         }
+    }
+
+    fn bulky_fn(name: &str, marker: &str, lines: usize) -> String {
+        let mut src = format!("pub fn {name}() {{\n    let {marker} = 1;\n");
+        for _ in 0..lines {
+            src.push_str("    let x = 1;\n");
+        }
+        src.push_str(&format!("    {marker}\n}}\n"));
+        src
+    }
+
+    #[test]
+    fn packet_cap_shrinks_seed_exons_not_the_top_method() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("cap"));
+        let src = format!(
+            "{}\n{}\n{}\n{}",
+            bulky_fn("keepHot", "marker_keep_hot", 800),
+            bulky_fn("otherA", "marker_other_a", 800),
+            bulky_fn("otherB", "marker_other_b", 800),
+            bulky_fn("otherC", "marker_other_c", 800),
+        );
+        graph.ingest_file(
+            &indexed("src/keep_hot.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("keep_hot.rs"),
+                &src,
+                SourceLanguage::Rust,
+            ),
+            Some(&src),
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let signature = TaskSignatureExtractor::extract(
+            "How do keepHot, otherA, otherB, and otherC compute their values?",
+        );
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        let packet = view
+            .active_nodes
+            .iter()
+            .find(|n| n.node.node_type == NodeType::File)
+            .expect("seed file stays in the packet");
+        let skeleton = packet.node.content.as_deref().unwrap_or("");
+        assert!(
+            skeleton.contains("marker_keep_hot"),
+            "top-scored keepHot must stay open: {skeleton}"
+        );
+        assert!(
+            !skeleton.contains("marker_other_c"),
+            "reducing K must fold the lowest seed exon, not the top method: {skeleton}"
+        );
+        assert!(
+            view.active_tokens <= packet_cap(OptimizationMode::Balanced),
+            "packet {} exceeded balanced cap {}",
+            view.active_tokens,
+            packet_cap(OptimizationMode::Balanced)
+        );
+        assert!(!packet.folded_symbols.iter().any(|s| s == "keepHot"));
+        assert!(packet.folded_symbols.iter().any(|s| s == "otherC"));
     }
 
     #[test]

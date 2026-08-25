@@ -39,8 +39,17 @@ impl NodeId {
     }
 
     pub fn from_symbol(file_path: &str, symbol: &str) -> Self {
+        Self::from_symbol_parts(file_path, symbol, None)
+    }
+
+    /// Qualify by enclosing type so `TypeAdapter.write` and
+    /// `NullSafeTypeAdapter.write` are distinct nodes in the same file.
+    pub fn from_symbol_parts(file_path: &str, symbol: &str, parent: Option<&str>) -> Self {
         let normalized = file_path.replace('\\', "/");
-        Self(Arc::from(format!("sym:{normalized}:{symbol}")))
+        match parent.map(str::trim).filter(|p| !p.is_empty()) {
+            Some(parent) => Self(Arc::from(format!("sym:{normalized}:{parent}.{symbol}"))),
+            None => Self(Arc::from(format!("sym:{normalized}:{symbol}"))),
+        }
     }
 
     pub fn random() -> Self {
@@ -385,4 +394,31 @@ pub struct OptimizationMetadata {
     pub latency_ms: u64,
     pub success: bool,
     pub timestamp: DateTime<Utc>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NodeId;
+
+    #[test]
+    fn symbol_node_id_includes_enclosing_type() {
+        let outer =
+            NodeId::from_symbol_parts("gson/TypeAdapter.java", "write", Some("TypeAdapter"));
+        let inner = NodeId::from_symbol_parts(
+            "gson/TypeAdapter.java",
+            "write",
+            Some("NullSafeTypeAdapter"),
+        );
+        assert_ne!(outer, inner);
+        assert_eq!(
+            outer.as_str(),
+            "sym:gson/TypeAdapter.java:TypeAdapter.write"
+        );
+        assert_eq!(
+            inner.as_str(),
+            "sym:gson/TypeAdapter.java:NullSafeTypeAdapter.write"
+        );
+        let bare = NodeId::from_symbol("gson/TypeAdapter.java", "write");
+        assert_eq!(bare.as_str(), "sym:gson/TypeAdapter.java:write");
+    }
 }

@@ -14,6 +14,9 @@ Thresholds locked in tests:
 - `expand_fold` restores a registered body without reading the disk
 - activation under **150 ms** in the debug gold test on this repo (cargo test is parallel; isolated runs sit nearer 60 ms)
 - skeletonizer folds **bodies** from graph/tree-sitter spans; seed callees stay exons; fill caps stay 0 / 5k / 16k extra tokens
+- after skeletonization, the packet itself is capped (6k / 12k / 24k) by dropping optional files then reducing per-file exons; gold still measures **file-path** recall
+- each seed file keeps at most **4** open bodies (optional files **1**); the skeleton is a window (imports + enclosing type + top spans), not the whole file
+- symbol `NodeId` includes the enclosing type so inner-class methods are distinct spans
 - the graph stores **no file bodies**: a loaded snapshot has `content = None` on every node, and source is read on demand for skeleton/fold
 - snapshot cold load and a single-file reindex must each stay at or under a full workspace index
 
@@ -72,6 +75,6 @@ The walker compares size + mtime before reading, so an unchanged tree is a metad
 
 Re-ingesting one file re-queues the **inbound** `Calls`/`Imports` edges that pointed at its symbols, so callers keep their edges without a full reindex (`reingest_file_relinks_inbound_calls`).
 
-Fill caps: `max_savings` = 0 extra tokens, `balanced` = 5,000, `max_quality` = 16,000. Reduction is versus **this workspace**, not a fake 25k dump.
+Fill caps: `max_savings` = 0 extra tokens, `balanced` = 5,000, `max_quality` = 16,000. Packet caps after skeletonization: 6,000 / 12,000 / 24,000. Reduction is versus **this workspace**, not a fake 25k dump.
 
 Token savings from skeletonization are **per file and per task**. There is no universal 99% claim.

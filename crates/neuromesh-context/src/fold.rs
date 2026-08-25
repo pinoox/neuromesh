@@ -65,12 +65,34 @@ const STOPWORDS: &[&str] = &[
 ];
 
 /// Names the skeletonizer should keep open, plus prompt tokens for scoring.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct FoldPolicy {
     pub active_symbols: HashSet<String>,
     pub ident_tokens: HashSet<String>,
     pub prompt_tokens: HashSet<String>,
     pub verb_exons: HashSet<String>,
+    pub exon_budget: usize,
+    /// Resolved seed / callee names. Rank above prompt identifiers so K
+    /// never folds the method the packet is for.
+    pub priority_symbols: HashSet<String>,
+}
+
+pub const SEED_EXON_BUDGET: usize = 4;
+pub const OPTIONAL_EXON_BUDGET: usize = 1;
+/// Weak lexical hits below this stay folded even when K has room.
+const EXON_SCORE_FLOOR: f32 = 25.0;
+
+impl Default for FoldPolicy {
+    fn default() -> Self {
+        Self {
+            active_symbols: HashSet::new(),
+            ident_tokens: HashSet::new(),
+            prompt_tokens: HashSet::new(),
+            verb_exons: HashSet::new(),
+            exon_budget: SEED_EXON_BUDGET,
+            priority_symbols: HashSet::new(),
+        }
+    }
 }
 
 impl FoldPolicy {
@@ -86,15 +108,18 @@ impl FoldPolicy {
             }
         }
         Self {
-            active_symbols,
+            active_symbols: active_symbols.clone(),
             ident_tokens,
             prompt_tokens: HashSet::new(),
             verb_exons: HashSet::new(),
+            exon_budget: SEED_EXON_BUDGET,
+            priority_symbols: active_symbols,
         }
     }
 
     pub fn from_task(symbols: &HashSet<String>, signature: &TaskSignature) -> Self {
         let mut policy = Self::from_symbols(symbols);
+        policy.priority_symbols.clear();
         for ident in &signature.identifiers {
             policy.active_symbols.insert(ident.to_lowercase());
             for tok in tokenize_name(ident) {
@@ -119,6 +144,51 @@ impl FoldPolicy {
         policy
     }
 
+    pub fn with_exon_budget(mut self, budget: usize) -> Self {
+        self.exon_budget = budget.max(1);
+        self
+    }
+
+    pub fn with_priority_symbols(mut self, names: HashSet<String>) -> Self {
+        for name in names {
+            self.priority_symbols.insert(name.to_lowercase());
+            self.priority_symbols.insert(name);
+        }
+        self
+    }
+
+    /// Pick at most `exon_budget` bodies, highest score first.
+    /// Exact seeds (100) rank above compound/verb hits, so reducing K
+    /// never folds the top-scored method to make room for a weaker one.
+    pub fn select_exons(&self, scores: &[f32]) -> HashSet<usize> {
+        let budget = self.exon_budget.max(1);
+        let mut order: Vec<(f32, usize)> = scores
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(idx, score)| (score, idx))
+            .collect();
+        order.sort_by(|a, b| {
+            b.0.partial_cmp(&a.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.1.cmp(&b.1))
+        });
+        let mut picked = HashSet::new();
+        for (score, idx) in &order {
+            if picked.len() >= budget {
+                break;
+            }
+            if *score >= 100.0 || *score >= EXON_SCORE_FLOOR {
+                picked.insert(*idx);
+                continue;
+            }
+            if picked.is_empty() && *score > 0.0 {
+                picked.insert(*idx);
+            }
+        }
+        picked
+    }
+
     pub fn keep_open(&self, name: &str, owner: Option<&str>, body: &str) -> bool {
         if is_seed_exon(name, &self.active_symbols) {
             return true;
@@ -130,6 +200,9 @@ impl FoldPolicy {
     }
 
     pub fn score(&self, name: &str, owner: Option<&str>, signature: &str, body: &str) -> f32 {
+        if is_seed_exon(name, &self.priority_symbols) {
+            return 200.0;
+        }
         if is_seed_exon(name, &self.active_symbols) {
             return 100.0;
         }
@@ -462,5 +535,23 @@ mod tests {
         let verbs = infer_verb_exons("values are serialized as null");
         assert!(verbs.contains("write"));
         assert!(!verbs.contains("read"));
+    }
+
+    #[test]
+    fn exon_budget_keeps_top_scores_only() {
+        let policy = FoldPolicy::default().with_exon_budget(1);
+        let picked = policy.select_exons(&[8.0, 40.0, 12.0]);
+        assert_eq!(picked, HashSet::from([1]));
+        let with_seed = FoldPolicy::default().with_exon_budget(1);
+        let picked = with_seed.select_exons(&[40.0, 100.0, 90.0]);
+        assert_eq!(picked, HashSet::from([1]), "K=1 still keeps the exact seed");
+        let picked = FoldPolicy::default()
+            .with_exon_budget(2)
+            .select_exons(&[40.0, 100.0, 90.0]);
+        assert!(picked.contains(&1) && picked.contains(&2));
+        let only_seeds = FoldPolicy::default()
+            .with_exon_budget(1)
+            .select_exons(&[100.0, 100.0, 100.0]);
+        assert_eq!(only_seeds, HashSet::from([0]), "K caps even exact seeds");
     }
 }
