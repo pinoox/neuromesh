@@ -87,7 +87,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "neuromesh_expand_fold",
             "Expand fold",
-            "Reversibly expand a folded intron or inactive node to retrieve full source code.",
+            "Reversibly expand a folded intron or inactive node to retrieve full source code. Pass the fold_id printed in the packet as fold_id, node_id, or query (next_actions uses query).",
             json!({
                 "type": "object",
                 "properties": {
@@ -98,6 +98,10 @@ pub fn tools_list() -> Vec<Value> {
                     "fold_id": {
                         "type": "string",
                         "description": "Alias for node_id when expanding a [neuromesh:fold] marker"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Alias used by next_actions — the fold_id printed in the packet"
                     },
                     "reason": {
                         "type": "string",
@@ -252,5 +256,16 @@ mod tests {
         assert!(ctx["inputSchema"]["properties"].get("prompt").is_some());
         assert!(ctx["inputSchema"]["properties"].get("task").is_some());
         assert_eq!(ctx["annotations"]["readOnlyHint"], true);
+    }
+
+    #[test]
+    fn expand_fold_accepts_query_alias() {
+        let tools = tools_list();
+        let expand = tools
+            .iter()
+            .find(|t| t["name"] == "neuromesh_expand_fold")
+            .unwrap();
+        assert!(expand["inputSchema"]["properties"].get("query").is_some());
+        assert!(expand["inputSchema"]["properties"].get("fold_id").is_some());
     }
 }

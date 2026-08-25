@@ -2,6 +2,20 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
+## Unreleased
+
+## 0.7.0 — 2026-08-26
+
+Accurate cheaper packets: task-matched methods stay open, windows replace whole-file skeletons, and a hard packet cap cuts cost.
+
+- **Task exons.** Skeletonization scores each function against the prompt (`nullSafe` + `TypeAdapter` → `NullSafeTypeAdapter.write`, `serialized` → `write`). The closest match stays open instead of folding the exact body an agent needs to diagnose.
+- **Stable fold ids.** Markers are unique across files (`fold_write_4_<tag>`), so a later `JsonWriter.write` cannot overwrite `TypeAdapter.write` in the session registry.
+- **`expand_fold` accepts `query`.** `next_actions` already pass `query`; the tool now reads `fold_id`, `node_id`, or `query`, including the full `[neuromesh:fold:…]` marker. Prefix lookup still finds the printed id.
+- **Ranked `next_actions`.** Expand suggestions prefer high-scoring folds, not the first three in packet order.
+- **Windowed packets.** Each file keeps at most K open bodies (seed `K=4`, optional `K=1`), ranked by task score. The skeleton emits imports, the enclosing type, those exons, and fold markers for sibling methods in the same type — not the rest of the file.
+- **Packet cap.** After skeletonization, balanced packets are capped at 12k tokens (6k / 24k for max_savings / max_quality). Optional files drop first; then seed K shrinks 4→2. The top-scored method stays open. Fill caps stay 0 / 5k / 16k extra tokens.
+- **Qualified symbol ids.** `NodeId` is `sym:{path}:{parent}.{name}` when the symbol has an enclosing type, so `TypeAdapter.write` and `NullSafeTypeAdapter.write` are distinct spans.
+
 ## 0.6.9 — 2026-08-25
 
 Compact incremental mesh, managed store, usage telemetry, and multi-client MCP connect.

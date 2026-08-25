@@ -50,7 +50,7 @@ impl NodeFactory {
         parent: Option<String>,
     ) -> ContextNode {
         let path_str = file_path.to_string_lossy();
-        let id = NodeId::from_symbol(&path_str, &name);
+        let id = NodeId::from_symbol_parts(&path_str, &name, parent.as_deref());
 
         ContextNode {
             id,

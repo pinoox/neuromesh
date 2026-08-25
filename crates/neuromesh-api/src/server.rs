@@ -748,6 +748,8 @@ impl HttpServer {
                 let node_id = body_json["node_id"]
                     .as_str()
                     .or_else(|| body_json["fold_id"].as_str())
+                    .or_else(|| body_json["query"].as_str())
+                    .or_else(|| body_json["id"].as_str())
                     .unwrap_or("");
                 let reason = body_json["reason"].as_str().unwrap_or("UI Monitor request");
 

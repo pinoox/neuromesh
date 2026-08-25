@@ -45,7 +45,7 @@ Start with `get_context`. `next_actions` say when to `neuromesh_expand_fold`. Gr
 | Tool | Input | Returns |
 | :--- | :--- | :--- |
 | `neuromesh_get_context` | `task_description`, `prompt`, or `task`; optional `mode` | Evidence packet |
-| `neuromesh_expand_fold` | `fold_id` or `node_id`, optional `reason` | Original folded body |
+| `neuromesh_expand_fold` | `fold_id`, `node_id`, or `query` (the field `next_actions` uses); optional `reason` | Original folded body |
 | `neuromesh_get_file_skeleton` | `file_path`, optional `active_symbols` | One skeletonized file |
 | `neuromesh_search_symbols` | `query`, optional `limit` | Ranked hits |
 | `neuromesh_get_dependencies` | name or path | Typed neighbors |
@@ -82,4 +82,4 @@ Markers look like:
 /* [neuromesh:fold:fold_unused_helper_1 | 12 lines folded | fn unused_helper()] */
 ```
 
-Pass that `fold_id` to `neuromesh_expand_fold`. Folds persist for the **MCP session** (same process, same project). They are not cleared on every `get_context`. A new project id wipes the registry.
+Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `query` (the last is what `next_actions` send). The full marker line also works. Folds persist for the **MCP session** (same process, same project). They are not cleared on every `get_context`. A new project id wipes the registry. Ids include a short path tag so two files that both fold `write` do not collide.

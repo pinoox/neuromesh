@@ -224,6 +224,7 @@ impl McpToolHandler {
                         "symbols": symbols,
                         "unresolved": view.unresolved,
                         "coverage": view.coverage,
+                        "fold_ids": view.fold_ids,
                         "next_actions": view.next_actions,
                         "budget": {
                             "used": view.budget_used,
@@ -274,6 +275,11 @@ impl McpToolHandler {
 
                 if let Some(content) = content_opt {
                     let res = CodeSkeletonizer::skeletonize(file_path, &content, &active_symbols);
+                    for fold in &res.folds {
+                        self.expansion_engine
+                            .registry()
+                            .register_fold(std::path::PathBuf::from(file_path), fold.clone());
+                    }
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
                     neuromesh_observability::record_global_telemetry(
@@ -317,15 +323,17 @@ impl McpToolHandler {
             // 3. Reversibly Expand Folded Intron or Inactive Context
             "neuromesh_expand_fold" | "expand_context" => {
                 let start_time = std::time::Instant::now();
-                let node_id_str = arguments["node_id"]
-                    .as_str()
-                    .or_else(|| arguments["fold_id"].as_str())
-                    .unwrap_or("");
+                let node_id_str = read_fold_query(arguments);
                 let reason = arguments["reason"]
                     .as_str()
                     .unwrap_or("Agent requested expansion");
 
-                if let Some(fold) = self.expansion_engine.expand_fold(node_id_str) {
+                if node_id_str.is_empty() {
+                    Ok(json!({
+                        "success": false,
+                        "error": "Node or fold not found in reversible registry: missing fold_id (pass fold_id, node_id, or query from next_actions)"
+                    }))
+                } else if let Some(fold) = self.expansion_engine.expand_fold(&node_id_str) {
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
                     let file_id = NodeId::from_file_path(&fold.file_path);
                     let cache_hit = self.mycelium_file_hit(&file_id);
@@ -346,7 +354,7 @@ impl McpToolHandler {
                     }))
                 } else if let Some((view, audit)) = self
                     .expansion_engine
-                    .expand_node(&NodeId::new(node_id_str), reason)
+                    .expand_node(&NodeId::new(&node_id_str), reason)
                 {
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
@@ -559,6 +567,15 @@ impl McpToolHandler {
     }
 }
 
+fn read_fold_query(arguments: &Value) -> String {
+    ["fold_id", "node_id", "query", "id", "name"]
+        .into_iter()
+        .find_map(|k| arguments.get(k).and_then(Value::as_str))
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
 fn read_task_description(arguments: &Value) -> Result<String> {
     let raw = [
         "task_description",
@@ -719,6 +736,78 @@ mod tests {
                 .await
                 .expect("text alias should populate the prompt");
             assert!(via_text.get("evidence_packet").is_some());
+        });
+    }
+
+    #[test]
+    fn expand_fold_accepts_query_from_next_actions() {
+        let graph = Arc::new(NeuralProjectGraph::new(ProjectId::new("neuromesh")));
+        let tools = r#"
+pub fn handle_tool_call() {
+    let signature = 1;
+    signature
+}
+pub fn unused_helper() {
+    let x = 1;
+    let y = 2;
+    let z = 3;
+    let w = 4;
+    x + y + z + w
+}
+"#;
+        graph.ingest_file(
+            &indexed("src/tools.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("tools.rs"),
+                tools,
+                SourceLanguage::Rust,
+            ),
+            Some(tools),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let handler = McpToolHandler::new(
+            graph,
+            Arc::new(ContextActivator::new(registry.clone())),
+            Arc::new(ExpansionEngine::new(registry)),
+            Arc::new(MemoryDatabase::open_in_memory().unwrap()),
+            Arc::new(RwLock::new(WorkingMemory::default())),
+        );
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does handle_tool_call work?" }),
+                )
+                .await
+                .expect("packet");
+            let fold_id = packet["evidence_packet"]["fold_ids"]
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|v| v.as_str())
+                .or_else(|| {
+                    packet["evidence_packet"]["next_actions"]
+                        .as_array()
+                        .and_then(|actions| {
+                            actions.iter().find_map(|a| {
+                                (a["tool"] == "neuromesh_expand_fold")
+                                    .then(|| a["query"].as_str())
+                                    .flatten()
+                            })
+                        })
+                })
+                .expect("fold id from packet or next_actions")
+                .to_string();
+            let expanded = handler
+                .handle_tool_call("neuromesh_expand_fold", &json!({ "query": fold_id }))
+                .await
+                .expect("query alias must expand the printed fold");
+            assert_eq!(expanded["success"], true);
+            assert!(expanded["original_body"]
+                .as_str()
+                .unwrap_or("")
+                .contains("let w = 4"));
         });
     }
 }

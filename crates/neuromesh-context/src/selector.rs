@@ -12,6 +12,16 @@ pub fn fill_budget(mode: OptimizationMode) -> usize {
     }
 }
 
+/// Hard cap on the whole packet (seeds + fill) after skeletonization.
+/// Seeds are never dropped; optionals go first, then seed exon budget shrinks.
+pub fn packet_cap(mode: OptimizationMode) -> usize {
+    match mode {
+        OptimizationMode::MaxSavings => 6_000,
+        OptimizationMode::Balanced => 12_000,
+        OptimizationMode::MaxQuality => 24_000,
+    }
+}
+
 pub fn token_budget(mode: OptimizationMode) -> usize {
     fill_budget(mode)
 }
@@ -812,6 +822,16 @@ pub fn target() {
         );
         assert!(selected.optional.is_empty());
         assert_eq!(selected.budget_cap, 0);
+    }
+
+    #[test]
+    fn packet_cap_is_separate_from_fill_budget() {
+        assert_eq!(fill_budget(OptimizationMode::MaxSavings), 0);
+        assert_eq!(fill_budget(OptimizationMode::Balanced), 5_000);
+        assert_eq!(fill_budget(OptimizationMode::MaxQuality), 16_000);
+        assert_eq!(packet_cap(OptimizationMode::MaxSavings), 6_000);
+        assert_eq!(packet_cap(OptimizationMode::Balanced), 12_000);
+        assert_eq!(packet_cap(OptimizationMode::MaxQuality), 24_000);
     }
 
     #[test]
