@@ -17,7 +17,7 @@ NeuroMesh does the same thing to your repository: a neural graph in RAM, reversi
 
 Local-first [MCP](https://modelcontextprotocol.io/) · Cursor · Codex · Antigravity · VS Code · Claude · Kilo · Trae
 
-[The pain](#the-pain) · [The idea](#dont-delete-fold) · [Install](#install) · [Connect](#connect) · [Docs](docs/README.md)
+[The pain](#the-pain) · [The idea](#dont-delete-fold) · [Galaxy](#3d-neural-galaxy) · [Install](#install) · [Connect](#connect) · [Docs](docs/README.md)
 
 </div>
 
@@ -78,6 +78,29 @@ The agent still sees the *shape* of the file — signatures, imports, neighbors 
 The philosophy of the social pitch is right: **a graph in RAM, a short path, the rest dormant.** After seeds resolve, neighborhood Physarum grows tubes between them (under 20ms, skipped if the subgraph is huge). Fill still respects the token cap. `record_feedback` is how synapses change the next packet.
 
 Play with the metaphors and the crates: [docs/nature.md](docs/nature.md).
+
+---
+
+## 3D Neural Galaxy
+
+`neuromesh monitor` is the live mesh: subsystems as a constellation, then the file graph, then the symbols inside a module.
+
+<p align="center">
+  <img src="docs/assets/galaxy-constellation.jpg" alt="Macro constellation of project subsystems in the 3D Neural Galaxy" width="900">
+</p>
+<p align="center"><sub>Constellation — crates and subsystems</sub></p>
+
+<p align="center">
+  <img src="docs/assets/galaxy-3d.jpg" alt="3D Neural Galaxy file graph with Physarum slime tubes" width="900">
+</p>
+<p align="center"><sub>3D galaxy — files and synapses; Play slime grows Physarum tubes</sub></p>
+
+<p align="center">
+  <img src="docs/assets/galaxy-module.jpg" alt="Module zoom showing Core files and function symbols" width="900">
+</p>
+<p align="center"><sub>Module zoom — files and AST symbols in one crate</sub></p>
+
+Default URL: [http://127.0.0.1:8765](http://127.0.0.1:8765). Port: `neuromesh port`.
 
 ---
 
@@ -194,7 +217,7 @@ That writes an **absolute** `command` (this binary) plus `args: ["mcp", "<worksp
 
 It finds the git / Cargo / `package.json` root. It **refuses** `$HOME` and drive roots (that is how you accidentally index 11k junk files).
 
-**3D galaxy UI** of the live graph: `neuromesh monitor` → [http://127.0.0.1:8765](http://127.0.0.1:8765) by default.
+**3D galaxy UI** of the live graph: [screenshots above](#3d-neural-galaxy) · `neuromesh monitor` → [http://127.0.0.1:8765](http://127.0.0.1:8765) by default.
 
 ### Monitor port
 
