@@ -359,17 +359,8 @@ fn pinoox_view_render_overlay(content: &str, ast: &mut AstAnalysisResult) {
         }
         let stem = raw.trim_end_matches(".twig");
         let hint = format!("theme/{theme}/{stem}.twig");
-        let source = ast
-            .symbols
-            .iter()
-            .find(|s| matches!(s.symbol_type, NodeType::Class | NodeType::Component))
-            .or_else(|| {
-                ast.symbols
-                    .iter()
-                    .find(|s| s.symbol_type == NodeType::Function)
-            })
-            .map(|s| s.name.clone())
-            .unwrap_or_else(|| "index".to_string());
+        let call_line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let source = overlay_call_source(ast, call_line);
         ast.relationships.push(ParsedRelationship {
             source_symbol: source,
             target_symbol: stem.to_string(),
@@ -378,6 +369,39 @@ fn pinoox_view_render_overlay(content: &str, ast: &mut AstAnalysisResult) {
             receiver_hint: None,
         });
     }
+}
+
+/// Prefer the function whose span contains the call so `trace` on
+/// `MainController::index` sees the Twig edge, not only the class node.
+fn overlay_call_source(ast: &AstAnalysisResult, call_line: usize) -> String {
+    let mut best: Option<(&str, usize)> = None;
+    for symbol in &ast.symbols {
+        if symbol.symbol_type != NodeType::Function {
+            continue;
+        }
+        if symbol.line_range.start <= call_line && call_line < symbol.line_range.end {
+            let span = symbol
+                .line_range
+                .end
+                .saturating_sub(symbol.line_range.start);
+            if best.map(|(_, current)| span < current).unwrap_or(true) {
+                best = Some((symbol.name.as_str(), span));
+            }
+        }
+    }
+    if let Some((name, _)) = best {
+        return name.to_string();
+    }
+    ast.symbols
+        .iter()
+        .find(|s| matches!(s.symbol_type, NodeType::Class | NodeType::Component))
+        .or_else(|| {
+            ast.symbols
+                .iter()
+                .find(|s| s.symbol_type == NodeType::Function)
+        })
+        .map(|s| s.name.clone())
+        .unwrap_or_else(|| "index".to_string())
 }
 
 fn extract_pinoox_theme(content: &str) -> String {
@@ -1473,18 +1497,23 @@ mod tests {
 
     #[test]
     fn pinoox_view_render_links_twig() {
-        let src = "<?php class MainController { public function index() { return View::render('hello'); } }\n";
+        let src = "<?php class MainController extends Controller { public function index() { return View::render('hello', [\"title\" => \"Hi\"]); } }\n";
         let ast = analyze("Controller/MainController.php", src, SourceLanguage::PHP);
-        assert!(
-            ast.relationships.iter().any(|r| {
+        let rel = ast
+            .relationships
+            .iter()
+            .find(|r| {
                 r.relationship == EdgeType::Calls
                     && r.target_file_hint
                         .as_deref()
                         .is_some_and(|h| h == "theme/default/hello.twig")
-            }),
-            "relationships = {:?}",
-            ast.relationships
+            })
+            .expect("View::render should emit a Calls hint to the Twig file");
+        assert_eq!(
+            rel.source_symbol, "index",
+            "edge must attach to the rendering method so trace(MainController::index) sees it: {rel:?}"
         );
+        assert_eq!(rel.target_symbol, "hello");
     }
 
     #[test]

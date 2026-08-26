@@ -8,6 +8,10 @@ mod tests {
     use std::time::Instant;
 
     fn indexed(rel: &str) -> IndexedFile {
+        indexed_lang(rel, SourceLanguage::Rust)
+    }
+
+    fn indexed_lang(rel: &str, language: SourceLanguage) -> IndexedFile {
         IndexedFile {
             project_id: ProjectId::new("neuromesh"),
             relative_path: PathBuf::from(rel),
@@ -15,7 +19,7 @@ mod tests {
             blake3_hash: "test".into(),
             byte_size: 100,
             token_count: 80,
-            language: SourceLanguage::Rust,
+            language,
             last_modified: chrono::Utc::now(),
         }
     }
@@ -1358,6 +1362,138 @@ public class TypeAdapter<T> {
         assert!(
             hits.iter().filter(|h| h.name == "write").count() >= 2,
             "search must return both write spans: {hits:?}"
+        );
+    }
+
+    fn ingest_lang(graph: &NeuralProjectGraph, rel: &str, src: &str, language: SourceLanguage) {
+        graph.ingest_file(
+            &indexed_lang(rel, language),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from(rel), src, language),
+            Some(src),
+        );
+    }
+
+    #[test]
+    fn pinoox_view_render_calls_twig_file_not_hello_symbol() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("pinoox"));
+        ingest_lang(
+            &graph,
+            "Controller/MainController.php",
+            r#"<?php
+class MainController extends Controller {
+    public function index() {
+        return View::render('hello', ['title' => 'Hi']);
+    }
+}
+"#,
+            SourceLanguage::PHP,
+        );
+        ingest_lang(
+            &graph,
+            "Helper/Greeter.php",
+            r#"<?php
+class Greeter {
+    public function hello() {
+        return 'hi';
+    }
+}
+"#,
+            SourceLanguage::PHP,
+        );
+        ingest_lang(
+            &graph,
+            "theme/default/hello.twig",
+            "<html><title>{{ title }}</title><p>{{ message }}</p></html>\n",
+            SourceLanguage::Twig,
+        );
+        ingest_lang(
+            &graph,
+            "theme/default/layout.twig",
+            "<html>{% block body %}{% endblock %}</html>\n",
+            SourceLanguage::Twig,
+        );
+        ingest_lang(
+            &graph,
+            "routes/web.php",
+            "<?php action([MainController::class, 'index'])->name('home');\n",
+            SourceLanguage::PHP,
+        );
+        graph.finalize_links();
+
+        let index = graph
+            .resolve_unique("index", Some("Controller/MainController.php"))
+            .expect("index method");
+        let qualified = graph
+            .resolve_best("MainController::index")
+            .expect("Type::method resolves to the index method");
+        assert_eq!(qualified.id, index);
+        let hello_hits = graph.search_symbols("hello", 5);
+        assert!(
+            hello_hits.iter().any(|h| {
+                h.file_path
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                    .ends_with("theme/default/hello.twig")
+            }),
+            "hello.twig must be searchable, got {:?}",
+            hello_hits
+                .iter()
+                .map(|h| format!("{}:{}", h.name, h.file_path.display()))
+                .collect::<Vec<_>>()
+        );
+        let neighbors = graph.get_neighbor_views(&index);
+        assert!(
+            neighbors.iter().any(|n| {
+                n.edge.edge_type == neuromesh_core::EdgeType::Calls
+                    && n.node
+                        .file_path
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                        .ends_with("theme/default/hello.twig")
+            }),
+            "index must Call the Twig file, neighbors={:?}",
+            neighbors
+                .iter()
+                .map(|n| format!(
+                    "{:?}:{}:{}",
+                    n.edge.edge_type,
+                    n.node.name,
+                    n.node.file_path.to_string_lossy()
+                ))
+                .collect::<Vec<_>>()
+        );
+        let hint = graph
+            .resolve_file_hint("theme/default/hello.twig")
+            .expect("unique twig file hint");
+        assert!(graph.get_node(&hint).is_some_and(|n| n
+            .file_path
+            .to_string_lossy()
+            .replace('\\', "/")
+            .ends_with("theme/default/hello.twig")));
+        let trace = graph.trace_symbol("MainController::index", crate::TraceDirection::Both, 3);
+        assert!(
+            trace.callees.iter().any(|h| {
+                h.file_path
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                    .contains("hello.twig")
+            }) || trace.hops.iter().any(|h| {
+                h.to.file_path
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                    .contains("hello.twig")
+            }),
+            "trace(MainController::index) must reach hello.twig, callees={:?} hops={:?}",
+            trace
+                .callees
+                .iter()
+                .map(|h| h.file_path.to_string_lossy().to_string())
+                .collect::<Vec<_>>(),
+            trace
+                .hops
+                .iter()
+                .map(|h| h.to.file_path.to_string_lossy().to_string())
+                .collect::<Vec<_>>()
         );
     }
 }

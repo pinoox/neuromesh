@@ -144,10 +144,11 @@ impl NeuralProjectGraph {
         self.index_gate.set(IndexState::Failed);
     }
 
-    /// Wait until the first index finishes when the graph is still empty.
+    /// Wait until the first index finishes. A persist-loaded graph is already Ready.
     pub fn wait_until_indexed(&self, timeout: Duration) -> IndexState {
-        if self.stats().total_nodes > 0 {
-            return IndexState::Ready;
+        let state = self.index_gate.get();
+        if matches!(state, IndexState::Ready | IndexState::Failed) {
+            return state;
         }
         self.index_gate.wait_ready(timeout)
     }
@@ -494,7 +495,25 @@ impl NeuralProjectGraph {
                             Some(&rel.source_file.to_string_lossy()),
                         )
                         .unwrap_or_else(|| file_id.clone());
-                    if let Some((target, confidence)) = self.resolve_call_ranked(
+                    // Overlay templates (`hello` → `theme/default/hello.twig`) must
+                    // bind the file before the stem can steal another symbol.
+                    // Inbound relink stores the callee's source path as a hint;
+                    // that is not a template overlay (stem `lib` ≠ `persist_me`).
+                    let hinted_file = rel
+                        .target_file_hint
+                        .as_deref()
+                        .filter(|hint| template_stem_hint(hint, &rel.target_symbol))
+                        .and_then(|hint| self.resolve_file_hint(hint))
+                        .filter(|target| *target != source);
+                    if let Some(target) = hinted_file {
+                        self.add_edge_with_confidence(
+                            source,
+                            target,
+                            EdgeType::Calls,
+                            EdgeConfidence::Likely,
+                        );
+                        true
+                    } else if let Some((target, confidence)) = self.resolve_call_ranked(
                         &rel.target_symbol,
                         &rel.source_file,
                         &imported_files,
@@ -785,6 +804,44 @@ impl NeuralProjectGraph {
                 return Some(node);
             }
         }
+        if let Some((owner, name)) = query.rsplit_once("::") {
+            let owner = owner.trim();
+            let name = name.trim();
+            if !owner.is_empty() && !name.is_empty() {
+                let typed = {
+                    let data = self.inner.read();
+                    let name_l = name.to_lowercase();
+                    data.name_to_nodes.get(&name_l).and_then(|ids| {
+                        ids.iter().find_map(|id| {
+                            data.mesh.node(id).and_then(|n| {
+                                let parent_ok = n
+                                    .parent
+                                    .as_deref()
+                                    .is_some_and(|p| p.eq_ignore_ascii_case(owner));
+                                let stem_ok = file_stem_equals(&n.file_path, owner);
+                                (parent_ok || stem_ok).then(|| id.clone())
+                            })
+                        })
+                    })
+                };
+                if let Some(id) = typed {
+                    return self.get_node(&id);
+                }
+                if let Some(id) = self.resolve_unique(name, Some(owner)) {
+                    return self.get_node(&id);
+                }
+                let key = format!("{}::{}", owner.to_lowercase(), name.to_lowercase());
+                let impl_id = {
+                    let data = self.inner.read();
+                    data.impl_index
+                        .get(&key)
+                        .and_then(|ids| ids.first().cloned())
+                };
+                if let Some(id) = impl_id {
+                    return self.get_node(&id);
+                }
+            }
+        }
         self.search_symbols(query, 5)
             .into_iter()
             .next()
@@ -825,25 +882,48 @@ impl NeuralProjectGraph {
 
     pub fn resolve_file_hint(&self, hint: &str) -> Option<NodeId> {
         let data = self.inner.read();
+        let hint_norm = normalize_path_hint(hint);
+        let path_like = looks_like_file_path_hint(hint);
         let mut matches = Vec::new();
         for (path, ids) in &data.file_to_nodes {
-            if path_hint_matches(path, hint) {
-                for id in ids {
-                    if data
-                        .mesh
-                        .node(id)
-                        .is_some_and(|n| n.node_type == NodeType::File)
-                    {
-                        matches.push(id.clone());
-                    }
+            let path_s = normalize_path_hint(&path.to_string_lossy());
+            let ok = if path_like {
+                path_s == hint_norm
+                    || path_s.ends_with(&format!("/{hint_norm}"))
+                    || path_s.ends_with(&hint_norm)
+            } else {
+                path_hint_matches(path, hint)
+            };
+            if !ok {
+                continue;
+            }
+            for id in ids {
+                if data
+                    .mesh
+                    .node(id)
+                    .is_some_and(|n| n.node_type == NodeType::File)
+                {
+                    matches.push(id.clone());
                 }
             }
         }
         if matches.len() == 1 {
-            matches.into_iter().next()
-        } else {
-            None
+            return matches.into_iter().next();
         }
+        if path_like && matches.len() > 1 {
+            let suffix: Vec<NodeId> = matches
+                .into_iter()
+                .filter(|id| {
+                    data.mesh.node(id).is_some_and(|n| {
+                        normalize_path_hint(&n.file_path.to_string_lossy()).ends_with(&hint_norm)
+                    })
+                })
+                .collect();
+            if suffix.len() == 1 {
+                return suffix.into_iter().next();
+            }
+        }
+        None
     }
 
     fn resolve_call_target(
@@ -2007,10 +2087,56 @@ fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     if path_echoes_symbol(&node.file_path, query) {
         bonus += 12.0;
     }
+    if file_stem_equals(&node.file_path, query) {
+        bonus += 30.0;
+    }
     if is_fixture_path(&node.file_path) {
         bonus -= 24.0;
     }
     bonus
+}
+
+fn normalize_path_hint(value: &str) -> String {
+    value.replace('\\', "/").replace('-', "_").to_lowercase()
+}
+
+/// Relative file paths (`theme/default/hello.twig`) must not match every
+/// path that merely contains `theme` or `hello`.
+fn looks_like_file_path_hint(hint: &str) -> bool {
+    let hint = hint.replace('\\', "/");
+    let Some((_, ext)) = hint.rsplit_once('.') else {
+        return false;
+    };
+    !ext.is_empty()
+        && ext.len() <= 8
+        && ext.chars().all(|c| c.is_ascii_alphanumeric())
+        && (hint.contains('/') || ext.eq_ignore_ascii_case("twig"))
+}
+
+fn template_stem_hint(hint: &str, target_symbol: &str) -> bool {
+    if !looks_like_file_path_hint(hint) {
+        return false;
+    }
+    let hint = hint.replace('\\', "/");
+    let Some(stem) = Path::new(&hint).file_stem().and_then(|s| s.to_str()) else {
+        return false;
+    };
+    let stem_l = stem.to_lowercase();
+    let target_l = target_symbol
+        .trim()
+        .trim_end_matches(".twig")
+        .to_lowercase();
+    !target_l.is_empty() && (stem_l == target_l || stem_l.starts_with(&format!("{target_l}.")))
+}
+
+fn file_stem_equals(path: &Path, query: &str) -> bool {
+    let query = query.trim();
+    if query.is_empty() {
+        return false;
+    }
+    path.file_stem()
+        .and_then(|s| s.to_str())
+        .is_some_and(|stem| stem.eq_ignore_ascii_case(query))
 }
 
 /// True when a file stem or parent directory repeats the symbol name

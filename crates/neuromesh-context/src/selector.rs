@@ -123,7 +123,7 @@ pub fn select(
     }
 
     const MAX_REQUIRED_CALLEE_FILES: usize = 3;
-    let mut callee_candidates: Vec<(NodeId, String, bool)> = Vec::new();
+    let mut callee_candidates: Vec<(NodeId, String, bool, bool, String)> = Vec::new();
     for seed in seeds {
         let Some(seed_node) = graph.get_node(seed) else {
             continue;
@@ -150,30 +150,46 @@ pub fn select(
             if required.contains(&file_id) {
                 continue;
             }
-            let focus = focus_terms.contains(&node.name.to_lowercase());
+            let stem_focus = focus_terms.iter().any(|t| file_stem_eq(&node.file_path, t));
+            let focus = stem_focus || focus_terms.contains(&node.name.to_lowercase());
             callee_candidates.push((
                 file_id,
                 node.file_path.to_string_lossy().replace('\\', "/"),
                 focus,
+                stem_focus,
+                node.name.to_lowercase(),
             ));
         }
     }
-    callee_candidates.sort_by(|a, b| match (a.2, b.2) {
+    callee_candidates.sort_by(|a, b| match (a.3, b.3) {
         (true, false) => std::cmp::Ordering::Less,
         (false, true) => std::cmp::Ordering::Greater,
-        _ => a.1.cmp(&b.1),
+        _ => match (a.2, b.2) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.1.cmp(&b.1),
+        },
     });
     let mut seen_callee_files: HashSet<NodeId> = HashSet::new();
     let mut added_callees = 0usize;
-    for (file_id, _, _) in callee_candidates {
+    for (file_id, _, _, stem_focus, name) in callee_candidates {
         if !seen_callee_files.insert(file_id.clone()) {
             continue;
         }
         if added_callees >= MAX_REQUIRED_CALLEE_FILES {
             break;
         }
+        if !stem_focus
+            && focus_terms
+                .iter()
+                .any(|t| name == *t && required_owns_term_stem(graph, &required, t))
+        {
+            continue;
+        }
         required.insert(file_id.clone());
-        scores.entry(file_id).or_insert(16.0);
+        scores
+            .entry(file_id)
+            .or_insert(if stem_focus { 18.0 } else { 16.0 });
         added_callees += 1;
     }
 
@@ -355,6 +371,32 @@ pub fn select(
         .into_iter()
         .map(|(id, gain)| (id, gain.min(24.0)))
         .collect();
+    let mut owned_stems: HashSet<String> = HashSet::new();
+    for id in required
+        .iter()
+        .chain(optional_files.iter().map(|(id, _)| id))
+    {
+        if let Some(node) = graph.get_node(id) {
+            if let Some(stem) = node.file_path.file_stem().and_then(|s| s.to_str()) {
+                let stem_l = stem.to_lowercase();
+                if focus_terms.contains(&stem_l) {
+                    owned_stems.insert(stem_l);
+                }
+            }
+        }
+    }
+    optional_files.retain(|(id, _)| {
+        let Some(node) = graph.get_node(id) else {
+            return false;
+        };
+        !owned_stems.iter().any(|t| {
+            !file_stem_eq(&node.file_path, t)
+                && graph.search_symbols(t, 12).iter().any(|hit| {
+                    hit.name.eq_ignore_ascii_case(t)
+                        && graph.file_id_for_path(&hit.file_path).as_ref() == Some(id)
+                })
+        })
+    });
     for term in focus_terms {
         if term.len() < 4 {
             continue;
@@ -363,6 +405,11 @@ pub fn select(
             if let Some(node) = graph.get_node(&id) {
                 if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
                     if required.contains(&file_id) {
+                        continue;
+                    }
+                    if required_owns_term_stem(graph, &required, term)
+                        && !file_stem_eq(&node.file_path, term)
+                    {
                         continue;
                     }
                     if let Some(entry) = optional_files.iter_mut().find(|(fid, _)| *fid == file_id)
@@ -512,6 +559,24 @@ fn crate_dir(path: &Path) -> String {
         .map(|n| n.to_string_lossy().into_owned())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "pkg".into())
+}
+
+fn file_stem_eq(path: &Path, query: &str) -> bool {
+    path.file_stem()
+        .and_then(|s| s.to_str())
+        .is_some_and(|stem| stem.eq_ignore_ascii_case(query))
+}
+
+fn required_owns_term_stem(
+    graph: &NeuralProjectGraph,
+    required: &HashSet<NodeId>,
+    term: &str,
+) -> bool {
+    required.iter().any(|id| {
+        graph
+            .get_node(id)
+            .is_some_and(|n| file_stem_eq(&n.file_path, term))
+    })
 }
 
 pub fn is_noise_path(path: &Path) -> bool {

@@ -107,7 +107,12 @@ impl McpServer {
         let Some(raw) = workspace_path_from_params(params) else {
             return;
         };
-        let p_buf = neuromesh_index::ProjectWalker::discover_workspace(&raw);
+        let raw_path = std::path::PathBuf::from(&raw);
+        let p_buf = if raw_path.is_dir() {
+            neuromesh_index::ProjectWalker::explicit_workspace(&raw_path)
+        } else {
+            neuromesh_index::ProjectWalker::discover_workspace(&raw)
+        };
         if !p_buf.exists()
             || !neuromesh_index::ProjectWalker::is_safe_workspace(&p_buf)
             || self.handler.graph().stats().total_nodes != 0
@@ -147,6 +152,7 @@ impl McpServer {
         match req.method.as_str() {
             "initialize" => {
                 self.maybe_reindex_from_initialize(req.params.as_ref());
+                self.handler.record_session_telemetry();
                 let protocol_version = negotiate_protocol_version(
                     req.params
                         .as_ref()

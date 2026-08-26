@@ -119,6 +119,23 @@ impl ProjectWalker {
         start.to_path_buf()
     }
 
+    /// Honor an explicit MCP/CLI directory instead of walking to a parent git root.
+    /// A nested fixture without `package.json` must stay that folder.
+    pub fn explicit_workspace(start: &Path) -> PathBuf {
+        let dir = if start.is_file() {
+            start
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| start.to_path_buf())
+        } else {
+            start.to_path_buf()
+        };
+        if dir.is_dir() && Self::is_safe_workspace(&dir) {
+            return dir.canonicalize().unwrap_or(dir);
+        }
+        Self::discover_workspace(&dir)
+    }
+
     pub fn is_safe_workspace(path: &Path) -> bool {
         crate::confine::is_safe_workspace(path)
     }
@@ -452,6 +469,28 @@ mod tests {
             report.files[0].0.relative_path
         );
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn explicit_workspace_does_not_walk_to_parent_git() {
+        let auth = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("tests/fixtures/mini-auth")
+            .canonicalize()
+            .expect("mini-auth fixture");
+        assert!(auth.ends_with("mini-auth"), "{}", auth.display());
+        let explicit = ProjectWalker::explicit_workspace(&auth);
+        let walked = ProjectWalker::discover_workspace(&auth);
+        assert!(
+            explicit.file_name().is_some_and(|n| n == "mini-auth"),
+            "explicit must stay on the fixture, got {}",
+            explicit.display()
+        );
+        assert!(
+            walked.file_name().is_some_and(|n| n != "mini-auth"),
+            "discover still walks to the git root, got {}",
+            walked.display()
+        );
     }
 
     #[test]

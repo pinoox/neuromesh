@@ -14,6 +14,7 @@ use neuromesh_task::{extract_cluster_nouns, split_task_clusters};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -606,6 +607,11 @@ impl ContextActivator {
 }
 
 fn resolve_seed_query(graph: &NeuralProjectGraph, query: &str) -> Option<(NodeId, f32)> {
+    if query.contains("::") {
+        if let Some(node) = graph.resolve_best(query) {
+            return Some((node.id, 1.0));
+        }
+    }
     if query.contains(['/', '\\', '.']) {
         if let Some(id) = graph.resolve_file_hint(query) {
             return Some((id, 0.95));
@@ -712,7 +718,12 @@ fn seed_uncovered_clusters(
                 }
                 continue;
             }
-            if let Some((id, conf)) = resolve_seed_query(graph, noun) {
+            let hits = resolve_cluster_noun_seeds(graph, noun, &nouns);
+            if hits.is_empty() {
+                continue;
+            }
+            cluster_hit = true;
+            for (id, conf) in hits {
                 let energy = 0.85;
                 seed_energies
                     .entry(id.clone())
@@ -726,7 +737,6 @@ fn seed_uncovered_clusters(
                     resolved_id: Some(id),
                     confidence: conf,
                 });
-                cluster_hit = true;
             }
         }
         if !cluster_hit {
@@ -751,6 +761,97 @@ fn seed_uncovered_clusters(
     }
 }
 
+/// Resolve a lowercase cluster noun to the files that actually answer it.
+/// Sibling nouns in the same clause (`guard`, `router`) outrank a Vue
+/// `directive/permission` UI helper that merely path-echoes `permission`.
+fn resolve_cluster_noun_seeds(
+    graph: &NeuralProjectGraph,
+    noun: &str,
+    sibling_nouns: &[String],
+) -> Vec<(NodeId, f32)> {
+    let noun_l = noun.to_lowercase();
+    let cluster_l = sibling_nouns
+        .iter()
+        .map(|s| s.to_lowercase())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let hits = graph.search_symbols(noun, 16);
+    let mut by_file: HashMap<String, (f32, NodeId)> = HashMap::new();
+    for hit in hits {
+        let Some(node) = graph.get_node(&hit.id) else {
+            continue;
+        };
+        let path = node.file_path.to_string_lossy().replace('\\', "/");
+        if is_noise_path(Path::new(&path)) {
+            continue;
+        }
+        let path_l = path.to_lowercase();
+        let stem = Path::new(&path_l)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        let mut score = hit.score;
+        if stem == noun_l {
+            score += 24.0;
+        }
+        if is_template_path(&path_l) && stem == noun_l {
+            score += 50.0;
+        }
+        if node.name.eq_ignore_ascii_case(noun) && stem != noun_l {
+            score -= 36.0;
+        }
+        let hay = format!("{} {path_l}", node.name.to_lowercase());
+        for sib in sibling_nouns {
+            let sib_l = sib.to_lowercase();
+            if sib_l != noun_l && hay.contains(&sib_l) {
+                score += 20.0;
+            }
+        }
+        if (path_l.contains("/directive/") || path_l.contains("/directives/"))
+            && !cluster_l.contains("directive")
+        {
+            score -= 40.0;
+        }
+        if path_l.contains("/clipboard") && !cluster_l.contains("clipboard") {
+            score -= 50.0;
+        }
+        if (path_l.contains("/profile/") || path_l.contains("usercard"))
+            && !cluster_l.contains("profile")
+            && !cluster_l.contains("card")
+        {
+            score -= 30.0;
+        }
+        let entry = by_file.entry(path_l).or_insert((f32::MIN, hit.id.clone()));
+        if score > entry.0 {
+            *entry = (score, hit.id);
+        }
+    }
+    let mut ranked: Vec<(f32, NodeId)> = by_file.into_values().collect();
+    ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    let Some(&(best, _)) = ranked.first() else {
+        return Vec::new();
+    };
+    if best < 50.0 {
+        return Vec::new();
+    }
+    ranked
+        .into_iter()
+        .filter(|(score, _)| *score >= best - 28.0 && *score >= 50.0)
+        .take(3)
+        .map(|(score, id)| (id, (score / 200.0).clamp(0.55, 0.95)))
+        .collect()
+}
+
+fn is_template_path(path_l: &str) -> bool {
+    path_l.contains("/theme/")
+        || path_l.contains("/templates/")
+        || path_l.contains("/views/")
+        || path_l.ends_with(".twig")
+        || path_l.ends_with(".blade.php")
+        || path_l.ends_with(".jinja")
+        || path_l.ends_with(".hbs")
+}
+
 fn prefer_search_seed(
     graph: &NeuralProjectGraph,
     query: &str,
@@ -761,6 +862,9 @@ fn prefer_search_seed(
         return ranked_id;
     };
     if hit.score < 90.0 || hit.id == ranked_id {
+        return ranked_id;
+    }
+    if matches!(hit.node_type, NodeType::File) {
         return ranked_id;
     }
     let exact_case = hit.name == query;
@@ -1940,6 +2044,14 @@ pub fn searcher(haystack: &str, needle: &str) -> bool {
     }
 
     fn ingest_js(graph: &NeuralProjectGraph, rel: &str, src: &str) {
+        ingest_lang(graph, rel, src, SourceLanguage::JavaScript);
+    }
+
+    fn ingest_vue(graph: &NeuralProjectGraph, rel: &str, src: &str) {
+        ingest_lang(graph, rel, src, SourceLanguage::Vue);
+    }
+
+    fn ingest_lang(graph: &NeuralProjectGraph, rel: &str, src: &str, language: SourceLanguage) {
         graph.ingest_file(
             &IndexedFile {
                 project_id: ProjectId::new("admin"),
@@ -1948,10 +2060,10 @@ pub fn searcher(haystack: &str, needle: &str) -> bool {
                 blake3_hash: rel.to_string(),
                 byte_size: src.len() as u64,
                 token_count: 80,
-                language: SourceLanguage::JavaScript,
+                language,
                 last_modified: chrono::Utc::now(),
             },
-            &CodeIntelligenceEngine::analyze(&PathBuf::from(rel), src, SourceLanguage::JavaScript),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from(rel), src, language),
             Some(src),
         );
     }
@@ -1998,7 +2110,7 @@ export function registerPermissionGuard(router) {
         );
         ingest_js(
             &graph,
-            "src/store/permission.js",
+            "src/store/modules/permission.js",
             r#"
 export function hasPermission(roles, routeRoles) {
   if (!routeRoles || routeRoles.length === 0) {
@@ -2013,6 +2125,22 @@ export function generateRoutes(roles) {
         );
         ingest_js(
             &graph,
+            "src/directive/permission/permission.js",
+            r#"
+export default {
+  inserted(el, binding) {
+    checkPermission(el, binding);
+  }
+}
+function checkPermission(el, binding) {
+  const roles = store.getters.roles;
+  const value = binding.value;
+  return roles.some((role) => value.includes(role));
+}
+"#,
+        );
+        ingest_js(
+            &graph,
             "src/directive/clipboard.js",
             r#"
 export function clipboard(el, binding) {
@@ -2020,6 +2148,21 @@ export function clipboard(el, binding) {
   el.setAttribute("data-clipboard", text);
   return text;
 }
+"#,
+        );
+        ingest_vue(
+            &graph,
+            "src/views/profile/components/UserCard.vue",
+            r#"
+<template>
+  <div class="user-card">{{ name }}</div>
+</template>
+<script>
+export default {
+  name: "UserCard",
+  props: { name: { type: String, default: "" } }
+}
+</script>
 "#,
         );
         graph.finalize_links();
@@ -2040,9 +2183,24 @@ export function clipboard(el, binding) {
             view.seeds
         );
         assert!(
-            files.iter().any(|p| p.contains("permission")),
-            "guard cluster must seed a permission file, files={files:?} seeds={:?}",
+            files.iter().any(|p| p.ends_with("src/permission.js")),
+            "guard cluster must seed the router guard, files={files:?} seeds={:?}",
             view.seeds
+        );
+        assert!(
+            files
+                .iter()
+                .any(|p| p.ends_with("src/store/modules/permission.js")),
+            "guard cluster must seed hasPermission/generateRoutes, files={files:?} seeds={:?}",
+            view.seeds
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("clipboard")),
+            "clipboard decoy must stay out, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("UserCard")),
+            "profile decoy must stay out, files={files:?}"
         );
         let coverage = view.coverage.as_ref().expect("coverage");
         assert!(

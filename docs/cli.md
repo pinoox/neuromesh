@@ -22,7 +22,7 @@ neuromesh version
 
 ## Usage telemetry
 
-MCP tool calls (`neuromesh_get_context`, skeleton, search, expand) append to `~/.neuromesh/telemetry_history.json`. That file is the source of truth. The monitor UI reads the same file (and also accepts `POST /api/telemetry/record` when `neuromesh monitor` is running).
+MCP tool calls (`neuromesh_get_context`, skeleton, search, expand, trace, stats, …) append to `~/.neuromesh/telemetry_history.json`. The MCP `initialize` handshake writes one `mcp_session` row per process. That file is the source of truth. The monitor UI reads the same file (and also accepts `POST /api/telemetry/record` when `neuromesh monitor` is running).
 
 ```bash
 neuromesh usage              # this project
@@ -30,7 +30,7 @@ neuromesh usage --all        # every project on disk
 neuromesh usage --limit 50   # more recent rows
 ```
 
-Rows appear when an agent **calls a NeuroMesh MCP tool** (`get_context`, skeleton, search, expand_fold). Connecting the MCP server, saving a file in Cursor, switching the editor theme, or restarting the IDE does not add a row. A chat turn that the agent answers without calling a NeuroMesh tool also does not. `neuromesh mcp` has no HTTP port; if the monitor is down, `usage` still prints the file. If the IDE workspace name differs from the directory where you run the CLI, use `neuromesh usage --all`.
+Rows appear when an agent **connects** (`initialize` → one `mcp_session` row) or **calls a NeuroMesh MCP tool**. Saving a file in Cursor, switching the editor theme, or restarting the IDE does not add a row. A chat turn that the agent answers without calling a NeuroMesh tool also does not. `neuromesh mcp` has no HTTP port; if the monitor is down, `usage` still prints the file. If the IDE workspace name differs from the directory where you run the CLI, use `neuromesh usage --all`. Mean reduction uses packet rows only (search/session 0-token rows are counted as requests, not as 0% savings).
 
 ## Data directory
 
