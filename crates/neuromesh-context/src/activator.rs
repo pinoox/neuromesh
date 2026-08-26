@@ -607,6 +607,11 @@ impl ContextActivator {
 }
 
 fn resolve_seed_query(graph: &NeuralProjectGraph, query: &str) -> Option<(NodeId, f32)> {
+    if query.contains("::") {
+        if let Some(node) = graph.resolve_best(query) {
+            return Some((node.id, 1.0));
+        }
+    }
     if query.contains(['/', '\\', '.']) {
         if let Some(id) = graph.resolve_file_hint(query) {
             return Some((id, 0.95));
@@ -789,6 +794,12 @@ fn resolve_cluster_noun_seeds(
         if stem == noun_l {
             score += 24.0;
         }
+        if is_template_path(&path_l) && stem == noun_l {
+            score += 50.0;
+        }
+        if node.name.eq_ignore_ascii_case(noun) && stem != noun_l {
+            score -= 36.0;
+        }
         let hay = format!("{} {path_l}", node.name.to_lowercase());
         for sib in sibling_nouns {
             let sib_l = sib.to_lowercase();
@@ -831,6 +842,16 @@ fn resolve_cluster_noun_seeds(
         .collect()
 }
 
+fn is_template_path(path_l: &str) -> bool {
+    path_l.contains("/theme/")
+        || path_l.contains("/templates/")
+        || path_l.contains("/views/")
+        || path_l.ends_with(".twig")
+        || path_l.ends_with(".blade.php")
+        || path_l.ends_with(".jinja")
+        || path_l.ends_with(".hbs")
+}
+
 fn prefer_search_seed(
     graph: &NeuralProjectGraph,
     query: &str,
@@ -841,6 +862,9 @@ fn prefer_search_seed(
         return ranked_id;
     };
     if hit.score < 90.0 || hit.id == ranked_id {
+        return ranked_id;
+    }
+    if matches!(hit.node_type, NodeType::File) {
         return ranked_id;
     }
     let exact_case = hit.name == query;

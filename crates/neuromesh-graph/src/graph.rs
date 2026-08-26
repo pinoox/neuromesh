@@ -144,10 +144,11 @@ impl NeuralProjectGraph {
         self.index_gate.set(IndexState::Failed);
     }
 
-    /// Wait until the first index finishes when the graph is still empty.
+    /// Wait until the first index finishes. A persist-loaded graph is already Ready.
     pub fn wait_until_indexed(&self, timeout: Duration) -> IndexState {
-        if self.stats().total_nodes > 0 {
-            return IndexState::Ready;
+        let state = self.index_gate.get();
+        if matches!(state, IndexState::Ready | IndexState::Failed) {
+            return state;
         }
         self.index_gate.wait_ready(timeout)
     }
@@ -807,6 +808,25 @@ impl NeuralProjectGraph {
             let owner = owner.trim();
             let name = name.trim();
             if !owner.is_empty() && !name.is_empty() {
+                let typed = {
+                    let data = self.inner.read();
+                    let name_l = name.to_lowercase();
+                    data.name_to_nodes.get(&name_l).and_then(|ids| {
+                        ids.iter().find_map(|id| {
+                            data.mesh.node(id).and_then(|n| {
+                                let parent_ok = n
+                                    .parent
+                                    .as_deref()
+                                    .is_some_and(|p| p.eq_ignore_ascii_case(owner));
+                                let stem_ok = file_stem_equals(&n.file_path, owner);
+                                (parent_ok || stem_ok).then(|| id.clone())
+                            })
+                        })
+                    })
+                };
+                if let Some(id) = typed {
+                    return self.get_node(&id);
+                }
                 if let Some(id) = self.resolve_unique(name, Some(owner)) {
                     return self.get_node(&id);
                 }
@@ -2068,7 +2088,7 @@ fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
         bonus += 12.0;
     }
     if file_stem_equals(&node.file_path, query) {
-        bonus += 20.0;
+        bonus += 30.0;
     }
     if is_fixture_path(&node.file_path) {
         bonus -= 24.0;

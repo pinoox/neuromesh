@@ -13,7 +13,7 @@ use neuromesh_task::TaskSignatureExtractor;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -25,6 +25,38 @@ pub struct McpToolHandler {
     working_memory: Arc<parking_lot::RwLock<WorkingMemory>>,
     mycelium: Arc<MyceliumCache>,
     packet_cache: PacketDetailCache,
+}
+
+struct ToolTelemetry {
+    prefix: &'static str,
+    task_id: String,
+    mode: String,
+    tokens_before: usize,
+    tokens_after: usize,
+    token_reduction_pct: f32,
+    nodes_after: usize,
+    expansions_count: usize,
+    cache_hit: bool,
+    latency_ms: u64,
+    success: bool,
+}
+
+impl ToolTelemetry {
+    fn new(prefix: &'static str, task_id: impl Into<String>, mode: impl Into<String>) -> Self {
+        Self {
+            prefix,
+            task_id: task_id.into(),
+            mode: mode.into(),
+            tokens_before: 0,
+            tokens_after: 0,
+            token_reduction_pct: 0.0,
+            nodes_after: 0,
+            expansions_count: 0,
+            cache_hit: false,
+            latency_ms: 0,
+            success: true,
+        }
+    }
 }
 
 impl McpToolHandler {
@@ -73,6 +105,40 @@ impl McpToolHandler {
 
     fn mycelium_file_hit(&self, file_id: &NodeId) -> bool {
         self.mycelium.get_prewarmed(file_id).is_some()
+    }
+
+    /// One row per MCP process so `neuromesh usage` / monitor show the handshake.
+    pub fn record_session_telemetry(&self) {
+        static ONCE: AtomicBool = AtomicBool::new(false);
+        if ONCE.swap(true, Ordering::Relaxed) {
+            return;
+        }
+        self.emit_telemetry(ToolTelemetry::new(
+            "mcp-session",
+            "MCP initialize",
+            "mcp_session",
+        ));
+    }
+
+    fn emit_telemetry(&self, tel: ToolTelemetry) {
+        neuromesh_observability::record_global_telemetry(neuromesh_core::OptimizationMetadata {
+            request_id: telemetry_request_id(tel.prefix),
+            task_id: Some(tel.task_id),
+            project_id: self.graph.project_id(),
+            mode: tel.mode,
+            tokens_before: tel.tokens_before,
+            tokens_after: tel.tokens_after,
+            token_reduction_pct: tel.token_reduction_pct,
+            nodes_before: self.graph.stats().total_nodes,
+            nodes_after: tel.nodes_after,
+            expansions_count: tel.expansions_count,
+            cache_hit: tel.cache_hit,
+            provider: "Cursor / Claude MCP".to_string(),
+            model: "Frontier Model".to_string(),
+            latency_ms: tel.latency_ms,
+            success: tel.success,
+            timestamp: chrono::Utc::now(),
+        });
     }
 
     #[cfg(test)]
@@ -172,26 +238,18 @@ impl McpToolHandler {
                     index_meta: self.graph.index_meta(),
                 };
 
-                neuromesh_observability::record_global_telemetry(
-                    neuromesh_core::OptimizationMetadata {
-                        request_id: telemetry_request_id("mcp"),
-                        task_id: Some(task_desc.chars().take(50).collect()),
-                        project_id: self.graph.project_id(),
-                        mode: gate.effective_mode.to_string(),
-                        tokens_before: workspace_tokens,
-                        tokens_after: opt_tokens,
-                        token_reduction_pct: vs_workspace,
-                        nodes_before: self.graph.stats().total_nodes,
-                        nodes_after: view.active_nodes.len(),
-                        expansions_count: 0,
-                        cache_hit: false,
-                        provider: "Cursor / Claude MCP".to_string(),
-                        model: "Frontier Model".to_string(),
-                        latency_ms: elapsed_ms,
-                        success: true,
-                        timestamp: chrono::Utc::now(),
-                    },
-                );
+                self.emit_telemetry(ToolTelemetry {
+                    tokens_before: workspace_tokens,
+                    tokens_after: opt_tokens,
+                    token_reduction_pct: vs_workspace,
+                    nodes_after: view.active_nodes.len(),
+                    latency_ms: elapsed_ms,
+                    ..ToolTelemetry::new(
+                        "mcp",
+                        task_desc.chars().take(50).collect::<String>(),
+                        gate.effective_mode.to_string(),
+                    )
+                });
 
                 Ok(cache_and_build(
                     &self.packet_cache,
@@ -240,26 +298,18 @@ impl McpToolHandler {
                     }
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
-                    neuromesh_observability::record_global_telemetry(
-                        neuromesh_core::OptimizationMetadata {
-                            request_id: telemetry_request_id("mcp-skel"),
-                            task_id: Some(format!("Skeleton: {}", file_path)),
-                            project_id: self.graph.project_id(),
-                            mode: "Genetic Slicing".to_string(),
-                            tokens_before: res.original_tokens,
-                            tokens_after: res.skeleton_tokens,
-                            token_reduction_pct: res.token_reduction_pct,
-                            nodes_before: 1,
-                            nodes_after: 1,
-                            expansions_count: 0,
-                            cache_hit: false,
-                            provider: "Cursor / Claude MCP".to_string(),
-                            model: "Frontier Model".to_string(),
-                            latency_ms: elapsed_ms,
-                            success: true,
-                            timestamp: chrono::Utc::now(),
-                        },
-                    );
+                    self.emit_telemetry(ToolTelemetry {
+                        tokens_before: res.original_tokens,
+                        tokens_after: res.skeleton_tokens,
+                        token_reduction_pct: res.token_reduction_pct,
+                        nodes_after: 1,
+                        latency_ms: elapsed_ms,
+                        ..ToolTelemetry::new(
+                            "mcp-skel",
+                            format!("Skeleton: {file_path}"),
+                            "Genetic Slicing",
+                        )
+                    });
 
                     Ok(json!({
                         "file_path": file_path,
@@ -279,6 +329,7 @@ impl McpToolHandler {
             | "explain_packet"
             | "neuromesh_get_context_details"
             | "get_context_details" => {
+                let start_time = std::time::Instant::now();
                 let packet_id = arguments["packet_id"]
                     .as_str()
                     .or_else(|| arguments["id"].as_str())
@@ -297,7 +348,16 @@ impl McpToolHandler {
                         } else {
                             None
                         };
-                        Ok(explain_packet(&details, &include, graph))
+                        let body = explain_packet(&details, &include, graph);
+                        self.emit_telemetry(ToolTelemetry {
+                            latency_ms: start_time.elapsed().as_millis() as u64,
+                            ..ToolTelemetry::new(
+                                "mcp-explain",
+                                format!("Explain: {packet_id}"),
+                                "explain_packet",
+                            )
+                        });
+                        Ok(body)
                     }
                     Err(err) => Ok(json!({ "error": err.message(packet_id) })),
                 }
@@ -320,26 +380,19 @@ impl McpToolHandler {
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
                     let file_id = NodeId::from_file_path(&fold.file_path);
                     let cache_hit = self.mycelium_file_hit(&file_id);
-                    neuromesh_observability::record_global_telemetry(
-                        neuromesh_core::OptimizationMetadata {
-                            request_id: telemetry_request_id("mcp-exp"),
-                            task_id: Some(format!("Expand: {}", fold.fold_id)),
-                            project_id: self.graph.project_id(),
-                            mode: "expand_fold".to_string(),
-                            tokens_before: fold.restored_tokens,
-                            tokens_after: fold.restored_tokens,
-                            token_reduction_pct: 0.0,
-                            nodes_before: 1,
-                            nodes_after: 1,
-                            expansions_count: 1,
-                            cache_hit,
-                            provider: "Cursor / Claude MCP".to_string(),
-                            model: "Frontier Model".to_string(),
-                            latency_ms: elapsed_ms,
-                            success: true,
-                            timestamp: chrono::Utc::now(),
-                        },
-                    );
+                    self.emit_telemetry(ToolTelemetry {
+                        tokens_before: fold.restored_tokens,
+                        tokens_after: fold.restored_tokens,
+                        nodes_after: 1,
+                        expansions_count: 1,
+                        cache_hit,
+                        latency_ms: elapsed_ms,
+                        ..ToolTelemetry::new(
+                            "mcp-exp",
+                            format!("Expand: {}", fold.fold_id),
+                            "expand_fold",
+                        )
+                    });
                     Ok(json!({
                         "success": true,
                         "kind": "fold",
@@ -361,26 +414,17 @@ impl McpToolHandler {
                 {
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
-                    neuromesh_observability::record_global_telemetry(
-                        neuromesh_core::OptimizationMetadata {
-                            request_id: telemetry_request_id("mcp-exp"),
-                            task_id: Some(format!("Expand: {}", node_id_str)),
-                            project_id: self.graph.project_id(),
-                            mode: "expand_fold".to_string(),
-                            tokens_before: 0,
-                            tokens_after: audit.added_tokens,
-                            token_reduction_pct: 0.0,
-                            nodes_before: 1,
-                            nodes_after: 1,
-                            expansions_count: 1,
-                            cache_hit: false,
-                            provider: "Cursor / Claude MCP".to_string(),
-                            model: "Frontier Model".to_string(),
-                            latency_ms: elapsed_ms,
-                            success: true,
-                            timestamp: chrono::Utc::now(),
-                        },
-                    );
+                    self.emit_telemetry(ToolTelemetry {
+                        tokens_after: audit.added_tokens,
+                        nodes_after: 1,
+                        expansions_count: 1,
+                        latency_ms: elapsed_ms,
+                        ..ToolTelemetry::new(
+                            "mcp-exp",
+                            format!("Expand: {node_id_str}"),
+                            "expand_fold",
+                        )
+                    });
 
                     Ok(json!({
                         "success": true,
@@ -407,26 +451,11 @@ impl McpToolHandler {
                 let nodes = self.graph.search_symbols(query, limit);
                 let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
-                neuromesh_observability::record_global_telemetry(
-                    neuromesh_core::OptimizationMetadata {
-                        request_id: telemetry_request_id("mcp-sym"),
-                        task_id: Some(format!("Search: {}", query)),
-                        project_id: self.graph.project_id(),
-                        mode: "symbol_search".to_string(),
-                        tokens_before: 0,
-                        tokens_after: 0,
-                        token_reduction_pct: 0.0,
-                        nodes_before: self.graph.stats().total_nodes,
-                        nodes_after: nodes.len(),
-                        expansions_count: 0,
-                        cache_hit: false,
-                        provider: "Cursor / Claude MCP".to_string(),
-                        model: "Frontier Model".to_string(),
-                        latency_ms: elapsed_ms,
-                        success: true,
-                        timestamp: chrono::Utc::now(),
-                    },
-                );
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: nodes.len(),
+                    latency_ms: elapsed_ms,
+                    ..ToolTelemetry::new("mcp-sym", format!("Search: {query}"), "symbol_search")
+                });
 
                 Ok(json!({
                     "query": query,
@@ -437,6 +466,7 @@ impl McpToolHandler {
 
             // 5. Get Graph Dependencies & Synaptic Weights
             "neuromesh_get_dependencies" | "get_dependency_graph" => {
+                let start_time = std::time::Instant::now();
                 let symbol_or_path = arguments["symbol_or_path"]
                     .as_str()
                     .or_else(|| arguments["file_path"].as_str())
@@ -444,6 +474,15 @@ impl McpToolHandler {
 
                 let resolved = self.graph.resolve_best(symbol_or_path);
                 let Some(node) = resolved else {
+                    self.emit_telemetry(ToolTelemetry {
+                        latency_ms: start_time.elapsed().as_millis() as u64,
+                        success: false,
+                        ..ToolTelemetry::new(
+                            "mcp-deps",
+                            format!("Deps: {symbol_or_path}"),
+                            "get_dependencies",
+                        )
+                    });
                     return Ok(json!({
                         "target": symbol_or_path,
                         "connected_neighbors_count": 0,
@@ -453,6 +492,15 @@ impl McpToolHandler {
                 };
 
                 let neighbors = self.graph.get_neighbor_views(&node.id);
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: neighbors.len(),
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new(
+                        "mcp-deps",
+                        format!("Deps: {symbol_or_path}"),
+                        "get_dependencies",
+                    )
+                });
                 Ok(json!({
                     "target": {
                         "id": node.id,
@@ -467,6 +515,7 @@ impl McpToolHandler {
             }
 
             "neuromesh_trace" => {
+                let start_time = std::time::Instant::now();
                 let query = arguments["query"]
                     .as_str()
                     .or_else(|| arguments["symbol"].as_str())
@@ -477,22 +526,44 @@ impl McpToolHandler {
                 );
                 let depth = arguments["depth"].as_u64().unwrap_or(3) as usize;
                 let result = self.graph.trace_symbol(query, direction, depth);
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: result.hops.len(),
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new("mcp-trace", format!("Trace: {query}"), "trace")
+                });
                 Ok(json!(result))
             }
 
             "neuromesh_analyze_impact" => {
+                let start_time = std::time::Instant::now();
                 let query = arguments["query"]
                     .as_str()
                     .or_else(|| arguments["symbol_or_path"].as_str())
                     .unwrap_or("");
                 let depth = arguments["depth"].as_u64().unwrap_or(3) as usize;
-                Ok(json!(self.graph.analyze_impact(query, depth)))
+                let result = self.graph.analyze_impact(query, depth);
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: result.affected_symbols.len(),
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new("mcp-impact", format!("Impact: {query}"), "analyze_impact")
+                });
+                Ok(json!(result))
             }
 
-            "neuromesh_get_architecture" => Ok(json!(self.graph.architecture_summary())),
+            "neuromesh_get_architecture" => {
+                let start_time = std::time::Instant::now();
+                let summary = self.graph.architecture_summary();
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: summary.file_count,
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new("mcp-arch", "Architecture summary", "get_architecture")
+                });
+                Ok(json!(summary))
+            }
 
             // 6. Record Feedback & Trigger Synaptic STDP Plasticity Learning
             "neuromesh_record_feedback" => {
+                let start_time = std::time::Instant::now();
                 let success = read_bool(&arguments["task_success"], true);
                 let touched_nodes = read_string_list(arguments, "touched_nodes");
 
@@ -510,6 +581,15 @@ impl McpToolHandler {
                     let _ = self.graph.save_persisted(&cwd);
                 }
 
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: path.len(),
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new(
+                        "mcp-fb",
+                        format!("Feedback: {} nodes", path.len()),
+                        "record_feedback",
+                    )
+                });
                 Ok(json!({
                     "status": "Feedback recorded",
                     "success": success,
@@ -521,8 +601,14 @@ impl McpToolHandler {
 
             // 7. Get Project Memory & Conventions
             "neuromesh_get_project_memory" => {
+                let start_time = std::time::Instant::now();
                 let pid = self.graph.project_id();
                 let facts = self.memory_db.get_project_facts(&pid)?;
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: facts.len(),
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new("mcp-mem", "Project memory", "get_project_memory")
+                });
                 Ok(json!({
                     "project_id": pid.0,
                     "facts_count": facts.len(),
@@ -532,12 +618,22 @@ impl McpToolHandler {
 
             // 8. Search Episodic Memory
             "search_memory" | "get_previous_solution" => {
+                let start_time = std::time::Instant::now();
                 let query = arguments["query"]
                     .as_str()
                     .or_else(|| arguments["task_similarity_query"].as_str())
                     .unwrap_or("");
                 let pid = self.graph.project_id();
                 let episodes = self.memory_db.find_similar_episodes(&pid, query)?;
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: episodes.len(),
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new(
+                        "mcp-episodic",
+                        format!("Memory: {query}"),
+                        "search_memory",
+                    )
+                });
                 Ok(json!({
                     "query": query,
                     "episodes_count": episodes.len(),
@@ -547,14 +643,25 @@ impl McpToolHandler {
 
             // 9. Get Task State
             "get_task_state" => {
+                let start_time = std::time::Instant::now();
                 let wm = self.working_memory.read().clone();
+                self.emit_telemetry(ToolTelemetry {
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new("mcp-wm", "Task state", "get_task_state")
+                });
                 Ok(json!({ "working_memory": wm }))
             }
 
             // 10. Get System Stats & Biomimetic Health
             "neuromesh_get_stats" => {
+                let start_time = std::time::Instant::now();
                 let stats = self.graph.stats();
                 let index_state = self.graph.index_state();
+                self.emit_telemetry(ToolTelemetry {
+                    nodes_after: stats.total_nodes,
+                    latency_ms: start_time.elapsed().as_millis() as u64,
+                    ..ToolTelemetry::new("mcp-stats", "Project stats", "get_stats")
+                });
                 Ok(json!({
                     "version": env!("CARGO_PKG_VERSION"),
                     "project_id": self.graph.project_id().0,
@@ -571,7 +678,7 @@ impl McpToolHandler {
     }
 
     fn wait_for_index(&self) -> Result<()> {
-        if self.graph.stats().total_nodes > 0 {
+        if self.graph.index_state() == IndexState::Ready {
             return Ok(());
         }
         let state = self.graph.wait_until_indexed(Duration::from_secs(5));

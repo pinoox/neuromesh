@@ -6,6 +6,9 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 - **Cluster seeds pick the router guard, not a UI helper.** A "router permission guard" clause still splits, but the noun `permission` now prefers `src/permission.js` / store permission modules over `directive/permission`. Clipboard and profile decoys are forbidden in gold.
 - **Pinoox View→Twig is a walkable `Calls` edge.** `View::render('hello')` attaches to the rendering method, binds `theme/{theme}/hello.twig` by file path before the stem `hello` can steal another symbol, and `get_context` / `trace` on `MainController::index` ship the template without the prompt saying `twig`.
+- **MCP usage is complete.** Handshake writes one `mcp_session` row; trace, deps, stats, explain, architecture, impact, and feedback append too. Mean reduction ignores 0-token rows so search/session do not drag the %. Monitor `GET /api/usage` reports the token-weighted overall %, and telemetry POST works without a Tokio handle.
+- **Explicit MCP workspace stays put.** `neuromesh mcp <dir>` and initialize `rootUri` no longer walk up to a parent git/`Cargo.toml` root, so a fixture like `mini-auth` is not mixed with the rest of the repo.
+- **`Type::method` seeds resolve, templates beat namesake helpers.** `MainController::index` binds the method (not a missed seed), and `hello.twig` outranks `Greeter.hello()` so the decoy stays out of the packet.
 
 ## 0.7.3 — 2026-08-26
 

@@ -154,7 +154,7 @@ impl HttpServer {
                 let total_tokens_before = usage.total_tokens_before as usize;
                 let total_tokens_after = usage.total_tokens_after as usize;
                 let total_tokens_saved = usage.total_tokens_saved as usize;
-                let overall_reduction_pct = usage.mean_reduction_pct;
+                let overall_reduction_pct = usage.overall_reduction_pct;
                 let avg_latency_ms = usage.average_latency_ms as f64;
 
                 let fill_cap = neuromesh_context::fill_budget(state.config.read().mode);
@@ -1007,7 +1007,7 @@ impl HttpServer {
                             "total_requests": usage.total_requests,
                             "total_tokens_saved": usage.total_tokens_saved,
                             "total_raw_tokens": usage.total_tokens_before,
-                            "overall_reduction_pct": usage.mean_reduction_pct,
+                            "overall_reduction_pct": usage.overall_reduction_pct,
                             "average_latency_ms": usage.average_latency_ms,
                             "cache_hit_rate": usage.cache_hit_rate,
                             "cache_hits": usage.cache_hits

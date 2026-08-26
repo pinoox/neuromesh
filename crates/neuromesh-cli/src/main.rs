@@ -106,19 +106,21 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             // Handshake over stdio must start immediately. Index on a blocking
             // pool thread so we never starve stdin/stdout worker threads.
             eprintln!("NeuroMesh MCP listening on stdio");
-            let target_dir = args
-                .get(2)
-                .map(std::path::PathBuf::from)
-                .or_else(|| {
-                    std::env::var("NEUROMESH_WORKSPACE")
-                        .ok()
-                        .map(std::path::PathBuf::from)
-                })
-                .unwrap_or_else(|| {
-                    env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
-                });
+            let target_dir = args.get(2).map(std::path::PathBuf::from).or_else(|| {
+                std::env::var("NEUROMESH_WORKSPACE")
+                    .ok()
+                    .map(std::path::PathBuf::from)
+            });
+            let explicit = target_dir.is_some();
+            let target_dir = target_dir.unwrap_or_else(|| {
+                env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+            });
 
-            let current_dir = neuromesh_index::ProjectWalker::discover_workspace(&target_dir);
+            let current_dir = if explicit {
+                neuromesh_index::ProjectWalker::explicit_workspace(&target_dir)
+            } else {
+                neuromesh_index::ProjectWalker::discover_workspace(&target_dir)
+            };
             let project_name = current_dir
                 .file_name()
                 .and_then(|n| n.to_str())

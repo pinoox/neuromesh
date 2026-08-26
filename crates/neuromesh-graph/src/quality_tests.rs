@@ -1423,6 +1423,24 @@ class Greeter {
         let index = graph
             .resolve_unique("index", Some("Controller/MainController.php"))
             .expect("index method");
+        let qualified = graph
+            .resolve_best("MainController::index")
+            .expect("Type::method resolves to the index method");
+        assert_eq!(qualified.id, index);
+        let hello_hits = graph.search_symbols("hello", 5);
+        assert!(
+            hello_hits.iter().any(|h| {
+                h.file_path
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                    .ends_with("theme/default/hello.twig")
+            }),
+            "hello.twig must be searchable, got {:?}",
+            hello_hits
+                .iter()
+                .map(|h| format!("{}:{}", h.name, h.file_path.display()))
+                .collect::<Vec<_>>()
+        );
         let neighbors = graph.get_neighbor_views(&index);
         assert!(
             neighbors.iter().any(|n| {

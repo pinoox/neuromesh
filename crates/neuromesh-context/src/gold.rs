@@ -228,7 +228,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "theme/default/hello.twig".into(),
                 ],
                 expect_seeds_missed: false,
-                forbidden_files: Vec::new(),
+                forbidden_files: vec!["Helper/Greeter.php".into()],
             },
         ),
         (
@@ -863,17 +863,19 @@ forbidden_files = ["src/directive/clipboard.js", "src/views/profile/UserCard.vue
             );
             assert!(
                 metrics.precision >= 0.4,
-                "{} precision {} packet={:?}",
+                "{} precision {} packet={:?} seeds={:?}",
                 task.id,
                 metrics.precision,
-                packet_paths(&view)
+                packet_paths(&view),
+                view.seeds
             );
             for forbidden in &task.forbidden_files {
                 assert!(
                     !gold_file_hit(forbidden, &packet_file_names(&view), &packet_paths(&view)),
-                    "{} shipped forbidden file {forbidden} packet={:?}",
+                    "{} shipped forbidden file {forbidden} packet={:?} seeds={:?}",
                     task.id,
-                    packet_paths(&view)
+                    packet_paths(&view),
+                    view.seeds
                 );
             }
         }

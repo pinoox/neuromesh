@@ -62,30 +62,46 @@ pub fn record_global_telemetry(meta: OptimizationMetadata) {
 }
 
 fn notify_monitor(meta: OptimizationMetadata) {
-    let Ok(handle) = tokio::runtime::Handle::try_current() else {
-        return;
-    };
     let payload = serde_json::to_vec(&meta).unwrap_or_default();
     let cfg = neuromesh_core::Config::load();
     let host = cfg.host;
     let port = cfg.port;
-    std::mem::drop(handle.spawn(async move {
-        use tokio::io::AsyncWriteExt;
-        use tokio::net::TcpStream;
+    let post = move || {
+        use std::io::Write;
+        use std::net::ToSocketAddrs;
+        use std::time::Duration;
         let endpoint = format!("{host}:{port}");
-        if let Ok(mut stream) = TcpStream::connect(&endpoint).await {
-            let req = format!(
-                "POST /api/telemetry/record HTTP/1.1\r\n\
-                 Host: {endpoint}\r\n\
-                 Content-Type: application/json\r\n\
-                 Content-Length: {}\r\n\
-                 Connection: close\r\n\r\n",
-                payload.len()
-            );
-            let _ = stream.write_all(req.as_bytes()).await;
-            let _ = stream.write_all(&payload).await;
-        }
-    }));
+        let Ok(mut addrs) = endpoint.to_socket_addrs() else {
+            return;
+        };
+        let Some(addr) = addrs.next() else {
+            return;
+        };
+        let Ok(mut stream) =
+            std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(200))
+        else {
+            return;
+        };
+        let _ = stream.set_write_timeout(Some(Duration::from_millis(200)));
+        let header = format!(
+            "POST /api/telemetry/record HTTP/1.1\r\n\
+             Host: {endpoint}\r\n\
+             Content-Type: application/json\r\n\
+             Content-Length: {}\r\n\
+             Connection: close\r\n\r\n",
+            payload.len()
+        );
+        let _ = stream.write_all(header.as_bytes());
+        let _ = stream.write_all(&payload);
+        let _ = stream.flush();
+    };
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        std::mem::drop(handle.spawn_blocking(post));
+    } else {
+        let _ = std::thread::Builder::new()
+            .name("nm-tel-post".into())
+            .spawn(post);
+    }
 }
 
 pub fn filter_history(
@@ -130,6 +146,7 @@ pub fn summarize_history(history: &[OptimizationMetadata]) -> AggregatedMetrics 
     let mut total_expansions = 0u64;
     let mut total_latency = 0u64;
     let mut reduction_sum = 0.0f32;
+    let mut reduction_rows = 0u64;
 
     for r in history {
         total_before += r.tokens_before as u64;
@@ -139,7 +156,12 @@ pub fn summarize_history(history: &[OptimizationMetadata]) -> AggregatedMetrics 
         }
         total_expansions += r.expansions_count as u64;
         total_latency += r.latency_ms;
-        reduction_sum += r.token_reduction_pct;
+        // Handshake / search / stats rows are 0-token; they must not dilute packet %.
+        if r.tokens_before > 0 && (r.tokens_before > r.tokens_after || r.token_reduction_pct > 0.0)
+        {
+            reduction_sum += r.token_reduction_pct;
+            reduction_rows += 1;
+        }
     }
 
     let total_tokens_saved = total_before.saturating_sub(total_after);
@@ -155,7 +177,11 @@ pub fn summarize_history(history: &[OptimizationMetadata]) -> AggregatedMetrics 
         total_tokens_after: total_after,
         total_tokens_saved,
         overall_reduction_pct,
-        mean_reduction_pct: reduction_sum / total_requests as f32,
+        mean_reduction_pct: if reduction_rows > 0 {
+            reduction_sum / reduction_rows as f32
+        } else {
+            0.0
+        },
         cache_hits,
         cache_hit_rate: (cache_hits as f32 / total_requests as f32) * 100.0,
         total_expansions,
@@ -310,6 +336,25 @@ mod tests {
         assert!((summary.overall_reduction_pct - (85.0 / 150.0) * 100.0).abs() < 0.01);
         assert!((summary.mean_reduction_pct - 55.0).abs() < 0.01);
         assert!((summary.average_latency_ms - 8.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn summarize_skips_zero_token_rows_for_mean_reduction() {
+        let mut session = meta("s", "neuromesh", 0, 0);
+        session.mode = "mcp_session".into();
+        session.token_reduction_pct = 0.0;
+        let mut search = meta("q", "neuromesh", 0, 0);
+        search.mode = "symbol_search".into();
+        search.token_reduction_pct = 0.0;
+        let mut expand = meta("e", "neuromesh", 40, 40);
+        expand.mode = "expand_fold".into();
+        expand.token_reduction_pct = 0.0;
+        let rows = vec![meta("a", "neuromesh", 100, 40), session, search, expand];
+        let summary = summarize_history(&rows);
+        assert_eq!(summary.total_requests, 4);
+        assert!((summary.mean_reduction_pct - 60.0).abs() < 0.01);
+        assert_eq!(summary.total_tokens_before, 140);
+        assert_eq!(summary.total_tokens_saved, 60);
     }
 
     #[test]
