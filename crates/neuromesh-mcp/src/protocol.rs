@@ -103,17 +103,18 @@ pub fn canonical_tool_name(name: &str) -> String {
         "get_architecture" | "architecture" => "neuromesh_get_architecture".into(),
         "get_project_memory" | "project_memory" | "memory" => "neuromesh_get_project_memory".into(),
         "get_stats" | "stats" => "neuromesh_get_stats".into(),
+        "explain_packet" | "get_context_details" => "neuromesh_explain_packet".into(),
         _ if trimmed.starts_with("neuromesh_") => trimmed.to_string(),
         _ => trimmed.to_string(),
     }
 }
 
 pub fn initialize_instructions() -> &'static str {
-    "Start every coding task with neuromesh_get_context. Pass the user prompt as task_description, prompt, or task. If coverage.claim is partial or no_seed_resolved, call neuromesh_search_symbols — do not treat a utility fallback file as the answer. Expand folds with neuromesh_expand_fold (fold_id, node_id, or query from next_actions). After a successful edit, call neuromesh_record_feedback with the nodes you touched."
+    "Start every coding task with neuromesh_get_context. Pass the user prompt as task_description, prompt, or task. Default response is minimal (packet_id, files, coverage, tokens). If coverage is partial or no_seed_resolved, call neuromesh_search_symbols — do not treat a utility fallback file as the answer. Fetch diagnostics with neuromesh_explain_packet(packet_id). Expand folds with neuromesh_expand_fold (fold_id, node_id, or query). After a successful edit, call neuromesh_record_feedback with the nodes you touched."
 }
 
 pub fn tool_success(id: Option<Value>, val: &Value) -> Value {
-    let text = serde_json::to_string_pretty(val).unwrap_or_else(|_| val.to_string());
+    let text = serde_json::to_string(val).unwrap_or_else(|_| val.to_string());
     json!({
         "jsonrpc": "2.0",
         "id": id,
@@ -185,5 +186,32 @@ mod tests {
             "neuromesh_get_context"
         );
         assert_eq!(canonical_tool_name("search"), "neuromesh_search_symbols");
+        assert_eq!(
+            canonical_tool_name("explain_packet"),
+            "neuromesh_explain_packet"
+        );
+        assert_eq!(
+            canonical_tool_name("get_context_details"),
+            "neuromesh_explain_packet"
+        );
+    }
+
+    #[test]
+    fn structured_content_is_not_pretty_duplicated() {
+        let val = json!({
+            "packet_id": "ctx_x",
+            "coverage": "partial",
+            "files": [{ "path": "a.rs", "code": "fn a() {}" }]
+        });
+        let resp = tool_success(Some(json!(1)), &val);
+        let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(
+            !text.contains('\n'),
+            "tool result text must be minified, got: {text}"
+        );
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed, val);
+        assert_eq!(resp["result"]["structuredContent"], val);
+        assert!(!text.contains("original_body"));
     }
 }

@@ -1,3 +1,8 @@
+use crate::packet_cache::PacketDetailCache;
+use crate::response::{
+    cache_and_build, collect_file_entries, collect_symbols, explain_packet,
+    fold_descriptors_from_skeleton, ContextBuild, ResponseDetail,
+};
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
 use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result};
@@ -17,6 +22,7 @@ pub struct McpToolHandler {
     memory_db: Arc<MemoryDatabase>,
     working_memory: Arc<parking_lot::RwLock<WorkingMemory>>,
     mycelium: Arc<MyceliumCache>,
+    packet_cache: PacketDetailCache,
 }
 
 impl McpToolHandler {
@@ -34,6 +40,7 @@ impl McpToolHandler {
             memory_db,
             working_memory,
             mycelium: Arc::new(MyceliumCache::new(MyceliumConfig::default())),
+            packet_cache: PacketDetailCache::new(),
         }
     }
 
@@ -64,6 +71,11 @@ impl McpToolHandler {
 
     fn mycelium_file_hit(&self, file_id: &NodeId) -> bool {
         self.mycelium.get_prewarmed(file_id).is_some()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn expire_packet_for_test(&self, packet_id: &str) {
+        self.packet_cache.expire_for_test(packet_id);
     }
 
     fn record_mycelium_path(&self, path: &[NodeId]) {
@@ -109,6 +121,7 @@ impl McpToolHandler {
                     "max_savings" => OptimizationMode::MaxSavings,
                     _ => OptimizationMode::Balanced,
                 };
+                let detail = ResponseDetail::parse(arguments["response_detail"].as_str());
 
                 let signature = TaskSignatureExtractor::extract(&task_desc);
                 let gate = QualityGate::evaluate(&signature, requested_mode);
@@ -143,43 +156,24 @@ impl McpToolHandler {
                     0.0
                 };
 
-                let index_meta = self.graph.index_meta();
-                let files: Vec<Value> = view
-                    .active_nodes
-                    .iter()
-                    .filter(|n| n.node.node_type == neuromesh_core::NodeType::File)
-                    .map(|n| {
-                        json!({
-                            "path": n.node.file_path,
-                            "skeleton": n.node.content,
-                            "tokens": n.node.token_cost,
-                            "why": n.expansion_reason,
-                            "line_range": n.node.line_range,
-                            "folded_symbols": n.folded_symbols,
-                            "folds": n.folded_symbols.iter().flat_map(|sym| {
-                                view.fold_ids.iter().filter(|id| id.contains(sym)).cloned().collect::<Vec<_>>()
-                            }).collect::<Vec<_>>(),
-                        })
-                    })
-                    .collect();
-
-                let symbols: Vec<Value> = view
-                    .active_nodes
-                    .iter()
-                    .filter(|n| n.node.node_type != neuromesh_core::NodeType::File)
-                    .map(|n| {
-                        json!({
-                            "name": n.node.name,
-                            "path": n.node.file_path,
-                            "signature": n.node.signature,
-                            "why": n.expansion_reason,
-                            "kind": n.node.node_type,
-                            "id": n.node.id,
-                            "lines": n.node.line_range,
-                            "score": n.activation_score,
-                        })
-                    })
-                    .collect();
+                let files = collect_file_entries(&view, self.expansion_engine.registry());
+                let symbols = collect_symbols(&view);
+                let packet_id = PacketDetailCache::new_packet_id();
+                let build = ContextBuild {
+                    packet_id,
+                    signature: &signature,
+                    gate: &gate,
+                    view: &view,
+                    files: &files,
+                    symbols: &symbols,
+                    workspace_tokens,
+                    selected_raw,
+                    packet_tokens: opt_tokens,
+                    vs_workspace,
+                    vs_selected,
+                    elapsed_ms,
+                    index_meta: self.graph.index_meta(),
+                };
 
                 neuromesh_observability::record_global_telemetry(
                     neuromesh_core::OptimizationMetadata {
@@ -202,52 +196,12 @@ impl McpToolHandler {
                     },
                 );
 
-                Ok(json!({
-                    "task": {
-                        "intent": signature.intent,
-                        "entity": signature.entity,
-                        "identifiers": signature.identifiers,
-                        "file_hints": signature.file_hints,
-                        "confidence": signature.confidence,
-                    },
-                    "membrane_state": gate.membrane_state,
-                    "effective_mode": format!("{:?}", gate.effective_mode),
-                    "latency_ms": elapsed_ms,
-                    "evidence_packet": {
-                        "index": {
-                            "generation": index_meta.generation,
-                            "file_count": index_meta.file_count,
-                            "indexed_at": index_meta.indexed_at,
-                            "stale_files": index_meta.stale_files,
-                        },
-                        "seeds": view.seeds,
-                        "files": files,
-                        "symbols": symbols,
-                        "unresolved": view.unresolved,
-                        "coverage": view.coverage,
-                        "fold_ids": view.fold_ids,
-                        "next_actions": view.next_actions,
-                        "budget": {
-                            "used": view.budget_used,
-                            "cap": view.budget_cap,
-                            "mode": view.budget_mode,
-                            "seed_tokens": view.budget_seed_tokens,
-                            "fill_used": view.budget_fill_used,
-                            "fill_cap": view.budget_fill_cap,
-                            "over_budget": view.over_budget,
-                        },
-                        "inactive_hints": view.inactive_descriptors,
-                        "workspace_tokens": workspace_tokens,
-                        "selected_raw_tokens": selected_raw,
-                        "active_tokens": opt_tokens,
-                        "reduction_vs_workspace_pct": format!("{:.1}%", vs_workspace),
-                        "reduction_vs_selected_pct": format!("{:.1}%", vs_selected),
-                        "seed_call_coverage": view.seed_call_coverage,
-                        "physarum_used": view.physarum_used,
-                        "physarum_ms": view.physarum_ms,
-                        "selection_method": view.selection_method,
-                    }
-                }))
+                Ok(cache_and_build(
+                    &self.packet_cache,
+                    &self.graph.project_id().0,
+                    &build,
+                    detail,
+                ))
             }
 
             // 2. Get File Skeleton with Folded Introns
@@ -311,10 +265,38 @@ impl McpToolHandler {
                         "skeleton_tokens": res.skeleton_tokens,
                         "token_reduction_pct": format!("{:.1}%", res.token_reduction_pct),
                         "introns_folded": res.introns_folded,
-                        "folds": res.folds
+                        "folds": fold_descriptors_from_skeleton(&res.folds)
                     }))
                 } else {
                     Ok(json!({ "error": format!("File not found or unreadable: {}", file_path) }))
+                }
+            }
+
+            "neuromesh_explain_packet"
+            | "explain_packet"
+            | "neuromesh_get_context_details"
+            | "get_context_details" => {
+                let packet_id = arguments["packet_id"]
+                    .as_str()
+                    .or_else(|| arguments["id"].as_str())
+                    .unwrap_or("")
+                    .trim();
+                if packet_id.is_empty() {
+                    return Ok(json!({
+                        "error": "neuromesh_explain_packet requires packet_id from get_context"
+                    }));
+                }
+                match self.packet_cache.get(packet_id) {
+                    Ok(details) => {
+                        let include = read_string_list(arguments, "include");
+                        let graph = if include.iter().any(|s| s == "graph") {
+                            Some(json!(self.graph.stats()))
+                        } else {
+                            None
+                        };
+                        Ok(explain_packet(&details, &include, graph))
+                    }
+                    Err(err) => Ok(json!({ "error": err.message(packet_id) })),
                 }
             }
 
@@ -751,7 +733,8 @@ mod tests {
                 )
                 .await
                 .expect("task alias should populate the prompt");
-            assert!(packet.get("evidence_packet").is_some());
+            assert!(packet.get("packet_id").is_some());
+            assert!(packet.get("coverage").is_some());
             let via_text = handler
                 .handle_tool_call(
                     "neuromesh_get_context",
@@ -759,12 +742,42 @@ mod tests {
                 )
                 .await
                 .expect("text alias should populate the prompt");
-            assert!(via_text.get("evidence_packet").is_some());
+            assert!(via_text.get("packet_id").is_some());
+            assert!(via_text.get("coverage").is_some());
         });
     }
 
-    #[test]
-    fn expand_fold_accepts_query_from_next_actions() {
+    fn first_fold_id(packet: &Value) -> Option<String> {
+        if let Some(files) = packet["files"].as_array() {
+            for file in files {
+                if let Some(folds) = file["folds"].as_array() {
+                    for fold in folds {
+                        if let Some(id) = fold["fold_id"].as_str().or_else(|| fold.as_str()) {
+                            return Some(id.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        packet["evidence_packet"]["fold_ids"]
+            .as_array()
+            .and_then(|a| a.first())
+            .and_then(|v| v.as_str())
+            .map(ToString::to_string)
+    }
+
+    fn handler_for(graph: Arc<NeuralProjectGraph>) -> McpToolHandler {
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        McpToolHandler::new(
+            graph,
+            Arc::new(ContextActivator::new(registry.clone())),
+            Arc::new(ExpansionEngine::new(registry)),
+            Arc::new(MemoryDatabase::open_in_memory().unwrap()),
+            Arc::new(RwLock::new(WorkingMemory::default())),
+        )
+    }
+
+    fn fold_sample_graph() -> Arc<NeuralProjectGraph> {
         let graph = Arc::new(NeuralProjectGraph::new(ProjectId::new("neuromesh")));
         let tools = r#"
 pub fn handle_tool_call() {
@@ -789,14 +802,30 @@ pub fn unused_helper() {
             Some(tools),
         );
         graph.finalize_links();
-        let registry = Arc::new(ReversibleContextRegistry::new());
-        let handler = McpToolHandler::new(
-            graph,
-            Arc::new(ContextActivator::new(registry.clone())),
-            Arc::new(ExpansionEngine::new(registry)),
-            Arc::new(MemoryDatabase::open_in_memory().unwrap()),
-            Arc::new(RwLock::new(WorkingMemory::default())),
+        graph
+    }
+
+    fn job_sample_graph() -> Arc<NeuralProjectGraph> {
+        let graph = Arc::new(NeuralProjectGraph::new(ProjectId::new("neuromesh")));
+        let a = "pub fn start_job() { enqueue_job(); }\n";
+        let b = "pub fn enqueue_job() { let x = 1; x }\n";
+        graph.ingest_file(
+            &indexed("src/worker.rs"),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("worker.rs"), a, SourceLanguage::Rust),
+            Some(a),
         );
+        graph.ingest_file(
+            &indexed("src/queue.rs"),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("queue.rs"), b, SourceLanguage::Rust),
+            Some(b),
+        );
+        graph.finalize_links();
+        graph
+    }
+
+    #[test]
+    fn expand_fold_accepts_query_from_next_actions() {
+        let handler = handler_for(fold_sample_graph());
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let packet = handler
@@ -806,27 +835,208 @@ pub fn unused_helper() {
                 )
                 .await
                 .expect("packet");
-            let fold_id = packet["evidence_packet"]["fold_ids"]
-                .as_array()
-                .and_then(|a| a.first())
-                .and_then(|v| v.as_str())
-                .or_else(|| {
-                    packet["evidence_packet"]["next_actions"]
-                        .as_array()
-                        .and_then(|actions| {
-                            actions.iter().find_map(|a| {
-                                (a["tool"] == "neuromesh_expand_fold")
-                                    .then(|| a["query"].as_str())
-                                    .flatten()
-                            })
-                        })
-                })
-                .expect("fold id from packet or next_actions")
-                .to_string();
+            let fold_id = first_fold_id(&packet).expect("fold id from packet");
             let expanded = handler
                 .handle_tool_call("neuromesh_expand_fold", &json!({ "query": fold_id }))
                 .await
                 .expect("query alias must expand the printed fold");
+            assert_eq!(expanded["success"], true);
+            assert!(expanded["original_body"]
+                .as_str()
+                .unwrap_or("")
+                .contains("let w = 4"));
+        });
+    }
+
+    #[test]
+    fn minimal_response_never_contains_fold_original_body() {
+        let handler = handler_for(fold_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does handle_tool_call work?" }),
+                )
+                .await
+                .unwrap();
+            let dumped = serde_json::to_string(&packet).unwrap();
+            assert!(
+                !dumped.contains("original_body"),
+                "minimal packet leaked fold bodies: {dumped}"
+            );
+            assert!(
+                first_fold_id(&packet).is_some(),
+                "expected fold descriptors"
+            );
+            let skeleton = handler
+                .handle_tool_call(
+                    "neuromesh_get_file_skeleton",
+                    &json!({
+                        "file_path": "src/tools.rs",
+                        "active_symbols": ["handle_tool_call"]
+                    }),
+                )
+                .await
+                .unwrap();
+            let skel = serde_json::to_string(&skeleton).unwrap();
+            assert!(
+                !skel.contains("original_body"),
+                "skeleton leaked fold bodies: {skel}"
+            );
+            assert!(
+                !skel.contains("let w = 4"),
+                "skeleton must not ship the folded body: {skel}"
+            );
+        });
+    }
+
+    #[test]
+    fn minimal_response_metadata_stays_under_token_budget() {
+        let handler = handler_for(fold_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does handle_tool_call work?" }),
+                )
+                .await
+                .unwrap();
+            let tokens = crate::response::metadata_tokens(&packet);
+            assert!(
+                tokens <= crate::response::MINIMAL_METADATA_BUDGET,
+                "minimal metadata {tokens} exceeds budget"
+            );
+        });
+    }
+
+    #[test]
+    fn partial_coverage_keeps_missing_seeds_and_next_action() {
+        let handler = handler_for(job_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does start_job Twig View::render enqueue_job?" }),
+                )
+                .await
+                .unwrap();
+            assert_eq!(packet["coverage"], "partial");
+            let missing = packet["missing"].as_array().expect("missing seeds");
+            let joined = missing
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert!(
+                joined.contains("Twig") || joined.contains("View"),
+                "missing={missing:?}"
+            );
+            assert_eq!(packet["next"]["tool"], "neuromesh_search_symbols");
+            assert!(packet.get("seeds").is_none());
+            assert!(packet.get("next_actions").is_none());
+            assert!(packet.get("inactive_hints").is_none());
+        });
+    }
+
+    #[test]
+    fn complete_coverage_omits_empty_diagnostics() {
+        let handler = handler_for(job_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does start_job enqueue_job?" }),
+                )
+                .await
+                .unwrap();
+            assert_eq!(packet["coverage"], "no_recorded_gap");
+            assert!(packet.get("missing").is_none());
+            assert!(packet.get("next").is_none());
+            assert!(packet.get("membrane_state").is_none());
+            assert!(packet.get("physarum_used").is_none());
+        });
+    }
+
+    #[test]
+    fn diagnostic_details_can_be_fetched_by_packet_id() {
+        let handler = handler_for(job_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does start_job enqueue_job?" }),
+                )
+                .await
+                .unwrap();
+            let packet_id = packet["packet_id"].as_str().unwrap();
+            let details = handler
+                .handle_tool_call(
+                    "neuromesh_explain_packet",
+                    &json!({ "packet_id": packet_id }),
+                )
+                .await
+                .unwrap();
+            assert_eq!(details["packet_id"], packet_id);
+            assert!(details.get("seeds").is_some());
+            assert!(details.get("budget").is_some());
+            assert!(details.get("membrane").is_some());
+            assert!(details.get("graph").is_none());
+            let dumped = serde_json::to_string(&details).unwrap();
+            assert!(!dumped.contains("original_body"));
+        });
+    }
+
+    #[test]
+    fn expired_packet_id_returns_clear_error() {
+        let handler = handler_for(job_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does start_job enqueue_job?" }),
+                )
+                .await
+                .unwrap();
+            let packet_id = packet["packet_id"].as_str().unwrap().to_string();
+            handler.expire_packet_for_test(&packet_id);
+            let err = handler
+                .handle_tool_call(
+                    "neuromesh_explain_packet",
+                    &json!({ "packet_id": packet_id }),
+                )
+                .await
+                .unwrap();
+            let message = err["error"].as_str().unwrap_or("");
+            assert!(
+                message.contains("expired"),
+                "expected expired error, got {err}"
+            );
+        });
+    }
+
+    #[test]
+    fn expand_fold_still_restores_original_body() {
+        let handler = handler_for(fold_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let packet = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({ "task": "How does handle_tool_call work?" }),
+                )
+                .await
+                .unwrap();
+            let fold_id = first_fold_id(&packet).expect("fold");
+            let expanded = handler
+                .handle_tool_call("neuromesh_expand_fold", &json!({ "fold_id": fold_id }))
+                .await
+                .unwrap();
             assert_eq!(expanded["success"], true);
             assert!(expanded["original_body"]
                 .as_str()

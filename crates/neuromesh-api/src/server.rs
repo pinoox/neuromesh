@@ -702,6 +702,7 @@ impl HttpServer {
                     let args = json!({
                         "task_description": prompt,
                         "mode": mode_str,
+                        "response_detail": "diagnostic",
                     });
                     match state
                         .mcp_handler

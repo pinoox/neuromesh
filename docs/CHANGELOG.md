@@ -4,6 +4,13 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+MCP packets are two-stage: the agent gets a compact packet; fold bodies and diagnostics stay on demand.
+
+- **No fold bodies on the wire.** `get_file_skeleton` and `get_context` return `FoldDescriptor` (id, symbol, signature, lines, saved tokens). `original_body` stays in the session registry and returns only from `neuromesh_expand_fold`.
+- **Minimal `get_context` by default.** Response is `packet_id`, `coverage` (`no_recorded_gap` | `partial` | `no_seed_resolved`), `tokens`, skeletonized `files`, `missing`/`next` only when coverage is incomplete. `mode` still picks files; `response_detail` (`minimal` | `standard` | `diagnostic`) picks metadata.
+- **`neuromesh_explain_packet`.** Fetch seeds, selection, budget, physarum, and membrane for a `packet_id` from a 32-slot / 10-minute LRU (no source bodies). Unknown or expired ids are a tool error.
+- **Compact MCP wire.** Tool `content[].text` is minified JSON of the same object as `structuredContent` (not pretty-printed). HTTP `/api/simulate` still requests `diagnostic` so the VS Code inspector is unchanged.
+
 ## 0.7.1 — 2026-08-26
 
 Compound-task coverage is honest: each topical cluster seeds independently, and a named half that misses is `partial` — never a silent `no_recorded_gap`.

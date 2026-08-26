@@ -30,6 +30,36 @@ pub struct FoldedIntron {
     pub task_score: f32,
 }
 
+/// Public fold metadata for MCP. The original body stays in the session registry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FoldDescriptor {
+    pub fold_id: String,
+    pub symbol: String,
+    pub signature: String,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub saved_tokens: usize,
+}
+
+impl From<&FoldedIntron> for FoldDescriptor {
+    fn from(fold: &FoldedIntron) -> Self {
+        Self {
+            fold_id: fold.fold_id.clone(),
+            symbol: fold.symbol_name.clone(),
+            signature: fold.signature.clone(),
+            start_line: fold.start_line,
+            end_line: fold.end_line,
+            saved_tokens: fold.saved_tokens,
+        }
+    }
+}
+
+impl From<FoldedIntron> for FoldDescriptor {
+    fn from(fold: FoldedIntron) -> Self {
+        FoldDescriptor::from(&fold)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkeletonResult {
     pub skeleton_code: String,
@@ -756,5 +786,29 @@ export function otherTwo() {
         assert!(res.skeleton_code.contains("return a + b;"));
         assert!(res.introns_folded >= 2, "{}", res.skeleton_code);
         assert!(!res.folds.iter().any(|f| f.symbol_name == "keepMe"));
+    }
+
+    #[test]
+    fn fold_descriptor_omits_original_body() {
+        let fold = FoldedIntron {
+            fold_id: "fold_if_1_abc".into(),
+            symbol_name: "if".into(),
+            signature: "if ($x)".into(),
+            original_body: "secret body that must not serialize".into(),
+            start_line: 30,
+            end_line: 34,
+            saved_tokens: 46,
+            owner: None,
+            task_score: 0.9,
+        };
+        let json = serde_json::to_value(FoldDescriptor::from(&fold)).unwrap();
+        assert!(json.get("original_body").is_none());
+        assert_eq!(json["fold_id"], "fold_if_1_abc");
+        assert_eq!(json["symbol"], "if");
+        let dumped = serde_json::to_string(&json).unwrap();
+        assert!(
+            !dumped.contains("secret body"),
+            "descriptor must not leak the intron body: {dumped}"
+        );
     }
 }

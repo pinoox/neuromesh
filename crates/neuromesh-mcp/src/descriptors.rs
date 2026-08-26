@@ -35,7 +35,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "neuromesh_get_context",
             "Get evidence packet",
-            "Return one evidence packet: seeds, skeletonized files, unresolved gaps, coverage (no_recorded_gap|partial|no_seed_resolved), budget, and next_actions. Never treats silence as completeness. Compound tasks seed each topical cluster (login flow AND permission guard) independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately; do not read a utility fallback. Pass the user prompt as task_description, prompt, or task.",
+            "Return a compact evidence packet by default: packet_id, coverage (no_recorded_gap|partial|no_seed_resolved), selected/packet tokens, skeletonized files, fold ids without bodies, and missing seeds only when coverage is incomplete. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as task_description, prompt, or task.",
             json!({
                 "type": "object",
                 "properties": {
@@ -54,7 +54,12 @@ pub fn tools_list() -> Vec<Value> {
                     "mode": {
                         "type": "string",
                         "enum": ["balanced", "max_quality", "max_savings"],
-                        "description": "Optimization mode (default: balanced)"
+                        "description": "File-selection quality (default: balanced). Independent of response_detail."
+                    },
+                    "response_detail": {
+                        "type": "string",
+                        "enum": ["minimal", "standard", "diagnostic"],
+                        "description": "Metadata verbosity (default: minimal). max_quality does not imply more metadata."
                     }
                 }
             }),
@@ -63,7 +68,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "neuromesh_get_file_skeleton",
             "Skeletonize file",
-            "Skeletonize one file: seed symbols stay open as exons; sibling functions fold to reversible one-line markers. Token reduction is measured per request (original_tokens vs skeleton_tokens), not a global percentage.",
+            "Skeletonize one file: seed symbols stay open as exons; sibling functions fold to reversible one-line markers. Fold metadata is fold_id/signature/lines only — original bodies stay in the session registry and return via neuromesh_expand_fold.",
             json!({
                 "type": "object",
                 "properties": {
@@ -79,6 +84,29 @@ pub fn tools_list() -> Vec<Value> {
                         "type": "array",
                         "items": { "type": "string" },
                         "description": "Symbol/function names to keep unfolded"
+                    }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_explain_packet",
+            "Explain packet",
+            "On-demand diagnostic metadata for a packet_id from neuromesh_get_context (seeds, selection, budget, physarum, membrane). Does not return folded source bodies. Graph stats are included only when include contains graph. Expired or unknown packet_id is an error — call get_context again.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "packet_id": {
+                        "type": "string",
+                        "description": "packet_id from the last get_context response"
+                    },
+                    "include": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["seeds", "selection", "budget", "graph", "physarum", "membrane"]
+                        },
+                        "description": "Sections to return. Omit for all except graph."
                     }
                 }
             }),
@@ -255,7 +283,18 @@ mod tests {
         assert!(ctx["inputSchema"].get("required").is_none());
         assert!(ctx["inputSchema"]["properties"].get("prompt").is_some());
         assert!(ctx["inputSchema"]["properties"].get("task").is_some());
+        assert!(ctx["inputSchema"]["properties"]
+            .get("response_detail")
+            .is_some());
         assert_eq!(ctx["annotations"]["readOnlyHint"], true);
+    }
+
+    #[test]
+    fn explain_packet_is_listed() {
+        let tools = tools_list();
+        assert!(tools
+            .iter()
+            .any(|t| t["name"] == "neuromesh_explain_packet"));
     }
 
     #[test]

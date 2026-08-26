@@ -377,7 +377,7 @@ mod tests {
         }));
         assert_eq!(resp["result"]["isError"], false);
         assert!(resp["result"]["structuredContent"]
-            .get("evidence_packet")
+            .get("packet_id")
             .is_some());
     }
 
