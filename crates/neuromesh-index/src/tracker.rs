@@ -63,6 +63,15 @@ impl SourceLanguage {
         if filename == "package.json" || filename == "tsconfig.json" {
             return SourceLanguage::JSON;
         }
+        if filename == ".env" {
+            return SourceLanguage::Unknown;
+        }
+        if matches!(
+            filename.as_str(),
+            ".env.example" | ".env.sample" | ".env.dist" | ".env.template"
+        ) {
+            return SourceLanguage::YAML;
+        }
 
         match extension.as_str() {
             "vue" => SourceLanguage::Vue,
@@ -272,5 +281,17 @@ mod tests {
         assert!(SourceLanguage::Twig.is_code());
         assert!(SourceLanguage::Svelte.is_code());
         assert!(SourceLanguage::Astro.is_code());
+        assert_eq!(
+            SourceLanguage::from_path(Path::new(".env")),
+            SourceLanguage::Unknown
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new(".env.example")),
+            SourceLanguage::YAML
+        );
+        assert_eq!(
+            SourceLanguage::from_path(Path::new("config/.env.sample")),
+            SourceLanguage::YAML
+        );
     }
 }

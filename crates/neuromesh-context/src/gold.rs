@@ -196,6 +196,19 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
+            "mini-pinoox",
+            GoldTask {
+                id: "home_view_twig".into(),
+                prompt: "Explain the request flow from the named home route through MainController::index to View::render('hello') and the Twig template variables title and message.".into(),
+                gold_files: vec![
+                    "Controller/MainController.php".into(),
+                    "routes/web.php".into(),
+                    "theme/default/hello.twig".into(),
+                ],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
             "mini-next",
             GoldTask {
                 id: "sms_api".into(),

@@ -33,6 +33,12 @@ const STOPWORDS: &[&str] = &[
     "create",
     "implement",
     "explain",
+    "modify",
+    "refactor",
+    "remove",
+    "delete",
+    "rewrite",
+    "improve",
     "show",
     "find",
     "get",
@@ -396,6 +402,27 @@ mod tests {
         );
         assert!(
             anchors.file_hints.iter().any(|p| p.contains("tools.rs")),
+            "file_hints = {:?}",
+            anchors.file_hints
+        );
+    }
+
+    #[test]
+    fn drops_imperative_verbs_and_keeps_file_path() {
+        let anchors = extract_prompt_anchors("Modify theme/default/hello.twig to change the title");
+        assert!(
+            !anchors
+                .identifiers
+                .iter()
+                .any(|id| id.eq_ignore_ascii_case("modify")),
+            "identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            anchors
+                .file_hints
+                .iter()
+                .any(|p| p.contains("theme/default/hello.twig")),
             "file_hints = {:?}",
             anchors.file_hints
         );

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use super::{configured_walker, persist_file_cap, print_file_cap, FileCapArg};
 
 pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
-    let current_dir = std::env::current_dir()?;
+    let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
         .and_then(|n| n.to_str())
@@ -155,7 +155,8 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
     if skipped_count > 0 {
         println!("  Skipped        : {} ({})", skipped_count, skipped_summary);
     }
-    println!("  Total Tokens   : {}", total_tokens);
+    println!("  Processed Tokens : {}", total_tokens);
+    println!("  Workspace Tokens : {}", graph.total_tokens());
     println!("  Graph Nodes    : {}", stats.total_nodes);
     println!("  Pheromone Edges: {}", stats.total_edges);
 

@@ -6,14 +6,16 @@ use crate::response::{
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
 use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result};
-use neuromesh_graph::NeuralProjectGraph;
+use neuromesh_graph::{IndexState, NeuralProjectGraph};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_router::QualityGate;
 use neuromesh_task::TaskSignatureExtractor;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 pub struct McpToolHandler {
     graph: Arc<NeuralProjectGraph>,
@@ -114,13 +116,8 @@ impl McpToolHandler {
             "neuromesh_get_context" | "activate_context" => {
                 let start_time = std::time::Instant::now();
                 let task_desc = read_task_description(arguments)?;
-
-                let mode_str = arguments["mode"].as_str().unwrap_or("balanced");
-                let requested_mode = match mode_str {
-                    "max_quality" => OptimizationMode::MaxQuality,
-                    "max_savings" => OptimizationMode::MaxSavings,
-                    _ => OptimizationMode::Balanced,
-                };
+                let requested_mode = parse_optimization_mode(arguments.get("mode"))?;
+                self.wait_for_index()?;
                 let detail = ResponseDetail::parse(arguments["response_detail"].as_str());
 
                 let signature = TaskSignatureExtractor::extract(&task_desc);
@@ -225,8 +222,14 @@ impl McpToolHandler {
                 let content_opt = self
                     .graph
                     .get_node(&node_id)
-                    .and_then(|n| self.graph.read_source(&n.file_path))
-                    .or_else(|| std::fs::read_to_string(file_path).ok());
+                    .and_then(|n| self.graph.read_source(&n.file_path));
+                let content_opt = match content_opt {
+                    Some(content) => Some(content),
+                    None => match self.read_workspace_source(file_path) {
+                        Ok(content) => content,
+                        Err(err) => return Ok(json!({ "error": err })),
+                    },
+                };
 
                 if let Some(content) = content_opt {
                     let res = CodeSkeletonizer::skeletonize(file_path, &content, &active_symbols);
@@ -551,9 +554,13 @@ impl McpToolHandler {
             // 10. Get System Stats & Biomimetic Health
             "neuromesh_get_stats" => {
                 let stats = self.graph.stats();
+                let index_state = self.graph.index_state();
                 Ok(json!({
                     "version": env!("CARGO_PKG_VERSION"),
                     "project_id": self.graph.project_id().0,
+                    "index_state": index_state,
+                    "generation": stats.generation,
+                    "ready": index_state == IndexState::Ready,
                     "graph_stats": stats,
                     "biomimetic_engine": self.biomimetic_report()
                 }))
@@ -561,6 +568,59 @@ impl McpToolHandler {
 
             _ => Ok(json!({ "error": format!("Unknown tool: {}", name) })),
         }
+    }
+
+    fn wait_for_index(&self) -> Result<()> {
+        if self.graph.stats().total_nodes > 0 {
+            return Ok(());
+        }
+        let state = self.graph.wait_until_indexed(Duration::from_secs(5));
+        if self.graph.stats().total_nodes > 0 || state == IndexState::Ready {
+            return Ok(());
+        }
+        Err(NeuroMeshError::Config(format!(
+            "indexing_in_progress: index_state={state:?}"
+        )))
+    }
+
+    fn read_workspace_source(
+        &self,
+        file_path: &str,
+    ) -> std::result::Result<Option<String>, String> {
+        let Some(root) = self.graph.workspace_root() else {
+            return Ok(None);
+        };
+        match neuromesh_index::read_workspace_file(&root, Path::new(file_path)) {
+            Ok(src) => Ok(Some(src)),
+            Err(err) => {
+                let msg = err.to_string();
+                if msg.contains("outside workspace") {
+                    Err(msg)
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+}
+
+fn parse_optimization_mode(value: Option<&Value>) -> Result<OptimizationMode> {
+    let Some(value) = value else {
+        return Ok(OptimizationMode::Balanced);
+    };
+    if value.is_null() {
+        return Ok(OptimizationMode::Balanced);
+    }
+    let Some(raw) = value.as_str() else {
+        return Err(NeuroMeshError::Config("unknown mode".into()));
+    };
+    match raw.trim() {
+        "" | "balanced" => Ok(OptimizationMode::Balanced),
+        "max_quality" => Ok(OptimizationMode::MaxQuality),
+        "max_savings" => Ok(OptimizationMode::MaxSavings),
+        other => Err(NeuroMeshError::Config(format!(
+            "unknown mode: {other}; expected balanced, max_quality, or max_savings"
+        ))),
     }
 }
 
@@ -1042,6 +1102,187 @@ pub fn unused_helper() {
                 .as_str()
                 .unwrap_or("")
                 .contains("let w = 4"));
+        });
+    }
+
+    #[test]
+    fn skeleton_rejects_absolute_path_outside_workspace() {
+        let root = std::env::temp_dir().join(format!(
+            "nm-skel-abs-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src").join("lib.rs"), "pub fn ok() {}\n").unwrap();
+        let graph = fold_sample_graph();
+        graph.set_workspace(&root);
+        let handler = handler_for(graph);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            #[cfg(unix)]
+            let outside = "/etc/passwd";
+            #[cfg(windows)]
+            let outside = r"C:\Windows\win.ini";
+            let err = handler
+                .handle_tool_call(
+                    "neuromesh_get_file_skeleton",
+                    &json!({ "file_path": outside, "active_symbols": [] }),
+                )
+                .await
+                .unwrap();
+            let dumped = serde_json::to_string(&err).unwrap();
+            assert!(
+                dumped.contains("outside workspace"),
+                "expected confinement error, got {dumped}"
+            );
+            assert!(
+                !dumped.contains("root:"),
+                "must never return outside file content: {dumped}"
+            );
+        });
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn skeleton_rejects_parent_directory_traversal() {
+        let root = std::env::temp_dir().join(format!(
+            "nm-skel-trav-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src").join("lib.rs"), "pub fn ok() {}\n").unwrap();
+        let graph = fold_sample_graph();
+        graph.set_workspace(&root);
+        let handler = handler_for(graph);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let err = handler
+                .handle_tool_call(
+                    "neuromesh_get_file_skeleton",
+                    &json!({
+                        "file_path": "../../../../etc/passwd",
+                        "active_symbols": []
+                    }),
+                )
+                .await
+                .unwrap();
+            let dumped = serde_json::to_string(&err).unwrap();
+            assert!(
+                dumped.contains("outside workspace"),
+                "expected traversal rejection, got {dumped}"
+            );
+        });
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skeleton_rejects_symlink_escaping_workspace() {
+        let root = std::env::temp_dir().join(format!(
+            "nm-skel-link-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let link = root.join("passwd-link");
+        let _ = std::os::unix::fs::symlink("/etc/passwd", &link);
+        let graph = fold_sample_graph();
+        graph.set_workspace(&root);
+        let handler = handler_for(graph);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let err = handler
+                .handle_tool_call(
+                    "neuromesh_get_file_skeleton",
+                    &json!({ "file_path": "passwd-link", "active_symbols": [] }),
+                )
+                .await
+                .unwrap();
+            let dumped = serde_json::to_string(&err).unwrap();
+            assert!(
+                dumped.contains("outside workspace") || dumped.contains("not found"),
+                "expected symlink escape rejection, got {dumped}"
+            );
+            assert!(!dumped.contains("root:"));
+        });
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn skeleton_allows_canonical_file_inside_workspace() {
+        let root = std::env::temp_dir().join(format!(
+            "nm-skel-ok-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src").join("lib.rs"), "pub fn ok() { 1 }\n").unwrap();
+        let graph = fold_sample_graph();
+        graph.set_workspace(&root);
+        let handler = handler_for(graph);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let ok = handler
+                .handle_tool_call(
+                    "neuromesh_get_file_skeleton",
+                    &json!({ "file_path": "src/lib.rs", "active_symbols": ["ok"] }),
+                )
+                .await
+                .unwrap();
+            assert!(
+                ok.get("error").is_none(),
+                "inside-workspace file must be readable: {ok}"
+            );
+            assert!(ok["skeleton_code"].as_str().unwrap_or("").contains("ok"));
+        });
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn unknown_mode_is_tool_error() {
+        let handler = handler_for(job_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let err = handler
+                .handle_tool_call(
+                    "neuromesh_get_context",
+                    &json!({
+                        "task": "How does start_job enqueue_job?",
+                        "mode": "invalid-mode"
+                    }),
+                )
+                .await;
+            assert!(err.is_err(), "invalid mode must not silently fall back");
+            let msg = err.unwrap_err().to_string();
+            assert!(msg.contains("unknown mode"), "{msg}");
+        });
+    }
+
+    #[test]
+    fn get_stats_exposes_index_readiness() {
+        let handler = handler_for(job_sample_graph());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let stats = handler
+                .handle_tool_call("neuromesh_get_stats", &json!({}))
+                .await
+                .unwrap();
+            assert_eq!(stats["index_state"], "ready");
+            assert_eq!(stats["ready"], true);
+            assert!(stats.get("generation").is_some());
         });
     }
 }

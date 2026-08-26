@@ -9,7 +9,7 @@ use std::sync::Arc;
 use super::{apply_file_cap, FileCapArg};
 
 pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> {
-    let current_dir = std::env::current_dir()?;
+    let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
     println!("NeuroMesh monitor: starting in {}", current_dir.display());
     let _ = std::io::stdout().flush();
 

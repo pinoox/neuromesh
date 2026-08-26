@@ -128,13 +128,14 @@ pub fn spawn_live_sync(
     pid: ProjectId,
     cap: FileCapArg,
 ) {
+    if !ProjectWalker::is_safe_workspace(&dir) {
+        graph.mark_index_ready();
+        return;
+    }
     let bg_graph = graph.clone();
     let bg_dir = dir.clone();
     let bg_pid = pid.clone();
     tokio::task::spawn_blocking(move || {
-        if !ProjectWalker::is_safe_workspace(&bg_dir) {
-            return;
-        }
         let max_files = match cap {
             FileCapArg::Unspecified => Config::load().max_files,
             FileCapArg::Auto => None,

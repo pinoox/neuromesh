@@ -231,7 +231,10 @@ pub fn select(
                 }
                 let outbound_call = edge.edge_type == EdgeType::Calls && edge.source == *seed;
                 let inbound_use = hop_limit > 0
-                    && (edge.edge_type == EdgeType::Calls || edge.edge_type == EdgeType::Imports)
+                    && matches!(
+                        edge.edge_type,
+                        EdgeType::Calls | EdgeType::Imports | EdgeType::References
+                    )
                     && edge.target == *seed;
                 if !outbound_call && !inbound_use {
                     continue;

@@ -15,7 +15,7 @@ mod repo_quality_tests;
 
 pub use activation::{SpreadingActivation, SpreadingActivationConfig};
 pub use edge::{PheromoneConfig, PheromoneEngine};
-pub use graph::{path_echoes_symbol, GraphStats, NeuralProjectGraph};
+pub use graph::{path_echoes_symbol, GraphStats, IndexState, NeuralProjectGraph};
 pub use node::NodeFactory;
 pub use physarum::{PhysarumConfig, PhysarumResult, PhysarumSolver};
 pub use query::{

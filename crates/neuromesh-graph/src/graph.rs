@@ -18,12 +18,13 @@ use neuromesh_core::{
 };
 use neuromesh_index::{FileFingerprint, IndexedFile, ScanReport};
 use neuromesh_parser::AstAnalysisResult;
-use parking_lot::RwLock;
+use parking_lot::{Condvar, Mutex, RwLock};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphStats {
@@ -44,6 +45,49 @@ pub struct GraphStats {
     pub generation: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IndexState {
+    Loading,
+    Indexing,
+    Ready,
+    Failed,
+}
+
+struct IndexGate {
+    state: Mutex<IndexState>,
+    cv: Condvar,
+}
+
+impl IndexGate {
+    fn new(state: IndexState) -> Self {
+        Self {
+            state: Mutex::new(state),
+            cv: Condvar::new(),
+        }
+    }
+
+    fn get(&self) -> IndexState {
+        *self.state.lock()
+    }
+
+    fn set(&self, state: IndexState) {
+        *self.state.lock() = state;
+        if matches!(state, IndexState::Ready | IndexState::Failed) {
+            self.cv.notify_all();
+        }
+    }
+
+    fn wait_ready(&self, timeout: Duration) -> IndexState {
+        let mut guard = self.state.lock();
+        if matches!(*guard, IndexState::Ready | IndexState::Failed) {
+            return *guard;
+        }
+        self.cv.wait_for(&mut guard, timeout);
+        *guard
+    }
+}
+
 #[derive(Clone)]
 pub struct NeuralProjectGraph {
     project_id: Arc<RwLock<ProjectId>>,
@@ -52,6 +96,7 @@ pub struct NeuralProjectGraph {
     activation_engine: Arc<SpreadingActivation>,
     synaptic_engine: Arc<RwLock<SynapticPlasticityEngine>>,
     physarum_solver: Arc<PhysarumSolver>,
+    index_gate: Arc<IndexGate>,
 }
 
 impl NeuralProjectGraph {
@@ -67,6 +112,7 @@ impl NeuralProjectGraph {
                 StdpConfig::default(),
             ))),
             physarum_solver: Arc::new(PhysarumSolver::new(PhysarumConfig::default())),
+            index_gate: Arc::new(IndexGate::new(IndexState::Ready)),
         }
     }
 
@@ -76,6 +122,34 @@ impl NeuralProjectGraph {
 
     pub fn set_project_id(&self, new_id: ProjectId) {
         *self.project_id.write() = new_id;
+    }
+
+    pub fn index_state(&self) -> IndexState {
+        self.index_gate.get()
+    }
+
+    pub fn mark_index_loading(&self) {
+        self.index_gate.set(IndexState::Loading);
+    }
+
+    pub fn mark_index_indexing(&self) {
+        self.index_gate.set(IndexState::Indexing);
+    }
+
+    pub fn mark_index_ready(&self) {
+        self.index_gate.set(IndexState::Ready);
+    }
+
+    pub fn mark_index_failed(&self) {
+        self.index_gate.set(IndexState::Failed);
+    }
+
+    /// Wait until the first index finishes when the graph is still empty.
+    pub fn wait_until_indexed(&self, timeout: Duration) -> IndexState {
+        if self.stats().total_nodes > 0 {
+            return IndexState::Ready;
+        }
+        self.index_gate.wait_ready(timeout)
     }
 
     pub fn clear(&self, new_project_id: Option<ProjectId>) {
@@ -456,6 +530,27 @@ impl NeuralProjectGraph {
                             relationship: EdgeType::Calls,
                         });
                         true
+                    } else if let Some(hint) = rel.target_file_hint.as_deref() {
+                        if let Some(target) = self.resolve_file_hint(hint) {
+                            if target != source {
+                                self.add_edge_with_confidence(
+                                    source,
+                                    target,
+                                    EdgeType::Calls,
+                                    EdgeConfidence::Likely,
+                                );
+                            }
+                            true
+                        } else {
+                            unresolved.push(UnresolvedRef {
+                                name: rel.target_symbol.clone(),
+                                from: rel.source_symbol.clone(),
+                                from_file: rel.source_file.clone(),
+                                reason: "no unique or impl-scoped target".into(),
+                                relationship: EdgeType::Calls,
+                            });
+                            false
+                        }
                     } else {
                         unresolved.push(UnresolvedRef {
                             name: rel.target_symbol.clone(),
@@ -475,6 +570,18 @@ impl NeuralProjectGraph {
                     ) {
                         self.add_edge_with_confidence(file_id, target, other, confidence);
                         true
+                    } else if let Some(hint) = rel.target_file_hint.as_deref() {
+                        if let Some(target) = self.resolve_file_hint(hint) {
+                            self.add_edge_with_confidence(
+                                file_id,
+                                target,
+                                other,
+                                EdgeConfidence::Likely,
+                            );
+                            true
+                        } else {
+                            false
+                        }
                     } else {
                         false
                     }
@@ -716,7 +823,7 @@ impl NeuralProjectGraph {
         None
     }
 
-    fn resolve_file_hint(&self, hint: &str) -> Option<NodeId> {
+    pub fn resolve_file_hint(&self, hint: &str) -> Option<NodeId> {
         let data = self.inner.read();
         let mut matches = Vec::new();
         for (path, ids) in &data.file_to_nodes {
@@ -1090,14 +1197,19 @@ impl NeuralProjectGraph {
 
     pub fn load_persisted(&self, workspace: &Path) -> bool {
         self.set_workspace(workspace);
-        if self
+        let loaded = if self
             .load_from(&Self::persist_path(workspace))
             .unwrap_or(false)
         {
-            return true;
+            true
+        } else {
+            self.load_from(&Self::persist_json_path(workspace))
+                .unwrap_or(false)
+        };
+        if loaded && self.stats().total_nodes > 0 {
+            self.mark_index_ready();
         }
-        self.load_from(&Self::persist_json_path(workspace))
-            .unwrap_or(false)
+        loaded
     }
 
     pub fn save_persisted(&self, workspace: &Path) -> neuromesh_core::Result<()> {
@@ -1107,6 +1219,10 @@ impl NeuralProjectGraph {
 
     pub fn set_workspace(&self, workspace: &Path) {
         self.inner.write().workspace_root = Some(workspace.to_path_buf());
+    }
+
+    pub fn workspace_root(&self) -> Option<PathBuf> {
+        self.inner.read().workspace_root.clone()
     }
 
     pub fn file_fingerprints(&self) -> HashMap<String, FileFingerprint> {
@@ -1125,13 +1241,8 @@ impl NeuralProjectGraph {
         if let Some(src) = overlay {
             return Some(src);
         }
-        if let Some(root) = root {
-            let full = root.join(path);
-            if let Ok(src) = std::fs::read_to_string(&full) {
-                return Some(src);
-            }
-        }
-        std::fs::read_to_string(path).ok()
+        let root = root?;
+        neuromesh_index::read_workspace_file(&root, path).ok()
     }
 
     pub fn ingest_scan_report(&self, report: &ScanReport) {
@@ -1154,12 +1265,17 @@ impl NeuralProjectGraph {
         project_id: ProjectId,
         max_files: Option<usize>,
     ) {
+        self.mark_index_indexing();
         self.set_workspace(workspace);
         let walker = neuromesh_index::ProjectWalker::new(workspace.to_path_buf(), project_id)
             .with_optional_max_files(max_files);
-        if let Ok(report) = walker.scan_report_with(&self.file_fingerprints()) {
-            self.ingest_scan_report(&report);
-            let _ = self.save_persisted(workspace);
+        match walker.scan_report_with(&self.file_fingerprints()) {
+            Ok(report) => {
+                self.ingest_scan_report(&report);
+                let _ = self.save_persisted(workspace);
+                self.mark_index_ready();
+            }
+            Err(_) => self.mark_index_failed(),
         }
     }
 
@@ -1277,6 +1393,9 @@ impl NeuralProjectGraph {
                 workspace_root: data.workspace_root.clone(),
             }
         };
+        if snapshot_structurally_unchanged(path, &snapshot) {
+            return Ok(());
+        }
         if path.extension().and_then(|e| e.to_str()) == Some("json") {
             std::fs::write(path, serde_json::to_string(&snapshot)?)?;
         } else {
@@ -1983,4 +2102,43 @@ fn package_name(path: &Path) -> String {
         }
     }
     parts.first().cloned().unwrap_or_else(|| "root".into())
+}
+
+fn snapshot_structurally_unchanged(path: &Path, new: &GraphSnapshot) -> bool {
+    if !path.exists() {
+        return false;
+    }
+    let Ok(raw) = std::fs::read(path) else {
+        return false;
+    };
+    let old = if let Ok(s) = bincode::deserialize::<GraphSnapshot>(&raw) {
+        s
+    } else {
+        let text = String::from_utf8_lossy(&raw);
+        match serde_json::from_str::<GraphSnapshot>(&text) {
+            Ok(s) => s,
+            Err(_) => return false,
+        }
+    };
+    structural_digest(&old) == structural_digest(new)
+}
+
+fn structural_digest(snapshot: &GraphSnapshot) -> String {
+    let mut node_ids: Vec<&str> = snapshot.nodes.iter().map(|n| n.id.as_str()).collect();
+    node_ids.sort_unstable();
+    let mut edge_ids: Vec<&str> = snapshot.edges.iter().map(|e| e.id.as_str()).collect();
+    edge_ids.sort_unstable();
+    let mut hashes: Vec<String> = snapshot
+        .file_hashes
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect();
+    hashes.sort();
+    let payload = format!(
+        "{}|{}|{}",
+        node_ids.join("\n"),
+        edge_ids.join("\n"),
+        hashes.join("\n")
+    );
+    neuromesh_index::ContentHasher::hash_str(&payload)
 }

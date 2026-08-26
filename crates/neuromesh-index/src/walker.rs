@@ -120,19 +120,7 @@ impl ProjectWalker {
     }
 
     pub fn is_safe_workspace(path: &Path) -> bool {
-        if let Some(home) = dirs::home_dir() {
-            if path == home {
-                return false;
-            }
-        }
-        let name = path
-            .file_name()
-            .map(|s| s.to_string_lossy().to_lowercase())
-            .unwrap_or_default();
-        !matches!(
-            name.as_str(),
-            "" | "users" | "windows" | "program files" | "program files (x86)" | "appdata" | "/"
-        )
+        crate::confine::is_safe_workspace(path)
     }
 
     pub fn is_ignored(path: &Path) -> bool {
@@ -216,6 +204,9 @@ impl ProjectWalker {
             }
 
             let full_path = entry.path().to_path_buf();
+            if crate::confine::path_escapes_workspace(&full_path, &self.root_path) {
+                continue;
+            }
             let relative_path = match full_path.strip_prefix(&self.root_path) {
                 Ok(p) => p.to_path_buf(),
                 Err(_) => full_path.clone(),
@@ -301,6 +292,9 @@ impl ProjectWalker {
     /// Read one workspace file for the live watcher.
     pub fn read_indexed(&self, full_path: &Path) -> Option<(IndexedFile, String)> {
         if Self::is_ignored(full_path) {
+            return None;
+        }
+        if crate::confine::path_escapes_workspace(full_path, &self.root_path) {
             return None;
         }
         let relative_path = full_path.strip_prefix(&self.root_path).ok()?.to_path_buf();

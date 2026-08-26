@@ -186,9 +186,11 @@ Codex, Antigravity/Gemini, Windsurf, Trae, Kilo Code, Cline/Roo.
 
 fn launch_spec() -> Result<LaunchSpec> {
     let command = resolve_binary()?.to_string_lossy().into_owned();
-    let workspace = neuromesh_index::ProjectWalker::discover_workspace(
-        &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-    );
+    let workspace = neuromesh_index::assert_safe_workspace(
+        &neuromesh_index::ProjectWalker::discover_workspace(
+            &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        ),
+    )?;
     let cwd = workspace.to_string_lossy().into_owned();
     let mut env = BTreeMap::new();
     env.insert("NEUROMESH_WORKSPACE".into(), cwd.clone());

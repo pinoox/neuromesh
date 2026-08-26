@@ -127,9 +127,26 @@ fn path_eq(a: &Path, b: &Path) -> bool {
 }
 
 pub fn collect_symbols(view: &ContextView) -> Vec<Value> {
-    view.active_nodes
+    let mut nodes: Vec<_> = view
+        .active_nodes
         .iter()
         .filter(|n| n.node.node_type != NodeType::File)
+        .collect();
+    nodes.sort_by(|a, b| {
+        b.activation_score
+            .total_cmp(&a.activation_score)
+            .then_with(|| a.node.file_path.cmp(&b.node.file_path))
+            .then_with(|| a.node.name.cmp(&b.node.name))
+            .then_with(|| {
+                a.node
+                    .line_range
+                    .as_ref()
+                    .map(|r| r.start)
+                    .cmp(&b.node.line_range.as_ref().map(|r| r.start))
+            })
+    });
+    nodes
+        .into_iter()
         .map(|n| {
             json!({
                 "name": n.node.name,
