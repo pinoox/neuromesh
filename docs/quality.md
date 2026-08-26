@@ -30,25 +30,25 @@ neuromesh eval
 
 ## Grep after get_context
 
-From `neuromesh eval` on this workspace (release, 2026-08-24, balanced):
+From `neuromesh eval` on this workspace (release, 2026-08-27, balanced):
 
 | Task | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | 365352 | 32889 | 27381 | 92.5% | 16.7% | 1.00 | 0.60 | **0** | 17 |
-| `physarum_usage` | 365352 | 7929 | 4547 | 98.8% | 42.7% | 1.00 | 0.67 | **0** | 8 |
+| `handle_tool_call_intent` | 479679 | 53564 | 12668 | 97.4% | 76.3% | 1.00 | 0.75 | **0** | 40 |
+| `physarum_usage` | 479679 | 17997 | 3955 | 99.2% | 78.0% | 1.00 | 0.50 | **0** | 22 |
 
 That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
 
 ## Index snapshot
 
-From `neuromesh eval` (release, 2026-08-24) on this repository:
+From `neuromesh eval` (release, 2026-08-27) on this repository:
 
 | Metric | Value |
 | :--- | ---: |
-| Files | 219 (`target/` ignored) |
-| Nodes | 1,323 |
-| Edges | 2,891 |
-| Index time (release) | ~209 ms |
+| Files | 260 (`target/` ignored) |
+| Nodes | 1,920 |
+| Edges | 4,389 |
+| Index time (release) | ~728 ms |
 
 Index file cap is **auto** by default (production sources first, tests last, ceiling 50,000). Override with `neuromesh index --max-files N`. See [cli.md](cli.md#index-file-cap).
 
@@ -60,12 +60,12 @@ From `snapshot_load_and_single_file_reindex_beat_full_index` (release, this repo
 
 | Metric | Value |
 | :--- | ---: |
-| Files scanned | 247 |
-| Nodes | 1,733 |
-| Full workspace index | 346 ms |
-| Snapshot size | 2.2 MB |
-| **Snapshot cold load** | **28 ms** |
-| **One-file reindex** (parse + local relink) | **27 ms** |
+| Files scanned | 260 |
+| Nodes | 1,920 |
+| Full workspace index | 1,113 ms |
+| Snapshot size | 2.6 MB |
+| **Snapshot cold load** | **49 ms** |
+| **One-file reindex** (parse + local relink) | **88 ms** |
 
 ```bash
 cargo test --release -p neuromesh-graph --lib snapshot_load_and_single_file_reindex -- --nocapture

@@ -277,18 +277,18 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release, 2026-08-24, 365,352 workspace tokens):
+On this repo (release, 2026-08-27, 479,679 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | balanced | 365352 | 32889 | 27381 | 92.5% | 16.7% | 1.00 | 0.60 | **0** | 17 |
-| `physarum_usage` | balanced | 365352 | 7929 | 4547 | 98.8% | 42.7% | 1.00 | 0.67 | **0** | 8 |
+| `handle_tool_call_intent` | balanced | 479679 | 53564 | 12668 | 97.4% | 76.3% | 1.00 | 0.75 | **0** | 40 |
+| `physarum_usage` | balanced | 479679 | 17997 | 3955 | 99.2% | 78.0% | 1.00 | 0.50 | **0** | 22 |
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
 Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects. Packet activation **&lt; 150 ms** in the debug gold test.
 
-Index snapshot from that eval run: **219 files · 1,323 nodes · 2,891 edges · ~209 ms** (release).
+Index snapshot from that eval run: **260 files · 1,920 nodes · 4,389 edges · ~728 ms** (release).
 
 ---
 
