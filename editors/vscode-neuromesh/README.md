@@ -2,7 +2,7 @@
 
 Sidebar mesh stats, a packet inspector, fold CodeLens, and the galaxy UI — talking to a running `neuromesh monitor`.
 
-The agent loop in the editor matches 0.7.1: **get_context → expand_fold**. Grep (`search_symbols`) when coverage is `partial` or `no_seed_resolved`. After a good edit, **record_feedback**.
+The agent loop in the editor matches 0.7.3: **get_context → expand_fold**. Grep (`search_symbols`) when coverage is `partial` or `no_seed_resolved`. After a good edit, **record_feedback**.
 
 ## Install
 
@@ -31,7 +31,7 @@ neuromesh monitor
 | :--- | :--- |
 | **Activity bar → NeuroMesh** | Live mesh (files / nodes / edges / mode / Physarum), last packet files, session folds |
 | **Status bar** | Offline warning, or `NM 93.5% · 8 folds` from the last packet |
-| **Packet Inspector** | Same evidence packet the MCP agent receives: vs workspace, vs selected, coverage, budget, next_actions |
+| **Packet Inspector** | Diagnostic evidence packet from HTTP simulate: vs workspace, vs selected, coverage, budget |
 | **Galaxy Monitor** | The 3D/2D graph UI (default `http://127.0.0.1:8765`; `neuromesh port`) |
 | **Fold markers** | `[neuromesh:fold:…]` lines get a ruler mark, hover, and CodeLens → expand from RAM |
 

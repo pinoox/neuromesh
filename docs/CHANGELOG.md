@@ -4,6 +4,19 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.3 — 2026-08-26
+
+Workspace confinement, first-query readiness, and compact MCP packets.
+
+- **Workspace confinement.** `get_file_skeleton` and `read_source` refuse absolute paths, `../` traversal, and symlink escape. `neuromesh index` / start / monitor / eval / connect refuse home and filesystem roots in under 100ms. CLI `Processed Tokens` is the current run; `Workspace Tokens` is the graph total.
+- **Index readiness.** Cold MCP `get_context` waits for the first index (or returns `indexing_in_progress`) instead of an empty `no_seed_resolved` packet. `neuromesh_get_stats` includes `index_state`, `generation`, and `ready`.
+- **Coverage honesty.** Imperative verbs (`Modify`, `Refactor`, …) are not seeds. Equivalent file-path forms count as a hit. Unknown `mode` is a tool error. `.env` is skipped; `.env.example` and siblings are indexed.
+- **Pinoox View→Twig.** `View::render('hello')` links `theme/{theme}/hello.twig` with a `Calls` edge so the template ships with the controller.
+- **No fold bodies on the wire.** `get_file_skeleton` and `get_context` return `FoldDescriptor` (id, symbol, signature, lines, saved tokens). `original_body` stays in the session registry and returns only from `neuromesh_expand_fold`.
+- **Minimal `get_context` by default.** Response is `packet_id`, `coverage` (`no_recorded_gap` | `partial` | `no_seed_resolved`), `tokens`, skeletonized `files`, `missing`/`next` only when coverage is incomplete. `mode` still picks files; `response_detail` (`minimal` | `standard` | `diagnostic`) picks metadata.
+- **`neuromesh_explain_packet`.** Fetch seeds, selection, budget, physarum, and membrane for a `packet_id` from a 32-slot / 10-minute LRU (no source bodies). Unknown or expired ids are a tool error.
+- **Compact MCP wire.** Tool `content[].text` is minified JSON of the same object as `structuredContent` (not pretty-printed). HTTP `/api/simulate` still requests `diagnostic` so the VS Code inspector is unchanged.
+
 ## 0.7.1 — 2026-08-26
 
 Compound-task coverage is honest: each topical cluster seeds independently, and a named half that misses is `partial` — never a silent `no_recorded_gap`.

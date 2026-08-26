@@ -100,7 +100,10 @@ fn collect_event(
         if ProjectWalker::is_ignored(&path) {
             continue;
         }
-        if !path.starts_with(root) {
+        if crate::confine::path_escapes_workspace(&path, root) {
+            continue;
+        }
+        if !crate::confine::is_path_within(&path, root) {
             continue;
         }
         if is_delete {

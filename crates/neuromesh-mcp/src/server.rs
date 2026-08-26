@@ -121,6 +121,9 @@ impl McpServer {
         let pid = neuromesh_core::ProjectId::new(&p_name);
         self.handler.graph().set_project_id(pid.clone());
         let _ = self.handler.graph().load_persisted(&p_buf);
+        if self.handler.graph().stats().total_nodes == 0 {
+            self.handler.graph().mark_index_loading();
+        }
         let bg_graph = self.handler.graph().clone();
         let bg_dir = p_buf.clone();
         let bg_pid = pid.clone();
@@ -377,7 +380,7 @@ mod tests {
         }));
         assert_eq!(resp["result"]["isError"], false);
         assert!(resp["result"]["structuredContent"]
-            .get("evidence_packet")
+            .get("packet_id")
             .is_some());
     }
 

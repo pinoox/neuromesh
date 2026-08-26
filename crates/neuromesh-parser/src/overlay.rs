@@ -1,7 +1,7 @@
 use crate::query_extract::{self, Grammar, QueryOptions, CSHARP_QUERIES};
-use crate::types::{AstAnalysisResult, ParsedSymbol};
+use crate::types::{AstAnalysisResult, ParsedRelationship, ParsedSymbol};
 use crate::typescript::TypeScriptParser;
-use neuromesh_core::NodeType;
+use neuromesh_core::{EdgeType, NodeType};
 use neuromesh_index::SourceLanguage;
 use regex::Regex;
 use std::path::Path;
@@ -48,9 +48,11 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             laravel_overlay(path, content, ast);
             pinoox_overlay(path, content, ast);
             php_controller_overlay(path, ast);
+            pinoox_view_render_overlay(content, ast);
             symfony_overlay(content, ast);
             wordpress_overlay(content, ast);
         }
+        SourceLanguage::YAML | SourceLanguage::JSON => dotenv_example_overlay(path, content, ast),
         SourceLanguage::Rust => {
             tauri_overlay(content, ast);
             axum_overlay(content, ast);
@@ -332,6 +334,92 @@ fn pinoox_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
             format!("action([{short}::class, '{method}'])"),
             line,
         );
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: name,
+            target_symbol: short.to_string(),
+            relationship: EdgeType::References,
+            target_file_hint: Some(format!("Controller/{short}.php")),
+            receiver_hint: None,
+        });
+    }
+}
+
+fn pinoox_view_render_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains("View::render") {
+        return;
+    }
+    let theme = extract_pinoox_theme(content);
+    static RENDER_RE: OnceLock<Regex> = OnceLock::new();
+    let render_re =
+        RENDER_RE.get_or_init(|| Regex::new(r#"View::render\(\s*['"]([^'"]+)['"]"#).unwrap());
+    for cap in render_re.captures_iter(content) {
+        let raw = cap.get(1).map(|m| m.as_str()).unwrap_or("").trim();
+        if raw.is_empty() {
+            continue;
+        }
+        let stem = raw.trim_end_matches(".twig");
+        let hint = format!("theme/{theme}/{stem}.twig");
+        let source = ast
+            .symbols
+            .iter()
+            .find(|s| matches!(s.symbol_type, NodeType::Class | NodeType::Component))
+            .or_else(|| {
+                ast.symbols
+                    .iter()
+                    .find(|s| s.symbol_type == NodeType::Function)
+            })
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| "index".to_string());
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: source,
+            target_symbol: stem.to_string(),
+            relationship: EdgeType::Calls,
+            target_file_hint: Some(hint),
+            receiver_hint: None,
+        });
+    }
+}
+
+fn extract_pinoox_theme(content: &str) -> String {
+    static THEME_RE: OnceLock<Regex> = OnceLock::new();
+    let theme_re =
+        THEME_RE.get_or_init(|| Regex::new(r#"['"]theme['"]\s*=>\s*['"]([^'"]+)['"]"#).unwrap());
+    theme_re
+        .captures(content)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "default".into())
+}
+
+fn dotenv_example_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !matches!(
+        name.as_str(),
+        ".env.example" | ".env.sample" | ".env.dist" | ".env.template"
+    ) {
+        return;
+    }
+    for (i, line) in content.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let key = line.split('=').next().unwrap_or("").trim();
+        if key.is_empty() {
+            continue;
+        }
+        ast.symbols.push(ParsedSymbol::new(
+            key,
+            NodeType::Config,
+            Some(format!("{key}=")),
+            (i + 1)..(i + 2),
+            true,
+        ));
     }
 }
 
@@ -1381,6 +1469,33 @@ mod tests {
             .find(|s| s.name == "SmsController")
             .expect("SmsController");
         assert_eq!(recv.symbol_type, NodeType::Component);
+    }
+
+    #[test]
+    fn pinoox_view_render_links_twig() {
+        let src = "<?php class MainController { public function index() { return View::render('hello'); } }\n";
+        let ast = analyze("Controller/MainController.php", src, SourceLanguage::PHP);
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.relationship == EdgeType::Calls
+                    && r.target_file_hint
+                        .as_deref()
+                        .is_some_and(|h| h == "theme/default/hello.twig")
+            }),
+            "relationships = {:?}",
+            ast.relationships
+        );
+    }
+
+    #[test]
+    fn dotenv_example_extracts_keys() {
+        let src = "DB_HOST=localhost\n# comment\nAPP_KEY=\n";
+        let ast = analyze(".env.example", src, SourceLanguage::YAML);
+        assert!(
+            ast.symbols.iter().any(|s| s.name == "DB_HOST"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
     }
 
     #[test]

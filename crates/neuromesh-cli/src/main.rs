@@ -138,6 +138,8 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 for fact in neuromesh_memory::extract_project_facts(&current_dir, &project_id) {
                     let _ = memory_db.save_project_fact(&fact);
                 }
+            } else {
+                graph.mark_index_ready();
             }
 
             let registry = Arc::new(neuromesh_context::ReversibleContextRegistry::new());
@@ -157,6 +159,11 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
 
             let cap = commands::max_files_from_args(args)?;
             let _ = graph.load_persisted(&current_dir);
+            if graph.stats().total_nodes == 0
+                && neuromesh_index::ProjectWalker::is_safe_workspace(&current_dir)
+            {
+                graph.mark_index_loading();
+            }
             commands::spawn_live_sync(graph.clone(), current_dir.clone(), project_id.clone(), cap);
 
             let server = neuromesh_mcp::McpServer::new(handler);

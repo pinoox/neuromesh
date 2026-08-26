@@ -456,7 +456,17 @@ impl HttpServer {
                         .await?;
                     } else {
                         let target_path = PathBuf::from(target_path_str);
-                        if target_path.exists() {
+                        if !neuromesh_index::ProjectWalker::is_safe_workspace(&target_path) {
+                            Self::send_json(
+                                &mut stream,
+                                400,
+                                &json!({
+                                    "success": false,
+                                    "error": format!("refusing unsafe workspace: {target_path_str}")
+                                }),
+                            )
+                            .await?;
+                        } else if target_path.exists() {
                             *state.workspace_path.write() = target_path.clone();
                             let project_name = target_path
                                 .file_name()
@@ -465,6 +475,7 @@ impl HttpServer {
 
                             let new_project_id = ProjectId::new(&project_name);
                             state.graph.clear(Some(new_project_id.clone()));
+                            state.graph.set_workspace(&target_path);
                             let walker =
                                 Self::project_walker(&state, target_path, new_project_id.clone());
                             let mut indexed_count = 0;
@@ -702,6 +713,7 @@ impl HttpServer {
                     let args = json!({
                         "task_description": prompt,
                         "mode": mode_str,
+                        "response_detail": "diagnostic",
                     });
                     match state
                         .mcp_handler

@@ -3,3 +3,9 @@ id = "sms_store"
 prompt = "How does SmsController store use SmsStore.save?"
 gold_files = ["Controller/SmsController.php", "Model/SmsStore.php"]
 expect_seeds_missed = false
+
+[[task]]
+id = "home_view_twig"
+prompt = "Explain the request flow from the named home route through MainController::index to View::render('hello') and the Twig template variables title and message."
+gold_files = ["Controller/MainController.php", "routes/web.php", "theme/default/hello.twig"]
+expect_seeds_missed = false

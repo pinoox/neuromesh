@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 pub fn execute() -> Result<()> {
-    let current_dir = env::current_dir()?;
+    let current_dir = neuromesh_index::assert_safe_workspace(&env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
         .and_then(|n| n.to_str())

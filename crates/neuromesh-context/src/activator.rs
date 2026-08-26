@@ -208,6 +208,7 @@ impl ContextActivator {
             &mut seed_energies,
             &mut seed_reasons,
         );
+        mark_equivalent_file_hits(graph, &mut seed_resolutions, &mut seed_energies);
 
         let seed_set: HashSet<NodeId> = seed_energies.keys().cloned().collect();
         let neighborhood = if seed_set.is_empty() {
@@ -605,6 +606,11 @@ impl ContextActivator {
 }
 
 fn resolve_seed_query(graph: &NeuralProjectGraph, query: &str) -> Option<(NodeId, f32)> {
+    if query.contains(['/', '\\', '.']) {
+        if let Some(id) = graph.resolve_file_hint(query) {
+            return Some((id, 0.95));
+        }
+    }
     if let Some((ranked_id, confidence)) = graph.resolve_ranked(query, None, None) {
         let id = prefer_search_seed(graph, query, ranked_id, confidence);
         let conf = match confidence {
@@ -629,6 +635,47 @@ fn resolve_seed_query(graph: &NeuralProjectGraph, query: &str) -> Option<(NodeId
             })
         })?;
     Some((hit.id, (hit.score / 100.0).clamp(0.2, 0.75)))
+}
+
+fn mark_equivalent_file_hits(
+    graph: &NeuralProjectGraph,
+    seeds: &mut [SeedResolution],
+    seed_energies: &mut HashMap<NodeId, f32>,
+) {
+    let hit_paths: Vec<(NodeId, String)> = seeds
+        .iter()
+        .filter_map(|s| {
+            let id = s.resolved_id.as_ref()?;
+            let node = graph.get_node(id)?;
+            Some((
+                id.clone(),
+                node.file_path.to_string_lossy().replace('\\', "/"),
+            ))
+        })
+        .collect();
+    if hit_paths.is_empty() {
+        return;
+    }
+    for seed in seeds.iter_mut() {
+        if seed.resolved_id.is_some() {
+            continue;
+        }
+        let query = seed.query.replace('\\', "/");
+        let query_base = std::path::Path::new(&query)
+            .file_name()
+            .map(|s| s.to_string_lossy().replace('\\', "/"));
+        if let Some((id, _)) = hit_paths.iter().find(|(_, path)| {
+            path == &query
+                || path.ends_with(&query)
+                || query_base.as_ref().is_some_and(|base| {
+                    path.ends_with(base) || path.rsplit('/').next() == Some(base)
+                })
+        }) {
+            seed.resolved_id = Some(id.clone());
+            seed.confidence = seed.confidence.max(0.95);
+            seed_energies.entry(id.clone()).or_insert(0.95);
+        }
+    }
 }
 
 /// When a compound task names a second topic that identifier extraction skipped

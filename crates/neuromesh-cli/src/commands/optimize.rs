@@ -12,7 +12,7 @@ pub fn execute(task_prompt: Option<String>) -> Result<()> {
     let prompt =
         task_prompt.unwrap_or_else(|| "How does handle_tool_call extract intent?".to_string());
 
-    let current_dir = std::env::current_dir()?;
+    let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
         .and_then(|n| n.to_str())

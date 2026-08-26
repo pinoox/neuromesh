@@ -254,9 +254,10 @@ Priority: `--max-files` → `NEUROMESH_MAX_FILES` (`auto` / `0` = auto) → proj
 
 | Tool | Role |
 | :--- | :--- |
-| **`neuromesh_get_context`** | The product. Evidence packet: skeletons, why, folds, coverage |
+| **`neuromesh_get_context`** | Compact packet by default: skeletons, why, fold ids, coverage |
+| **`neuromesh_explain_packet`** | On-demand diagnostics for a `packet_id` |
 | **`neuromesh_expand_fold`** | Wake one intron by `fold_id` — no disk grep |
-| **`neuromesh_get_file_skeleton`** | Fold one file with chosen exons open |
+| **`neuromesh_get_file_skeleton`** | Fold one file; fold metadata has no original body |
 | **`neuromesh_search_symbols`** | Ranked search |
 | **`neuromesh_get_dependencies`** | Typed neighbors |
 | **`neuromesh_trace`** | Call / import chains |
@@ -266,7 +267,7 @@ Priority: `--max-files` → `NEUROMESH_MAX_FILES` (`auto` / `0` = auto) → proj
 | **`neuromesh_get_project_memory`** | Facts from manifests and docs |
 | **`neuromesh_get_stats`** | Mesh size |
 
-Each file in the packet has `path`, `why`, `line_range`, `folded_symbols`, and `seed_call_coverage`. Details: [docs/mcp.md](docs/mcp.md).
+Each file in the packet has `path`, a short `why`, skeleton `code`, and fold descriptors without bodies. Details: [docs/mcp.md](docs/mcp.md).
 
 Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go through **tree-sitter queries**. JavaScript uses the TypeScript grammar. `.svelte`, `.astro`, `.twig`, `.cshtml`, `.razor`, `.css`, `.scss`, `.less`, and `.svg` are indexed. Framework overlays tag Android/Spring/Django/FastAPI/Next/Nuxt/Laravel/Pinoox/Symfony/WordPress/React/Vue/SvelteKit/Astro/Electron/Tauri/Vite/Prime/Rails/Flutter/Express/Nest/Angular/Gin/Echo/Axum/ASP.NET/SwiftUI/Remix/Ktor routes without a compiler. Vue has a scoped extractor. C/C++ use the generic regex parser. Ambiguous names are not “resolved” by hope.
 
@@ -300,6 +301,6 @@ Index snapshot from that eval run: **219 files · 1,323 nodes · 2,891 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.7.1 |
+| [Changelog](docs/CHANGELOG.md) | 0.7.3 |
 
 MIT · [LICENSE](LICENSE)

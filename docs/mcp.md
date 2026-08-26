@@ -33,20 +33,22 @@ Stdout is JSON-RPC only (NDJSON). Handshake logs go to stderr so Antigravity and
 
 ```
 neuromesh_get_context(task_description)
+  → if coverage is partial or no_seed_resolved: neuromesh_search_symbols
+  → if you need diagnostics: neuromesh_explain_packet(packet_id)
   → if a folded body is required: neuromesh_expand_fold(fold_id)
-  → if you need callers: neuromesh_trace
   → after a successful edit: neuromesh_record_feedback
 ```
 
-Start with `get_context`. `next_actions` say when to `neuromesh_expand_fold`. Grep (`neuromesh_search_symbols`) when `coverage.claim` is `partial` **or** `no_seed_resolved` (zero identifiers resolved — do not treat a utility fallback file as the answer). After a good edit, **always** call `neuromesh_record_feedback` — that is the synaptic learning step; without it the next packet does not change.
+Start with `get_context`. The default packet is **minimal**: `packet_id`, coverage string, selected/packet tokens, skeletonized files, fold descriptors without bodies. `missing` and `next` appear only when coverage is `partial` or `no_seed_resolved` (zero identifiers resolved — do not treat a utility fallback file as the answer). After a good edit, **always** call `neuromesh_record_feedback` — that is the synaptic learning step; without it the next packet does not change.
 
 ## Tools
 
 | Tool | Input | Returns |
 | :--- | :--- | :--- |
-| `neuromesh_get_context` | `task_description`, `prompt`, or `task`; optional `mode` | Evidence packet |
-| `neuromesh_expand_fold` | `fold_id`, `node_id`, or `query` (the field `next_actions` uses); optional `reason` | Original folded body |
-| `neuromesh_get_file_skeleton` | `file_path`, optional `active_symbols` | One skeletonized file |
+| `neuromesh_get_context` | `task_description`, `prompt`, or `task`; optional `mode`; optional `response_detail` | Compact evidence packet (`minimal` by default) |
+| `neuromesh_explain_packet` | `packet_id`; optional `include` | On-demand diagnostics (no fold bodies) |
+| `neuromesh_expand_fold` | `fold_id`, `node_id`, or `query`; optional `reason` | Original folded body |
+| `neuromesh_get_file_skeleton` | `file_path`, optional `active_symbols` | One skeletonized file + fold descriptors (no bodies) |
 | `neuromesh_search_symbols` | `query`, optional `limit` | Ranked hits |
 | `neuromesh_get_dependencies` | name or path | Typed neighbors |
 | `neuromesh_trace` | `query`, `direction` (`in` / `out` / `both`), `depth` | Call/import chains. Inbound includes `throw new`, `throw $e` after `catch (Type $e)`, and ternary `new Type`. Trace the exception that is actually thrown. |
@@ -56,23 +58,21 @@ Start with `get_context`. `next_actions` say when to `neuromesh_expand_fold`. Gr
 | `neuromesh_record_feedback` | `task_success`, `touched_nodes` | STDP on that path |
 | `neuromesh_get_stats` | — | Node/edge counts |
 
-Aliases exist for older clients (`activate_context`, `expand_context`, `search_context`). Prefer the `neuromesh_*` names.
+Aliases exist for older clients (`activate_context`, `expand_context`, `search_context`, `explain_packet`, `get_context_details`). Prefer the `neuromesh_*` names.
 
 ## Evidence packet
 
-`neuromesh_get_context` is the product. Typical shape:
+`neuromesh_get_context` is the product. Default (`response_detail=minimal`) shape:
 
-- `task` — intent, identifiers, file hints
-- `evidence_packet.files[]` — `path`, skeleton, `tokens`, `why`, `line_range`, `folded_symbols`
-- `evidence_packet.symbols[]` — name, path, signature, score
-- `seeds` — what resolved, what missed
-- `coverage` — `no_recorded_gap`, `partial`, or `no_seed_resolved`. `no_recorded_gap` means every *attempted* seed resolved, including each topical cluster of a compound task — not “the packet looks full”.
-- `budget` — `seed_tokens`, `fill_used`, `fill_cap`, `mode`
-- `seed_call_coverage` — fraction of seed call targets present in the packet
-- `next_actions` — `expand_fold` for sleeping exons; Grep/search only when `coverage` is `partial`
-- `physarum_used` / `physarum_ms` / `selection_method` — honest slime-mold telemetry
+- `packet_id` — session key for `neuromesh_explain_packet` (LRU, ~10 minutes, 32 packets)
+- `coverage` — `no_recorded_gap`, `partial`, or `no_seed_resolved` (a string, not an object). `no_recorded_gap` means every *attempted* seed resolved, including each topical cluster of a compound task — not “the packet looks full”
+- `tokens.selected` / `tokens.packet` — raw selected vs skeletonized packet
+- `files[]` — `path`, short `why`, skeleton `code`, `folds[]` as descriptors (`fold_id`, `symbol`, `signature`, lines, `saved_tokens`) with **no** `original_body`
+- `missing` / `next` — only when coverage is incomplete; one search action, not a repeated seed list
 
-`mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality.
+`mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality. `mode` does not add metadata; `response_detail` does (`minimal` ≤ 256 metadata tokens, `standard` ≤ 750, `diagnostic` on demand).
+
+`neuromesh_explain_packet` returns seeds, selection, budget, physarum, and membrane for a `packet_id`. Pass `include: ["graph"]` for graph stats; otherwise use `neuromesh_get_stats`. The HTTP monitor (`/api/simulate`) still requests `diagnostic` so the VS Code inspector keeps the nested `evidence_packet`.
 
 ## Folds
 
@@ -82,4 +82,4 @@ Markers look like:
 /* [neuromesh:fold:fold_unused_helper_1 | 12 lines folded | fn unused_helper()] */
 ```
 
-Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `query` (the last is what `next_actions` send). The full marker line also works. Folds persist for the **MCP session** (same process, same project). They are not cleared on every `get_context`. A new project id wipes the registry. Ids include a short path tag so two files that both fold `write` do not collide.
+Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `query`. The full marker line also works. Folds persist for the **MCP session** (same process, same project). They are not cleared on every `get_context`. A new project id wipes the registry. Ids include a short path tag so two files that both fold `write` do not collide. Fold **bodies** are never in `get_context` or `get_file_skeleton`; only `expand_fold` restores them.

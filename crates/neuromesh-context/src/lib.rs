@@ -17,4 +17,4 @@ pub use genetic_optimizer::{ContextChromosome, GeneticContextOptimizer};
 pub use registry::ReversibleContextRegistry;
 pub use scoring::{ActivationScorer, ScoringWeights};
 pub use selector::{fill_budget, packet_cap, select, token_budget, Selection};
-pub use skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan, SkeletonResult};
+pub use skeleton::{CodeSkeletonizer, FoldDescriptor, FoldedIntron, FunctionSpan, SkeletonResult};
