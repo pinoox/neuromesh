@@ -247,7 +247,7 @@
             z-index: 40;
             gap: 0.5rem;
             flex-wrap: nowrap;
-            overflow: hidden;
+            overflow: visible;
         }
 
         .project-selector-wrapper {
@@ -1455,12 +1455,11 @@
         .lang-dropdown-wrapper {
             position: relative;
             display: inline-block;
+            z-index: 200;
         }
 
         .lang-menu {
-            position: absolute;
-            top: calc(100% + 6px);
-            inset-inline-end: 0;
+            position: fixed;
             background: rgba(15, 21, 33, 0.96);
             border: 1px solid var(--border-color);
             border-radius: 10px;
@@ -1468,10 +1467,11 @@
             min-width: 135px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(16px);
-            z-index: 100;
+            z-index: 10000;
             display: none;
             flex-direction: column;
             gap: 0.2rem;
+            pointer-events: auto;
         }
 
         .lang-menu.open {
@@ -1853,11 +1853,11 @@
                             <span style="font-size:0.58rem; opacity:0.75; transform:translateY(1px);">▼</span>
                         </button>
                         <div class="lang-menu" id="langMenu">
-                            <div class="lang-item active" id="langOptEn" onclick="window.selectLanguage('en')">
+                            <div class="lang-item active" id="langOptEn" onclick="event.stopPropagation(); window.selectLanguage('en')">
                                 <span>English</span>
                                 <span class="check-mark" style="font-size:0.85rem;">✓</span>
                             </div>
-                            <div class="lang-item" id="langOptFa" onclick="window.selectLanguage('fa')">
+                            <div class="lang-item" id="langOptFa" onclick="event.stopPropagation(); window.selectLanguage('fa')">
                                 <span>فارسی</span>
                                 <span class="check-mark" style="display:none; font-size:0.85rem;">✓</span>
                             </div>
@@ -3122,10 +3122,37 @@
             document.getElementById('globalLoading').classList.remove('active');
         }
 
+        function positionLangMenu() {
+            const menu = document.getElementById('langMenu');
+            const btn = document.getElementById('langTriggerBtn');
+            if (!menu || !btn || !menu.classList.contains('open')) return;
+            const rect = btn.getBoundingClientRect();
+            menu.style.top = `${rect.bottom + 6}px`;
+            if (document.documentElement.dir === 'rtl') {
+                menu.style.left = `${rect.left}px`;
+                menu.style.right = 'auto';
+            } else {
+                menu.style.right = `${window.innerWidth - rect.right}px`;
+                menu.style.left = 'auto';
+            }
+        }
+
+        function closeLangMenu() {
+            const menu = document.getElementById('langMenu');
+            if (menu) menu.classList.remove('open');
+        }
+
         window.toggleLangMenu = function(e) {
             if (e) e.stopPropagation();
             const menu = document.getElementById('langMenu');
-            if (menu) menu.classList.toggle('open');
+            if (!menu) return;
+            const willOpen = !menu.classList.contains('open');
+            if (willOpen) {
+                menu.classList.add('open');
+                positionLangMenu();
+            } else {
+                closeLangMenu();
+            }
         };
 
         window.selectLanguage = function(lang) {
@@ -3162,9 +3189,7 @@
                 }
             }
 
-            // Close menu
-            const menu = document.getElementById('langMenu');
-            if (menu) menu.classList.remove('open');
+            closeLangMenu();
 
             // Apply translations to all DOM elements
             document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -3189,11 +3214,14 @@
             }
         };
 
-        // Close language menu on outside click
-        window.addEventListener('click', () => {
-            const menu = document.getElementById('langMenu');
-            if (menu) menu.classList.remove('open');
+        // Close language menu on outside click (keep open for clicks inside wrapper)
+        window.addEventListener('click', (e) => {
+            const wrapper = document.getElementById('langDropdownWrapper');
+            if (wrapper && wrapper.contains(e.target)) return;
+            closeLangMenu();
         });
+        window.addEventListener('resize', closeLangMenu);
+        window.addEventListener('scroll', closeLangMenu, true);
 
         function getNodeId(item) {
             if (!item) return '';

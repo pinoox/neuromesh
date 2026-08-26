@@ -4,6 +4,10 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.4 — 2026-08-27
+
+Compound-task quality, Pinoox View→Twig, and complete MCP usage telemetry.
+
 - **Cluster seeds pick the router guard, not a UI helper.** A "router permission guard" clause still splits, but the noun `permission` now prefers `src/permission.js` / store permission modules over `directive/permission`. Clipboard and profile decoys are forbidden in gold.
 - **Pinoox View→Twig is a walkable `Calls` edge.** `View::render('hello')` attaches to the rendering method, binds `theme/{theme}/hello.twig` by file path before the stem `hello` can steal another symbol, and `get_context` / `trace` on `MainController::index` ship the template without the prompt saying `twig`.
 - **MCP usage is complete.** Handshake writes one `mcp_session` row; trace, deps, stats, explain, architecture, impact, and feedback append too. Mean reduction ignores 0-token rows so search/session do not drag the %. Monitor `GET /api/usage` reports the token-weighted overall %, and telemetry POST works without a Tokio handle.
