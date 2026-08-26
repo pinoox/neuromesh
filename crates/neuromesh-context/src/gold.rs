@@ -3,13 +3,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GoldTask {
     pub id: String,
     pub prompt: String,
     pub gold_files: Vec<String>,
     #[serde(default)]
     pub expect_seeds_missed: bool,
+    #[serde(default)]
+    pub forbidden_files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +43,7 @@ pub fn builtin_gold_tasks() -> Vec<GoldTask> {
                 "crates/neuromesh-context/src/activator.rs".into(),
             ],
             expect_seeds_missed: false,
+            forbidden_files: Vec::new(),
         },
         GoldTask {
             id: "physarum_usage".into(),
@@ -50,12 +53,14 @@ pub fn builtin_gold_tasks() -> Vec<GoldTask> {
                 "crates/neuromesh-graph/src/activation.rs".into(),
             ],
             expect_seeds_missed: false,
+            forbidden_files: Vec::new(),
         },
         GoldTask {
             id: "missing_seed".into(),
             prompt: "What does `__no_such_symbol_xyz__` do?".into(),
             gold_files: Vec::new(),
             expect_seeds_missed: true,
+            forbidden_files: Vec::new(),
         },
     ]
 }
@@ -69,6 +74,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does handle_request extract a route?".into(),
                 gold_files: vec!["src/handler.rs".into(), "src/extract.rs".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -78,6 +84,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "Refactor extract_route so handle_request can parse a path.".into(),
                 gold_files: vec!["src/extract.rs".into(), "src/handler.rs".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -87,6 +94,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does addToCart use createStore?".into(),
                 gold_files: vec!["src/cart.ts".into(), "src/store.ts".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -100,6 +108,10 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "src/store/permission.js".into(),
                 ],
                 expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "src/directive/clipboard.js".into(),
+                    "src/views/profile/UserCard.vue".into(),
+                ],
             },
         ),
         (
@@ -109,6 +121,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does start_session issue_token?".into(),
                 gold_files: vec!["src/session.rs".into(), "src/auth.rs".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -118,6 +131,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does process_job enqueue and dequeue?".into(),
                 gold_files: vec!["src/worker.rs".into(), "src/queue.rs".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -127,6 +141,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does boot load_config from a debug string?".into(),
                 gold_files: vec!["src/boot.rs".into(), "src/config.rs".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -136,6 +151,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does on_receive use SmsStore.save?".into(),
                 gold_files: vec!["src/receiver.py".into(), "src/sms_store.py".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -145,6 +161,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does onReceive use SmsStore.save?".into(),
                 gold_files: vec!["src/SmsReceiver.kt".into(), "src/SmsStore.kt".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -154,6 +171,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How is a received SMS stored?".into(),
                 gold_files: vec!["src/SmsReceiver.kt".into(), "src/SmsStore.kt".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -163,6 +181,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does onReceive use SmsStore.save?".into(),
                 gold_files: vec!["src/receiver.dart".into(), "src/sms_store.dart".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -172,6 +191,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does SmsInbox onReceive use SmsStore.save?".into(),
                 gold_files: vec!["src/sms_inbox.dart".into(), "src/sms_store.dart".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -181,6 +201,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does OnReceive use SmsStore.Save?".into(),
                 gold_files: vec!["src/SmsReceiver.cs".into(), "src/SmsStore.cs".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -193,19 +214,21 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "Model/SmsStore.php".into(),
                 ],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
             "mini-pinoox",
             GoldTask {
                 id: "home_view_twig".into(),
-                prompt: "Explain the request flow from the named home route through MainController::index to View::render('hello') and the Twig template variables title and message.".into(),
+                prompt: "how does MainController::index render the hello view and where is the actual hello template file".into(),
                 gold_files: vec![
                     "Controller/MainController.php".into(),
                     "routes/web.php".into(),
                     "theme/default/hello.twig".into(),
                 ],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -215,6 +238,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does POST /api/sms use saveSms?".into(),
                 gold_files: vec!["app/api/sms/route.ts".into(), "lib/sms_store.ts".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -224,6 +248,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does store use SmsStore.save?".into(),
                 gold_files: vec!["src/main.py".into(), "src/sms_store.py".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -236,6 +261,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "app/models/sms_store.rb".into(),
                 ],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -245,6 +271,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does store use saveSms?".into(),
                 gold_files: vec!["src/pages/sms.astro".into(), "src/lib/sms_store.ts".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -254,6 +281,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does store use saveSms?".into(),
                 gold_files: vec!["src/app.ts".into(), "src/sms_store.ts".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -263,6 +291,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does store use SmsStore.save?".into(),
                 gold_files: vec!["src/sms.controller.ts".into(), "src/sms_store.ts".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -275,6 +304,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "src/sms_store.ts".into(),
                 ],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -284,6 +314,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does store use SmsStore.Save?".into(),
                 gold_files: vec!["src/main.go".into(), "src/sms_store.go".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -293,6 +324,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does store use sms_store::save?".into(),
                 gold_files: vec!["src/main.rs".into(), "src/sms_store.rs".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -302,6 +334,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does Store use SmsStore.Save?".into(),
                 gold_files: vec!["Program.cs".into(), "SmsStore.cs".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -311,6 +344,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does store use SmsStore.save?".into(),
                 gold_files: vec!["SmsInbox.swift".into(), "SmsStore.swift".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -320,6 +354,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does action use saveSms?".into(),
                 gold_files: vec!["app/routes/sms.tsx".into(), "lib/sms_store.ts".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -329,6 +364,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does store use SmsStore.save?".into(),
                 gold_files: vec!["src/Application.kt".into(), "src/SmsStore.kt".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -338,6 +374,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does smsBadge use smsUnread?".into(),
                 gold_files: vec!["styles/sms.less".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
         (
@@ -347,6 +384,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "Where is smsInbox defined?".into(),
                 gold_files: vec!["assets/sms-inbox.svg".into()],
                 expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
             },
         ),
     ]
@@ -362,18 +400,22 @@ pub fn load_gold_tasks(path: &Path) -> Vec<GoldTask> {
 fn parse_gold_toml(raw: &str) -> Option<Vec<GoldTask>> {
     let mut tasks = Vec::new();
     let mut current: Option<GoldTask> = None;
-    let mut array_buf: Option<String> = None;
+    let mut array_buf: Option<(&'static str, String)> = None;
     for line in raw.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Some(buf) = array_buf.as_mut() {
+        if let Some((key, buf)) = array_buf.as_mut() {
             buf.push(' ');
             buf.push_str(line);
             if line.contains(']') {
                 if let Some(task) = current.as_mut() {
-                    task.gold_files = parse_string_array(buf);
+                    let arr = parse_string_array(buf);
+                    match *key {
+                        "forbidden_files" => task.forbidden_files = arr,
+                        _ => task.gold_files = arr,
+                    }
                 }
                 array_buf = None;
             }
@@ -383,12 +425,7 @@ fn parse_gold_toml(raw: &str) -> Option<Vec<GoldTask>> {
             if let Some(task) = current.take() {
                 tasks.push(task);
             }
-            current = Some(GoldTask {
-                id: String::new(),
-                prompt: String::new(),
-                gold_files: Vec::new(),
-                expect_seeds_missed: false,
-            });
+            current = Some(GoldTask::default());
             continue;
         }
         let task = current.as_mut()?;
@@ -399,11 +436,21 @@ fn parse_gold_toml(raw: &str) -> Option<Vec<GoldTask>> {
             "id" => task.id = unquote(value),
             "prompt" => task.prompt = unquote(value),
             "expect_seeds_missed" => task.expect_seeds_missed = value == "true",
-            "gold_files" => {
-                if value.contains(']') {
-                    task.gold_files = parse_string_array(value);
+            "gold_files" | "forbidden_files" => {
+                let dest = if key == "forbidden_files" {
+                    "forbidden_files"
                 } else {
-                    array_buf = Some(value.to_string());
+                    "gold_files"
+                };
+                if value.contains(']') {
+                    let arr = parse_string_array(value);
+                    if dest == "forbidden_files" {
+                        task.forbidden_files = arr;
+                    } else {
+                        task.gold_files = arr;
+                    }
+                } else {
+                    array_buf = Some((dest, value.to_string()));
                 }
             }
             _ => {}
@@ -479,7 +526,11 @@ pub fn evaluate_view(task: &GoldTask, view: &ContextView, latency_ms: u64) -> Go
     } else {
         hits as f32 / task.gold_files.len() as f32
     };
-    let precision = if paths.is_empty() {
+    let forbidden_hit = task
+        .forbidden_files
+        .iter()
+        .any(|g| gold_file_hit(g, &names, &paths));
+    let precision = if paths.is_empty() || forbidden_hit {
         0.0
     } else {
         let relevant = paths
@@ -596,6 +647,29 @@ mod tests {
         assert_eq!(loaded[0].id, "handle_tool_call_intent");
         assert!(loaded[0].gold_files.iter().any(|f| f.contains("crates/")));
         assert!(loaded[2].expect_seeds_missed);
+    }
+
+    #[test]
+    fn parses_forbidden_files_from_toml() {
+        let tasks = parse_gold_toml(
+            r#"
+[[task]]
+id = "auth_and_guard"
+prompt = "how does login work"
+gold_files = ["src/permission.js"]
+forbidden_files = ["src/directive/clipboard.js", "src/views/profile/UserCard.vue"]
+"#,
+        )
+        .unwrap();
+        assert_eq!(tasks[0].gold_files, vec!["src/permission.js"]);
+        assert!(tasks[0]
+            .forbidden_files
+            .iter()
+            .any(|f| f.contains("clipboard.js")));
+        assert!(tasks[0]
+            .forbidden_files
+            .iter()
+            .any(|f| f.contains("UserCard.vue")));
     }
 
     #[test]
@@ -794,6 +868,14 @@ mod tests {
                 metrics.precision,
                 packet_paths(&view)
             );
+            for forbidden in &task.forbidden_files {
+                assert!(
+                    !gold_file_hit(forbidden, &packet_file_names(&view), &packet_paths(&view)),
+                    "{} shipped forbidden file {forbidden} packet={:?}",
+                    task.id,
+                    packet_paths(&view)
+                );
+            }
         }
     }
 
@@ -863,12 +945,14 @@ mod tests {
             prompt: "How does neuromesh_search_symbols rank prefix vs exact matches?".into(),
             gold_files: vec!["graph.rs".into(), "tools.rs".into()],
             expect_seeds_missed: false,
+            forbidden_files: Vec::new(),
         });
         extra.push(GoldTask {
             id: "finalize_links".into(),
             prompt: "Where does finalize_links unique-resolve import and call edges?".into(),
             gold_files: vec!["graph.rs".into()],
             expect_seeds_missed: false,
+            forbidden_files: Vec::new(),
         });
 
         let mut runs = Vec::new();

@@ -371,6 +371,13 @@ fn is_how_does_ident(value: &str) -> bool {
             | "where"
             | "which"
             | "about"
+            | "user"
+            | "users"
+            | "app"
+            | "page"
+            | "view"
+            | "file"
+            | "code"
     )
 }
 
@@ -514,6 +521,14 @@ mod tests {
                 .iter()
                 .any(|id| id.eq_ignore_ascii_case("permission")),
             "cluster nouns stay out of identifier extraction: {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            !anchors
+                .identifiers
+                .iter()
+                .any(|id| id.eq_ignore_ascii_case("user")),
+            "English 'the user' is not a how-does seed: {:?}",
             anchors.identifiers
         );
     }

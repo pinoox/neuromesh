@@ -6,6 +6,6 @@ expect_seeds_missed = false
 
 [[task]]
 id = "home_view_twig"
-prompt = "Explain the request flow from the named home route through MainController::index to View::render('hello') and the Twig template variables title and message."
+prompt = "how does MainController::index render the hello view and where is the actual hello template file"
 gold_files = ["Controller/MainController.php", "routes/web.php", "theme/default/hello.twig"]
 expect_seeds_missed = false

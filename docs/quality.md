@@ -4,12 +4,12 @@ Claims in this project are supposed to come from commands you can run, not from 
 
 ## Gold
 
-`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store, Vue/JS auth+permission-guard compound task, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox `action()` SMS, FastAPI, Rails, Astro, Express, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS badge token + SVG `smsInbox` icon), including edit/refactor-style prompts — not only “where is this symbol”.
+`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store, Vue/JS auth+permission-guard compound task with a `directive/permission` ranking thief and forbidden clipboard/profile decoys, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox `action()` SMS plus a natural `MainController::index` → Twig prompt that does **not** name `twig`, FastAPI, Rails, Astro, Express, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS badge token + SVG `smsInbox` icon), including edit/refactor-style prompts — not only “where is this symbol”.
 
 Thresholds locked in tests:
 
 - recall ≥ **0.8**
-- precision ≥ **0.4**
+- precision ≥ **0.4** (a `forbidden_files` hit forces precision to 0)
 - missed seeds reported as `partial`, or `no_seed_resolved` when **every** identifier missed (empty packet, Grep immediately)
 - `expand_fold` restores a registered body without reading the disk
 - activation under **150 ms** in the debug gold test on this repo (cargo test is parallel; isolated runs sit nearer 60 ms)

@@ -4,6 +4,9 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+- **Cluster seeds pick the router guard, not a UI helper.** A "router permission guard" clause still splits, but the noun `permission` now prefers `src/permission.js` / store permission modules over `directive/permission`. Clipboard and profile decoys are forbidden in gold.
+- **Pinoox View→Twig is a walkable `Calls` edge.** `View::render('hello')` attaches to the rendering method, binds `theme/{theme}/hello.twig` by file path before the stem `hello` can steal another symbol, and `get_context` / `trace` on `MainController::index` ship the template without the prompt saying `twig`.
+
 ## 0.7.3 — 2026-08-26
 
 Workspace confinement, first-query readiness, and compact MCP packets.
