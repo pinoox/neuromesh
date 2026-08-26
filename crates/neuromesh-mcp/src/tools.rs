@@ -7,6 +7,7 @@ use neuromesh_router::QualityGate;
 use neuromesh_task::TaskSignatureExtractor;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 pub struct McpToolHandler {
@@ -182,7 +183,7 @@ impl McpToolHandler {
 
                 neuromesh_observability::record_global_telemetry(
                     neuromesh_core::OptimizationMetadata {
-                        request_id: format!("mcp-{}", chrono::Utc::now().timestamp_millis()),
+                        request_id: telemetry_request_id("mcp"),
                         task_id: Some(task_desc.chars().take(50).collect()),
                         project_id: self.graph.project_id(),
                         mode: gate.effective_mode.to_string(),
@@ -284,10 +285,7 @@ impl McpToolHandler {
 
                     neuromesh_observability::record_global_telemetry(
                         neuromesh_core::OptimizationMetadata {
-                            request_id: format!(
-                                "mcp-skel-{}",
-                                chrono::Utc::now().timestamp_millis()
-                            ),
+                            request_id: telemetry_request_id("mcp-skel"),
                             task_id: Some(format!("Skeleton: {}", file_path)),
                             project_id: self.graph.project_id(),
                             mode: "Genetic Slicing".to_string(),
@@ -337,6 +335,26 @@ impl McpToolHandler {
                     let elapsed_ms = start_time.elapsed().as_millis() as u64;
                     let file_id = NodeId::from_file_path(&fold.file_path);
                     let cache_hit = self.mycelium_file_hit(&file_id);
+                    neuromesh_observability::record_global_telemetry(
+                        neuromesh_core::OptimizationMetadata {
+                            request_id: telemetry_request_id("mcp-exp"),
+                            task_id: Some(format!("Expand: {}", fold.fold_id)),
+                            project_id: self.graph.project_id(),
+                            mode: "expand_fold".to_string(),
+                            tokens_before: fold.restored_tokens,
+                            tokens_after: fold.restored_tokens,
+                            token_reduction_pct: 0.0,
+                            nodes_before: 1,
+                            nodes_after: 1,
+                            expansions_count: 1,
+                            cache_hit,
+                            provider: "Cursor / Claude MCP".to_string(),
+                            model: "Frontier Model".to_string(),
+                            latency_ms: elapsed_ms,
+                            success: true,
+                            timestamp: chrono::Utc::now(),
+                        },
+                    );
                     Ok(json!({
                         "success": true,
                         "kind": "fold",
@@ -360,10 +378,7 @@ impl McpToolHandler {
 
                     neuromesh_observability::record_global_telemetry(
                         neuromesh_core::OptimizationMetadata {
-                            request_id: format!(
-                                "mcp-exp-{}",
-                                chrono::Utc::now().timestamp_millis()
-                            ),
+                            request_id: telemetry_request_id("mcp-exp"),
                             task_id: Some(format!("Expand: {}", node_id_str)),
                             project_id: self.graph.project_id(),
                             mode: "expand_fold".to_string(),
@@ -409,7 +424,7 @@ impl McpToolHandler {
 
                 neuromesh_observability::record_global_telemetry(
                     neuromesh_core::OptimizationMetadata {
-                        request_id: format!("mcp-sym-{}", chrono::Utc::now().timestamp_millis()),
+                        request_id: telemetry_request_id("mcp-sym"),
                         task_id: Some(format!("Search: {}", query)),
                         project_id: self.graph.project_id(),
                         mode: "symbol_search".to_string(),
@@ -625,6 +640,15 @@ fn read_string_list(arguments: &Value, key: &str) -> Vec<String> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+fn telemetry_request_id(prefix: &str) -> String {
+    static SEQ: AtomicU64 = AtomicU64::new(1);
+    format!(
+        "{prefix}-{}-{}",
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 #[cfg(test)]

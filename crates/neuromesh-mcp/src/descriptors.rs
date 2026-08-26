@@ -35,7 +35,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "neuromesh_get_context",
             "Get evidence packet",
-            "Return one evidence packet: seeds, skeletonized files, unresolved gaps, coverage (no_recorded_gap|partial|no_seed_resolved), budget, and next_actions. Never treats silence as completeness. no_seed_resolved means every identifier missed — Grep immediately; do not read a utility fallback. Pass the user prompt as task_description, prompt, or task.",
+            "Return one evidence packet: seeds, skeletonized files, unresolved gaps, coverage (no_recorded_gap|partial|no_seed_resolved), budget, and next_actions. Never treats silence as completeness. Compound tasks seed each topical cluster (login flow AND permission guard) independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately; do not read a utility fallback. Pass the user prompt as task_description, prompt, or task.",
             json!({
                 "type": "object",
                 "properties": {

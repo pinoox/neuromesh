@@ -123,7 +123,7 @@ pub fn execute(args: &[String]) -> Result<()> {
         if all.is_empty() {
             println!("No MCP tool calls recorded yet.");
             println!(
-                "Usage grows when an agent calls neuromesh_get_context (or search / skeleton)."
+                "Usage grows when an agent calls neuromesh_get_context (or search / skeleton / expand_fold)."
             );
             println!("Editing files in the IDE does not add a row.\n");
         } else {

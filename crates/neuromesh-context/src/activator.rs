@@ -10,6 +10,7 @@ use neuromesh_core::{
     NextAction, NodeId, NodeType, OptimizationMode, SeedResolution, TaskSignature,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
+use neuromesh_task::{extract_cluster_nouns, split_task_clusters};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -178,13 +179,7 @@ impl ContextActivator {
             {
                 continue;
             }
-            if let Some((ranked_id, confidence)) = graph.resolve_ranked(&query, None, None) {
-                let id = prefer_search_seed(graph, &query, ranked_id, confidence);
-                let conf = match confidence {
-                    neuromesh_core::EdgeConfidence::Proven => 1.0,
-                    neuromesh_core::EdgeConfidence::Likely => 0.62,
-                    neuromesh_core::EdgeConfidence::Unresolved => 0.0,
-                };
+            if let Some((id, conf)) = resolve_seed_query(graph, &query) {
                 seed_energies
                     .entry(id.clone())
                     .and_modify(|e| *e = (*e).max(energy))
@@ -197,33 +192,6 @@ impl ContextActivator {
                     resolved_id: Some(id),
                     confidence: conf,
                 });
-            } else if let Some(hit) = {
-                let hits = graph.search_symbols(&query, 12);
-                hits.iter()
-                    .find(|hit| hit.name.eq_ignore_ascii_case(&query))
-                    .cloned()
-                    .or_else(|| {
-                        let q = query.to_lowercase();
-                        hits.into_iter().find(|hit| {
-                            let n = hit.name.to_lowercase();
-                            hit.match_reason != "token"
-                                && hit.score >= 86.0
-                                && (n.starts_with(&q) || q.starts_with(&n))
-                        })
-                    })
-            } {
-                seed_energies
-                    .entry(hit.id.clone())
-                    .and_modify(|e| *e = (*e).max(energy * 0.8))
-                    .or_insert(energy * 0.8);
-                seed_reasons
-                    .entry(hit.id.clone())
-                    .or_insert_with(|| format!("{reason}:{query}"));
-                seed_resolutions.push(SeedResolution {
-                    query,
-                    resolved_id: Some(hit.id),
-                    confidence: (hit.score / 100.0).clamp(0.2, 0.75),
-                });
             } else {
                 seed_resolutions.push(SeedResolution {
                     query,
@@ -232,6 +200,14 @@ impl ContextActivator {
                 });
             }
         }
+
+        seed_uncovered_clusters(
+            graph,
+            signature,
+            &mut seed_resolutions,
+            &mut seed_energies,
+            &mut seed_reasons,
+        );
 
         let seed_set: HashSet<NodeId> = seed_energies.keys().cloned().collect();
         let neighborhood = if seed_set.is_empty() {
@@ -625,6 +601,106 @@ impl ContextActivator {
         };
         *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
         view
+    }
+}
+
+fn resolve_seed_query(graph: &NeuralProjectGraph, query: &str) -> Option<(NodeId, f32)> {
+    if let Some((ranked_id, confidence)) = graph.resolve_ranked(query, None, None) {
+        let id = prefer_search_seed(graph, query, ranked_id, confidence);
+        let conf = match confidence {
+            EdgeConfidence::Proven => 1.0,
+            EdgeConfidence::Likely => 0.62,
+            EdgeConfidence::Unresolved => 0.0,
+        };
+        return Some((id, conf));
+    }
+    let hits = graph.search_symbols(query, 12);
+    let hit = hits
+        .iter()
+        .find(|hit| hit.name.eq_ignore_ascii_case(query))
+        .cloned()
+        .or_else(|| {
+            let q = query.to_lowercase();
+            hits.into_iter().find(|hit| {
+                let n = hit.name.to_lowercase();
+                hit.match_reason != "token"
+                    && hit.score >= 86.0
+                    && (n.starts_with(&q) || q.starts_with(&n))
+            })
+        })?;
+    Some((hit.id, (hit.score / 100.0).clamp(0.2, 0.75)))
+}
+
+/// When a compound task names a second topic that identifier extraction skipped
+/// (lowercase "router permission guard"), try those nouns as seeds. A cluster
+/// with zero hits is recorded as a miss so coverage cannot claim no_recorded_gap.
+fn seed_uncovered_clusters(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    seed_resolutions: &mut Vec<SeedResolution>,
+    seed_energies: &mut HashMap<NodeId, f32>,
+    seed_reasons: &mut HashMap<NodeId, String>,
+) {
+    for cluster in split_task_clusters(&signature.raw_prompt) {
+        let cluster_lower = cluster.to_lowercase();
+        let covered = seed_resolutions
+            .iter()
+            .any(|s| s.resolved_id.is_some() && cluster_lower.contains(&s.query.to_lowercase()))
+            || signature
+                .file_hints
+                .iter()
+                .any(|hint| cluster_lower.contains(&hint.to_lowercase()));
+        if covered {
+            continue;
+        }
+        let nouns = extract_cluster_nouns(&cluster);
+        let mut cluster_hit = false;
+        for noun in &nouns {
+            if seed_resolutions.iter().any(|s| s.query == *noun) {
+                if seed_resolutions
+                    .iter()
+                    .any(|s| s.query == *noun && s.resolved_id.is_some())
+                {
+                    cluster_hit = true;
+                }
+                continue;
+            }
+            if let Some((id, conf)) = resolve_seed_query(graph, noun) {
+                let energy = 0.85;
+                seed_energies
+                    .entry(id.clone())
+                    .and_modify(|e| *e = (*e).max(energy))
+                    .or_insert(energy);
+                seed_reasons
+                    .entry(id.clone())
+                    .or_insert_with(|| format!("cluster:{noun}"));
+                seed_resolutions.push(SeedResolution {
+                    query: noun.clone(),
+                    resolved_id: Some(id),
+                    confidence: conf,
+                });
+                cluster_hit = true;
+            }
+        }
+        if !cluster_hit {
+            let miss = nouns
+                .first()
+                .cloned()
+                .or_else(|| {
+                    cluster
+                        .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                        .map(|t| t.to_string())
+                        .find(|t| t.len() >= 5)
+                })
+                .unwrap_or_else(|| cluster.chars().take(32).collect());
+            if !miss.is_empty() && !seed_resolutions.iter().any(|s| s.query == miss) {
+                seed_resolutions.push(SeedResolution {
+                    query: miss,
+                    resolved_id: None,
+                    confidence: 0.0,
+                });
+            }
+        }
     }
 }
 
@@ -1813,6 +1889,186 @@ pub fn searcher(haystack: &str, needle: &str) -> bool {
             }),
             "seed Searcher must resolve to searcher/mod.rs, seeds={:?}",
             view.seeds
+        );
+    }
+
+    fn ingest_js(graph: &NeuralProjectGraph, rel: &str, src: &str) {
+        graph.ingest_file(
+            &IndexedFile {
+                project_id: ProjectId::new("admin"),
+                relative_path: PathBuf::from(rel),
+                full_path: PathBuf::from(rel),
+                blake3_hash: rel.to_string(),
+                byte_size: src.len() as u64,
+                token_count: 80,
+                language: SourceLanguage::JavaScript,
+                last_modified: chrono::Utc::now(),
+            },
+            &CodeIntelligenceEngine::analyze(&PathBuf::from(rel), src, SourceLanguage::JavaScript),
+            Some(src),
+        );
+    }
+
+    fn packet_paths(view: &ContextView) -> Vec<String> {
+        view.active_nodes
+            .iter()
+            .filter(|n| n.node.node_type == NodeType::File)
+            .map(|n| n.node.file_path.to_string_lossy().replace('\\', "/"))
+            .collect()
+    }
+
+    #[test]
+    fn compound_task_seeds_each_cluster_not_just_the_strongest() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("admin"));
+        ingest_js(
+            &graph,
+            "src/store/user.js",
+            r#"
+export function login(userInfo) {
+  return request({ url: "/login", method: "post", data: userInfo });
+}
+export function getInfo() {
+  return request({ url: "/info", method: "get" });
+}
+export function logout() {
+  return request({ url: "/logout", method: "post" });
+}
+"#,
+        );
+        ingest_js(
+            &graph,
+            "src/permission.js",
+            r#"
+export function registerPermissionGuard(router) {
+  router.beforeEach(async (to, from, next) => {
+    const roles = store.getters.roles;
+    if (hasPermission(roles, to.meta.roles)) {
+      next();
+    }
+  });
+}
+"#,
+        );
+        ingest_js(
+            &graph,
+            "src/store/permission.js",
+            r#"
+export function hasPermission(roles, routeRoles) {
+  if (!routeRoles || routeRoles.length === 0) {
+    return true;
+  }
+  return roles.some((role) => routeRoles.includes(role));
+}
+export function generateRoutes(roles) {
+  return filterAsyncRoutes(asyncRoutes, roles);
+}
+"#,
+        );
+        ingest_js(
+            &graph,
+            "src/directive/clipboard.js",
+            r#"
+export function clipboard(el, binding) {
+  const text = String(binding.value);
+  el.setAttribute("data-clipboard", text);
+  return text;
+}
+"#,
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "how does the user login and logout flow work, including the login action, getInfo action, and how the router permission guard checks roles before each route",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let files = packet_paths(&view);
+        assert!(
+            files.iter().any(|p| p.ends_with("src/store/user.js")),
+            "login cluster must seed user.js, files={files:?} seeds={:?}",
+            view.seeds
+        );
+        assert!(
+            files.iter().any(|p| p.contains("permission")),
+            "guard cluster must seed a permission file, files={files:?} seeds={:?}",
+            view.seeds
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        assert!(
+            coverage
+                .seeds_hit
+                .iter()
+                .any(|s| s == "getInfo" || s == "user"),
+            "login half must still hit, coverage={coverage:?}"
+        );
+        assert!(
+            coverage
+                .seeds_hit
+                .iter()
+                .any(|s| s.eq_ignore_ascii_case("permission")),
+            "guard half must be a seed hit, coverage={coverage:?}"
+        );
+        assert_ne!(coverage.claim, "no_seed_resolved");
+    }
+
+    #[test]
+    fn uncovered_compound_cluster_is_partial_not_no_recorded_gap() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("admin"));
+        ingest_js(
+            &graph,
+            "src/store/user.js",
+            r#"
+export function login(userInfo) {
+  return request({ url: "/login", method: "post", data: userInfo });
+}
+export function getInfo() {
+  return request({ url: "/info", method: "get" });
+}
+"#,
+        );
+        ingest_js(
+            &graph,
+            "src/directive/clipboard.js",
+            r#"
+export function clipboard(el, binding) {
+  return String(binding.value);
+}
+"#,
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "how does the user login work, including getInfo, and how the router permission guard checks roles before each route",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        assert!(
+            !coverage.seeds_hit.is_empty(),
+            "login half must still resolve, coverage={coverage:?}"
+        );
+        assert!(
+            !coverage.seeds_missed.is_empty(),
+            "named guard cluster with zero hits must be a miss, coverage={coverage:?}"
+        );
+        assert_eq!(
+            coverage.claim, "partial",
+            "half-resolved compound task must not claim no_recorded_gap, coverage={coverage:?}"
+        );
+        assert!(
+            view.next_actions
+                .iter()
+                .any(|a| a.tool == "neuromesh_search_symbols"),
+            "partial coverage must offer Grep, next={:?}",
+            view.next_actions
         );
     }
 }

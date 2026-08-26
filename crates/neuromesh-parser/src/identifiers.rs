@@ -81,6 +81,66 @@ const STOPWORDS: &[&str] = &[
     "its",
 ];
 
+/// English filler in a topical cluster — not a seed unless it is the only handle.
+const CLUSTER_STOPWORDS: &[&str] = &[
+    "action",
+    "actions",
+    "flow",
+    "work",
+    "works",
+    "check",
+    "checks",
+    "role",
+    "roles",
+    "each",
+    "also",
+    "plus",
+    "both",
+    "half",
+    "part",
+    "piece",
+    "request",
+    "requests",
+    "response",
+    "responses",
+    "produce",
+    "handle",
+    "handles",
+    "used",
+    "using",
+    "make",
+    "made",
+    "thing",
+    "things",
+    "case",
+    "cases",
+    "logic",
+    "based",
+    "named",
+    "called",
+    "related",
+    "distinct",
+    "second",
+    "first",
+    "other",
+    "another",
+    "every",
+    "under",
+    "over",
+    "through",
+    "during",
+    "without",
+    "within",
+    "between",
+    "among",
+    "against",
+    "toward",
+    "across",
+    "route",
+    "routes",
+    "including",
+];
+
 /// Extract code-like identifiers, file paths, and qualified paths from a prompt.
 /// Operates on the original (not lowercased) text so PascalCase survives.
 pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
@@ -179,6 +239,49 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     }
 }
 
+/// Split a compound prompt so each topical clause can seed independently.
+///
+/// Delimiters are the phrases people actually use to glue two questions
+/// together (`including`, `and how`, `as well as`). Bare `and` is left
+/// alone — it is too common in "login and logout".
+pub fn split_task_clusters(prompt: &str) -> Vec<String> {
+    static SPLIT_RE: OnceLock<Regex> = OnceLock::new();
+    let split_re = SPLIT_RE.get_or_init(|| {
+        Regex::new(r"(?i)\s*(?:,\s*)?(?:\band how\b|\bincluding\b|\bas well as\b|\band also\b)\s*")
+            .unwrap()
+    });
+    let parts: Vec<String> = split_re
+        .split(prompt)
+        .map(|s| {
+            s.trim()
+                .trim_matches(|c: char| c == ',' || c == '.' || c == ';' || c == ':')
+                .trim()
+                .to_string()
+        })
+        .filter(|s| s.len() >= 8)
+        .collect();
+    if parts.len() <= 1 {
+        vec![prompt.to_string()]
+    } else {
+        parts
+    }
+}
+
+/// Distinctive lowercase nouns from a cluster that has no code-like identifier.
+/// Longest first, capped so English filler cannot flood seed resolution.
+pub fn extract_cluster_nouns(cluster: &str) -> Vec<String> {
+    let mut nouns = Vec::new();
+    for token in cluster.split(|c: char| !c.is_ascii_alphanumeric() && c != '_') {
+        if !is_cluster_noun(token) {
+            continue;
+        }
+        push_unique(&mut nouns, token.to_string());
+    }
+    nouns.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+    nouns.truncate(4);
+    nouns
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct PromptAnchors {
     pub identifiers: Vec<String>,
@@ -211,6 +314,17 @@ pub fn tokenize_ident(name: &str) -> Vec<String> {
     }
     tokens.retain(|t| t.len() > 1);
     tokens
+}
+
+fn is_cluster_noun(value: &str) -> bool {
+    if value.len() < 5 || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return false;
+    }
+    let lower = value.to_lowercase();
+    if STOPWORDS.contains(&lower.as_str()) || CLUSTER_STOPWORDS.contains(&lower.as_str()) {
+        return false;
+    }
+    true
 }
 
 fn is_code_ident(value: &str) -> bool {
@@ -337,5 +451,43 @@ mod tests {
             .any(|p| p.contains("sms-inbox.svg")));
         assert!(anchors.identifiers.iter().any(|id| id == "smsBadge"));
         assert!(anchors.identifiers.iter().any(|id| id == "smsUnread"));
+    }
+
+    #[test]
+    fn splits_compound_auth_and_guard_clusters() {
+        let prompt = "how does the user login and logout flow work, including the login action, getInfo action, and how the router permission guard checks roles before each route";
+        let clusters = split_task_clusters(prompt);
+        assert!(
+            clusters.len() >= 2,
+            "compound task must split, got {clusters:?}"
+        );
+        let last = clusters.last().unwrap().to_lowercase();
+        assert!(
+            last.contains("permission") && last.contains("guard"),
+            "last cluster should be the guard clause: {clusters:?}"
+        );
+        let nouns = extract_cluster_nouns(clusters.last().unwrap());
+        assert!(
+            nouns.iter().any(|n| n.eq_ignore_ascii_case("permission")),
+            "nouns = {nouns:?}"
+        );
+        assert!(
+            nouns.iter().any(|n| n.eq_ignore_ascii_case("router")),
+            "nouns = {nouns:?}"
+        );
+        let anchors = extract_prompt_anchors(prompt);
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "getInfo"),
+            "identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            !anchors
+                .identifiers
+                .iter()
+                .any(|id| id.eq_ignore_ascii_case("permission")),
+            "cluster nouns stay out of identifier extraction: {:?}",
+            anchors.identifiers
+        );
     }
 }

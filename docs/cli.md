@@ -30,7 +30,7 @@ neuromesh usage --all        # every project on disk
 neuromesh usage --limit 50   # more recent rows
 ```
 
-Rows appear when an agent **calls a NeuroMesh MCP tool**. Saving a file in Cursor, switching the editor theme, or restarting the IDE does not add a row. `neuromesh mcp` has no HTTP port; if the monitor is down, `usage` still prints the file.
+Rows appear when an agent **calls a NeuroMesh MCP tool** (`get_context`, skeleton, search, expand_fold). Connecting the MCP server, saving a file in Cursor, switching the editor theme, or restarting the IDE does not add a row. A chat turn that the agent answers without calling a NeuroMesh tool also does not. `neuromesh mcp` has no HTTP port; if the monitor is down, `usage` still prints the file. If the IDE workspace name differs from the directory where you run the CLI, use `neuromesh usage --all`.
 
 ## Data directory
 

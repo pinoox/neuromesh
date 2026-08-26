@@ -4,6 +4,14 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.1 — 2026-08-26
+
+Compound-task coverage is honest: each topical cluster seeds independently, and a named half that misses is `partial` — never a silent `no_recorded_gap`.
+
+- **Cluster seeds.** `including` / `and how` / `as well as` split the prompt. A clause with no camelCase identifier (e.g. "router permission guard") still tries those nouns against the graph, so `src/permission.js` ships with the login module instead of being omitted while `coverage.claim` says complete.
+- **False-complete coverage.** If that second cluster resolves nothing, `seeds_missed` is non-empty and `claim` is `partial` (Grep in `next_actions`). `unresolved` stays graph call/import gaps — it is not a list of missing task nouns.
+- **Usage from IDE chat.** `neuromesh_expand_fold` now appends a telemetry row (it previously only recorded the inactive-node path). Handshake / chatting without a tool call still does not. Rows use unique request ids so two calls in the same millisecond are not dropped.
+
 ## 0.7.0 — 2026-08-26
 
 Accurate cheaper packets: task-matched methods stay open, windows replace whole-file skeletons, and a hard packet cap cuts cost.

@@ -1,0 +1,5 @@
+[[task]]
+id = "auth_and_guard"
+prompt = "how does the user login and logout flow work, including the login action, getInfo action, and how the router permission guard checks roles before each route"
+gold_files = ["src/store/user.js", "src/permission.js", "src/store/permission.js"]
+expect_seeds_missed = false
