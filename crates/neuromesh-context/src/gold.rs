@@ -90,6 +90,19 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
+            "mini-auth",
+            GoldTask {
+                id: "auth_and_guard".into(),
+                prompt: "how does the user login and logout flow work, including the login action, getInfo action, and how the router permission guard checks roles before each route".into(),
+                gold_files: vec![
+                    "src/store/user.js".into(),
+                    "src/permission.js".into(),
+                    "src/store/permission.js".into(),
+                ],
+                expect_seeds_missed: false,
+            },
+        ),
+        (
             "mini-service",
             GoldTask {
                 id: "session_start".into(),

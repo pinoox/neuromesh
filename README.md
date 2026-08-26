@@ -277,6 +277,6 @@ Index snapshot from that eval run: **219 files · 1,323 nodes · 2,891 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.7.0 |
+| [Changelog](docs/CHANGELOG.md) | 0.7.1 |
 
 MIT · [LICENSE](LICENSE)

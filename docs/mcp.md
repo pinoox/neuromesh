@@ -66,7 +66,7 @@ Aliases exist for older clients (`activate_context`, `expand_context`, `search_c
 - `evidence_packet.files[]` — `path`, skeleton, `tokens`, `why`, `line_range`, `folded_symbols`
 - `evidence_packet.symbols[]` — name, path, signature, score
 - `seeds` — what resolved, what missed
-- `coverage` — `no_recorded_gap` or `partial`
+- `coverage` — `no_recorded_gap`, `partial`, or `no_seed_resolved`. `no_recorded_gap` means every *attempted* seed resolved, including each topical cluster of a compound task — not “the packet looks full”.
 - `budget` — `seed_tokens`, `fill_used`, `fill_cap`, `mode`
 - `seed_call_coverage` — fraction of seed call targets present in the packet
 - `next_actions` — `expand_fold` for sleeping exons; Grep/search only when `coverage` is `partial`

@@ -237,6 +237,8 @@ pub struct CoverageReport {
 }
 
 impl CoverageReport {
+    /// `no_recorded_gap` only when every *attempted* seed resolved.
+    /// `unresolved` on the packet is graph call/import gaps, not this list.
     pub fn from_seeds(seeds: &[SeedResolution]) -> Self {
         let seeds_hit: Vec<String> = seeds
             .iter()
