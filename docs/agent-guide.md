@@ -56,7 +56,21 @@ MCP config paths come from `neuromesh connect` (see [mcp.md](mcp.md#connect)). I
 
 ### Cursor
 
-1. `neuromesh connect` → `.cursor/mcp.json` (or user `~/.cursor/mcp.json`).
+1. MCP — either `neuromesh connect` → `.cursor/mcp.json` (or user `~/.cursor/mcp.json`), or paste manually into **Settings → MCP** when `neuromesh` is on PATH:
+
+   ```json
+   {
+     "mcpServers": {
+       "neuromesh": {
+         "command": "neuromesh",
+         "args": ["mcp"]
+       }
+     }
+   }
+   ```
+
+   See [mcp.md#manual](mcp.md#manual) for when to prefer `connect`.
+
 2. Copy the Cursor rule:
 
 ```bash

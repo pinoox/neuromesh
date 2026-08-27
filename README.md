@@ -200,6 +200,21 @@ neuromesh connect --print   # copy-paste snippets only
 
 That writes an **absolute** `command` (this binary) plus `args: ["mcp", "<workspace>"]` and `NEUROMESH_WORKSPACE`, so the agent does not need `neuromesh` on PATH.
 
+**Manual (PATH required):** if `neuromesh` is on PATH, paste into Cursor MCP settings (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "neuromesh": {
+      "command": "neuromesh",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Details and other clients: [docs/mcp.md#manual](docs/mcp.md#manual).
+
 | Client | Config |
 | :--- | :--- |
 | Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
