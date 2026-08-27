@@ -1,5 +1,5 @@
 use neuromesh_core::{ContextEdge, ContextNode, EdgeId, NodeId};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Compact interned mesh: nodes and edges live in slot vectors, adjacency is `u32`.
 #[derive(Default)]
@@ -313,7 +313,6 @@ use neuromesh_core::{EdgeType, NodeType, UnresolvedRef};
 use neuromesh_index::{FileFingerprint, IndexedFile};
 use neuromesh_parser::api_path_alias;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Default)]
@@ -333,6 +332,8 @@ pub(crate) struct GraphData {
     pub stale_files: Vec<String>,
     pub workspace_root: Option<PathBuf>,
     pub source_overlay: HashMap<String, String>,
+    pub parser_epoch: u32,
+    pub applied_learning_episodes: HashSet<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -353,6 +354,10 @@ pub(crate) struct GraphSnapshot {
     pub stale_files: Vec<String>,
     #[serde(default)]
     pub workspace_root: Option<PathBuf>,
+    #[serde(default)]
+    pub parser_epoch: u32,
+    #[serde(default)]
+    pub applied_learning_episodes: HashSet<String>,
 }
 
 #[derive(Deserialize)]

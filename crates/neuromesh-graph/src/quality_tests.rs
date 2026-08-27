@@ -1,9 +1,11 @@
 #[cfg(test)]
 mod tests {
+    use crate::intern::GraphSnapshot;
     use crate::NeuralProjectGraph;
     use neuromesh_core::{NodeType, ProjectId};
     use neuromesh_index::{IndexedFile, SourceLanguage};
     use neuromesh_parser::CodeIntelligenceEngine;
+    use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
     use std::time::Instant;
 
@@ -1656,6 +1658,84 @@ class Greeter {
             after, before,
             "learning weights must survive snapshot round-trip"
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn parser_epoch_mismatch_clears_file_hashes_for_relink() {
+        let dir = std::env::temp_dir().join(format!("neuromesh-epoch-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("graph.bin");
+        let snapshot = GraphSnapshot {
+            version: 2,
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            pending: Vec::new(),
+            unresolved: Vec::new(),
+            file_hashes: [("src/App.vue".into(), "old-hash".into())]
+                .into_iter()
+                .collect(),
+            file_fingerprints: HashMap::new(),
+            export_index: HashMap::new(),
+            generation: 1,
+            indexed_at: None,
+            stale_files: Vec::new(),
+            workspace_root: Some(dir.clone()),
+            parser_epoch: 0,
+            applied_learning_episodes: HashSet::new(),
+        };
+        let bytes = bincode::serialize(&snapshot).expect("serialize");
+        std::fs::write(&path, bytes).expect("write");
+        let graph = NeuralProjectGraph::new(ProjectId::new("epoch"));
+        assert!(graph.load_from(&path).expect("load"));
+        assert!(graph.needs_parser_relink());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn mini_shop_vue_trace_finds_template_callers() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/mini-shop");
+        if !root.join("src/stores/ui.js").exists() {
+            return;
+        }
+        let graph = NeuralProjectGraph::new(ProjectId::new("mini-shop-trace"));
+        for (rel, lang) in [
+            ("src/stores/ui.js", SourceLanguage::JavaScript),
+            ("src/stores/cart.js", SourceLanguage::JavaScript),
+            ("src/components/Header.vue", SourceLanguage::Vue),
+            ("src/components/CartDrawer.vue", SourceLanguage::Vue),
+        ] {
+            let path = root.join(rel);
+            let src = std::fs::read_to_string(&path).expect("read fixture");
+            ingest_fixture(&graph, rel, &src, lang);
+        }
+        graph.finalize_links();
+        let go_checkout = graph.trace_symbol("goCheckout", crate::TraceDirection::Inbound, 2);
+        assert!(
+            go_checkout.callers.iter().any(|h| h.name == "CartDrawer"),
+            "goCheckout callers={:?}",
+            go_checkout.callers
+        );
+        let go_cart = graph.trace_symbol("goCart", crate::TraceDirection::Inbound, 2);
+        assert!(
+            go_cart.callers.iter().any(|h| h.name == "Header"),
+            "goCart callers={:?}",
+            go_cart.callers
+        );
+    }
+
+    #[test]
+    fn learning_episode_checkpoint_round_trips_in_snapshot() {
+        let dir = std::env::temp_dir().join(format!("neuromesh-ep-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("graph.bin");
+        let graph = NeuralProjectGraph::new(ProjectId::new("ep"));
+        graph.mark_learning_episode_applied("episode-abc");
+        graph.set_workspace(&dir);
+        graph.save_to(&path).expect("save");
+        let reloaded = NeuralProjectGraph::new(ProjectId::new("ep"));
+        assert!(reloaded.load_from(&path).expect("load"));
+        assert!(reloaded.learning_episode_applied("episode-abc"));
         let _ = std::fs::remove_dir_all(dir);
     }
 

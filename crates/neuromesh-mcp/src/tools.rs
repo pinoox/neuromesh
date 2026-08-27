@@ -87,6 +87,14 @@ impl McpToolHandler {
         let _ = crate::learning::warmup_project_learning(&self.memory_db, &self.graph, &pid);
     }
 
+    pub fn persist_project_state(&self) {
+        let _ = self.graph.save_persisted_if_ready();
+    }
+
+    pub fn flush_on_shutdown(&self) {
+        self.persist_project_state();
+    }
+
     pub fn mycelium_stats(&self) -> MyceliumStats {
         self.mycelium.stats()
     }
@@ -671,11 +679,9 @@ impl McpToolHandler {
                 self.graph.reinforce_path(&path, success);
                 self.graph.reinforce_callee_edges(&path, success);
                 self.record_mycelium_path(&path);
-                if let Ok(cwd) = std::env::current_dir() {
-                    let _ = self.graph.save_persisted(&cwd);
-                }
 
                 let pid = self.graph.project_id();
+                let mut episode_id = String::new();
                 if !path.is_empty() {
                     let summary = if success {
                         format!("successful edit touching {}", path.len())
@@ -692,8 +698,13 @@ impl McpToolHandler {
                         success,
                         0,
                     );
+                    episode_id = episode.id.clone();
                     let _ = self.memory_db.save_episodic_record(&episode);
                 }
+                if !episode_id.is_empty() {
+                    self.graph.mark_learning_episode_applied(&episode_id);
+                }
+                let _ = self.graph.save_persisted_if_ready();
 
                 self.emit_telemetry(ToolTelemetry {
                     nodes_after: path.len(),

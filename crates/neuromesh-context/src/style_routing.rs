@@ -205,8 +205,8 @@ pub(crate) fn tighten_focused_view_selection(
         return;
     }
     let keep = |path: &str| {
-        let p = path.to_lowercase();
-        p.contains("checkoutview") || p.contains("/stores/cart")
+        let p = path.replace('\\', "/").to_lowercase();
+        p.contains("checkoutview") || p.contains("stores/cart")
     };
     selection.optional.retain(|id| {
         graph
@@ -217,10 +217,7 @@ pub(crate) fn tighten_focused_view_selection(
     selection.required.retain(|id| {
         graph
             .get_node(id)
-            .map(|n| {
-                let p = n.file_path.to_string_lossy().to_lowercase();
-                keep(&p) || p.contains("/stores/cart")
-            })
+            .map(|n| keep(&n.file_path.to_string_lossy()))
             .unwrap_or(true)
     });
 }

@@ -4,6 +4,15 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.9 — 2026-08-28
+
+durable learning, parser relink, and Vue trace on stale snapshots.
+
+- **Learning persistence (real).** `record_feedback` saves `graph.bin` via `workspace_root` (not MCP `cwd`). Episode IDs are checkpointed in the snapshot (`applied_learning_episodes`). Replay on startup applies only episodes missing from the checkpoint, then persists. MCP flushes graph state on graceful stdio shutdown.
+- **Parser epoch relink.** `GRAPH_PARSER_EPOCH` (3) in snapshots; loading an older epoch clears `file_hashes` so the next index re-parses all files (Vue CALL edges on upgraded installs without manual `--force`).
+- **Windows routing fix.** `tighten_focused_view_selection` normalizes `\` paths so `cart.js` is kept on checkout stepper tasks (gold `checkout_qty_stepper`).
+- **Benchmark fixture.** `ProductGrid.vue` `@view` binding corrected to `ui.openProduct` (action lives in `ui.js`).
+
 ## 0.7.8 — 2026-08-28
 
 RETEST v0.7.7 follow-up: cross-session learning, Vue trace edges, and honest fuzzy trace.

@@ -1,7 +1,7 @@
 use crate::db::MemoryDatabase;
 use neuromesh_core::{NodeId, ProjectId, Result};
 
-/// Replay episodic feedback that was recorded but not yet reflected in the graph snapshot.
+/// Replay episodic feedback not yet reflected in the graph snapshot.
 pub fn replay_unapplied_episodes<G>(
     memory_db: &MemoryDatabase,
     graph: &G,
@@ -16,15 +16,15 @@ where
     }
     let mut replayed_ids = Vec::new();
     for episode in &episodes {
-        let needs_replay = episode.activated_node_ids.iter().any(|id| {
-            graph
-                .node_access_count(id)
-                .map(|count| count == 0)
-                .unwrap_or(false)
-        });
-        if needs_replay {
+        if graph.learning_episode_applied(&episode.id) {
+            replayed_ids.push(episode.id.clone());
+            continue;
+        }
+        if !episode.activated_node_ids.is_empty() {
             graph
                 .replay_learning_paths(&[(episode.activated_node_ids.as_slice(), episode.success)]);
+            graph.mark_learning_episode_applied(&episode.id);
+            graph.persist_replayed_learning()?;
         }
         replayed_ids.push(episode.id.clone());
     }
@@ -33,6 +33,8 @@ where
 }
 
 pub trait LearningReplayTarget {
-    fn node_access_count(&self, id: &NodeId) -> Option<u64>;
+    fn learning_episode_applied(&self, episode_id: &str) -> bool;
+    fn mark_learning_episode_applied(&self, episode_id: &str);
     fn replay_learning_paths(&self, paths: &[(&[NodeId], bool)]);
+    fn persist_replayed_learning(&self) -> Result<()>;
 }
