@@ -1614,4 +1614,125 @@ class Greeter {
                 .collect::<Vec<_>>()
         );
     }
+
+    #[test]
+    fn learning_weights_persist_in_graph_snapshot() {
+        let dir = std::env::temp_dir().join(format!("neuromesh-learn-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("graph.bin");
+        let graph = NeuralProjectGraph::new(neuromesh_core::ProjectId::new("persist"));
+        let file = IndexedFile {
+            project_id: neuromesh_core::ProjectId::new("persist"),
+            relative_path: std::path::PathBuf::from("src/a.rs"),
+            full_path: dir.join("src/a.rs"),
+            blake3_hash: "h1".into(),
+            byte_size: 10,
+            token_count: 10,
+            language: neuromesh_index::SourceLanguage::Rust,
+            last_modified: chrono::Utc::now(),
+        };
+        let ast = neuromesh_parser::CodeIntelligenceEngine::analyze(
+            &file.relative_path,
+            "pub fn touched() {}",
+            file.language,
+        );
+        graph.ingest_file(&file, &ast, Some("pub fn touched() {}"));
+        graph.finalize_links();
+        let node = graph.resolve_best("touched").expect("node");
+        graph.reinforce_node_access(&node.id, true);
+        let before = graph
+            .node_learning_profile("touched")
+            .expect("profile")
+            .access_count;
+        assert!(before > 0);
+        graph.save_to(&path).expect("save");
+        let reloaded = NeuralProjectGraph::new(neuromesh_core::ProjectId::new("persist"));
+        assert!(reloaded.load_from(&path).expect("load"));
+        let after = reloaded
+            .node_learning_profile("touched")
+            .expect("profile")
+            .access_count;
+        assert_eq!(
+            after, before,
+            "learning weights must survive snapshot round-trip"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn vue_template_callers_trace_to_store_action() {
+        let graph = NeuralProjectGraph::new(neuromesh_core::ProjectId::new("vue-trace"));
+        let ui_src = r#"import { defineStore } from 'pinia'
+export const useUiStore = defineStore('ui', {
+  actions: { goCheckout() {} },
+})"#;
+        let drawer_src = r#"<script setup>
+import { useUiStore } from '../stores/ui'
+const ui = useUiStore()
+</script>
+<template>
+  <button @click="ui.goCheckout()">Checkout</button>
+</template>"#;
+        ingest_fixture(
+            &graph,
+            "src/stores/ui.js",
+            ui_src,
+            neuromesh_index::SourceLanguage::JavaScript,
+        );
+        ingest_fixture(
+            &graph,
+            "src/components/CartDrawer.vue",
+            drawer_src,
+            neuromesh_index::SourceLanguage::Vue,
+        );
+        graph.finalize_links();
+        let trace = graph.trace_symbol("goCheckout", crate::TraceDirection::Inbound, 2);
+        assert!(trace.origin_reliable, "goCheckout must resolve exactly");
+        assert!(
+            trace.callers.iter().any(|h| h.name == "CartDrawer"),
+            "expected CartDrawer caller, callers={:?}",
+            trace.callers
+        );
+    }
+
+    #[test]
+    fn trace_marks_fuzzy_symbol_origin_unreliable() {
+        let graph = NeuralProjectGraph::new(neuromesh_core::ProjectId::new("fuzzy"));
+        ingest_fixture(
+            &graph,
+            "src/views/CartView.vue",
+            "<template><div /></template>",
+            neuromesh_index::SourceLanguage::Vue,
+        );
+        graph.finalize_links();
+        let trace = graph.trace_symbol("goCart", crate::TraceDirection::Inbound, 2);
+        if let Some(origin) = &trace.origin {
+            assert!(
+                !trace.origin_reliable,
+                "missing symbols must not look like exact trace hits"
+            );
+            assert_eq!(origin.match_reason, "fuzzy");
+        }
+    }
+
+    fn ingest_fixture(
+        graph: &NeuralProjectGraph,
+        rel: &str,
+        src: &str,
+        language: neuromesh_index::SourceLanguage,
+    ) {
+        let file = IndexedFile {
+            project_id: neuromesh_core::ProjectId::new("fixture"),
+            relative_path: std::path::PathBuf::from(rel),
+            full_path: std::path::PathBuf::from(rel),
+            blake3_hash: rel.to_string(),
+            byte_size: src.len() as u64,
+            token_count: 40,
+            language,
+            last_modified: chrono::Utc::now(),
+        };
+        let ast =
+            neuromesh_parser::CodeIntelligenceEngine::analyze(&file.relative_path, src, language);
+        graph.ingest_file(&file, &ast, Some(src));
+    }
 }

@@ -58,9 +58,16 @@ pub struct TraceHop {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceResult {
     pub origin: Option<SearchHit>,
+    /// False when the origin was resolved via substring/token/path fuzzy match.
+    #[serde(default = "default_origin_reliable")]
+    pub origin_reliable: bool,
     pub hops: Vec<TraceHop>,
     pub callers: Vec<SearchHit>,
     pub callees: Vec<SearchHit>,
+}
+
+fn default_origin_reliable() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

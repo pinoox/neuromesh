@@ -151,6 +151,14 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 neuromesh_memory::WorkingMemory::default(),
             ));
 
+            let cap = commands::max_files_from_args(args)?;
+            let _ = graph.load_persisted(&current_dir);
+            let _ = neuromesh_mcp::warmup_project_learning(
+                memory_db.as_ref(),
+                graph.as_ref(),
+                &project_id,
+            );
+
             let handler = Arc::new(neuromesh_mcp::McpToolHandler::new(
                 graph.clone(),
                 activator,
@@ -158,9 +166,6 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 memory_db,
                 working_memory,
             ));
-
-            let cap = commands::max_files_from_args(args)?;
-            let _ = graph.load_persisted(&current_dir);
             if graph.stats().total_nodes == 0
                 && neuromesh_index::ProjectWalker::is_safe_workspace(&current_dir)
             {

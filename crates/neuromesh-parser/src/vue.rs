@@ -140,18 +140,14 @@ impl VueParser {
             }
         }
         let handler_regex =
-            Regex::new(r#"(?:@click|@submit|v-on:click|v-on:submit)\s*=\s*["']([^"']+)["']"#)
+            Regex::new(r#"(?:@[A-Za-z][\w:.$-]*|v-on:[A-Za-z][\w:.$-]*)\s*=\s*["']([^"']+)["']"#)
                 .unwrap();
         let action_call_regex = Regex::new(r"(\w+)\.(\w+)\s*\(").unwrap();
-        for cap in handler_regex.captures_iter(content) {
-            let Some(expr) = cap.get(1) else {
-                continue;
-            };
-            let Some(am) = action_call_regex.captures(expr.as_str()) else {
-                continue;
-            };
-            let alias = am.get(1).map(|m| m.as_str()).unwrap_or("");
-            let action = am.get(2).map(|m| m.as_str()).unwrap_or("");
+        let action_ref_regex = Regex::new(r"^(\w+)\.(\w+)$").unwrap();
+        let push_store_action = |alias: &str, action: &str, result: &mut AstAnalysisResult| {
+            if action.is_empty() || !store_aliases.contains_key(alias) {
+                return;
+            }
             result.relationships.push(ParsedRelationship {
                 source_symbol: filename.to_string(),
                 target_symbol: action.to_string(),
@@ -159,6 +155,35 @@ impl VueParser {
                 target_file_hint: store_aliases.get(alias).cloned(),
                 receiver_hint: Some(alias.to_string()),
             });
+        };
+        for cap in handler_regex.captures_iter(content) {
+            let Some(expr) = cap.get(1) else {
+                continue;
+            };
+            let expr = expr.as_str().trim();
+            if let Some(am) = action_call_regex.captures(expr) {
+                push_store_action(
+                    am.get(1).map(|m| m.as_str()).unwrap_or(""),
+                    am.get(2).map(|m| m.as_str()).unwrap_or(""),
+                    &mut result,
+                );
+            } else if let Some(am) = action_ref_regex.captures(expr) {
+                push_store_action(
+                    am.get(1).map(|m| m.as_str()).unwrap_or(""),
+                    am.get(2).map(|m| m.as_str()).unwrap_or(""),
+                    &mut result,
+                );
+            }
+        }
+
+        if let Some(script) = extract_script_block(content) {
+            for am in action_call_regex.captures_iter(script) {
+                push_store_action(
+                    am.get(1).map(|m| m.as_str()).unwrap_or(""),
+                    am.get(2).map(|m| m.as_str()).unwrap_or(""),
+                    &mut result,
+                );
+            }
         }
 
         // 5. Extract SCSS @use / @import / Design tokens from <style>
@@ -226,10 +251,19 @@ fn pinia_store_hint(hook: &str) -> String {
         }
     }
     if out.is_empty() {
-        format!("{hook}.ts")
+        hook.to_string()
     } else {
-        format!("stores/{out}.ts")
+        format!("stores/{out}")
     }
+}
+
+fn extract_script_block(content: &str) -> Option<&str> {
+    let open = content.find("<script")?;
+    let after_open = &content[open..];
+    let start = after_open.find('>')? + 1;
+    let body = &after_open[start..];
+    let end = body.find("</script>")?;
+    Some(&body[..end])
 }
 
 fn vue_tag_to_component(tag: &str) -> String {
@@ -360,9 +394,48 @@ const ui = useUiStore()
             ast.relationships.iter().any(|r| {
                 r.target_symbol == "goCart"
                     && r.relationship == EdgeType::Calls
-                    && r.target_file_hint.as_deref() == Some("stores/ui.ts")
+                    && r.target_file_hint.as_deref() == Some("stores/ui")
             }),
             "expected goCart call edge, rels={:?}",
+            ast.relationships
+        );
+    }
+
+    #[test]
+    fn template_view_binding_extracts_store_action_call() {
+        let src = r#"<script setup>
+const products = useProductsStore()
+</script>
+<template>
+  <ProductGrid @view="products.openProduct" />
+</template>
+"#;
+        let ast = VueParser::parse(std::path::Path::new("App.vue"), src);
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.target_symbol == "openProduct"
+                    && r.relationship == EdgeType::Calls
+                    && r.receiver_hint.as_deref() == Some("products")
+            }),
+            "expected openProduct call edge, rels={:?}",
+            ast.relationships
+        );
+    }
+
+    #[test]
+    fn script_setup_extracts_store_action_call() {
+        let src = r#"<script setup>
+const ui = useUiStore()
+ui.showToast('saved')
+</script>
+<template><div /></template>
+"#;
+        let ast = VueParser::parse(std::path::Path::new("CheckoutView.vue"), src);
+        assert!(
+            ast.relationships
+                .iter()
+                .any(|r| { r.target_symbol == "showToast" && r.relationship == EdgeType::Calls }),
+            "expected showToast call edge, rels={:?}",
             ast.relationships
         );
     }

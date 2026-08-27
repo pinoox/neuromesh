@@ -937,6 +937,34 @@ impl NeuralProjectGraph {
         if matches.len() == 1 {
             return matches.into_iter().next();
         }
+        if path_like && matches.is_empty() {
+            if let Some(stem) = Path::new(&hint_norm)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+            {
+                for (path, ids) in &data.file_to_nodes {
+                    let path_s = normalize_path_hint(&path.to_string_lossy());
+                    if path_s.ends_with(&format!("/{stem}"))
+                        || path_s.ends_with(&stem)
+                        || path_s.contains(&format!("/{stem}."))
+                    {
+                        for id in ids {
+                            if data
+                                .mesh
+                                .node(id)
+                                .is_some_and(|n| n.node_type == NodeType::File)
+                            {
+                                matches.push(id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if matches.len() == 1 {
+            return matches.into_iter().next();
+        }
         if path_like && matches.len() > 1 {
             let suffix: Vec<NodeId> = matches
                 .into_iter()
@@ -1164,21 +1192,30 @@ impl NeuralProjectGraph {
                 .strip_prefix("impl:")
                 .or_else(|| hint.strip_prefix("type:"))
                 .unwrap_or(hint);
-            let key = format!("{}::{}", type_name.to_lowercase(), name.to_lowercase());
+            let keys = [
+                format!("{}::{}", type_name.to_lowercase(), name.to_lowercase()),
+                format!(
+                    "{}::{}",
+                    pinia_store_type_from_alias(type_name).to_lowercase(),
+                    name.to_lowercase()
+                ),
+            ];
             let data = self.inner.read();
-            if let Some(ids) = data.impl_index.get(&key) {
-                if ids.len() == 1 {
-                    return Some((ids[0].clone(), EdgeConfidence::Proven));
-                }
-                if let Some(id) = ids.iter().find(|id| {
-                    data.mesh
-                        .node(id)
-                        .is_some_and(|n| n.file_path == source_file)
-                }) {
-                    return Some((id.clone(), EdgeConfidence::Proven));
-                }
-                if !ids.is_empty() {
-                    return Some((ids[0].clone(), EdgeConfidence::Likely));
+            for key in &keys {
+                if let Some(ids) = data.impl_index.get(key) {
+                    if ids.len() == 1 {
+                        return Some((ids[0].clone(), EdgeConfidence::Proven));
+                    }
+                    if let Some(id) = ids.iter().find(|id| {
+                        data.mesh
+                            .node(id)
+                            .is_some_and(|n| n.file_path == source_file)
+                    }) {
+                        return Some((id.clone(), EdgeConfidence::Proven));
+                    }
+                    if !ids.is_empty() {
+                        return Some((ids[0].clone(), EdgeConfidence::Likely));
+                    }
                 }
             }
         }
@@ -1730,17 +1767,17 @@ impl NeuralProjectGraph {
         direction: TraceDirection,
         depth: usize,
     ) -> TraceResult {
-        let origin_node = self.resolve_best(query);
-        let Some(origin) = origin_node else {
+        let Some((origin, match_reason, origin_reliable)) = self.resolve_trace_origin(query) else {
             return TraceResult {
                 origin: None,
+                origin_reliable: true,
                 hops: Vec::new(),
                 callers: Vec::new(),
                 callees: Vec::new(),
             };
         };
         let depth = depth.clamp(1, 6);
-        let origin_hit = SearchHit::from_node(&origin, 1.0, "origin");
+        let origin_hit = SearchHit::from_node(&origin, 1.0, match_reason);
         let mut hops = Vec::new();
         let mut callers = Vec::new();
         let mut callees = Vec::new();
@@ -1801,9 +1838,71 @@ impl NeuralProjectGraph {
 
         TraceResult {
             origin: Some(origin_hit),
+            origin_reliable,
             hops,
             callers,
             callees,
+        }
+    }
+
+    /// Resolve a trace seed with explicit match quality (exact vs fuzzy).
+    pub fn resolve_trace_origin(&self, query: &str) -> Option<(ContextNode, String, bool)> {
+        let query = query.trim();
+        if query.is_empty() {
+            return None;
+        }
+        if let Some(node) = self.get_node(&NodeId::new(query)) {
+            return Some((node, "exact_id".into(), true));
+        }
+        if query.contains('/') || query.contains('\\') || query.contains('.') {
+            let file_id = NodeId::from_file_path(&query.replace('\\', "/"));
+            if let Some(node) = self.get_node(&file_id) {
+                return Some((node, "path".into(), true));
+            }
+        }
+        if let Some((owner, name)) = query.rsplit_once("::") {
+            let owner = owner.trim();
+            let name = name.trim();
+            if !owner.is_empty() && !name.is_empty() {
+                if let Some(node) = self
+                    .resolve_unique(name, Some(owner))
+                    .and_then(|id| self.get_node(&id))
+                {
+                    return Some((node, "exact_name".into(), true));
+                }
+            }
+        }
+        let hits = self.search_symbols(query, 8);
+        let best = hits.first()?;
+        let node = self.get_node(&best.id)?;
+        let reliable = matches!(
+            best.match_reason.as_str(),
+            "exact_name" | "prefix" | "exact_id"
+        ) || (best.match_reason == "path"
+            && (query.contains('/') || query.contains('\\') || query.contains('.')));
+        let reason = if reliable {
+            best.match_reason.clone()
+        } else {
+            "fuzzy".into()
+        };
+        Some((node, reason, reliable))
+    }
+
+    /// Re-apply persisted episodic feedback after a cold process start.
+    pub fn replay_learning_paths(&self, paths: &[(&[NodeId], bool)]) {
+        for (node_ids, success) in paths {
+            if node_ids.is_empty() {
+                continue;
+            }
+            for node_id in *node_ids {
+                if self.get_node(node_id).is_some() {
+                    self.reinforce_node_access(node_id, *success);
+                    self.record_neural_spike(node_id.clone(), true, *success);
+                }
+            }
+            self.apply_stdp_on_path(node_ids);
+            self.reinforce_path(node_ids, *success);
+            self.reinforce_callee_edges(node_ids, *success);
         }
     }
 
@@ -2442,11 +2541,50 @@ fn structural_digest(snapshot: &GraphSnapshot) -> String {
         .map(|(k, v)| format!("{k}={v}"))
         .collect();
     hashes.sort();
+    let mut learning: Vec<String> = snapshot
+        .nodes
+        .iter()
+        .map(|n| {
+            format!(
+                "{}:{}:{:.4}",
+                n.id.as_str(),
+                n.access_count,
+                n.base_relevance
+            )
+        })
+        .collect();
+    learning.sort();
+    let mut edge_learning: Vec<String> = snapshot
+        .edges
+        .iter()
+        .map(|e| {
+            format!(
+                "{}:{:.4}:{}",
+                e.id.as_str(),
+                e.pheromone_weight,
+                e.reinforcement_count
+            )
+        })
+        .collect();
+    edge_learning.sort();
     let payload = format!(
-        "{}|{}|{}",
+        "{}|{}|{}|{}|{}",
         node_ids.join("\n"),
         edge_ids.join("\n"),
-        hashes.join("\n")
+        hashes.join("\n"),
+        learning.join("\n"),
+        edge_learning.join("\n")
     );
     neuromesh_index::ContentHasher::hash_str(&payload)
+}
+
+fn pinia_store_type_from_alias(alias: &str) -> String {
+    let alias = alias.trim();
+    if alias.is_empty() {
+        return String::new();
+    }
+    let mut chars = alias.chars();
+    let first = chars.next().unwrap().to_uppercase().collect::<String>();
+    let rest = chars.as_str();
+    format!("use{first}{rest}Store")
 }
