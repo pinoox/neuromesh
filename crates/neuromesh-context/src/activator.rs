@@ -11,7 +11,7 @@ use crate::selector::{
 use crate::skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan};
 use crate::style_routing::{
     inject_style_seeds, inject_view_component_seeds, is_style_task, style_noise_penalty,
-    tighten_focused_view_selection,
+    tighten_focused_view_selection, tighten_style_extension_selection,
 };
 use neuromesh_core::{
     decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, is_schema_path,
@@ -416,6 +416,7 @@ impl ContextActivator {
         selection
             .optional
             .retain(|id| keep_schema_packet_file(graph, &seed_set, prompt, id));
+        tighten_style_extension_selection(graph, signature, &mut selection);
         *self.last_physarum.lock() = PhysarumTelemetry {
             used: physarum_used,
             ms: physarum_ms,
