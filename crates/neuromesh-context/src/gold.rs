@@ -398,6 +398,8 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "packages/bench/safeparse.ts".into(),
                     "packages/bench/compile-validate-vs-parse.ts".into(),
                     "packages/schema/src/locales/fa.ts".into(),
+                    "packages/schema/src/v3/types.ts".into(),
+                    "packages/schema/src/v4/core/to-json-schema.ts".into(),
                 ],
             },
         ),
@@ -422,6 +424,19 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 gold_files: vec!["packages/schema/src/core/parse.ts".into()],
                 expect_seeds_missed: false,
                 forbidden_files: vec!["packages/bench/safeparse.ts".into()],
+            },
+        ),
+        (
+            "mini-schema",
+            GoldTask {
+                id: "infer_output".into(),
+                prompt: "how do ZodType generics flow through z.infer".into(),
+                gold_files: vec!["packages/schema/src/core/core.ts".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "packages/schema/src/classic/schemas.ts".into(),
+                    "packages/bench/safeparse.ts".into(),
+                ],
             },
         ),
     ]

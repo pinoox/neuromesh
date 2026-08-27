@@ -7,7 +7,8 @@ All notable user-facing changes live here. The README stays a product guide, not
 Seed ranking on TypeScript repos with parallel API surfaces (core + bench + i18n).
 
 - **Tighter name matches beat decorated twins.** `safeParse` outranks `parseSimpleObject` / `parseNestedObject` for the identifier `parse`; substring score now scales with how much of the symbol name is the identifier.
-- **Bench and locale paths are decoys.** `bench/`, `benchmark/`, `perf/`, `__benchmarks__/`, and `locales/` / `i18n/` are penalized like tests unless the prompt is about benchmarks or translations, and they no longer fill the packet.
+- **Bench, locale, and legacy paths are decoys.** `bench/`, `locales/` / `i18n/`, and `v3/` / `compat/` / `legacy/` are penalized like tests unless the prompt is about them. `to-json-schema` loses to `core/parse` on parse/validate questions.
+- **Type aliases seed.** `z.infer` extracts `infer` and stems to `output` / `input`, so generic questions hit `export type output<T>` in `core.ts` instead of a runtime schema helper.
 - **Natural phrasing still seeds.** `parse()` and `z.object` are identifiers; `parsing` stems to `parse`, so "how does parsing work" is not an empty packet.
 
 ## 0.7.4 — 2026-08-27

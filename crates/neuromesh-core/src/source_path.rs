@@ -49,17 +49,53 @@ pub fn is_testdata_path(path: &Path) -> bool {
     has_dir_segment(path, &["testdata", "test_data"])
 }
 
-/// Parallel API surfaces that steal seeds via similar names (bench + locale).
-pub fn is_name_collision_decoy(path: &Path) -> bool {
-    is_bench_path(path) || is_locale_path(path)
+/// Older / compat API surfaces (`src/v3/`, `compat/`, `legacy/`).
+pub fn is_legacy_path(path: &Path) -> bool {
+    has_dir_segment(path, &["v2", "v3", "compat", "legacy", "deprecated"])
+        || path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .is_some_and(|stem| {
+                matches!(
+                    stem.to_lowercase().as_str(),
+                    "compat" | "legacy" | "deprecated"
+                )
+            })
 }
 
-/// Test / bench / example / testdata / locale — indexed but not first-class for
-/// ordinary "how does X work" questions.
+/// Schema *conversion* twins (`to-json-schema.ts`) — related, not parse/validate.
+pub fn is_json_schema_path(path: &Path) -> bool {
+    let lower = normalized_source_path(path);
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    stem.contains("json-schema")
+        || stem.contains("json_schema")
+        || stem.contains("to-json-schema")
+        || lower.contains("/json-schema")
+}
+
+pub fn is_core_source_path(path: &Path) -> bool {
+    has_dir_segment(path, &["core"])
+        && !is_bench_path(path)
+        && !is_locale_path(path)
+        && !is_legacy_path(path)
+}
+
+/// Parallel API surfaces that steal seeds via similar names.
+pub fn is_name_collision_decoy(path: &Path) -> bool {
+    is_bench_path(path) || is_locale_path(path) || is_legacy_path(path)
+}
+
+/// Test / bench / example / testdata / locale / legacy — indexed but not
+/// first-class for ordinary "how does X work" questions.
 pub fn is_low_priority_source_path(path: &Path) -> bool {
     is_test_path(path)
         || is_bench_path(path)
         || is_locale_path(path)
+        || is_legacy_path(path)
         || is_example_path(path)
         || is_testdata_path(path)
 }
@@ -82,13 +118,42 @@ pub fn prompt_targets_locale(prompt: &str) -> bool {
         || lower.contains("translat")
 }
 
-/// True when a bench/locale path is allowed as a seed for this prompt.
+pub fn prompt_targets_legacy(prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    lower.contains("v3")
+        || lower.contains("v2")
+        || lower.contains("compat")
+        || lower.contains("legacy")
+        || lower.contains("deprecated")
+}
+
+pub fn prompt_targets_json_schema(prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    lower.contains("json-schema")
+        || lower.contains("json schema")
+        || lower.contains("tojsonschema")
+        || lower.contains("to-json-schema")
+}
+
+pub fn prompt_targets_types(prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    lower.contains("generic")
+        || lower.contains("z.infer")
+        || lower.contains("infer")
+        || lower.contains("type parameter")
+        || lower.contains("type-level")
+}
+
+/// True when a bench/locale/legacy path is allowed as a seed for this prompt.
 pub fn decoy_allowed_for_prompt(path: &Path, prompt: &str) -> bool {
     if is_bench_path(path) {
         return prompt_targets_bench(prompt);
     }
     if is_locale_path(path) {
         return prompt_targets_locale(prompt);
+    }
+    if is_legacy_path(path) {
+        return prompt_targets_legacy(prompt);
     }
     true
 }
@@ -150,5 +215,42 @@ mod tests {
             "safeParse ({safe}) should beat parseNestedObject ({nested})"
         );
         assert_eq!(name_match_specificity(ident, "parse"), 1.0);
+    }
+
+    #[test]
+    fn classifies_legacy_v3_and_allows_when_prompt_names_it() {
+        assert!(is_legacy_path(Path::new("packages/schema/src/v3/types.ts")));
+        assert!(is_legacy_path(Path::new(
+            "packages/zod/src/v4/classic/compat.ts"
+        )));
+        assert!(!is_legacy_path(Path::new(
+            "packages/schema/src/core/parse.ts"
+        )));
+        assert!(!is_legacy_path(Path::new(
+            "packages/zod/src/v4/core/parse.ts"
+        )));
+        assert!(!decoy_allowed_for_prompt(
+            Path::new("packages/schema/src/v3/types.ts"),
+            "how does parse report a validation error path"
+        ));
+        assert!(decoy_allowed_for_prompt(
+            Path::new("packages/schema/src/v3/types.ts"),
+            "how does parse work in v3"
+        ));
+        assert!(is_json_schema_path(Path::new(
+            "packages/schema/src/v4/core/to-json-schema.ts"
+        )));
+        assert!(!is_json_schema_path(Path::new(
+            "packages/schema/src/core/parse.ts"
+        )));
+        assert!(is_core_source_path(Path::new(
+            "packages/schema/src/core/parse.ts"
+        )));
+        assert!(prompt_targets_types(
+            "how do ZodType generics flow through z.infer"
+        ));
+        assert!(!prompt_targets_json_schema(
+            "how does parse report a validation error path"
+        ));
     }
 }

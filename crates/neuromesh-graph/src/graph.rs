@@ -13,9 +13,9 @@ use crate::query::{
 };
 use crate::synapse::{StdpConfig, SynapticPlasticityEngine};
 use neuromesh_core::{
-    is_low_priority_source_path, is_name_collision_decoy, name_match_specificity, ContextEdge,
-    ContextNode, EdgeConfidence, EdgeId, EdgeType, IndexMeta, NodeId, NodeType, ProjectId,
-    UnresolvedRef,
+    is_core_source_path, is_json_schema_path, is_low_priority_source_path, is_name_collision_decoy,
+    name_match_specificity, ContextEdge, ContextNode, EdgeConfidence, EdgeId, EdgeType, IndexMeta,
+    NodeId, NodeType, ProjectId, UnresolvedRef,
 };
 use neuromesh_index::{FileFingerprint, IndexedFile, ScanReport};
 use neuromesh_parser::AstAnalysisResult;
@@ -2073,7 +2073,7 @@ impl NeuralProjectGraph {
 fn type_search_rank(node_type: &NodeType) -> u8 {
     match node_type {
         NodeType::Class | NodeType::Component | NodeType::Api => 3,
-        NodeType::Function => 2,
+        NodeType::Function | NodeType::Symbol => 2,
         NodeType::File => 0,
         _ => 1,
     }
@@ -2082,11 +2082,12 @@ fn type_search_rank(node_type: &NodeType) -> u8 {
 fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     let mut bonus = match node.node_type {
         NodeType::Function | NodeType::Class | NodeType::Component | NodeType::Api => 8.0,
+        NodeType::Symbol if node.name.eq_ignore_ascii_case(query) => 8.0,
         NodeType::StyleToken => 6.0,
         NodeType::File => 1.0,
         _ => 0.0,
     };
-    if node.name == query {
+    if node.name.eq_ignore_ascii_case(query) {
         bonus += 16.0;
     } else if query.len() >= 4 {
         let spec = name_match_specificity(query, &node.name);
@@ -2102,6 +2103,16 @@ fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
         if file_stem_equals(&node.file_path, query) {
             bonus += 30.0;
         }
+        if is_core_source_path(&node.file_path)
+            && (node.name.eq_ignore_ascii_case(query)
+                || file_stem_equals(&node.file_path, query)
+                || name_match_specificity(query, &node.name) >= 0.5)
+        {
+            bonus += 10.0;
+        }
+    }
+    if is_json_schema_path(&node.file_path) {
+        bonus -= 20.0;
     }
     if is_fixture_path(&node.file_path) {
         bonus -= if decoy { 40.0 } else { 24.0 };

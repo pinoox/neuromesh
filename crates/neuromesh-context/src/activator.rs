@@ -6,9 +6,9 @@ use crate::selector::{
 };
 use crate::skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan};
 use neuromesh_core::{
-    decoy_allowed_for_prompt, is_name_collision_decoy, ActivatedNodeView, ContextStatus,
-    ContextView, CoverageReport, EdgeConfidence, EdgeType, NextAction, NodeId, NodeType,
-    OptimizationMode, SeedResolution, TaskSignature,
+    decoy_allowed_for_prompt, is_name_collision_decoy, prompt_targets_types, ActivatedNodeView,
+    ContextStatus, ContextView, CoverageReport, EdgeConfidence, EdgeType, NextAction, NodeId,
+    NodeType, OptimizationMode, SeedResolution, TaskSignature,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
 use neuromesh_task::{extract_cluster_nouns, split_task_clusters, stem_search_queries};
@@ -929,6 +929,15 @@ fn prefer_search_seed(
     prompt: &str,
 ) -> NodeId {
     let hits = graph.search_symbols(query, 8);
+    if prompt_targets_types(prompt) {
+        if let Some(hit) = hits.iter().find(|hit| {
+            hit.node_type == NodeType::Symbol
+                && hit.name.eq_ignore_ascii_case(query)
+                && seed_path_allowed(graph, &hit.id, prompt)
+        }) {
+            return hit.id.clone();
+        }
+    }
     let Some(hit) = hits
         .into_iter()
         .find(|hit| hit.score >= 90.0 && seed_path_allowed(graph, &hit.id, prompt))
@@ -2324,6 +2333,15 @@ function _parse(schema: object, data: unknown, path: (string | number)[]) {
         );
         ingest_ts(
             graph,
+            "packages/schema/src/core/core.ts",
+            r#"
+export type ZodType<T = unknown> = { _output: T; _input: T };
+export type output<T> = T extends { _output: infer Out } ? Out : T;
+export type input<T> = T extends { _input: infer In } ? In : T;
+"#,
+        );
+        ingest_ts(
+            graph,
             "packages/schema/src/classic/schemas.ts",
             r#"
 export function object(shape: Record<string, unknown>) {
@@ -2364,6 +2382,33 @@ export function invalidTypeError() {
 }
 "#,
         );
+        ingest_ts(
+            graph,
+            "packages/schema/src/v3/types.ts",
+            r#"
+export class ZodError extends Error {
+  path: (string | number)[] = [];
+}
+export function parse(schema: object, data: unknown) {
+  return data;
+}
+export function safeParse(schema: object, data: unknown) {
+  return { success: true, data };
+}
+"#,
+        );
+        ingest_ts(
+            graph,
+            "packages/schema/src/v4/core/to-json-schema.ts",
+            r#"
+export function toJsonSchema(schema: object) {
+  return { type: "object", schema };
+}
+export function parseJsonSchema(schema: object) {
+  return toJsonSchema(schema);
+}
+"#,
+        );
         graph.finalize_links();
     }
 
@@ -2396,6 +2441,14 @@ export function invalidTypeError() {
         assert!(
             !files.iter().any(|p| p.contains("/locales/")),
             "locale catalogs must stay out, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("/v3/")),
+            "v3 legacy must stay out, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("to-json-schema")),
+            "json-schema conversion must stay out, files={files:?}"
         );
 
         let gerund = activator.activate(
@@ -2435,6 +2488,35 @@ export function invalidTypeError() {
                 .iter()
                 .any(|p| p.ends_with("packages/bench/safeparse.ts")),
             "bench/safeparse.ts must not steal the safeParse seed, files={named_files:?}"
+        );
+    }
+
+    #[test]
+    fn seed_prefers_core_type_alias_for_z_infer() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_schema_collision(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("how do ZodType generics flow through z.infer"),
+            OptimizationMode::Balanced,
+        );
+        let files = packet_paths(&view);
+        assert!(
+            files
+                .iter()
+                .any(|p| p.ends_with("packages/schema/src/core/core.ts")),
+            "z.infer must seed core.ts type aliases, files={files:?} seeds={:?}",
+            view.seeds
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("classic/schemas")),
+            "classic schemas must not steal the infer seed, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("/bench/")),
+            "bench decoys must stay out, files={files:?}"
         );
     }
 

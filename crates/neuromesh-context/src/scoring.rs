@@ -1,7 +1,8 @@
 use chrono::Utc;
 use neuromesh_core::{
-    is_bench_path, is_locale_path, name_match_specificity, prompt_targets_bench,
-    prompt_targets_locale, ContextNode, NodeType, TaskSignature,
+    is_bench_path, is_json_schema_path, is_legacy_path, is_locale_path, name_match_specificity,
+    prompt_targets_bench, prompt_targets_json_schema, prompt_targets_legacy, prompt_targets_locale,
+    prompt_targets_types, ContextNode, NodeType, TaskSignature,
 };
 
 #[derive(Debug, Clone)]
@@ -133,7 +134,13 @@ impl ActivationScorer {
             NodeType::File => 0.90,
             NodeType::Function | NodeType::Class => 0.85,
             NodeType::StyleToken => 0.80,
-            NodeType::Symbol => 0.75,
+            NodeType::Symbol => {
+                if prompt_targets_types(signature.raw_prompt.as_str()) {
+                    0.88
+                } else {
+                    0.75
+                }
+            }
             NodeType::Import => 0.70,
             NodeType::Config => 0.65,
             NodeType::Test => {
@@ -152,6 +159,12 @@ impl ActivationScorer {
             && signature.intent != neuromesh_core::TaskIntent::Optimize
         {
             return base.min(0.35);
+        }
+        if is_legacy_path(&node.file_path) && !prompt_targets_legacy(prompt) {
+            return base.min(0.35);
+        }
+        if is_json_schema_path(&node.file_path) && !prompt_targets_json_schema(prompt) {
+            return base.min(0.45);
         }
         if is_locale_path(&node.file_path) && !prompt_targets_locale(prompt) {
             return base.min(0.30);
@@ -227,9 +240,13 @@ mod tests {
         let prod = fn_node("safeParse", "packages/zod/src/v4/core/parse.ts");
         let bench = fn_node("safeParse", "packages/bench/safeparse.ts");
         let locale = fn_node("localeError", "packages/zod/src/v4/locales/fa.ts");
+        let v3 = fn_node("safeParse", "packages/zod/src/v3/types.ts");
+        let json = fn_node("parse", "packages/zod/src/v4/core/to-json-schema.ts");
         let prod_impact = scorer.compute_task_impact(&prod, &sig);
         let bench_impact = scorer.compute_task_impact(&bench, &sig);
         let locale_impact = scorer.compute_task_impact(&locale, &sig);
+        let v3_impact = scorer.compute_task_impact(&v3, &sig);
+        let json_impact = scorer.compute_task_impact(&json, &sig);
         assert!(
             bench_impact < prod_impact,
             "bench impact {bench_impact} should be below production {prod_impact}"
@@ -237,6 +254,14 @@ mod tests {
         assert!(
             locale_impact < prod_impact,
             "locale impact {locale_impact} should be below production {prod_impact}"
+        );
+        assert!(
+            v3_impact < prod_impact,
+            "v3 impact {v3_impact} should be below production {prod_impact}"
+        );
+        assert!(
+            json_impact < prod_impact,
+            "json-schema impact {json_impact} should be below production {prod_impact}"
         );
         assert!(bench_impact <= 0.35);
     }

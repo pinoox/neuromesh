@@ -333,6 +333,10 @@ pub fn stem_search_queries(query: &str) -> Vec<String> {
         push_unique(&mut out, stem.to_string());
         push_unique(&mut out, format!("{stem}e"));
     }
+    if q == "infer" {
+        push_unique(&mut out, "output".into());
+        push_unique(&mut out, "input".into());
+    }
     out.retain(|s| s.len() >= 4 && s != &q);
     out
 }
@@ -598,6 +602,17 @@ mod tests {
             "z.object must seed object, identifiers = {:?}",
             anchors.identifiers
         );
+        let infer = extract_prompt_anchors("how do ZodType generics flow through z.infer");
+        assert!(
+            infer.identifiers.iter().any(|id| id == "infer"),
+            "z.infer must seed infer, identifiers = {:?}",
+            infer.identifiers
+        );
+        assert!(
+            infer.identifiers.iter().any(|id| id == "ZodType"),
+            "ZodType must be a seed, identifiers = {:?}",
+            infer.identifiers
+        );
     }
 
     #[test]
@@ -611,6 +626,11 @@ mod tests {
         assert!(
             validation.iter().any(|s| s == "validate"),
             "validation stems = {validation:?}"
+        );
+        let infer = stem_search_queries("infer");
+        assert!(
+            infer.iter().any(|s| s == "output"),
+            "infer aliases = {infer:?}"
         );
     }
 }
