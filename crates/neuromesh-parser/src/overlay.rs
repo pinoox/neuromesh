@@ -561,6 +561,9 @@ fn laravel_schema_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResul
         .unwrap_or_default();
     if path_has_dir(path, "migrations") && !stem.is_empty() {
         promote(ast, stem, NodeType::Function);
+        if let Some(short) = migration_action_name(stem) {
+            promote(ast, &short, NodeType::Function);
+        }
         if let Some(table) = table_from_migration_stem(stem) {
             if !ast.symbols.iter().any(|s| s.name == table) {
                 ast.symbols.push(ParsedSymbol::new(
@@ -573,6 +576,12 @@ fn laravel_schema_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResul
             }
         }
     }
+}
+
+fn migration_action_name(stem: &str) -> Option<String> {
+    let lower = stem.to_ascii_lowercase();
+    let idx = lower.find("_create_")?;
+    Some(format!("create_{}", &lower[idx + "_create_".len()..]))
 }
 
 fn table_from_migration_stem(stem: &str) -> Option<String> {

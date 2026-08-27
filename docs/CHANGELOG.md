@@ -4,6 +4,12 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+CI gold harness: migration vs SQL decoys, and a slightly looser debug latency gate.
+
+- **Schema decoys are prompt-kinded.** A "migration" question no longer seeds `database/sql/*.sql`; a `.sql` / `CREATE TABLE` prompt no longer seeds `migrations/`. Seeder and factory twins follow the same split.
+- **Migration short name.** `2024_…_create_sms_messages_table` also registers `create_sms_messages_table` so that identifier seeds the PHP file.
+- **Debug gold latency.** Non-Windows gold harness allows **&lt; 200 ms** (was 150) so Linux CI debug builds do not flake at ~157 ms.
+
 ## 0.7.6 — 2026-08-27
 
 Agent setup guide, HTTP route seeds, Pinx/Vue overlays, Laravel/SQL/JSON, and tighter TS seed ranking.

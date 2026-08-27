@@ -179,7 +179,7 @@ pub fn prompt_targets_types(prompt: &str) -> bool {
         || lower.contains("type-level")
 }
 
-/// True when a bench/locale/legacy path is allowed as a seed for this prompt.
+/// True when a bench/locale/legacy/schema path is allowed as a seed for this prompt.
 pub fn decoy_allowed_for_prompt(path: &Path, prompt: &str) -> bool {
     if is_bench_path(path) {
         return prompt_targets_bench(prompt);
@@ -191,9 +191,32 @@ pub fn decoy_allowed_for_prompt(path: &Path, prompt: &str) -> bool {
         return prompt_targets_legacy(prompt);
     }
     if is_schema_path(path) {
-        return prompt_targets_database(prompt);
+        return schema_path_allowed_for_prompt(path, prompt);
     }
     true
+}
+
+/// Match schema decoys to the prompt kind so a "migration" question cannot
+/// seed a raw `.sql` twin (and vice versa).
+fn schema_path_allowed_for_prompt(path: &Path, prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    let path_l = normalized_source_path(path);
+    if path_l.ends_with(".sql") || has_dir_segment(path, &["sql"]) {
+        return lower.contains(".sql")
+            || lower.contains("create table")
+            || lower.contains(" sql")
+            || lower.contains("sql ");
+    }
+    if has_dir_segment(path, &["migrations"]) {
+        return lower.contains("migration") || lower.contains("schema::");
+    }
+    if has_dir_segment(path, &["seeders", "seeds"]) {
+        return lower.contains("seeder") || lower.contains("seed");
+    }
+    if has_dir_segment(path, &["factories"]) {
+        return lower.contains("factory");
+    }
+    prompt_targets_database(prompt)
 }
 
 /// Substring match score in `0..=1`, scaled by how much of `name` is `ident`.
@@ -261,6 +284,26 @@ mod tests {
         assert!(decoy_allowed_for_prompt(
             Path::new("database/factories/SmsMessageFactory.php"),
             "How does SmsSeeder run SmsMessageFactory definition?"
+        ));
+        assert!(!decoy_allowed_for_prompt(
+            Path::new("database/sql/sms_messages.sql"),
+            "How does the create_sms_messages_table migration create the sms_messages table?"
+        ));
+        assert!(decoy_allowed_for_prompt(
+            Path::new(
+                "database/migrations/2024_01_01_000000_create_sms_messages_table.php"
+            ),
+            "How does the create_sms_messages_table migration create the sms_messages table?"
+        ));
+        assert!(decoy_allowed_for_prompt(
+            Path::new("database/sql/sms_messages.sql"),
+            "Where is the sms_messages CREATE TABLE in sms_messages.sql?"
+        ));
+        assert!(!decoy_allowed_for_prompt(
+            Path::new(
+                "database/migrations/2024_01_01_000000_create_sms_messages_table.php"
+            ),
+            "Where is the sms_messages CREATE TABLE in sms_messages.sql?"
         ));
         assert!(!decoy_allowed_for_prompt(
             Path::new("packages/bench/safeparse.ts"),
