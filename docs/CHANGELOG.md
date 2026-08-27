@@ -4,6 +4,21 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.7 — 2026-08-28
+
+Benchmark-driven routing, honest coverage, and a falsifiable learning loop (Vue shop fixture).
+
+- **Shop gold fixture.** `tests/fixtures/mini-shop/` (Vue 3 + Pinia + SCSS) with gold tasks for price-card SCSS (T6), dead-code `goCart` (T7), and checkout `setQty` (T5). Runs in `gold_harness_on_fixture_repos`.
+- **Style routing.** Unified SCSS file hints (`tokens.scss` / `mixins.scss` with and without `_`), `_priceCard.scss` seeds, StyleToken search seeds, and cart/promo noise filtering so style tasks do not ship cart components.
+- **View seeds.** `related_concepts` become seeds; checkout/stepper prompts inject `CheckoutView` without `checkout` ⊃ `cart` false positives; focused checkout tasks tighten optional fill.
+- **Coverage honesty.** `CoverageReport` adds `covered`, `skipped`, `semantic_coverage`, and `packet_gaps` (with optional `line`). `no_recorded_gap` only when seeds and packet gaps are both empty.
+- **Structural proof.** `structural_evidence` includes `exact_line`, `who_reads`, `callers_count`, and `is_dead`; bug-hunt tasks can emit `bug_line` gaps (e.g. duplicate discount in `total()`).
+- **Vue template → store.** `@click` / `@submit` handlers (`ui.goCart()`) emit `Calls` edges to Pinia actions for dead-code and caller tracing.
+- **Learning loop.** `record_feedback` resolves human names, persists `base_relevance` to `graph.bin`, saves episodes, reinforces callee edges, and recalls successful episodes on the next `get_context`. `neuromesh_get_node_weights` exposes deltas for verification.
+- **New MCP tools.** `neuromesh_expand_gap` (cheap skeleton for gap paths) and `neuromesh_get_node_weights` (observability).
+- **Selector / skeleton.** `learning_bonus` boosts file fill from `access_count` / `base_relevance`; files ≤60 lines fold more aggressively.
+- **Docs / ops.** README and [mcp.md](mcp.md) warn against `mcp` without a workspace path; [mcp.md](mcp.md) documents learning timing and new tools.
+
 ## 0.7.6 — 2026-08-27
 
 Agent setup guide, HTTP route seeds, Pinx/Vue overlays, Laravel/SQL/JSON, and tighter TS seed ranking.

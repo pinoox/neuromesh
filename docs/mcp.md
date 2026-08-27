@@ -1,6 +1,8 @@
 # MCP tools
 
-Transport: **stdio JSON-RPC** (`neuromesh mcp`). That is what Cursor, Claude, Codex, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
+Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). That is what Cursor, Claude, Codex, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
+
+**Warning:** Never run `neuromesh mcp` without a workspace path (or `NEUROMESH_WORKSPACE`). Without it the server may bind to your home directory and index unrelated projects. Prefer `neuromesh connect`, which pins an absolute binary path and workspace in MCP config.
 
 Remote / multi-agent: `neuromesh monitor` (optionally `--port 9000` / `neuromesh port 9000`), then SSE and HTTP as in [api.md](api.md).
 
@@ -91,7 +93,9 @@ Cursor-ready template: [agent-rule.mdc](agent-rule.mdc). Same body without YAML 
 | `neuromesh_analyze_impact` | `query`, `depth` | Blast radius |
 | `neuromesh_get_architecture` | — | Languages, packages, entry points |
 | `neuromesh_get_project_memory` | — | Seeded facts |
-| `neuromesh_record_feedback` | `task_success`, `touched_nodes` | STDP on that path |
+| `neuromesh_record_feedback` | `task_success`, `touched_nodes` | STDP on that path; persists `base_relevance` to `graph.bin` |
+| `neuromesh_get_node_weights` | `query` / `symbol` / `path` | Read `access_count`, `base_relevance`, `learning_bonus` (verify learning) |
+| `neuromesh_expand_gap` | `path`, optional `token_cap` | Cheap skeleton for `packet_gaps` paths |
 | `neuromesh_get_stats` | — | Node/edge counts |
 
 Aliases exist for older clients (`activate_context`, `expand_context`, `search_context`, `explain_packet`, `get_context_details`). Prefer the `neuromesh_*` names.
@@ -101,7 +105,7 @@ Aliases exist for older clients (`activate_context`, `expand_context`, `search_c
 `neuromesh_get_context` is the product. Default (`response_detail=minimal`) shape:
 
 - `packet_id` — session key for `neuromesh_explain_packet` (LRU, ~10 minutes, 32 packets)
-- `coverage` — `no_recorded_gap`, `partial`, or `no_seed_resolved` (a string, not an object). `no_recorded_gap` means every *attempted* seed resolved, including each topical cluster of a compound task — not “the packet looks full”
+- `coverage` — `claim` (`no_recorded_gap`, `partial`, `no_seed_resolved`), plus `covered`, `skipped`, `unsure`, `packet_gaps`, and optional `semantic_coverage` for style tasks. `no_recorded_gap` only when every attempted seed resolved **and** `packet_gaps` is empty
 - `tokens.selected` / `tokens.packet` — raw selected vs skeletonized packet
 - `files[]` — `path`, short `why`, skeleton `code`, `folds[]` as descriptors (`fold_id`, `symbol`, `signature`, lines, `saved_tokens`) with **no** `original_body`
 - `missing` / `next` — only when coverage is incomplete; one search action, not a repeated seed list
@@ -119,3 +123,7 @@ Markers look like:
 ```
 
 Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `query`. The full marker line also works. Folds persist for the **MCP session** (same process, same project). They are not cleared on every `get_context`. A new project id wipes the registry. Ids include a short path tag so two files that both fold `write` do not collide. Fold **bodies** are never in `get_context` or `get_file_skeleton`; only `expand_fold` restores them.
+
+## Learning
+
+`neuromesh_record_feedback` updates `base_relevance`, edge pheromones, and episodic memory on disk (`graph.bin`, `neuromesh.json`). Effects apply on the **next** `get_context` in the same MCP process (search ranking, selector fill, episodic recall). Use `neuromesh_get_node_weights` before and after feedback to verify deltas. Learning does not change a packet mid-request; restart the MCP server to load persisted graph state from a prior session.

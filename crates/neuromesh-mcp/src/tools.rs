@@ -187,6 +187,22 @@ impl McpToolHandler {
                 let detail = ResponseDetail::parse(arguments["response_detail"].as_str());
 
                 let signature = TaskSignatureExtractor::extract(&task_desc);
+                let mut signature = signature;
+                if let Ok(episodes) = self
+                    .memory_db
+                    .find_similar_episodes(&self.graph.project_id(), &task_desc)
+                {
+                    for ep in episodes.into_iter().filter(|e| e.success).take(3) {
+                        for name in &ep.successful_path {
+                            if name.len() < 3 {
+                                continue;
+                            }
+                            if !signature.identifiers.iter().any(|i| i == name) {
+                                signature.identifiers.push(name.clone());
+                            }
+                        }
+                    }
+                }
                 let gate = QualityGate::evaluate(&signature, requested_mode);
                 let view = self
                     .activator
@@ -257,6 +273,55 @@ impl McpToolHandler {
                     &build,
                     detail,
                 ))
+            }
+
+            // 2b. Expand a packet gap file (cheap skeleton, no blind Grep)
+            "neuromesh_expand_gap" => {
+                let start_time = std::time::Instant::now();
+                let file_path = arguments["path"]
+                    .as_str()
+                    .or_else(|| arguments["file_path"].as_str())
+                    .unwrap_or("");
+                if file_path.is_empty() {
+                    return Ok(json!({
+                        "success": false,
+                        "error": "path is required (from packet_gaps or unsure)"
+                    }));
+                }
+                let node_id = NodeId::from_file_path(file_path);
+                let content_opt = self
+                    .graph
+                    .get_node(&node_id)
+                    .and_then(|n| self.graph.read_source(&n.file_path));
+                let content_opt = match content_opt {
+                    Some(content) => Some(content),
+                    None => match self.read_workspace_source(file_path) {
+                        Ok(content) => content,
+                        Err(err) => return Ok(json!({ "success": false, "error": err })),
+                    },
+                };
+                if let Some(content) = content_opt {
+                    let res = CodeSkeletonizer::skeletonize(file_path, &content, &HashSet::new());
+                    let cap = arguments["token_cap"].as_u64().unwrap_or(200) as usize;
+                    let skeleton = if res.skeleton_tokens > cap {
+                        res.skeleton_code
+                            .lines()
+                            .take(40)
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    } else {
+                        res.skeleton_code
+                    };
+                    Ok(json!({
+                        "success": true,
+                        "path": file_path,
+                        "skeleton": skeleton,
+                        "skeleton_tokens": res.skeleton_tokens.min(cap),
+                        "latency_ms": start_time.elapsed().as_millis(),
+                    }))
+                } else {
+                    Ok(json!({ "success": false, "error": "file not found" }))
+                }
             }
 
             // 2. Get File Skeleton with Folded Introns
@@ -599,6 +664,7 @@ impl McpToolHandler {
                 }
                 self.graph.apply_stdp_on_path(&path);
                 self.graph.reinforce_path(&path, success);
+                self.graph.reinforce_callee_edges(&path, success);
                 self.record_mycelium_path(&path);
                 if let Ok(cwd) = std::env::current_dir() {
                     let _ = self.graph.save_persisted(&cwd);
@@ -696,6 +762,33 @@ impl McpToolHandler {
                     ..ToolTelemetry::new("mcp-wm", "Task state", "get_task_state")
                 });
                 Ok(json!({ "working_memory": wm }))
+            }
+
+            // 9b. Read per-node learning weights (falsifiable feedback observability)
+            "neuromesh_get_node_weights" => {
+                let start_time = std::time::Instant::now();
+                let query = arguments["query"]
+                    .as_str()
+                    .or_else(|| arguments["symbol"].as_str())
+                    .or_else(|| arguments["path"].as_str())
+                    .unwrap_or("");
+                if query.is_empty() {
+                    return Ok(json!({
+                        "error": "query, symbol, or path is required"
+                    }));
+                }
+                match self.graph.node_learning_profile(query) {
+                    Some(profile) => {
+                        self.emit_telemetry(ToolTelemetry {
+                            latency_ms: start_time.elapsed().as_millis() as u64,
+                            ..ToolTelemetry::new("mcp-weights", query, "get_node_weights")
+                        });
+                        Ok(json!(profile))
+                    }
+                    None => Ok(json!({
+                        "error": format!("node not found for query: {query}")
+                    })),
+                }
             }
 
             // 10. Get System Stats & Biomimetic Health

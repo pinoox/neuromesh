@@ -108,6 +108,54 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
+            "mini-shop",
+            GoldTask {
+                id: "price_card_scss".into(),
+                prompt: "Create a new price-card SCSS partial reusing design tokens and mixins, following ProductCard styling patterns with hover-lift".into(),
+                gold_files: vec![
+                    "src/styles/tokens.scss".into(),
+                    "src/styles/mixins.scss".into(),
+                    "src/components/ProductCard.vue".into(),
+                    "src/styles/_priceCard.scss".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "src/components/PromoCodeInput.vue".into(),
+                    "src/components/CartDrawer.vue".into(),
+                    "src/views/CartView.vue".into(),
+                    "src/views/CheckoutView.vue".into(),
+                ],
+            },
+        ),
+        (
+            "mini-shop",
+            GoldTask {
+                id: "dead_code_gocart".into(),
+                prompt: "Find unused goCart in the ui store and list all references to goCart across the project".into(),
+                gold_files: vec![
+                    "src/stores/ui.js".into(),
+                    "src/App.vue".into(),
+                    "src/components/CartDrawer.vue".into(),
+                    "src/components/Header.vue".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
+            },
+        ),
+        (
+            "mini-shop",
+            GoldTask {
+                id: "checkout_qty_stepper".into(),
+                prompt: "Add quantity stepper in checkout list using setQty from cart store".into(),
+                gold_files: vec![
+                    "src/views/CheckoutView.vue".into(),
+                    "src/stores/cart.js".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
+            },
+        ),
+        (
             "mini-cjs",
             GoldTask {
                 id: "cjs_require".into(),

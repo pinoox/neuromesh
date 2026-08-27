@@ -212,19 +212,27 @@ pub fn select(
 
     let mut file_scores: HashMap<NodeId, f32> = HashMap::new();
     let mut callee_files: HashSet<NodeId> = HashSet::new();
+    let learning_boost = |id: &NodeId| -> f32 {
+        graph.get_node(id).map_or(0.0, |n| {
+            let access = (n.access_count as f32).ln_1p() * 2.0;
+            let relevance = (n.base_relevance - 1.0).max(0.0) * 4.0;
+            access + relevance
+        })
+    };
     let bump_file = |scores: &mut HashMap<NodeId, f32>, id: &NodeId, amount: f32| {
         if required.contains(id) || is_noise_node(graph, id) {
             return;
         }
-        *scores.entry(id.clone()).or_insert(0.0) += amount;
+        *scores.entry(id.clone()).or_insert(0.0) += amount + learning_boost(id);
     };
     let bump_file_max = |scores: &mut HashMap<NodeId, f32>, id: &NodeId, amount: f32| {
         if required.contains(id) || is_noise_node(graph, id) {
             return;
         }
+        let total = amount + learning_boost(id);
         let entry = scores.entry(id.clone()).or_insert(0.0);
-        if amount > *entry {
-            *entry = amount;
+        if total > *entry {
+            *entry = total;
         }
     };
 

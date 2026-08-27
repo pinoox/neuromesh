@@ -47,6 +47,27 @@ pub struct GraphStats {
     pub generation: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NeighborLearningWeight {
+    pub node_id: String,
+    pub name: String,
+    pub path: String,
+    pub edge_type: String,
+    pub pheromone_weight: f32,
+    pub reinforcement_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeLearningProfile {
+    pub node_id: String,
+    pub name: String,
+    pub path: String,
+    pub access_count: u64,
+    pub base_relevance: f32,
+    pub learning_bonus: f32,
+    pub neighbors: Vec<NeighborLearningWeight>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IndexState {
@@ -2027,6 +2048,62 @@ impl NeuralProjectGraph {
             node.base_relevance = (node.base_relevance - 0.12).max(0.1);
         }
         node.base_relevance - before
+    }
+
+    /// Observable learning state for a symbol/path (falsifiable feedback checks).
+    pub fn node_learning_profile(&self, query: &str) -> Option<NodeLearningProfile> {
+        let node = self.resolve_feedback_node(query)?;
+        let bonus = learning_bonus(&node);
+        let neighbors: Vec<NeighborLearningWeight> = self
+            .get_connected_neighbors(&node.id)
+            .into_iter()
+            .take(12)
+            .filter_map(|(neighbor_id, edge)| {
+                let neighbor = self.get_node(&neighbor_id)?;
+                Some(NeighborLearningWeight {
+                    node_id: neighbor_id.as_str().to_string(),
+                    name: neighbor.name.clone(),
+                    path: neighbor.file_path.to_string_lossy().replace('\\', "/"),
+                    edge_type: format!("{:?}", edge.edge_type),
+                    pheromone_weight: edge.pheromone_weight,
+                    reinforcement_count: edge.reinforcement_count,
+                })
+            })
+            .collect();
+        Some(NodeLearningProfile {
+            node_id: node.id.as_str().to_string(),
+            name: node.name.clone(),
+            path: node.file_path.to_string_lossy().replace('\\', "/"),
+            access_count: node.access_count,
+            base_relevance: node.base_relevance,
+            learning_bonus: bonus,
+            neighbors,
+        })
+    }
+
+    /// Reinforce 1-hop call/import edges around touched nodes so related files enter packets.
+    pub fn reinforce_callee_edges(&self, node_ids: &[NodeId], success: bool) {
+        let mut edge_ids: HashSet<EdgeId> = HashSet::new();
+        for id in node_ids {
+            for (_, edge) in self.get_connected_neighbors(id) {
+                if matches!(
+                    edge.edge_type,
+                    EdgeType::Calls | EdgeType::Imports | EdgeType::References | EdgeType::UsedBy
+                ) {
+                    edge_ids.insert(edge.id.clone());
+                }
+            }
+        }
+        let mut data = self.inner.write();
+        for edge_id in edge_ids {
+            if let Some(edge) = data.mesh.edge_mut(&edge_id) {
+                if success {
+                    self.pheromone_engine.reinforce_success(edge, 1);
+                } else {
+                    self.pheromone_engine.penalize_failure(edge);
+                }
+            }
+        }
     }
 
     /// Count inbound call/import edges to a symbol (for dead-code evidence).

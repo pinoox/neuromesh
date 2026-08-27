@@ -234,6 +234,14 @@ pub struct PacketGap {
     pub kind: String,
     pub path: String,
     pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkippedFile {
+    pub path: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -241,8 +249,12 @@ pub struct StructuralEvidence {
     pub symbol: String,
     pub path: String,
     pub line: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exact_line: Option<String>,
     pub callers_count: usize,
     pub is_dead: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub who_reads: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,19 +268,31 @@ pub struct CoverageReport {
     /// Near-miss files worth expanding before Grep.
     #[serde(default)]
     pub unsure: Vec<String>,
+    /// Files included in this packet.
+    #[serde(default)]
+    pub covered: Vec<String>,
+    /// Files intentionally excluded (noise filter, budget, parse partial).
+    #[serde(default)]
+    pub skipped: Vec<SkippedFile>,
+    /// For style tasks: share of packet files under styles/ (0.0–1.0).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantic_coverage: Option<f32>,
 }
 
 impl CoverageReport {
     /// `no_recorded_gap` only when every *attempted* seed resolved and packet gaps are empty.
     /// `unresolved` on the packet is graph call/import gaps, not this list.
     pub fn from_seeds(seeds: &[SeedResolution]) -> Self {
-        Self::from_seeds_with_gaps(seeds, Vec::new(), Vec::new())
+        Self::from_seeds_with_gaps(seeds, Vec::new(), Vec::new(), Vec::new(), Vec::new(), None)
     }
 
     pub fn from_seeds_with_gaps(
         seeds: &[SeedResolution],
         packet_gaps: Vec<PacketGap>,
         unsure: Vec<String>,
+        covered: Vec<String>,
+        skipped: Vec<SkippedFile>,
+        semantic_coverage: Option<f32>,
     ) -> Self {
         let seeds_hit: Vec<String> = seeds
             .iter()
@@ -293,6 +317,9 @@ impl CoverageReport {
             claim,
             packet_gaps,
             unsure,
+            covered,
+            skipped,
+            semantic_coverage,
         }
     }
 }

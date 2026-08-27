@@ -1,0 +1,38 @@
+[[task]]
+id = "price_card_scss"
+prompt = "Create a new price-card SCSS partial reusing design tokens and mixins, following ProductCard styling patterns with hover-lift"
+gold_files = [
+  "src/styles/tokens.scss",
+  "src/styles/mixins.scss",
+  "src/components/ProductCard.vue",
+  "src/styles/_priceCard.scss",
+]
+forbidden_files = [
+  "src/components/PromoCodeInput.vue",
+  "src/components/CartDrawer.vue",
+  "src/views/CartView.vue",
+  "src/views/CheckoutView.vue",
+]
+expect_seeds_missed = false
+
+[[task]]
+id = "dead_code_gocart"
+prompt = "Find unused goCart in the ui store and list all references to goCart across the project"
+gold_files = [
+  "src/stores/ui.js",
+  "src/App.vue",
+  "src/components/CartDrawer.vue",
+  "src/components/Header.vue",
+]
+forbidden_files = []
+expect_seeds_missed = false
+
+[[task]]
+id = "checkout_qty_stepper"
+prompt = "Add quantity stepper in checkout list using setQty from cart store"
+gold_files = [
+  "src/views/CheckoutView.vue",
+  "src/stores/cart.js",
+]
+forbidden_files = []
+expect_seeds_missed = false

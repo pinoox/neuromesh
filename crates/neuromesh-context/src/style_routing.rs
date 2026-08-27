@@ -1,5 +1,5 @@
 use crate::activator::SeedSink;
-use neuromesh_core::{TaskSignature};
+use neuromesh_core::TaskSignature;
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::HashSet;
 
@@ -65,26 +65,63 @@ pub(crate) fn inject_style_seeds(
     {
         sink.push(graph, prompt, "ProductCard".into(), 0.9, "style_component");
     }
+    if lower.contains("price-card") || lower.contains("pricecard") {
+        for hint in [
+            "src/styles/_priceCard.scss",
+            "src/styles/priceCard.scss",
+            "styles/_priceCard.scss",
+        ] {
+            if graph.resolve_file_hint(hint).is_some() {
+                sink.push(graph, prompt, hint.to_string(), 0.88, "style_partial");
+            }
+        }
+        sink.push(graph, prompt, "price-card-tile".into(), 0.75, "style_mixin");
+    }
+
+    for token in style_token_queries(signature) {
+        for hit in graph.search_symbols(&token, 4) {
+            if hit.node_type == neuromesh_core::NodeType::StyleToken
+                || is_style_path(&hit.file_path)
+            {
+                sink.push(graph, prompt, hit.name.clone(), 0.78, "style_token");
+            }
+        }
+    }
 }
+
+fn style_token_queries(signature: &TaskSignature) -> Vec<String> {
+    let lower = signature.raw_prompt.to_lowercase();
+    let mut out = Vec::new();
+    for kw in [
+        "hover-lift",
+        "focus-within",
+        "price-card",
+        "price-card-tile",
+    ] {
+        if lower.contains(kw) {
+            out.push(kw.to_string());
+        }
+    }
+    out
+}
+
+const SCSS_STYLE_HINTS: &[&str] = &[
+    "src/styles/_tokens.scss",
+    "src/styles/tokens.scss",
+    "src/styles/_mixins.scss",
+    "src/styles/mixins.scss",
+    "styles/_tokens.scss",
+    "styles/tokens.scss",
+    "styles/_mixins.scss",
+    "styles/mixins.scss",
+];
 
 fn style_file_hints(style: &Option<String>) -> Vec<&'static str> {
     match style.as_deref() {
-        Some("scss") | Some("sass") => vec![
-            "src/styles/_tokens.scss",
-            "src/styles/tokens.scss",
-            "src/styles/_mixins.scss",
-            "src/styles/mixins.scss",
-            "styles/_tokens.scss",
-            "styles/_mixins.scss",
-        ],
+        Some("scss") | Some("sass") => SCSS_STYLE_HINTS.to_vec(),
         Some("less") => vec!["styles/tokens.less", "src/styles/tokens.less"],
         Some("css") => vec!["styles/tokens.css", "src/styles/tokens.css"],
-        _ => vec![
-            "src/styles/_tokens.scss",
-            "src/styles/_mixins.scss",
-            "styles/_tokens.scss",
-            "styles/_mixins.scss",
-        ],
+        _ => SCSS_STYLE_HINTS.to_vec(),
     }
 }
 
@@ -95,11 +132,14 @@ pub(crate) fn inject_view_component_seeds(
     sink: &mut SeedSink<'_>,
 ) {
     let lower = signature.raw_prompt.to_lowercase();
-    if !lower.contains("checkout")
-        && !lower.contains("cartview")
-        && !lower.contains("productcard")
-        && !lower.contains("product card")
-    {
+    let view_task = lower.contains("checkout")
+        || lower.contains("cartview")
+        || lower.contains("productcard")
+        || lower.contains("product card")
+        || lower.contains("setqty")
+        || lower.contains("quantity")
+        || lower.contains("stepper");
+    if !view_task {
         return;
     }
     let mut candidates: HashSet<String> = HashSet::new();
@@ -109,7 +149,13 @@ pub(crate) fn inject_view_component_seeds(
         }
     }
     for word in ["checkout", "cart", "product", "home", "header"] {
-        if lower.contains(word) {
+        if word == "cart"
+            && (prompt_contains_word(&lower, "checkout") || lower.contains("cartview"))
+            && !lower.contains("cart view")
+        {
+            continue;
+        }
+        if prompt_contains_word(&lower, word) {
             candidates.insert(format!("{}View", pascal_case(word)));
         }
     }
@@ -133,10 +179,50 @@ pub fn style_noise_penalty(path: &std::path::Path, signature: &TaskSignature) ->
         || p.contains("cartdrawer")
         || p.contains("cartview")
         || p.contains("/stores/cart")
+        || p.contains("appbutton")
     {
         return 28.0;
     }
     0.0
+}
+
+fn prompt_contains_word(lower: &str, word: &str) -> bool {
+    lower
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|w| w == word)
+}
+
+/// Drop optional connector fill when checkout/store seeds already anchor the task.
+pub(crate) fn tighten_focused_view_selection(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    selection: &mut crate::selector::Selection,
+) {
+    let lower = signature.raw_prompt.to_lowercase();
+    let focused_checkout = (lower.contains("setqty") || prompt_contains_word(&lower, "stepper"))
+        && prompt_contains_word(&lower, "checkout");
+    if !focused_checkout {
+        return;
+    }
+    let keep = |path: &str| {
+        let p = path.to_lowercase();
+        p.contains("checkoutview") || p.contains("/stores/cart")
+    };
+    selection.optional.retain(|id| {
+        graph
+            .get_node(id)
+            .map(|n| keep(&n.file_path.to_string_lossy()))
+            .unwrap_or(false)
+    });
+    selection.required.retain(|id| {
+        graph
+            .get_node(id)
+            .map(|n| {
+                let p = n.file_path.to_string_lossy().to_lowercase();
+                keep(&p) || p.contains("/stores/cart")
+            })
+            .unwrap_or(true)
+    });
 }
 
 fn pascal_case(raw: &str) -> String {
@@ -177,5 +263,12 @@ mod tests {
     #[test]
     fn pascal_case_handles_checkout() {
         assert_eq!(pascal_case("checkout"), "Checkout");
+    }
+
+    #[test]
+    fn default_style_hints_include_non_underscore_paths() {
+        let hints = style_file_hints(&None);
+        assert!(hints.contains(&"src/styles/tokens.scss"));
+        assert!(hints.contains(&"src/styles/mixins.scss"));
     }
 }

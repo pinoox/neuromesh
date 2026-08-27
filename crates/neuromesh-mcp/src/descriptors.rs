@@ -35,7 +35,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "neuromesh_get_context",
             "Get evidence packet",
-            "Return a compact evidence packet by default: packet_id, coverage (no_recorded_gap|partial|no_seed_resolved), selected/packet tokens, skeletonized files, fold ids without bodies, and missing seeds only when coverage is incomplete. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as task_description, prompt, or task.",
+            "Return a compact evidence packet by default: packet_id, coverage (claim, covered, skipped, unsure, packet_gaps; no_recorded_gap only when seeds and gaps are empty), selected/packet tokens, skeletonized files, fold ids without bodies, and missing seeds only when coverage is incomplete. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as task_description, prompt, or task.",
             json!({
                 "type": "object",
                 "properties": {
@@ -257,6 +257,34 @@ pub fn tools_list() -> Vec<Value> {
             "Project memory",
             "Retrieve project architectural rules, tech stack decisions, and framework conventions.",
             json!({ "type": "object", "properties": {} }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_get_node_weights",
+            "Node learning weights",
+            "Read access_count, base_relevance, learning_bonus, and neighbor pheromone weights for a symbol or path. Use before/after record_feedback to verify learning.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "Symbol name or file path" },
+                    "symbol": { "type": "string", "description": "Alias for query" },
+                    "path": { "type": "string", "description": "Alias for query" }
+                }
+            }),
+            read_only(),
+        ),
+        tool(
+            "neuromesh_expand_gap",
+            "Expand packet gap",
+            "Cheap skeleton for a path listed in packet_gaps or unsure — avoids blind Grep when coverage is partial.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Relative file path from packet_gaps" },
+                    "file_path": { "type": "string", "description": "Alias for path" },
+                    "token_cap": { "type": "integer", "description": "Max skeleton tokens (default 200)" }
+                }
+            }),
             read_only(),
         ),
         tool(
