@@ -1,0 +1,36 @@
+[[task]]
+id = "parse_error_path"
+prompt = "how does z.object schema validate an object and how does parse() report validation errors with a path to the invalid field"
+gold_files = ["packages/schema/src/core/parse.ts"]
+forbidden_files = [
+  "packages/bench/safeparse.ts",
+  "packages/bench/compile-validate-vs-parse.ts",
+  "packages/schema/src/locales/fa.ts",
+  "packages/schema/src/v3/types.ts",
+  "packages/schema/src/v4/core/to-json-schema.ts",
+]
+expect_seeds_missed = false
+
+[[task]]
+id = "parsing_gerund"
+prompt = "how does parsing work in zod"
+gold_files = ["packages/schema/src/core/parse.ts"]
+forbidden_files = ["packages/bench/safeparse.ts", "packages/schema/src/locales/fa.ts"]
+expect_seeds_missed = false
+
+[[task]]
+id = "safeparse_impl"
+prompt = "where is the safeParse function implemented"
+gold_files = ["packages/schema/src/core/parse.ts"]
+forbidden_files = ["packages/bench/safeparse.ts"]
+expect_seeds_missed = false
+
+[[task]]
+id = "infer_output"
+prompt = "how do ZodType generics flow through z.infer"
+gold_files = ["packages/schema/src/core/core.ts"]
+forbidden_files = [
+  "packages/schema/src/classic/schemas.ts",
+  "packages/bench/safeparse.ts",
+]
+expect_seeds_missed = false

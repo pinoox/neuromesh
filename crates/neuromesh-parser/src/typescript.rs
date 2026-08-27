@@ -14,9 +14,10 @@ impl TypeScriptParser {
             .and_then(|s| s.to_str())
             .unwrap_or("module");
 
-        // 1. Extract interfaces & types
+        // 1. Extract interfaces, types, enums
         let type_regex =
-            Regex::new(r#"(?m)^\s*(?:export\s+)?(?:interface|type)\s+([A-Za-z0-9_]+)"#).unwrap();
+            Regex::new(r#"(?m)^\s*(?:export\s+)?(?:interface|type|enum)\s+([A-Za-z0-9_]+)"#)
+                .unwrap();
 
         for (line_idx, line) in content.lines().enumerate() {
             if let Some(cap) = type_regex.captures(line) {
@@ -34,7 +35,7 @@ impl TypeScriptParser {
 
         // 2. Extract functions, composables & classes
         let fn_regex = Regex::new(
-            r#"(?m)^\s*(?:export\s+)?(?:async\s+)?(?:function\s+([A-Za-z0-9_]+)|const\s+([A-Za-z0-9_]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|class\s+([A-Za-z0-9_]+))"#,
+            r#"(?m)^\s*(?:export\s+(?:default\s+)?)?(?:async\s+)?(?:function\s+([A-Za-z0-9_]+)|const\s+([A-Za-z0-9_]+)\s*(?::[^=]{1,80})?\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|class\s+([A-Za-z0-9_]+))"#,
         )
         .unwrap();
 
@@ -85,9 +86,9 @@ impl TypeScriptParser {
             }
         }
 
-        // 4. Extract ES Module Imports
+        // 4. Extract ES Module Imports (named, namespace, side-effect, CSS/JSON)
         let import_regex = Regex::new(
-            r#"(?m)^\s*import\s+(?:(?:(?:type\s+)?(\w+)|(?:\{\s*([^}]+)\s*\}))\s+from\s+)?['"]([^'"]+)['"];?"#,
+            r#"(?m)^\s*import\s+(?:(?:type\s+)?(?:(\w+)|(?:\{\s*([^}]+)\s*\})|(?:\*\s+as\s+(\w+)))\s+from\s+)?['"]([^'"]+)['"];?"#,
         )
         .unwrap();
 
@@ -95,12 +96,18 @@ impl TypeScriptParser {
             if let Some(caps) = import_regex.captures(line) {
                 let default_import = caps.get(1).map(|m| m.as_str().trim());
                 let named_imports = caps.get(2).map(|m| m.as_str());
-                let source_path = caps.get(3).map(|m| m.as_str()).unwrap_or("");
+                let namespace_import = caps.get(3).map(|m| m.as_str().trim());
+                let source_path = caps.get(4).map(|m| m.as_str()).unwrap_or("");
 
                 let mut imported_symbols = Vec::new();
                 if let Some(def) = default_import {
                     if !def.is_empty() {
                         imported_symbols.push(def.to_string());
+                    }
+                }
+                if let Some(ns) = namespace_import {
+                    if !ns.is_empty() {
+                        imported_symbols.push(ns.to_string());
                     }
                 }
                 if let Some(named) = named_imports {
@@ -111,12 +118,15 @@ impl TypeScriptParser {
                         }
                     }
                 }
+                if imported_symbols.is_empty() {
+                    imported_symbols.push(asset_import_label(source_path));
+                }
 
                 result.imports.push(ParsedImport {
                     source_path: source_path.to_string(),
                     imported_symbols: imported_symbols.clone(),
                     is_default: default_import.is_some(),
-                    is_namespace: false,
+                    is_namespace: namespace_import.is_some(),
                     line_number: line_idx + 1,
                 });
 
@@ -162,6 +172,8 @@ impl TypeScriptParser {
             }
         }
 
+        collect_cjs_requires(&mut result, filename, content);
+
         for sym in &result.symbols {
             if sym.exported && !result.exports.contains(&sym.name) {
                 result.exports.push(sym.name.clone());
@@ -189,5 +201,109 @@ impl TypeScriptParser {
         }
 
         result
+    }
+}
+
+fn asset_import_label(source: &str) -> String {
+    Path::new(source)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("module")
+        .to_string()
+}
+
+fn collect_cjs_requires(result: &mut AstAnalysisResult, filename: &str, content: &str) {
+    let require_re = Regex::new(r#"(?:require|import)\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap();
+    let destructure_re = Regex::new(
+        r#"(?:const|let|var)\s+(?:\{([^}]+)\}|([A-Za-z_][A-Za-z0-9_]*))\s*=\s*require\(\s*['"]([^'"]+)['"]"#,
+    )
+    .unwrap();
+    let exports_re =
+        Regex::new(r#"(?:module\.exports|exports)\.([A-Za-z_][A-Za-z0-9_]*)\s*="#).unwrap();
+
+    for cap in destructure_re.captures_iter(content) {
+        let source_path = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        let mut imported_symbols = Vec::new();
+        if let Some(named) = cap.get(1) {
+            for part in named.as_str().split(',') {
+                let clean = part.split_whitespace().next().unwrap_or("").trim();
+                if !clean.is_empty() {
+                    imported_symbols.push(clean.to_string());
+                }
+            }
+        }
+        if let Some(binding) = cap.get(2) {
+            imported_symbols.push(binding.as_str().to_string());
+        }
+        let line = cap
+            .get(0)
+            .map(|m| content[..m.start()].bytes().filter(|b| *b == b'\n').count() + 1)
+            .unwrap_or(1);
+        result.imports.push(ParsedImport {
+            source_path: source_path.to_string(),
+            imported_symbols: imported_symbols.clone(),
+            is_default: cap.get(2).is_some(),
+            is_namespace: false,
+            line_number: line,
+        });
+        for sym in imported_symbols {
+            result.relationships.push(ParsedRelationship {
+                source_symbol: filename.to_string(),
+                target_symbol: sym,
+                relationship: EdgeType::Imports,
+                target_file_hint: Some(source_path.to_string()),
+                receiver_hint: None,
+            });
+        }
+    }
+
+    for cap in require_re.captures_iter(content) {
+        let source_path = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if result.imports.iter().any(|i| i.source_path == source_path) {
+            continue;
+        }
+        let label = asset_import_label(source_path);
+        let line = cap
+            .get(0)
+            .map(|m| content[..m.start()].bytes().filter(|b| *b == b'\n').count() + 1)
+            .unwrap_or(1);
+        result.imports.push(ParsedImport {
+            source_path: source_path.to_string(),
+            imported_symbols: vec![label.clone()],
+            is_default: true,
+            is_namespace: false,
+            line_number: line,
+        });
+        result.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: label,
+            relationship: EdgeType::Imports,
+            target_file_hint: Some(source_path.to_string()),
+            receiver_hint: None,
+        });
+    }
+
+    for cap in exports_re.captures_iter(content) {
+        let name = cap.get(1).unwrap().as_str();
+        if !result.exports.contains(&name.to_string()) {
+            result.exports.push(name.to_string());
+        }
+    }
+
+    if let Some(cap) = Regex::new(r"module\.exports\s*=\s*\{([^}]+)\}")
+        .ok()
+        .and_then(|re| re.captures(content))
+    {
+        for part in cap.get(1).unwrap().as_str().split(',') {
+            let name = part.split(':').next().unwrap_or("").trim();
+            if name.is_empty() {
+                continue;
+            }
+            if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && !result.exports.contains(&name.to_string())
+            {
+                result.exports.push(name.to_string());
+            }
+        }
     }
 }

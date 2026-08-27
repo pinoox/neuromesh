@@ -557,6 +557,124 @@ pub fn searcher(haystack: &str, needle: &str) -> bool {
     }
 
     #[test]
+    fn search_prefers_production_safeparse_over_bench_twin() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("schema"));
+        let core = r#"
+export function parse(schema: object, data: unknown) {
+  return data;
+}
+export function safeParse(schema: object, data: unknown) {
+  return { success: true, data };
+}
+"#;
+        let bench = r#"
+export function safeParse(schema: object, data: unknown) {
+  return { success: true, data };
+}
+export function parseSimpleObject(data: unknown) {
+  return typeof data === "object";
+}
+export function parseNestedObject(data: unknown) {
+  return parseSimpleObject(data);
+}
+"#;
+        graph.ingest_file(
+            &indexed_lang(
+                "packages/schema/src/core/parse.ts",
+                SourceLanguage::TypeScript,
+            ),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("packages/schema/src/core/parse.ts"),
+                core,
+                SourceLanguage::TypeScript,
+            ),
+            Some(core),
+        );
+        graph.ingest_file(
+            &indexed_lang("packages/bench/safeparse.ts", SourceLanguage::TypeScript),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("packages/bench/safeparse.ts"),
+                bench,
+                SourceLanguage::TypeScript,
+            ),
+            Some(bench),
+        );
+        graph.finalize_links();
+
+        let hits = graph.search_symbols("safeParse", 5);
+        assert!(!hits.is_empty(), "safeParse must be indexed, hits={hits:?}");
+        let top_path = hits[0].file_path.to_string_lossy().replace('\\', "/");
+        assert!(
+            top_path.ends_with("packages/schema/src/core/parse.ts"),
+            "safeParse must rank production parse.ts over bench/safeparse.ts, top={top_path} hits={hits:?}"
+        );
+
+        let parse_hits = graph.search_symbols("parse", 8);
+        let parse_top = parse_hits
+            .iter()
+            .find(|h| {
+                h.name.eq_ignore_ascii_case("parse") || h.name.eq_ignore_ascii_case("safeParse")
+            })
+            .expect("parse-family hit");
+        assert!(
+            parse_top
+                .file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .ends_with("packages/schema/src/core/parse.ts"),
+            "parse must not pick bench parseSimpleObject first, top={parse_top:?}"
+        );
+    }
+
+    #[test]
+    fn search_prefers_core_over_v3_safeparse_twin() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("schema"));
+        let core = r#"
+export function safeParse(schema: object, data: unknown) {
+  return { success: true, data };
+}
+"#;
+        let v3 = r#"
+export function safeParse(schema: object, data: unknown) {
+  return { success: true, data };
+}
+"#;
+        graph.ingest_file(
+            &indexed_lang(
+                "packages/schema/src/core/parse.ts",
+                SourceLanguage::TypeScript,
+            ),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("packages/schema/src/core/parse.ts"),
+                core,
+                SourceLanguage::TypeScript,
+            ),
+            Some(core),
+        );
+        graph.ingest_file(
+            &indexed_lang(
+                "packages/schema/src/v3/types.ts",
+                SourceLanguage::TypeScript,
+            ),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("packages/schema/src/v3/types.ts"),
+                v3,
+                SourceLanguage::TypeScript,
+            ),
+            Some(v3),
+        );
+        graph.finalize_links();
+
+        let hits = graph.search_symbols("safeParse", 5);
+        assert!(!hits.is_empty(), "safeParse must be indexed, hits={hits:?}");
+        let top_path = hits[0].file_path.to_string_lossy().replace('\\', "/");
+        assert!(
+            top_path.ends_with("packages/schema/src/core/parse.ts"),
+            "safeParse must rank core/parse.ts over v3/types.ts, top={top_path} hits={hits:?}"
+        );
+    }
+
+    #[test]
     fn php_throw_and_catch_are_inbound_calls() {
         let graph = NeuralProjectGraph::new(ProjectId::new("php"));
         let exception = r#"

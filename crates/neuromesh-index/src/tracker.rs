@@ -60,7 +60,11 @@ impl SourceLanguage {
         if filename == "cargo.toml" || filename == "cargo.lock" {
             return SourceLanguage::Rust;
         }
-        if filename == "package.json" || filename == "tsconfig.json" {
+        if filename == "package.json"
+            || filename == "tsconfig.json"
+            || filename == "composer.json"
+            || filename.ends_with(".jsonc")
+        {
             return SourceLanguage::JSON;
         }
         if filename == ".env" {
@@ -92,7 +96,7 @@ impl SourceLanguage {
             "rb" | "rake" => SourceLanguage::Ruby,
             "c" | "h" => SourceLanguage::C,
             "cpp" | "hpp" | "cc" | "cxx" => SourceLanguage::Cpp,
-            "json" => SourceLanguage::JSON,
+            "json" | "jsonc" => SourceLanguage::JSON,
             "yaml" | "yml" => SourceLanguage::YAML,
             "md" | "markdown" => SourceLanguage::Markdown,
             "html" | "htm" | "cshtml" | "razor" => SourceLanguage::HTML,

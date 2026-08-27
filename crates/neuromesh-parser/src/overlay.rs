@@ -1,5 +1,5 @@
 use crate::query_extract::{self, Grammar, QueryOptions, CSHARP_QUERIES};
-use crate::types::{AstAnalysisResult, ParsedRelationship, ParsedSymbol};
+use crate::types::{AstAnalysisResult, ParsedImport, ParsedRelationship, ParsedSymbol};
 use crate::typescript::TypeScriptParser;
 use neuromesh_core::{EdgeType, NodeType};
 use neuromesh_index::SourceLanguage;
@@ -35,6 +35,7 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             nest_overlay(content, ast);
             angular_overlay(content, ast);
             remix_overlay(path, content, ast);
+            js_module_overlay(path, content, ast);
         }
         SourceLanguage::Go => gin_overlay(content, ast),
         SourceLanguage::Vue | SourceLanguage::Svelte => {
@@ -48,7 +49,9 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
             laravel_overlay(path, content, ast);
             pinoox_overlay(path, content, ast);
             php_controller_overlay(path, ast);
-            pinoox_view_render_overlay(content, ast);
+            pinoox_view_render_overlay(path, content, ast);
+            pinoox_app_manifest_overlay(path, content, ast);
+            pinoox_vite_overlay(content, ast);
             symfony_overlay(content, ast);
             wordpress_overlay(content, ast);
         }
@@ -60,7 +63,10 @@ pub fn apply(path: &Path, content: &str, language: SourceLanguage, ast: &mut Ast
         SourceLanguage::CSharp => aspnet_overlay(content, ast),
         SourceLanguage::Swift => swiftui_overlay(content, ast),
         SourceLanguage::HTML => razor_overlay(path, content, ast),
-        SourceLanguage::Twig => twig_overlay(content, ast),
+        SourceLanguage::Twig => {
+            twig_overlay(content, ast);
+            pinoox_vite_overlay(content, ast);
+        }
         _ => {}
     }
 }
@@ -179,9 +185,13 @@ fn fastapi_overlay(content: &str, ast: &mut AstAnalysisResult) {
         return;
     }
     static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static DEF_RE: OnceLock<Regex> = OnceLock::new();
     let route_re = ROUTE_RE.get_or_init(|| {
         Regex::new(r#"@(?:app|router|api)\.(get|post|put|patch|delete|route)\(\s*["']([^"']+)["']"#)
             .unwrap()
+    });
+    let def_re = DEF_RE.get_or_init(|| {
+        Regex::new(r"(?m)^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap()
     });
     for cap in route_re.captures_iter(content) {
         let verb = cap.get(1).map(|m| m.as_str()).unwrap_or("route");
@@ -194,13 +204,17 @@ fn fastapi_overlay(content: &str, ast: &mut AstAnalysisResult) {
         } else {
             verb.to_uppercase()
         };
-        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
-        push_api(
-            ast,
-            &format!("{method} {route}"),
-            format!("@{verb}(\"{route}\")"),
-            line,
-        );
+        let start = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let line = line_of(content, start);
+        let api_name = format!("{method} {route}");
+        push_api(ast, &api_name, format!("@{verb}(\"{route}\")"), line);
+        let after = &content[cap.get(0).map(|m| m.end()).unwrap_or(0)..];
+        if let Some(def) = def_re.captures(after) {
+            let handler = def.get(1).map(|m| m.as_str()).unwrap_or("");
+            if !handler.is_empty() {
+                link_api_to_handler(ast, &api_name, handler, None, None);
+            }
+        }
     }
 }
 
@@ -265,16 +279,45 @@ fn next_overlay(path: &Path, ast: &mut AstAnalysisResult) {
 }
 
 fn laravel_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    laravel_route_overlay(path, content, ast);
+    laravel_eloquent_overlay(path, content, ast);
+    laravel_schema_overlay(path, content, ast);
+    laravel_factory_seeder_overlay(path, content, ast);
+    laravel_blade_overlay(path, content, ast);
+}
+
+fn laravel_route_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
     let rel = path.to_string_lossy().replace('\\', "/").to_lowercase();
     if !rel.contains("/routes/")
+        && !rel.starts_with("routes/")
         && !content.contains("Route::")
         && !content.contains("Illuminate\\Support\\Facades\\Route")
     {
         return;
     }
     static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static MATCH_RE: OnceLock<Regex> = OnceLock::new();
+    static RESOURCE_RE: OnceLock<Regex> = OnceLock::new();
+    static ACTION_RE: OnceLock<Regex> = OnceLock::new();
+    static HANDLER_RE: OnceLock<Regex> = OnceLock::new();
     let route_re = ROUTE_RE.get_or_init(|| {
-        Regex::new(r#"Route::(get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)['"]"#).unwrap()
+        Regex::new(r#"Route::(get|post|put|patch|delete|any|view)\s*\(\s*['"]([^'"]+)['"]"#)
+            .unwrap()
+    });
+    let match_re = MATCH_RE.get_or_init(|| {
+        Regex::new(r#"Route::match\(\s*\[[^\]]+\]\s*,\s*['"]([^'"]+)['"]"#).unwrap()
+    });
+    let resource_re = RESOURCE_RE.get_or_init(|| {
+        Regex::new(r#"Route::(apiResource|resource)\s*\(\s*['"]([^'"]+)['"]"#).unwrap()
+    });
+    let action_re = ACTION_RE.get_or_init(|| {
+        Regex::new(r#"\[\s*([A-Za-z_][A-Za-z0-9_\\]*)::class\s*,\s*['"]([^'"]+)['"]\s*\]"#).unwrap()
+    });
+    let handler_re = HANDLER_RE.get_or_init(|| {
+        Regex::new(
+            r#"Route::(get|post|put|patch|delete|any|view)\s*\(\s*['"]([^'"]+)['"]\s*,\s*\[\s*([A-Za-z_][A-Za-z0-9_\\]*)::class\s*,\s*['"]([^'"]+)['"]"#,
+        )
+        .unwrap()
     });
     for cap in route_re.captures_iter(content) {
         let method = cap
@@ -286,6 +329,13 @@ fn laravel_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
             continue;
         }
         let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let method = if method == "VIEW" {
+            "GET".into()
+        } else if method == "ANY" {
+            "ANY".into()
+        } else {
+            method
+        };
         push_api(
             ast,
             &format!("{method} {route}"),
@@ -293,22 +343,521 @@ fn laravel_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
             line,
         );
     }
+    for cap in match_re.captures_iter(content) {
+        let route = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("MATCH {route}"),
+            format!("Route::match(\"{route}\")"),
+            line,
+        );
+    }
+    for cap in resource_re.captures_iter(content) {
+        let kind = cap.get(1).map(|m| m.as_str()).unwrap_or("resource");
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let prefix = if kind.eq_ignore_ascii_case("apiResource") {
+            "API-RESOURCE"
+        } else {
+            "RESOURCE"
+        };
+        push_api(
+            ast,
+            &format!("{prefix} /{route}"),
+            format!("Route::{kind}(\"{route}\")"),
+            line,
+        );
+    }
+    let filename = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("routes");
+    for cap in action_re.captures_iter(content) {
+        let class = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let method = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if class.is_empty() || method.is_empty() {
+            continue;
+        }
+        let short = class.rsplit('\\').next().unwrap_or(class);
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: method.to_string(),
+            relationship: EdgeType::Calls,
+            target_file_hint: Some(format!("{short}.php")),
+            receiver_hint: Some(short.to_string()),
+        });
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: short.to_string(),
+            relationship: EdgeType::References,
+            target_file_hint: Some(format!("{short}.php")),
+            receiver_hint: None,
+        });
+    }
+    for cap in handler_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        let class = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        let action = cap.get(4).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() || class.is_empty() || action.is_empty() {
+            continue;
+        }
+        let method = if method == "VIEW" {
+            "GET".into()
+        } else if method == "ANY" {
+            "ANY".into()
+        } else {
+            method
+        };
+        let short = class.rsplit('\\').next().unwrap_or(class);
+        link_api_to_handler(
+            ast,
+            &format!("{method} {route}"),
+            action,
+            Some(format!("{short}.php")),
+            Some(short.to_string()),
+        );
+    }
 }
 
-/// Pinx / Pinoox named actions: `action([SmsController::class, 'store'])->name('sms.store')`.
-/// See https://github.com/pinoox/pinoox and https://github.com/pinoox/docs
-fn pinoox_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
-    if !content.contains("action(") && !content.contains("Pinoox\\") {
-        return;
+fn laravel_eloquent_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let is_model_path = path_has_dir(path, "Models") || path_has_dir(path, "Model");
+    static CLASS_RE: OnceLock<Regex> = OnceLock::new();
+    let class_re = CLASS_RE.get_or_init(|| {
+        Regex::new(
+            r"(?m)^\s*(?:(?:abstract|final)\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(?:\\\\)?(?:Illuminate\\Database\\Eloquent\\)?(Model|Authenticatable|Pivot|User)\b",
+        )
+        .unwrap()
+    });
+    let mut found_model = false;
+    for cap in class_re.captures_iter(content) {
+        if let Some(name) = cap.get(1) {
+            promote(ast, name.as_str(), NodeType::DbModel);
+            found_model = true;
+        }
     }
-    let rel = path.to_string_lossy().replace('\\', "/").to_lowercase();
-    if !rel.contains("/routes/")
-        && !rel.ends_with("routes.php")
-        && !content.contains("action([")
-        && !content.contains("action( [")
+    if (is_model_path
+        || content.contains("Illuminate\\Database\\Eloquent\\Model")
+        || content.contains("HasFactory")
+        || content.contains("$fillable")
+        || content.contains("$casts"))
+        && !found_model
+    {
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        if !stem.is_empty()
+            && !stem.ends_with("Factory")
+            && !stem.ends_with("Seeder")
+            && !stem.contains("migration")
+        {
+            promote(ast, stem, NodeType::DbModel);
+        }
+    }
+
+    static REL_RE: OnceLock<Regex> = OnceLock::new();
+    let rel_re = REL_RE.get_or_init(|| {
+        Regex::new(
+            r"\b(belongsTo|hasMany|hasOne|belongsToMany|morphTo|morphMany|morphToMany|hasManyThrough|hasOneThrough|morphOne)\s*\(\s*([A-Za-z_][A-Za-z0-9_\\]*)::class",
+        )
+        .unwrap()
+    });
+    let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("model");
+    for cap in rel_re.captures_iter(content) {
+        let related = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        let short = related.rsplit('\\').next().unwrap_or(related);
+        if short.is_empty() {
+            continue;
+        }
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: short.to_string(),
+            relationship: EdgeType::DependsOn,
+            target_file_hint: Some(format!("{short}.php")),
+            receiver_hint: None,
+        });
+    }
+
+    static TABLE_RE: OnceLock<Regex> = OnceLock::new();
+    let table_re =
+        TABLE_RE.get_or_init(|| Regex::new(r#"\$table\s*=\s*['"]([^'"]+)['"]"#).unwrap());
+    if let Some(cap) = table_re.captures(content) {
+        let table = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if !table.is_empty() {
+            if let Some(sym) = ast
+                .symbols
+                .iter_mut()
+                .find(|s| s.symbol_type == NodeType::DbModel)
+            {
+                let extra = format!("$table = '{table}'");
+                match &sym.signature {
+                    Some(existing) if existing.contains(table) => {}
+                    Some(existing) => sym.signature = Some(format!("{existing}; {extra}")),
+                    None => sym.signature = Some(extra),
+                }
+            }
+        }
+    }
+}
+
+fn laravel_schema_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains("Schema::")
+        && !content.contains("DB::table")
+        && !path_has_dir(path, "migrations")
     {
         return;
     }
+    static SCHEMA_RE: OnceLock<Regex> = OnceLock::new();
+    let schema_re = SCHEMA_RE.get_or_init(|| {
+        Regex::new(r#"Schema::(create|table|dropIfExists|drop)\s*\(\s*['"]([^'"]+)['"]"#).unwrap()
+    });
+    for cap in schema_re.captures_iter(content) {
+        let table = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if table.is_empty() {
+            continue;
+        }
+        let op = cap.get(1).map(|m| m.as_str()).unwrap_or("create");
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        if !ast.symbols.iter().any(|s| s.name == table) {
+            ast.symbols.push(ParsedSymbol::new(
+                table,
+                NodeType::DbModel,
+                Some(format!("Schema::{op}('{table}')")),
+                line..(line + 1),
+                true,
+            ));
+        }
+    }
+    static DB_RE: OnceLock<Regex> = OnceLock::new();
+    let db_re = DB_RE.get_or_init(|| Regex::new(r#"DB::table\(\s*['"]([^'"]+)['"]"#).unwrap());
+    for cap in db_re.captures_iter(content) {
+        let table = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if table.is_empty() || ast.symbols.iter().any(|s| s.name == table) {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        ast.symbols.push(ParsedSymbol::new(
+            table,
+            NodeType::DbModel,
+            Some(format!("DB::table('{table}')")),
+            line..(line + 1),
+            true,
+        ));
+    }
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    if path_has_dir(path, "migrations") && !stem.is_empty() {
+        promote(ast, stem, NodeType::Function);
+        if let Some(table) = table_from_migration_stem(stem) {
+            if !ast.symbols.iter().any(|s| s.name == table) {
+                ast.symbols.push(ParsedSymbol::new(
+                    table,
+                    NodeType::DbModel,
+                    Some(stem.to_string()),
+                    1..2,
+                    true,
+                ));
+            }
+        }
+    }
+}
+
+fn table_from_migration_stem(stem: &str) -> Option<String> {
+    let lower = stem.to_ascii_lowercase();
+    let rest = lower
+        .find("_create_")
+        .map(|i| &lower[i + "_create_".len()..])
+        .or_else(|| {
+            lower
+                .strip_prefix("create_")
+                .map(|s| s.strip_suffix("_table").unwrap_or(s))
+        })?;
+    let table = rest.strip_suffix("_table").unwrap_or(rest);
+    if table.is_empty() {
+        None
+    } else {
+        Some(table.to_string())
+    }
+}
+
+fn laravel_factory_seeder_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    let is_factory = path_has_dir(path, "factories")
+        || stem.ends_with("Factory")
+        || content.contains("extends Factory");
+    let is_seeder = path_has_dir(path, "seeders")
+        || path_has_dir(path, "seeds")
+        || stem.ends_with("Seeder")
+        || content.contains("extends Seeder");
+    if is_factory {
+        promote(ast, stem, NodeType::Function);
+        static MODEL_RE: OnceLock<Regex> = OnceLock::new();
+        let model_re = MODEL_RE.get_or_init(|| {
+            Regex::new(r#"(?:protected\s+)?\$model\s*=\s*([A-Za-z_][A-Za-z0-9_\\]*)::class"#)
+                .unwrap()
+        });
+        if let Some(cap) = model_re.captures(content) {
+            let model = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let short = model.rsplit('\\').next().unwrap_or(model);
+            ast.relationships.push(ParsedRelationship {
+                source_symbol: stem.to_string(),
+                target_symbol: short.to_string(),
+                relationship: EdgeType::DependsOn,
+                target_file_hint: Some(format!("{short}.php")),
+                receiver_hint: None,
+            });
+        }
+    }
+    if is_seeder {
+        promote(ast, stem, NodeType::Function);
+    }
+    static FACTORY_CALL_RE: OnceLock<Regex> = OnceLock::new();
+    let factory_call_re = FACTORY_CALL_RE
+        .get_or_init(|| Regex::new(r"\b([A-Za-z_][A-Za-z0-9_\\]*)::factory\s*\(").unwrap());
+    let filename = if stem.is_empty() { "module" } else { stem };
+    for cap in factory_call_re.captures_iter(content) {
+        let model = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let short = model.rsplit('\\').next().unwrap_or(model);
+        if short.is_empty() {
+            continue;
+        }
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: short.to_string(),
+            relationship: EdgeType::Calls,
+            target_file_hint: Some(format!("{short}.php")),
+            receiver_hint: None,
+        });
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: format!("{short}Factory"),
+            relationship: EdgeType::Calls,
+            target_file_hint: Some(format!("{short}Factory.php")),
+            receiver_hint: None,
+        });
+    }
+}
+
+fn laravel_blade_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !name.ends_with(".blade.php")
+        && !content.contains("@extends")
+        && !content.contains("@section")
+    {
+        return;
+    }
+    if !name.ends_with(".blade.php") && !path_has_dir(path, "views") {
+        return;
+    }
+    static DIR_RE: OnceLock<Regex> = OnceLock::new();
+    let dir_re = DIR_RE.get_or_init(|| {
+        Regex::new(r#"@(?:extends|include|section|component|livewire)\(\s*['"]([^'"]+)['"]"#)
+            .unwrap()
+    });
+    for cap in dir_re.captures_iter(content) {
+        let target = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if target.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let ident = target.replace(['.', '/', '\\'], "_");
+        if !ast.symbols.iter().any(|s| s.name == ident) {
+            ast.symbols.push(ParsedSymbol::new(
+                ident.clone(),
+                NodeType::Component,
+                Some(cap.get(0).unwrap().as_str().trim().to_string()),
+                line..(line + 1),
+                true,
+            ));
+        }
+    }
+}
+
+fn js_module_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let filename = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("module");
+    static REQUIRE_RE: OnceLock<Regex> = OnceLock::new();
+    static DESTRUCTURE_RE: OnceLock<Regex> = OnceLock::new();
+    static SIDE_RE: OnceLock<Regex> = OnceLock::new();
+    static EXPORTS_RE: OnceLock<Regex> = OnceLock::new();
+    let require_re = REQUIRE_RE
+        .get_or_init(|| Regex::new(r#"(?:require|import)\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
+    let destructure_re = DESTRUCTURE_RE.get_or_init(|| {
+        Regex::new(
+            r#"(?:const|let|var)\s+(?:\{([^}]+)\}|([A-Za-z_][A-Za-z0-9_]*))\s*=\s*require\(\s*['"]([^'"]+)['"]"#,
+        )
+        .unwrap()
+    });
+    let side_re = SIDE_RE.get_or_init(|| {
+        Regex::new(
+            r#"(?m)^\s*import\s+(?:[A-Za-z_{}*,\s]+from\s+)?['"]([^'"]+\.(?:css|scss|sass|less|json|svg))['"]"#,
+        )
+        .unwrap()
+    });
+    let exports_re = EXPORTS_RE.get_or_init(|| {
+        Regex::new(r#"(?:module\.exports|exports)\.([A-Za-z_][A-Za-z0-9_]*)\s*="#).unwrap()
+    });
+
+    for cap in destructure_re.captures_iter(content) {
+        let source_path = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        let mut names = Vec::new();
+        if let Some(named) = cap.get(1) {
+            for part in named.as_str().split(',') {
+                let clean = part.split_whitespace().next().unwrap_or("").trim();
+                if !clean.is_empty() {
+                    names.push(clean.to_string());
+                }
+            }
+        }
+        if let Some(binding) = cap.get(2) {
+            names.push(binding.as_str().to_string());
+        }
+        push_js_import(ast, filename, source_path, &names);
+    }
+    for cap in require_re.captures_iter(content) {
+        let source_path = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if ast.imports.iter().any(|i| i.source_path == source_path) {
+            continue;
+        }
+        let label = Path::new(source_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("module");
+        push_js_import(ast, filename, source_path, &[label.to_string()]);
+    }
+    for cap in side_re.captures_iter(content) {
+        let source_path = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if ast.imports.iter().any(|i| i.source_path == source_path) {
+            continue;
+        }
+        let label = Path::new(source_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("asset");
+        push_js_import(ast, filename, source_path, &[label.to_string()]);
+    }
+    for cap in exports_re.captures_iter(content) {
+        let name = cap.get(1).unwrap().as_str();
+        if !ast.exports.contains(&name.to_string()) {
+            ast.exports.push(name.to_string());
+        }
+        if !ast.symbols.iter().any(|s| s.name == name) {
+            promote(ast, name, NodeType::Function);
+        }
+    }
+    static MODULE_EXPORTS_RE: OnceLock<Regex> = OnceLock::new();
+    let module_exports_re =
+        MODULE_EXPORTS_RE.get_or_init(|| Regex::new(r"module\.exports\s*=\s*\{([^}]+)\}").unwrap());
+    if let Some(cap) = module_exports_re.captures(content) {
+        for part in cap.get(1).unwrap().as_str().split(',') {
+            let name = part.split(':').next().unwrap_or("").trim();
+            if name.is_empty() {
+                continue;
+            }
+            if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && !ast.exports.iter().any(|e| e == name)
+            {
+                ast.exports.push(name.to_string());
+            }
+        }
+    }
+}
+
+fn push_js_import(
+    ast: &mut AstAnalysisResult,
+    filename: &str,
+    source_path: &str,
+    names: &[String],
+) {
+    if source_path.is_empty() {
+        return;
+    }
+    if !ast.imports.iter().any(|i| i.source_path == source_path) {
+        ast.imports.push(ParsedImport {
+            source_path: source_path.to_string(),
+            imported_symbols: names.to_vec(),
+            is_default: names.len() == 1,
+            is_namespace: false,
+            line_number: 1,
+        });
+    }
+    for name in names {
+        if ast
+            .relationships
+            .iter()
+            .any(|r| r.target_symbol == *name && r.target_file_hint.as_deref() == Some(source_path))
+        {
+            continue;
+        }
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: name.clone(),
+            relationship: EdgeType::Imports,
+            target_file_hint: Some(source_path.to_string()),
+            receiver_hint: None,
+        });
+    }
+}
+
+/// Pinx / Pinoox routes: `get('/')->action([MainController::class, 'index'])->name('home')`
+/// and the older `action([SmsController::class, 'store'])->name('sms.store')`.
+/// See https://github.com/pinoox/pinoox, https://github.com/pinoox/app, https://github.com/pinoox/pincore
+fn pinoox_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    if !looks_like_pinoox_routes(path, content) {
+        return;
+    }
+    push_pinoox_class_actions(content, ast);
+    push_pinoox_named_actions(content, ast);
+    push_pinoox_http_routes(content, ast);
+    push_pinoox_collections(content, ast);
+}
+
+fn path_has_dir(path: &Path, dir: &str) -> bool {
+    let rel = path.to_string_lossy().replace('\\', "/").to_lowercase();
+    let dir = dir.to_ascii_lowercase();
+    rel == dir || rel.starts_with(&format!("{dir}/")) || rel.contains(&format!("/{dir}/"))
+}
+
+fn looks_like_pinoox_routes(path: &Path, content: &str) -> bool {
+    path_has_dir(path, "routes")
+        || path_has_dir(path, "router")
+        || path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.eq_ignore_ascii_case("routes.php"))
+        || content.contains("Pinoox\\Router")
+        || content.contains("Pinoox\\Portal\\Router")
+        || content.contains("Pinoox\\Portal\\Route")
+        || content.contains("function Pinoox\\Router")
+        || content.contains("action([")
+        || content.contains("action( [")
+        || content.contains("action('")
+        || content.contains("action(\"")
+}
+
+fn push_pinoox_class_actions(content: &str, ast: &mut AstAnalysisResult) {
     static ACTION_RE: OnceLock<Regex> = OnceLock::new();
     let action_re = ACTION_RE.get_or_init(|| {
         Regex::new(
@@ -322,48 +871,251 @@ fn pinoox_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
         if method.is_empty() {
             continue;
         }
-        let short = controller.rsplit('\\').next().unwrap_or(controller);
-        let name = cap
-            .get(3)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_else(|| format!("{short}::{method}"));
         let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
-        push_api(
-            ast,
-            &name,
-            format!("action([{short}::class, '{method}'])"),
-            line,
-        );
-        ast.relationships.push(ParsedRelationship {
-            source_symbol: name,
-            target_symbol: short.to_string(),
-            relationship: EdgeType::References,
-            target_file_hint: Some(format!("Controller/{short}.php")),
-            receiver_hint: None,
-        });
+        let name = cap.get(3).map(|m| m.as_str());
+        push_pinoox_controller_api(ast, controller, method, name, line);
     }
 }
 
-fn pinoox_view_render_overlay(content: &str, ast: &mut AstAnalysisResult) {
-    if !content.contains("View::render") {
+fn push_pinoox_named_actions(content: &str, ast: &mut AstAnalysisResult) {
+    static NAMED_RE: OnceLock<Regex> = OnceLock::new();
+    let named_re = NAMED_RE.get_or_init(|| {
+        Regex::new(
+            r#"action\(\s*['"]([^'"]+)['"]\s*,\s*\[\s*([A-Za-z_][A-Za-z0-9_\\]*)::class\s*,\s*['"]([^'"]+)['"]\s*\]"#,
+        )
+        .unwrap()
+    });
+    for cap in named_re.captures_iter(content) {
+        let name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let controller = cap.get(2).map(|m| m.as_str()).unwrap_or("Controller");
+        let method = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        if name.is_empty() || method.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_pinoox_controller_api(ast, controller, method, Some(name), line);
+    }
+}
+
+fn push_pinoox_http_routes(content: &str, ast: &mut AstAnalysisResult) {
+    static HTTP_RE: OnceLock<Regex> = OnceLock::new();
+    let http_re = HTTP_RE.get_or_init(|| {
+        Regex::new(
+            r#"(?i)\b(get|post|put|patch|delete|any|query|options|head|fallback)\s*\(\s*(?:['"]([^'"]*)['"])?"#,
+        )
+        .unwrap()
+    });
+    static ACTION_INLINE_RE: OnceLock<Regex> = OnceLock::new();
+    let action_inline_re = ACTION_INLINE_RE.get_or_init(|| {
+        Regex::new(r#"\[\s*([A-Za-z_][A-Za-z0-9_\\]*)::class\s*,\s*['"]([^'"]+)['"]\s*\]"#).unwrap()
+    });
+    static NAME_RE: OnceLock<Regex> = OnceLock::new();
+    let name_re = NAME_RE.get_or_init(|| Regex::new(r#"->name\(\s*['"]([^'"]+)['"]"#).unwrap());
+    for cap in http_re.captures_iter(content) {
+        let verb = cap
+            .get(1)
+            .map(|m| m.as_str().to_ascii_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let path = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        let start = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let line = line_of(content, start);
+        let window = content
+            .get(start..)
+            .map(|s| &s[..s.len().min(280)])
+            .unwrap_or("");
+        if verb == "FALLBACK" {
+            push_api(ast, "FALLBACK", "fallback()".into(), line);
+        } else if !path.is_empty() || path == "/" || cap.get(2).is_some() {
+            let route = if path.is_empty() { "/" } else { path };
+            let method = if verb == "ANY" || verb == "QUERY" {
+                "ANY"
+            } else {
+                verb.as_str()
+            };
+            push_api(
+                ast,
+                &format!("{method} {route}"),
+                format!("{method} \"{route}\""),
+                line,
+            );
+        }
+        if let Some(action) = action_inline_re.captures(window) {
+            let controller = action.get(1).map(|m| m.as_str()).unwrap_or("Controller");
+            let method = action.get(2).map(|m| m.as_str()).unwrap_or("");
+            let name = name_re
+                .captures(window)
+                .and_then(|c| c.get(1))
+                .map(|m| m.as_str());
+            if !method.is_empty() {
+                push_pinoox_controller_api(ast, controller, method, name, line);
+            }
+        }
+    }
+}
+
+fn push_pinoox_collections(content: &str, ast: &mut AstAnalysisResult) {
+    static COLLECTION_RE: OnceLock<Regex> = OnceLock::new();
+    let collection_re =
+        COLLECTION_RE.get_or_init(|| Regex::new(r#"\bcollection\(\s*['"]([^'"]*)['"]"#).unwrap());
+    for cap in collection_re.captures_iter(content) {
+        let path = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let route = if path.is_empty() { "/" } else { path };
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        push_api(
+            ast,
+            &format!("COLLECTION {route}"),
+            format!("collection(\"{route}\")"),
+            line,
+        );
+    }
+}
+
+fn push_pinoox_controller_api(
+    ast: &mut AstAnalysisResult,
+    controller: &str,
+    method: &str,
+    route_name: Option<&str>,
+    line: usize,
+) {
+    let short = controller.rsplit('\\').next().unwrap_or(controller);
+    let name = route_name
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("{short}::{method}"));
+    push_api(
+        ast,
+        &name,
+        format!("action([{short}::class, '{method}'])"),
+        line,
+    );
+    if ast.relationships.iter().any(|r| {
+        r.source_symbol == name
+            && r.target_symbol == short
+            && r.relationship == EdgeType::References
+    }) {
+        return;
+    }
+    ast.relationships.push(ParsedRelationship {
+        source_symbol: name,
+        target_symbol: short.to_string(),
+        relationship: EdgeType::References,
+        target_file_hint: Some(format!("Controller/{short}.php")),
+        receiver_hint: None,
+    });
+}
+
+fn pinoox_view_render_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let looks_pinoox = content.contains("View::")
+        || content.contains("Pinoox\\")
+        || path_has_dir(path, "Controller")
+        || path_has_dir(path, "controller");
+    if !content.contains("View::render")
+        && !(looks_pinoox && (content.contains("render(") || content.contains("view(")))
+    {
         return;
     }
     let theme = extract_pinoox_theme(content);
     static RENDER_RE: OnceLock<Regex> = OnceLock::new();
-    let render_re =
-        RENDER_RE.get_or_init(|| Regex::new(r#"View::render\(\s*['"]([^'"]+)['"]"#).unwrap());
+    let render_re = RENDER_RE.get_or_init(|| {
+        Regex::new(r#"(?:View::(?:render|ready)|\brender|\bview)\(\s*['"]([^'"]+)['"]"#).unwrap()
+    });
     for cap in render_re.captures_iter(content) {
         let raw = cap.get(1).map(|m| m.as_str()).unwrap_or("").trim();
         if raw.is_empty() {
             continue;
         }
-        let stem = raw.trim_end_matches(".twig");
-        let hint = format!("theme/{theme}/{stem}.twig");
+        let stem = raw
+            .trim_end_matches(".twig")
+            .trim_end_matches(".html")
+            .trim_start_matches('/')
+            .trim();
+        if stem.is_empty() || stem.contains("::") {
+            continue;
+        }
+        let themed = format!("theme/{theme}/{stem}.twig");
         let call_line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
         let source = overlay_call_source(ast, call_line);
         ast.relationships.push(ParsedRelationship {
-            source_symbol: source,
+            source_symbol: source.clone(),
             target_symbol: stem.to_string(),
+            relationship: EdgeType::Calls,
+            target_file_hint: Some(themed),
+            receiver_hint: None,
+        });
+        if theme != "default" {
+            ast.relationships.push(ParsedRelationship {
+                source_symbol: source,
+                target_symbol: stem.to_string(),
+                relationship: EdgeType::Calls,
+                target_file_hint: Some(format!("{stem}.twig")),
+                receiver_hint: None,
+            });
+        }
+    }
+}
+
+fn pinoox_app_manifest_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if name != "app.php" {
+        return;
+    }
+    static KEY_RE: OnceLock<Regex> = OnceLock::new();
+    let key_re = KEY_RE.get_or_init(|| {
+        Regex::new(r#"['"](package|name|theme|lang)['"]\s*=>\s*['"]([^'"]+)['"]"#).unwrap()
+    });
+    for cap in key_re.captures_iter(content) {
+        let key = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let value = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        if value.is_empty() {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let symbol = if key == "package" {
+            value.to_string()
+        } else {
+            format!("{key}:{value}")
+        };
+        if ast.symbols.iter().any(|s| s.name == symbol) {
+            continue;
+        }
+        ast.symbols.push(ParsedSymbol::new(
+            symbol,
+            NodeType::Config,
+            Some(format!("{key} => {value}")),
+            line..(line + 1),
+            true,
+        ));
+    }
+    if content.contains("'pinx'") || content.contains("\"pinx\"") {
+        promote(ast, "pinx", NodeType::Config);
+    }
+}
+
+fn pinoox_vite_overlay(content: &str, ast: &mut AstAnalysisResult) {
+    if !content.contains("vite(") && !content.contains("vite_tags(") {
+        return;
+    }
+    static VITE_RE: OnceLock<Regex> = OnceLock::new();
+    let vite_re =
+        VITE_RE.get_or_init(|| Regex::new(r#"\b(?:vite|vite_tags)\(\s*['"]([^'"]+)['"]"#).unwrap());
+    for cap in vite_re.captures_iter(content) {
+        let entry = cap.get(1).map(|m| m.as_str()).unwrap_or("").trim();
+        if entry.is_empty() {
+            continue;
+        }
+        let call_line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        let source = overlay_call_source(ast, call_line);
+        let hint = if entry.contains('.') {
+            entry.to_string()
+        } else {
+            format!("{entry}.js")
+        };
+        ast.relationships.push(ParsedRelationship {
+            source_symbol: source,
+            target_symbol: entry.to_string(),
             relationship: EdgeType::Calls,
             target_file_hint: Some(hint),
             receiver_hint: None,
@@ -448,12 +1200,15 @@ fn dotenv_example_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResul
 }
 
 fn php_controller_overlay(path: &Path, ast: &mut AstAnalysisResult) {
-    let rel = path.to_string_lossy().replace('\\', "/");
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or_default();
-    if stem.ends_with("Controller") || rel.contains("/Controller/") || rel.contains("/controller/")
+    if stem.ends_with("Controller")
+        || path_has_dir(path, "Controller")
+        || path_has_dir(path, "Controllers")
+        || path_has_dir(path, "Flow")
+        || path_has_dir(path, "Router")
     {
         promote(ast, stem, NodeType::Component);
     }
@@ -546,7 +1301,13 @@ fn react_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
         || content.contains("from 'react'")
         || content.contains("from \"react\"")
         || content.contains("from 'react/")
-        || content.contains("from \"react/");
+        || content.contains("from \"react/")
+        || content.contains("from 'react-dom")
+        || content.contains("from \"react-dom")
+        || content.contains("React.FC")
+        || content.contains("React.FunctionComponent")
+        || content.contains(": FC<")
+        || content.contains(": FC =");
     if !looks_react {
         return;
     }
@@ -560,19 +1321,35 @@ fn react_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult) {
     static ARROW_RE: OnceLock<Regex> = OnceLock::new();
     let arrow_re = ARROW_RE.get_or_init(|| {
         Regex::new(
-            r"(?m)^\s*(?:export\s+default\s+)?(?:export\s+)?(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*=\s*(?:\([^)]*\)|[A-Za-z_][A-Za-z0-9_]*)\s*=>",
+            r"(?m)^\s*(?:export\s+default\s+)?(?:export\s+)?(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*(?::[^=]{1,80})?\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_][A-Za-z0-9_]*)\s*=>",
         )
         .unwrap()
     });
-    for cap in fn_re.captures_iter(content) {
+    static WRAP_RE: OnceLock<Regex> = OnceLock::new();
+    let wrap_re = WRAP_RE.get_or_init(|| {
+        Regex::new(
+            r"(?m)^\s*(?:export\s+)?(?:const|let)\s+([A-Z][A-Za-z0-9_]*)\s*(?::[^=]{1,80})?\s*=\s*(?:React\.)?(?:memo|forwardRef)\s*\(",
+        )
+        .unwrap()
+    });
+    for cap in fn_re
+        .captures_iter(content)
+        .chain(arrow_re.captures_iter(content))
+        .chain(wrap_re.captures_iter(content))
+    {
         if let Some(name) = cap.get(1) {
             promote(ast, name.as_str(), NodeType::Component);
         }
     }
-    for cap in arrow_re.captures_iter(content) {
-        if let Some(name) = cap.get(1) {
-            promote(ast, name.as_str(), NodeType::Component);
-        }
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    if matches!(ext.as_str(), "tsx" | "jsx")
+        && stem.starts_with(char::is_uppercase)
+        && (content.contains("return (") || content.contains("return <") || content.contains("/>"))
+    {
+        promote(ast, stem, NodeType::Component);
     }
 }
 
@@ -604,14 +1381,15 @@ fn prime_overlay(content: &str, ast: &mut AstAnalysisResult) {
     let uses_prime = content.contains("primevue")
         || content.contains("primereact")
         || content.contains("primeicons")
-        || content.contains("@primeuix");
+        || content.contains("@primeuix")
+        || content.contains("PrimeVue");
     if !uses_prime {
         return;
     }
     static IMPORT_RE: OnceLock<Regex> = OnceLock::new();
     let import_re = IMPORT_RE.get_or_init(|| {
         Regex::new(
-            r#"import\s+(?:([A-Z][A-Za-z0-9_]*)\s*,?\s*)?(?:\{\s*([^}]+)\s*\}\s*)?from\s*['"](?:primevue|primereact)[^'"]*['"]"#,
+            r#"import\s+(?:([A-Z][A-Za-z0-9_]*)\s*,?\s*)?(?:\{\s*([^}]+)\s*\}\s*)?from\s*['"](?:primevue|primereact|@primeuix)[^'"]*['"]"#,
         )
         .unwrap()
     });
@@ -677,9 +1455,16 @@ fn express_overlay(content: &str, ast: &mut AstAnalysisResult) {
         return;
     }
     static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static NAMED_RE: OnceLock<Regex> = OnceLock::new();
     let route_re = ROUTE_RE.get_or_init(|| {
         Regex::new(r#"(?:app|router|r)\.(get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)['"]"#)
             .unwrap()
+    });
+    let named_re = NAMED_RE.get_or_init(|| {
+        Regex::new(
+            r#"(?:app|router|r)\.(get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)['"]\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*[,)]"#,
+        )
+        .unwrap()
     });
     for cap in route_re.captures_iter(content) {
         let method = cap
@@ -697,6 +1482,18 @@ fn express_overlay(content: &str, ast: &mut AstAnalysisResult) {
             format!("{method} {route}"),
             line,
         );
+    }
+    for cap in named_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        let handler = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() || handler.is_empty() {
+            continue;
+        }
+        link_api_to_handler(ast, &format!("{method} {route}"), handler, None, None);
     }
 }
 
@@ -1143,9 +1940,16 @@ fn axum_overlay(content: &str, ast: &mut AstAnalysisResult) {
         return;
     }
     static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static NAMED_RE: OnceLock<Regex> = OnceLock::new();
     let route_re = ROUTE_RE.get_or_init(|| {
         Regex::new(r#"\.route\(\s*["']([^"']+)["']\s*,\s*(get|post|put|patch|delete)\s*\("#)
             .unwrap()
+    });
+    let named_re = NAMED_RE.get_or_init(|| {
+        Regex::new(
+            r#"\.route\(\s*["']([^"']+)["']\s*,\s*(get|post|put|patch|delete)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)"#,
+        )
+        .unwrap()
     });
     for cap in route_re.captures_iter(content) {
         let route = cap.get(1).map(|m| m.as_str()).unwrap_or("");
@@ -1163,6 +1967,18 @@ fn axum_overlay(content: &str, ast: &mut AstAnalysisResult) {
             format!("{method} {route}"),
             line,
         );
+    }
+    for cap in named_re.captures_iter(content) {
+        let route = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let method = cap
+            .get(2)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let handler = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() || handler.is_empty() {
+            continue;
+        }
+        link_api_to_handler(ast, &format!("{method} {route}"), handler, None, None);
     }
 }
 
@@ -1398,6 +2214,34 @@ fn push_api(ast: &mut AstAnalysisResult, name: &str, signature: String, line: us
     ));
 }
 
+/// Walkable edge from an Api route node to a named handler (same pattern as Twig).
+fn link_api_to_handler(
+    ast: &mut AstAnalysisResult,
+    api_name: &str,
+    handler: &str,
+    target_file_hint: Option<String>,
+    receiver_hint: Option<String>,
+) {
+    if api_name.is_empty() || handler.is_empty() {
+        return;
+    }
+    if ast.relationships.iter().any(|r| {
+        r.source_symbol == api_name
+            && r.target_symbol == handler
+            && r.relationship == EdgeType::Calls
+            && r.target_file_hint == target_file_hint
+    }) {
+        return;
+    }
+    ast.relationships.push(ParsedRelationship {
+        source_symbol: api_name.to_string(),
+        target_symbol: handler.to_string(),
+        relationship: EdgeType::Calls,
+        target_file_hint,
+        receiver_hint,
+    });
+}
+
 fn line_of(content: &str, byte: usize) -> usize {
     content
         .get(..byte)
@@ -1471,6 +2315,155 @@ mod tests {
             "symbols = {:?}",
             ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
         );
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.source_symbol == "POST /sms"
+                    && r.target_symbol == "store"
+                    && r.relationship == EdgeType::Calls
+                    && r.target_file_hint.as_deref() == Some("SmsController.php")
+            }),
+            "POST /sms must Call store, relationships = {:?}",
+            ast.relationships
+        );
+        assert!(
+            ast.relationships
+                .iter()
+                .any(|r| r.source_symbol == "web" && r.target_symbol == "store"),
+            "filename→handler edge must remain, relationships = {:?}",
+            ast.relationships
+        );
+    }
+
+    #[test]
+    fn axum_fastapi_named_express_link_handlers() {
+        let axum = "use axum::{routing::post, Router};\nfn app() -> Router { Router::new().route(\"/sms\", post(store)) }\nasync fn store() {}\n";
+        let ast = analyze("src/main.rs", axum, SourceLanguage::Rust);
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.source_symbol == "POST /sms"
+                    && r.target_symbol == "store"
+                    && r.relationship == EdgeType::Calls
+            }),
+            "axum relationships = {:?}",
+            ast.relationships
+        );
+
+        let fastapi = "@app.post(\"/sms\")\ndef store(body: str):\n    return body\n";
+        let ast = analyze("src/main.py", fastapi, SourceLanguage::Python);
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.source_symbol == "POST /sms"
+                    && r.target_symbol == "store"
+                    && r.relationship == EdgeType::Calls
+            }),
+            "fastapi relationships = {:?}",
+            ast.relationships
+        );
+
+        let named = "import express from \"express\";\nconst app = express();\nfunction store() {}\napp.post(\"/sms\", store);\n";
+        let ast = analyze("src/app.ts", named, SourceLanguage::TypeScript);
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.source_symbol == "POST /sms"
+                    && r.target_symbol == "store"
+                    && r.relationship == EdgeType::Calls
+            }),
+            "named express relationships = {:?}",
+            ast.relationships
+        );
+
+        let inline = "import express from \"express\";\nconst app = express();\napp.post(\"/sms\", (req) => saveSms(req.body));\n";
+        let ast = analyze("src/app.ts", inline, SourceLanguage::TypeScript);
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(
+            !ast.relationships
+                .iter()
+                .any(|r| r.source_symbol == "POST /sms" && r.relationship == EdgeType::Calls),
+            "inline express must not invent a handler edge: {:?}",
+            ast.relationships
+        );
+    }
+
+    #[test]
+    fn laravel_resource_eloquent_and_schema() {
+        let routes = "<?php\nRoute::resource('sms', SmsController::class);\nRoute::match(['get','post'], '/inbox', [SmsController::class, 'inbox']);\n";
+        let ast = analyze("routes/web.php", routes, SourceLanguage::PHP);
+        assert!(has_api(&ast, "RESOURCE /sms"));
+        assert!(has_api(&ast, "MATCH /inbox"));
+
+        let model = "<?php\nnamespace App\\Models;\nuse Illuminate\\Database\\Eloquent\\Model;\nuse Illuminate\\Database\\Eloquent\\Factories\\HasFactory;\nclass SmsMessage extends Model {\n  use HasFactory;\n  protected $table = 'sms_messages';\n  public function inbox() { return $this->belongsTo(Inbox::class); }\n}\n";
+        let ast = analyze("app/Models/SmsMessage.php", model, SourceLanguage::PHP);
+        assert!(
+            ast.symbols
+                .iter()
+                .any(|s| s.name == "SmsMessage" && s.symbol_type == NodeType::DbModel),
+            "symbols = {:?}",
+            ast.symbols
+                .iter()
+                .map(|s| (&s.name, s.symbol_type))
+                .collect::<Vec<_>>()
+        );
+        assert!(ast.symbols.iter().any(|s| s.name == "SmsMessage"
+            && s.signature
+                .as_deref()
+                .is_some_and(|sig| sig.contains("sms_messages"))));
+        assert!(ast.relationships.iter().any(|r| r.target_symbol == "Inbox"));
+
+        let migration = "<?php\nuse Illuminate\\Database\\Migrations\\Migration;\nuse Illuminate\\Support\\Facades\\Schema;\nreturn new class extends Migration {\n  public function up(): void {\n    Schema::create('sms_messages', function ($table) { $table->id(); });\n  }\n};\n";
+        let ast = analyze(
+            "database/migrations/2024_01_01_000000_create_sms_messages_table.php",
+            migration,
+            SourceLanguage::PHP,
+        );
+        assert!(ast.symbols.iter().any(|s| s.name == "sms_messages"));
+
+        let factory = "<?php\nclass SmsMessageFactory extends Factory {\n  protected $model = SmsMessage::class;\n  public function definition(): array { return ['body' => fake()->text()]; }\n}\n";
+        let ast = analyze(
+            "database/factories/SmsMessageFactory.php",
+            factory,
+            SourceLanguage::PHP,
+        );
+        assert!(ast
+            .relationships
+            .iter()
+            .any(|r| r.target_symbol == "SmsMessage"));
+
+        let seeder = "<?php\nclass SmsSeeder extends Seeder {\n  public function run(): void { SmsMessage::factory()->create(); }\n}\n";
+        let ast = analyze(
+            "database/seeders/SmsSeeder.php",
+            seeder,
+            SourceLanguage::PHP,
+        );
+        assert!(ast
+            .relationships
+            .iter()
+            .any(|r| r.target_symbol == "SmsMessageFactory"));
+    }
+
+    #[test]
+    fn js_require_and_json_css_imports() {
+        let src = "const { createStore } = require('./store');\nimport tokens from './tokens.json';\nimport './badge.css';\nfunction saveSms(body) { return createStore({ body }); }\nmodule.exports = { saveSms };\n";
+        let ast = analyze("src/saveSms.cjs", src, SourceLanguage::JavaScript);
+        assert!(
+            ast.imports.iter().any(|i| i.source_path.contains("store")),
+            "imports = {:?}",
+            ast.imports
+                .iter()
+                .map(|i| &i.source_path)
+                .collect::<Vec<_>>()
+        );
+        assert!(ast
+            .imports
+            .iter()
+            .any(|i| i.source_path.contains("tokens.json")));
+        assert!(ast
+            .imports
+            .iter()
+            .any(|i| i.source_path.contains("badge.css")));
+        assert!(ast.exports.iter().any(|e| e == "saveSms"));
     }
 
     #[test]
@@ -1493,6 +2486,65 @@ mod tests {
             .find(|s| s.name == "SmsController")
             .expect("SmsController");
         assert_eq!(recv.symbol_type, NodeType::Component);
+    }
+
+    #[test]
+    fn pinoox_get_action_is_named_api() {
+        let src = "<?php\nuse function Pinoox\\Router\\{get, post, collection};\nget('/')->action([MainController::class, 'index'])->name('home');\npost('/sms', [SmsController::class, 'store'])->name('sms.store');\ncollection('/api', 'routes/api.php');\n";
+        let ast = analyze("routes/web.php", src, SourceLanguage::PHP);
+        assert!(
+            has_api(&ast, "home"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+        assert!(has_api(&ast, "GET /"));
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(has_api(&ast, "sms.store"));
+        assert!(has_api(&ast, "COLLECTION /api"));
+    }
+
+    #[test]
+    fn pinoox_named_action_string_first() {
+        let src = "<?php\naction('home', [MainController::class, 'index']);\n";
+        let ast = analyze("routes/web.php", src, SourceLanguage::PHP);
+        assert!(
+            has_api(&ast, "home"),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn pinoox_render_helper_links_twig() {
+        let src = "<?php class MainController extends Controller { public function index() { return render('hello', [\"title\" => \"Hi\"]); } }\n";
+        let ast = analyze("Controller/MainController.php", src, SourceLanguage::PHP);
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.relationship == EdgeType::Calls
+                    && r.target_file_hint
+                        .as_deref()
+                        .is_some_and(|h| h == "theme/default/hello.twig")
+            }),
+            "render() should hint the Twig file: {:?}",
+            ast.relationships
+        );
+    }
+
+    #[test]
+    fn pinoox_app_php_package_is_config() {
+        let src = "<?php\nreturn [\n    'package' => 'com_pinoox_app',\n    'theme' => 'spark',\n    'pinx' => ['type' => 'app'],\n];\n";
+        let ast = analyze("app.php", src, SourceLanguage::PHP);
+        assert!(
+            ast.symbols
+                .iter()
+                .any(|s| s.name == "com_pinoox_app" && s.symbol_type == NodeType::Config),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+        assert!(ast
+            .symbols
+            .iter()
+            .any(|s| s.name == "pinx" && s.symbol_type == NodeType::Config));
     }
 
     #[test]
@@ -1562,6 +2614,18 @@ mod tests {
     }
 
     #[test]
+    fn react_fc_typed_const_promotes() {
+        let src = "import { type FC } from 'react';\nexport const StatCard: FC = () => <div />;\n";
+        let ast = analyze("src/StatCard.tsx", src, SourceLanguage::TypeScript);
+        let recv = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "StatCard")
+            .expect("StatCard");
+        assert_eq!(recv.symbol_type, NodeType::Component);
+    }
+
+    #[test]
     fn vue_router_path_is_api() {
         let src = "import { createRouter } from 'vue-router';\nexport default createRouter({ routes: [{ path: '/sms', component: Inbox }] });\n";
         let ast = analyze("src/router.ts", src, SourceLanguage::TypeScript);
@@ -1576,6 +2640,27 @@ mod tests {
             .symbols
             .iter()
             .any(|s| s.name == "Button" && s.symbol_type == NodeType::Component));
+    }
+
+    #[test]
+    fn vue_kebab_primevue_tag_is_component() {
+        let src = "<script setup>\nimport DataTable from 'primevue/datatable';\n</script>\n<template>\n  <data-table :value=\"rows\" />\n  <Button label=\"Save\" />\n</template>\n";
+        let ast = analyze("theme/spark/src/Dashboard.vue", src, SourceLanguage::Vue);
+        assert!(
+            ast.symbols
+                .iter()
+                .any(|s| s.name == "DataTable" && s.symbol_type == NodeType::Component),
+            "symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+        assert!(ast
+            .relationships
+            .iter()
+            .any(|r| r.target_symbol == "DataTable"));
+        assert!(ast
+            .relationships
+            .iter()
+            .any(|r| r.target_symbol == "Button"));
     }
 
     #[test]

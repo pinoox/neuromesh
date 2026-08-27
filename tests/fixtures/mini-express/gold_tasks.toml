@@ -3,3 +3,9 @@ id = "sms_api"
 prompt = "How does store use saveSms?"
 gold_files = ["src/app.ts", "src/sms_store.ts"]
 expect_seeds_missed = false
+
+[[task]]
+id = "sms_route_path_only"
+prompt = "how does POST /sms save the body?"
+gold_files = ["src/app.ts", "src/sms_store.ts"]
+expect_seeds_missed = false

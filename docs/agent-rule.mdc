@@ -1,0 +1,33 @@
+---
+description: Prefer NeuroMesh MCP for codebase context instead of dumping whole files
+alwaysApply: true
+---
+
+<!-- Same body as docs/agent-guide.md “Universal instructions”. Install help: docs/agent-guide.md -->
+
+# NeuroMesh context
+
+This workspace has the NeuroMesh MCP server. Prefer it for **reading and exploring** code so the agent gets folded skeletons and targeted symbols instead of multi-thousand-line files.
+
+## Default loop
+
+1. Start with `neuromesh_get_context` using the task as written (`task_description` / `prompt` / `task`).
+2. If `coverage` is `partial` or `no_seed_resolved`, follow `missing` / `next` — usually `neuromesh_search_symbols` — before broad Grep.
+3. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` for one path).
+4. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
+5. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched.
+
+Do not treat a utility fallback file as the answer when coverage says seeds missed.
+
+## When not to force NeuroMesh
+
+- Small, already-known paths (a few dozen lines) for a precise edit
+- Applying patches / writing files (use normal editor tools; NeuroMesh does not replace them)
+- Config, lockfiles, generated assets, or binary-ish content
+- After NeuroMesh already reported incomplete coverage and you need a targeted Grep/Read on the gap
+
+## Anti-patterns
+
+- Opening large whole source files into context when a packet or skeleton is enough
+- Expanding every fold “just in case”
+- Skipping `neuromesh_record_feedback` after a good edit (no STDP learning for the next packet)

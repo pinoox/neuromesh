@@ -123,7 +123,7 @@ flowchart LR
 3. **Ship seeds, grow the tube, fill the rest.** The files that own those symbols always go in. With two or more seeds, Physarum traces the cheapest connecting tissue on a neighborhood subgraph. Callees and synaptic neighbors fill a **real** budget (`balanced` = 5k extra tokens).  
 4. **Splice.** Untargeted bodies become fold markers. Coverage tells you if a seed was missed — only then is Grep fair. Folds stay in the MCP session so the next tool can wake them.
 
-Tell the agent:
+Tell the agent ([full install guide](docs/agent-guide.md)):
 
 ```
 neuromesh_get_context(task_description)
@@ -217,6 +217,8 @@ That writes an **absolute** `command` (this binary) plus `args: ["mcp", "<worksp
 
 It finds the git / Cargo / `package.json` root. It **refuses** `$HOME` and drive roots (that is how you accidentally index 11k junk files).
 
+**Optional but recommended:** teach the agent to call NeuroMesh — full per-IDE tutorial in [docs/agent-guide.md](docs/agent-guide.md). Cursor shortcut: copy [docs/agent-rule.mdc](docs/agent-rule.mdc) → `.cursor/rules/neuromesh.mdc`.
+
 **3D galaxy UI** of the live graph: [screenshots above](#3d-neural-galaxy) · `neuromesh monitor` → [http://127.0.0.1:8765](http://127.0.0.1:8765) by default.
 
 ### Monitor port
@@ -277,18 +279,18 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release, 2026-08-27, 479,679 workspace tokens):
+On this repo (release, 2026-08-27, 531,386 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | balanced | 479679 | 53564 | 12668 | 97.4% | 76.3% | 1.00 | 0.75 | **0** | 40 |
-| `physarum_usage` | balanced | 479679 | 17997 | 3955 | 99.2% | 78.0% | 1.00 | 0.50 | **0** | 22 |
+| `handle_tool_call_intent` | balanced | 531386 | 57835 | 13087 | 97.5% | 77.4% | 1.00 | 0.75 | **0** | 98 |
+| `physarum_usage` | balanced | 531386 | 17997 | 3955 | 99.3% | 78.0% | 1.00 | 0.50 | **0** | 57 |
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
 Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects. Packet activation **&lt; 150 ms** in the debug gold test.
 
-Index snapshot from that eval run: **260 files · 1,920 nodes · 4,389 edges · ~728 ms** (release).
+Index snapshot from that eval run: **304 files · 2,123 nodes · 5,056 edges · ~1,573 ms** (release).
 
 ---
 
@@ -301,6 +303,6 @@ Index snapshot from that eval run: **260 files · 1,920 nodes · 4,389 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.7.4 |
+| [Changelog](docs/CHANGELOG.md) | 0.7.6 |
 
 MIT · [LICENSE](LICENSE)

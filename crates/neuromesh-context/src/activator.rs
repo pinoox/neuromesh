@@ -6,11 +6,15 @@ use crate::selector::{
 };
 use crate::skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan};
 use neuromesh_core::{
-    ActivatedNodeView, ContextStatus, ContextView, CoverageReport, EdgeConfidence, EdgeType,
-    NextAction, NodeId, NodeType, OptimizationMode, SeedResolution, TaskSignature,
+    decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, is_schema_path,
+    prompt_targets_database, prompt_targets_types, ActivatedNodeView, ContextStatus, ContextView,
+    CoverageReport, EdgeConfidence, EdgeType, NextAction, NodeId, NodeType, OptimizationMode,
+    SeedResolution, TaskSignature,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
-use neuromesh_task::{extract_cluster_nouns, split_task_clusters};
+use neuromesh_task::{
+    extract_cluster_nouns, is_route_query, split_task_clusters, stem_search_queries,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -173,32 +177,25 @@ impl ContextActivator {
             }
         }
 
-        for (query, energy, reason) in queries {
-            if seed_resolutions
-                .iter()
-                .any(|s: &SeedResolution| s.query == query)
-            {
-                continue;
+        let prompt = signature.raw_prompt.as_str();
+        {
+            let mut sink = SeedSink {
+                resolutions: &mut seed_resolutions,
+                energies: &mut seed_energies,
+                reasons: &mut seed_reasons,
+            };
+            for (query, energy, reason) in queries {
+                sink.push(graph, prompt, query, energy, reason);
             }
-            if let Some((id, conf)) = resolve_seed_query(graph, &query) {
-                seed_energies
-                    .entry(id.clone())
-                    .and_modify(|e| *e = (*e).max(energy))
-                    .or_insert(energy);
-                seed_reasons
-                    .entry(id.clone())
-                    .or_insert_with(|| format!("{reason}:{query}"));
-                seed_resolutions.push(SeedResolution {
-                    query,
-                    resolved_id: Some(id),
-                    confidence: conf,
-                });
-            } else {
-                seed_resolutions.push(SeedResolution {
-                    query,
-                    resolved_id: None,
-                    confidence: 0.0,
-                });
+
+            if sink.energies.is_empty() {
+                for token in signature.raw_prompt.split_whitespace().take(8) {
+                    let clean = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+                    if clean.len() < 4 {
+                        continue;
+                    }
+                    sink.push(graph, prompt, clean.to_string(), 0.55, "token");
+                }
             }
         }
 
@@ -210,6 +207,7 @@ impl ContextActivator {
             &mut seed_reasons,
         );
         mark_equivalent_file_hits(graph, &mut seed_resolutions, &mut seed_energies);
+        cohere_ambiguous_seeds_to_app(graph, &mut seed_resolutions, &mut seed_energies, prompt);
 
         let seed_set: HashSet<NodeId> = seed_energies.keys().cloned().collect();
         let neighborhood = if seed_set.is_empty() {
@@ -308,6 +306,20 @@ impl ContextActivator {
         });
         let extra_cap = selection.optional_cap;
         selection.optional.truncate(extra_cap);
+        if let Some(lock) = locked_seed_hmvc_prefix(graph, &seed_set) {
+            selection
+                .required
+                .retain(|id| keep_hmvc_packet_file(graph, &seed_set, &lock, id));
+            selection
+                .optional
+                .retain(|id| keep_hmvc_packet_file(graph, &seed_set, &lock, id));
+        }
+        selection
+            .required
+            .retain(|id| keep_schema_packet_file(graph, &seed_set, prompt, id));
+        selection
+            .optional
+            .retain(|id| keep_schema_packet_file(graph, &seed_set, prompt, id));
         *self.last_physarum.lock() = PhysarumTelemetry {
             used: physarum_used,
             ms: physarum_ms,
@@ -606,41 +618,116 @@ impl ContextActivator {
     }
 }
 
-fn resolve_seed_query(graph: &NeuralProjectGraph, query: &str) -> Option<(NodeId, f32)> {
-    if query.contains("::") {
-        if let Some(node) = graph.resolve_best(query) {
-            return Some((node.id, 1.0));
+struct SeedSink<'a> {
+    resolutions: &'a mut Vec<SeedResolution>,
+    energies: &'a mut HashMap<NodeId, f32>,
+    reasons: &'a mut HashMap<NodeId, String>,
+}
+
+impl SeedSink<'_> {
+    fn push(
+        &mut self,
+        graph: &NeuralProjectGraph,
+        prompt: &str,
+        query: String,
+        energy: f32,
+        reason: &str,
+    ) {
+        if self.resolutions.iter().any(|s| s.query == query) {
+            return;
+        }
+        if let Some((id, conf)) = resolve_seed_query(graph, &query, prompt) {
+            self.energies
+                .entry(id.clone())
+                .and_modify(|e| *e = (*e).max(energy))
+                .or_insert(energy);
+            self.reasons
+                .entry(id.clone())
+                .or_insert_with(|| format!("{reason}:{query}"));
+            self.resolutions.push(SeedResolution {
+                query,
+                resolved_id: Some(id),
+                confidence: conf,
+            });
+        } else {
+            self.resolutions.push(SeedResolution {
+                query,
+                resolved_id: None,
+                confidence: 0.0,
+            });
         }
     }
-    if query.contains(['/', '\\', '.']) {
+}
+
+fn resolve_seed_query(
+    graph: &NeuralProjectGraph,
+    query: &str,
+    prompt: &str,
+) -> Option<(NodeId, f32)> {
+    if let Some(hit) = resolve_seed_query_once(graph, query, prompt) {
+        return Some(hit);
+    }
+    for stem in stem_search_queries(query) {
+        if let Some(hit) = resolve_seed_query_once(graph, &stem, prompt) {
+            return Some(hit);
+        }
+    }
+    None
+}
+
+fn resolve_seed_query_once(
+    graph: &NeuralProjectGraph,
+    query: &str,
+    prompt: &str,
+) -> Option<(NodeId, f32)> {
+    if query.contains("::") {
+        if let Some(node) = graph.resolve_best(query) {
+            if seed_path_allowed(graph, &node.id, prompt) {
+                return Some((node.id, 1.0));
+            }
+        }
+    }
+    if query.contains(['/', '\\', '.']) && !is_route_query(query) {
         if let Some(id) = graph.resolve_file_hint(query) {
-            return Some((id, 0.95));
+            if seed_path_allowed(graph, &id, prompt) {
+                return Some((id, 0.95));
+            }
         }
     }
     if let Some((ranked_id, confidence)) = graph.resolve_ranked(query, None, None) {
-        let id = prefer_search_seed(graph, query, ranked_id, confidence);
-        let conf = match confidence {
-            EdgeConfidence::Proven => 1.0,
-            EdgeConfidence::Likely => 0.62,
-            EdgeConfidence::Unresolved => 0.0,
-        };
-        return Some((id, conf));
+        let id = prefer_search_seed(graph, query, ranked_id, confidence, prompt);
+        if seed_path_allowed(graph, &id, prompt) {
+            let conf = match confidence {
+                EdgeConfidence::Proven => 1.0,
+                EdgeConfidence::Likely => 0.62,
+                EdgeConfidence::Unresolved => 0.0,
+            };
+            return Some((id, conf));
+        }
     }
     let hits = graph.search_symbols(query, 12);
-    let hit = hits
-        .iter()
-        .find(|hit| hit.name.eq_ignore_ascii_case(query))
-        .cloned()
-        .or_else(|| {
-            let q = query.to_lowercase();
-            hits.into_iter().find(|hit| {
-                let n = hit.name.to_lowercase();
-                hit.match_reason != "token"
-                    && hit.score >= 86.0
-                    && (n.starts_with(&q) || q.starts_with(&n))
-            })
-        })?;
+    let q = query.to_lowercase();
+    let hit = hits.into_iter().find(|hit| {
+        if !seed_path_allowed(graph, &hit.id, prompt) {
+            return false;
+        }
+        if hit.name.eq_ignore_ascii_case(query) {
+            return true;
+        }
+        let n = hit.name.to_lowercase();
+        hit.match_reason != "token" && hit.score >= 86.0 && (n.starts_with(&q) || q.starts_with(&n))
+    })?;
     Some((hit.id, (hit.score / 100.0).clamp(0.2, 0.75)))
+}
+
+fn seed_path_allowed(graph: &NeuralProjectGraph, id: &NodeId, prompt: &str) -> bool {
+    graph
+        .get_node(id)
+        .map(|node| {
+            !is_name_collision_decoy(&node.file_path)
+                || decoy_allowed_for_prompt(&node.file_path, prompt)
+        })
+        .unwrap_or(true)
 }
 
 fn mark_equivalent_file_hits(
@@ -681,6 +768,143 @@ fn mark_equivalent_file_hits(
             seed.confidence = seed.confidence.max(0.95);
             seed_energies.entry(id.clone()).or_insert(0.95);
         }
+    }
+}
+
+fn cohere_ambiguous_seeds_to_app(
+    graph: &NeuralProjectGraph,
+    seeds: &mut [SeedResolution],
+    seed_energies: &mut HashMap<NodeId, f32>,
+    prompt: &str,
+) {
+    let mut prefixes = HashSet::new();
+    for seed in seeds.iter() {
+        if seed.confidence < 0.9 {
+            continue;
+        }
+        let Some(id) = seed.resolved_id.as_ref() else {
+            continue;
+        };
+        if let Some(prefix) = graph
+            .get_node(id)
+            .and_then(|node| hmvc_app_prefix(&node.file_path))
+        {
+            prefixes.insert(prefix);
+        }
+    }
+    if prefixes.len() != 1 {
+        return;
+    }
+    let prefix = prefixes.into_iter().next().expect("checked len");
+    let prefix_slash = format!("{prefix}/");
+    for seed in seeds.iter_mut() {
+        if seed.confidence >= 0.9 {
+            continue;
+        }
+        let Some(id) = seed.resolved_id.clone() else {
+            continue;
+        };
+        let Some(node) = graph.get_node(&id) else {
+            continue;
+        };
+        let path = node.file_path.to_string_lossy().replace('\\', "/");
+        if path.contains(&prefix_slash) {
+            continue;
+        }
+        let hits = graph.search_symbols(&seed.query, 16);
+        let Some(hit) = hits.into_iter().find(|hit| {
+            if !seed_path_allowed(graph, &hit.id, prompt) {
+                return false;
+            }
+            if !hit
+                .file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .contains(&prefix_slash)
+            {
+                return false;
+            }
+            let name = hit
+                .name
+                .rsplit(['.', ':'])
+                .next()
+                .unwrap_or(hit.name.as_str());
+            name.eq_ignore_ascii_case(&seed.query)
+        }) else {
+            continue;
+        };
+        seed_energies.remove(&id);
+        seed.resolved_id = Some(hit.id.clone());
+        seed.confidence = seed.confidence.max(0.9);
+        seed_energies
+            .entry(hit.id)
+            .and_modify(|energy| *energy = (*energy).max(0.7))
+            .or_insert(0.7);
+    }
+}
+
+fn keep_hmvc_packet_file(
+    graph: &NeuralProjectGraph,
+    seeds: &HashSet<NodeId>,
+    lock: &str,
+    id: &NodeId,
+) -> bool {
+    let Some(node) = graph.get_node(id) else {
+        return false;
+    };
+    if seeds.contains(id)
+        || seeds.iter().any(|seed| {
+            graph
+                .get_node(seed)
+                .is_some_and(|s| s.file_path == node.file_path)
+        })
+    {
+        return true;
+    }
+    match hmvc_app_prefix(&node.file_path) {
+        Some(prefix) => prefix == lock,
+        None => true,
+    }
+}
+
+fn keep_schema_packet_file(
+    graph: &NeuralProjectGraph,
+    seeds: &HashSet<NodeId>,
+    prompt: &str,
+    id: &NodeId,
+) -> bool {
+    let Some(node) = graph.get_node(id) else {
+        return false;
+    };
+    if seeds.contains(id)
+        || seeds.iter().any(|seed| {
+            graph
+                .get_node(seed)
+                .is_some_and(|s| s.file_path == node.file_path)
+        })
+    {
+        return true;
+    }
+    if !is_schema_path(&node.file_path) {
+        return true;
+    }
+    prompt_targets_database(prompt)
+}
+
+fn locked_seed_hmvc_prefix(graph: &NeuralProjectGraph, seeds: &HashSet<NodeId>) -> Option<String> {
+    let mut prefixes = HashSet::new();
+    for id in seeds {
+        if let Some(prefix) = graph
+            .get_node(id)
+            .and_then(|node| hmvc_app_prefix(&node.file_path))
+        {
+            prefixes.insert(prefix);
+        }
+    }
+    if prefixes.len() == 1 {
+        prefixes.into_iter().next()
+    } else {
+        None
     }
 }
 
@@ -857,11 +1081,25 @@ fn prefer_search_seed(
     query: &str,
     ranked_id: NodeId,
     ranked_confidence: EdgeConfidence,
+    prompt: &str,
 ) -> NodeId {
-    let Some(hit) = graph.search_symbols(query, 1).into_iter().next() else {
+    let hits = graph.search_symbols(query, 8);
+    if prompt_targets_types(prompt) {
+        if let Some(hit) = hits.iter().find(|hit| {
+            hit.node_type == NodeType::Symbol
+                && hit.name.eq_ignore_ascii_case(query)
+                && seed_path_allowed(graph, &hit.id, prompt)
+        }) {
+            return hit.id.clone();
+        }
+    }
+    let Some(hit) = hits
+        .into_iter()
+        .find(|hit| hit.score >= 90.0 && seed_path_allowed(graph, &hit.id, prompt))
+    else {
         return ranked_id;
     };
-    if hit.score < 90.0 || hit.id == ranked_id {
+    if hit.id == ranked_id {
         return ranked_id;
     }
     if matches!(hit.node_type, NodeType::File) {
@@ -2218,6 +2456,223 @@ export default {
             "guard half must be a seed hit, coverage={coverage:?}"
         );
         assert_ne!(coverage.claim, "no_seed_resolved");
+    }
+
+    fn ingest_schema_collision(graph: &NeuralProjectGraph) {
+        ingest_ts(
+            graph,
+            "packages/schema/src/core/parse.ts",
+            r#"
+export type Issue = { path: (string | number)[]; message: string };
+
+export function parse(schema: object, data: unknown) {
+  const result = _parse(schema, data, []);
+  if (result.issues.length > 0) {
+    throw result;
+  }
+  return result.value;
+}
+
+export function safeParse(schema: object, data: unknown) {
+  return _parse(schema, data, []);
+}
+
+function _parse(schema: object, data: unknown, path: (string | number)[]) {
+  const issues: Issue[] = [];
+  if (typeof data !== "object" || data === null) {
+    issues.push({ path, message: "invalid_type" });
+  }
+  return { value: data, issues };
+}
+"#,
+        );
+        ingest_ts(
+            graph,
+            "packages/schema/src/core/core.ts",
+            r#"
+export type ZodType<T = unknown> = { _output: T; _input: T };
+export type output<T> = T extends { _output: infer Out } ? Out : T;
+export type input<T> = T extends { _input: infer In } ? In : T;
+"#,
+        );
+        ingest_ts(
+            graph,
+            "packages/schema/src/classic/schemas.ts",
+            r#"
+export function object(shape: Record<string, unknown>) {
+  return { type: "object", shape };
+}
+"#,
+        );
+        ingest_ts(
+            graph,
+            "packages/bench/safeparse.ts",
+            r#"
+export function safeParse(schema: object, data: unknown) {
+  return { success: true, data };
+}
+export function parseSimpleObject(data: unknown) {
+  return typeof data === "object";
+}
+export function parseNestedObject(data: unknown) {
+  return parseSimpleObject(data);
+}
+export function parseObjectArray(data: unknown) {
+  return Array.isArray(data);
+}
+"#,
+        );
+        ingest_ts(
+            graph,
+            "packages/schema/src/locales/fa.ts",
+            r#"
+export function localeError(issue: { path: unknown[]; code: string }) {
+  if (issue.code === "invalid_type") {
+    return "validation error at path";
+  }
+  return "invalid";
+}
+export function invalidTypeError() {
+  return "invalid type";
+}
+"#,
+        );
+        ingest_ts(
+            graph,
+            "packages/schema/src/v3/types.ts",
+            r#"
+export class ZodError extends Error {
+  path: (string | number)[] = [];
+}
+export function parse(schema: object, data: unknown) {
+  return data;
+}
+export function safeParse(schema: object, data: unknown) {
+  return { success: true, data };
+}
+"#,
+        );
+        ingest_ts(
+            graph,
+            "packages/schema/src/v4/core/to-json-schema.ts",
+            r#"
+export function toJsonSchema(schema: object) {
+  return { type: "object", schema };
+}
+export function parseJsonSchema(schema: object) {
+  return toJsonSchema(schema);
+}
+"#,
+        );
+        graph.finalize_links();
+    }
+
+    #[test]
+    fn seed_prefers_core_parse_over_bench_and_locale_decoys() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_schema_collision(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+
+        let natural = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "how does z.object schema validate an object and how does parse() report validation errors with a path to the invalid field",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let files = packet_paths(&natural);
+        assert!(
+            files
+                .iter()
+                .any(|p| p.ends_with("packages/schema/src/core/parse.ts")),
+            "natural parse question must seed core/parse.ts, files={files:?} seeds={:?}",
+            natural.seeds
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("/bench/")),
+            "bench decoys must stay out, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("/locales/")),
+            "locale catalogs must stay out, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("/v3/")),
+            "v3 legacy must stay out, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("to-json-schema")),
+            "json-schema conversion must stay out, files={files:?}"
+        );
+
+        let gerund = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("how does parsing work in zod"),
+            OptimizationMode::Balanced,
+        );
+        let gerund_files = packet_paths(&gerund);
+        assert!(
+            !gerund_files.is_empty(),
+            "gerund phrasing must not return an empty packet, seeds={:?}",
+            gerund.seeds
+        );
+        assert!(
+            gerund_files
+                .iter()
+                .any(|p| p.ends_with("packages/schema/src/core/parse.ts")),
+            "parsing → parse must seed core/parse.ts, files={gerund_files:?} seeds={:?}",
+            gerund.seeds
+        );
+
+        let named = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("where is the safeParse function implemented"),
+            OptimizationMode::Balanced,
+        );
+        let named_files = packet_paths(&named);
+        assert!(
+            named_files
+                .iter()
+                .any(|p| p.ends_with("packages/schema/src/core/parse.ts")),
+            "safeParse must resolve to core/parse.ts, files={named_files:?} seeds={:?}",
+            named.seeds
+        );
+        assert!(
+            !named_files
+                .iter()
+                .any(|p| p.ends_with("packages/bench/safeparse.ts")),
+            "bench/safeparse.ts must not steal the safeParse seed, files={named_files:?}"
+        );
+    }
+
+    #[test]
+    fn seed_prefers_core_type_alias_for_z_infer() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_schema_collision(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract("how do ZodType generics flow through z.infer"),
+            OptimizationMode::Balanced,
+        );
+        let files = packet_paths(&view);
+        assert!(
+            files
+                .iter()
+                .any(|p| p.ends_with("packages/schema/src/core/core.ts")),
+            "z.infer must seed core.ts type aliases, files={files:?} seeds={:?}",
+            view.seeds
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("classic/schemas")),
+            "classic schemas must not steal the infer seed, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("/bench/")),
+            "bench decoys must stay out, files={files:?}"
+        );
     }
 
     #[test]

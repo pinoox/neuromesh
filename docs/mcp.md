@@ -41,6 +41,21 @@ neuromesh_get_context(task_description)
 
 Start with `get_context`. The default packet is **minimal**: `packet_id`, coverage string, selected/packet tokens, skeletonized files, fold descriptors without bodies. `missing` and `next` appear only when coverage is `partial` or `no_seed_resolved` (zero identifiers resolved — do not treat a utility fallback file as the answer). After a good edit, **always** call `neuromesh_record_feedback` — that is the synaptic learning step; without it the next packet does not change.
 
+## Agent rule (recommended)
+
+`neuromesh connect` only registers the MCP server. It does **not** tell the IDE agent to call those tools. Without project instructions, many agents still `Read` / Grep whole files and skip NeuroMesh.
+
+**Full tutorial (every client):** [agent-guide.md](agent-guide.md) — Cursor, VS Code/Copilot, Claude, Codex, Antigravity, Kilo, Trae, MiniMax, Windsurf, Cline/Roo, Zed, plus a one-shot prompt and smoke test.
+
+Quick Cursor install:
+
+```bash
+mkdir -p .cursor/rules
+cp /path/to/neuromesh/docs/agent-rule.mdc .cursor/rules/neuromesh.mdc
+```
+
+Cursor-ready template: [agent-rule.mdc](agent-rule.mdc). Same body without YAML frontmatter lives in the guide for `AGENTS.md` / `CLAUDE.md` / Copilot instructions.
+
 ## Tools
 
 | Tool | Input | Returns |

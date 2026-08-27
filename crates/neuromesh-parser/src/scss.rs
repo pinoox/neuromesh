@@ -37,11 +37,14 @@ fn parse_stylesheet(file_path: &Path, content: &str, kind: StylesheetKind) -> As
     extract_imports(&mut result, filename, content);
     extract_custom_properties(&mut result, content);
     extract_class_and_id_selectors(&mut result, content, kind);
+    extract_keyframes(&mut result, content);
+    extract_include_and_extend(&mut result, filename, content, kind);
 
     match kind {
         StylesheetKind::Scss => {
             extract_scss_variables(&mut result, content);
             extract_scss_mixins(&mut result, content);
+            extract_scss_functions(&mut result, content);
         }
         StylesheetKind::Less => extract_less_variables(&mut result, content),
         StylesheetKind::Css => {}
@@ -107,10 +110,8 @@ fn extract_class_and_id_selectors(
     static CLASS_RE: OnceLock<Regex> = OnceLock::new();
     static ID_RE: OnceLock<Regex> = OnceLock::new();
     static LESS_MIXIN_RE: OnceLock<Regex> = OnceLock::new();
-    let class_re =
-        CLASS_RE.get_or_init(|| Regex::new(r"(?m)^\s*\.([A-Za-z_][-A-Za-z0-9_]*)\s*\{").unwrap());
-    let id_re =
-        ID_RE.get_or_init(|| Regex::new(r"(?m)^\s*#([A-Za-z_][-A-Za-z0-9_]*)\s*\{").unwrap());
+    let class_re = CLASS_RE.get_or_init(|| Regex::new(r"\.([A-Za-z_][-A-Za-z0-9_]*)").unwrap());
+    let id_re = ID_RE.get_or_init(|| Regex::new(r"#([A-Za-z_][-A-Za-z0-9_]*)").unwrap());
     let less_mixin_re = LESS_MIXIN_RE
         .get_or_init(|| Regex::new(r"(?m)^\s*\.([A-Za-z_][-A-Za-z0-9_]*)\s*\([^)]*\)").unwrap());
 
@@ -133,6 +134,9 @@ fn extract_class_and_id_selectors(
 
     for cap in class_re.captures_iter(content) {
         let name = cap.get(1).unwrap().as_str();
+        if is_asset_extension(name) {
+            continue;
+        }
         if result.symbols.iter().any(|s| s.name == name) {
             continue;
         }
@@ -141,7 +145,7 @@ fn extract_class_and_id_selectors(
         result.symbols.push(ParsedSymbol::new(
             name.to_string(),
             NodeType::StyleToken,
-            Some(format!(".{name} {{")),
+            Some(format!(".{name}")),
             line..(line + 1),
             true,
         ));
@@ -149,6 +153,9 @@ fn extract_class_and_id_selectors(
 
     for cap in id_re.captures_iter(content) {
         let name = cap.get(1).unwrap().as_str();
+        if is_asset_extension(name) {
+            continue;
+        }
         if result.symbols.iter().any(|s| s.name == name) {
             continue;
         }
@@ -157,7 +164,106 @@ fn extract_class_and_id_selectors(
         result.symbols.push(ParsedSymbol::new(
             name.to_string(),
             NodeType::StyleToken,
-            Some(format!("#{name} {{")),
+            Some(format!("#{name}")),
+            line..(line + 1),
+            true,
+        ));
+    }
+}
+
+fn is_asset_extension(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "css"
+            | "scss"
+            | "sass"
+            | "less"
+            | "jpg"
+            | "jpeg"
+            | "png"
+            | "gif"
+            | "svg"
+            | "webp"
+            | "woff"
+            | "woff2"
+            | "ttf"
+            | "eot"
+            | "otf"
+            | "mp4"
+            | "webm"
+    )
+}
+
+fn extract_keyframes(result: &mut AstAnalysisResult, content: &str) {
+    static KEYFRAME_RE: OnceLock<Regex> = OnceLock::new();
+    let keyframe_re =
+        KEYFRAME_RE.get_or_init(|| Regex::new(r"@keyframes\s+([A-Za-z_][-A-Za-z0-9_]*)").unwrap());
+    for cap in keyframe_re.captures_iter(content) {
+        let name = cap.get(1).unwrap().as_str();
+        if result.symbols.iter().any(|s| s.name == name) {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        result.symbols.push(ParsedSymbol::new(
+            name.to_string(),
+            NodeType::StyleToken,
+            Some(format!("@keyframes {name}")),
+            line..(line + 1),
+            true,
+        ));
+    }
+}
+
+fn extract_include_and_extend(
+    result: &mut AstAnalysisResult,
+    filename: &str,
+    content: &str,
+    kind: StylesheetKind,
+) {
+    if !matches!(kind, StylesheetKind::Scss | StylesheetKind::Less) {
+        return;
+    }
+    static INCLUDE_RE: OnceLock<Regex> = OnceLock::new();
+    static EXTEND_RE: OnceLock<Regex> = OnceLock::new();
+    let include_re =
+        INCLUDE_RE.get_or_init(|| Regex::new(r"@include\s+([A-Za-z_][-A-Za-z0-9_]*)").unwrap());
+    let extend_re =
+        EXTEND_RE.get_or_init(|| Regex::new(r"@extend\s+\.?([A-Za-z_][-A-Za-z0-9_]*)").unwrap());
+    for cap in include_re.captures_iter(content) {
+        let name = cap.get(1).unwrap().as_str();
+        result.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: name.to_string(),
+            relationship: EdgeType::Calls,
+            target_file_hint: None,
+            receiver_hint: None,
+        });
+    }
+    for cap in extend_re.captures_iter(content) {
+        let name = cap.get(1).unwrap().as_str();
+        result.relationships.push(ParsedRelationship {
+            source_symbol: filename.to_string(),
+            target_symbol: name.to_string(),
+            relationship: EdgeType::References,
+            target_file_hint: None,
+            receiver_hint: None,
+        });
+    }
+}
+
+fn extract_scss_functions(result: &mut AstAnalysisResult, content: &str) {
+    static FN_RE: OnceLock<Regex> = OnceLock::new();
+    let fn_re = FN_RE.get_or_init(|| Regex::new(r"(?m)^\s*@function\s+([-a-zA-Z0-9_]+)").unwrap());
+    for cap in fn_re.captures_iter(content) {
+        let name = cap.get(1).unwrap().as_str();
+        if result.symbols.iter().any(|s| s.name == name) {
+            continue;
+        }
+        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
+        result.symbols.push(ParsedSymbol::new(
+            name.to_string(),
+            NodeType::Function,
+            Some(format!("@function {name}")),
             line..(line + 1),
             true,
         ));
@@ -300,5 +406,20 @@ mod tests {
         assert!(ast.symbols.iter().any(|s| s.name == "sms-unread"));
         assert!(ast.symbols.iter().any(|s| s.name == "smsBadge"));
         assert!(ast.imports.iter().any(|i| i.source_path == "tokens"));
+    }
+
+    #[test]
+    fn scss_nested_include_and_function() {
+        let src = "$sms-unread: #ef4444;\n@mixin smsChip { color: $sms-unread; }\n@function smsTint($c) { @return $c; }\n.smsInbox {\n  .smsBadge, .smsChip { @include smsChip; }\n}\n@keyframes smsPulse { from { opacity: 0; } }\n";
+        let ast = ScssParser::parse(Path::new("styles/sms.scss"), src);
+        assert!(ast.symbols.iter().any(|s| s.name == "smsInbox"));
+        assert!(ast.symbols.iter().any(|s| s.name == "smsBadge"));
+        assert!(ast.symbols.iter().any(|s| s.name == "smsChip"));
+        assert!(ast.symbols.iter().any(|s| s.name == "smsTint"));
+        assert!(ast.symbols.iter().any(|s| s.name == "smsPulse"));
+        assert!(ast
+            .relationships
+            .iter()
+            .any(|r| r.target_symbol == "smsChip" && r.relationship == EdgeType::Calls));
     }
 }

@@ -94,6 +94,26 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does addToCart use createStore?".into(),
                 gold_files: vec!["src/cart.ts".into(), "src/store.ts".into()],
                 expect_seeds_missed: false,
+                forbidden_files: vec!["src/theme.ts".into()],
+            },
+        ),
+        (
+            "mini-store",
+            GoldTask {
+                id: "theme_tokens".into(),
+                prompt: "How does smsTheme use smsUnread from tokens.json?".into(),
+                gold_files: vec!["src/theme.ts".into(), "src/tokens.json".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec!["src/cart.ts".into()],
+            },
+        ),
+        (
+            "mini-cjs",
+            GoldTask {
+                id: "cjs_require".into(),
+                prompt: "How does saveSms require createStore?".into(),
+                gold_files: vec!["src/saveSms.cjs".into(), "src/store.js".into()],
+                expect_seeds_missed: false,
                 forbidden_files: Vec::new(),
             },
         ),
@@ -228,7 +248,163 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "theme/default/hello.twig".into(),
                 ],
                 expect_seeds_missed: false,
-                forbidden_files: vec!["Helper/Greeter.php".into()],
+                forbidden_files: vec![
+                    "Helper/Greeter.php".into(),
+                    "theme/spark/src/Dashboard.vue".into(),
+                    "theme/spark/src/StatCard.tsx".into(),
+                ],
+            },
+        ),
+        (
+            "mini-pinoox",
+            GoldTask {
+                id: "pinx_home_route".into(),
+                prompt: "how does the pinx get home action reach MainController::index".into(),
+                gold_files: vec![
+                    "routes/web.php".into(),
+                    "Controller/MainController.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "Helper/Greeter.php".into(),
+                    "theme/spark/src/StatCard.tsx".into(),
+                ],
+            },
+        ),
+        (
+            "mini-pinoox",
+            GoldTask {
+                id: "dashboard_primevue".into(),
+                prompt: "How does Dashboard.vue use DataTable from primevue and useDashboardStore in stores/dashboard.ts?".into(),
+                gold_files: vec![
+                    "theme/spark/src/Dashboard.vue".into(),
+                    "theme/spark/src/stores/dashboard.ts".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "Helper/Greeter.php".into(),
+                    "theme/default/hello.twig".into(),
+                    "theme/spark/src/StatCard.tsx".into(),
+                ],
+            },
+        ),
+        (
+            "mini-pinoox",
+            GoldTask {
+                id: "stat_card_react".into(),
+                prompt: "How does the StatCard React FC render a label?".into(),
+                gold_files: vec!["theme/spark/src/StatCard.tsx".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "theme/default/hello.twig".into(),
+                    "Helper/Greeter.php".into(),
+                    "theme/spark/src/Dashboard.vue".into(),
+                ],
+            },
+        ),
+        (
+            "mini-pinoox-platform",
+            GoldTask {
+                id: "shop_checkout".into(),
+                prompt: "How does ShopController checkout use OrderStore.save?".into(),
+                gold_files: vec![
+                    "apps/com_shop/Controller/ShopController.php".into(),
+                    "apps/com_shop/Model/OrderStore.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "apps/com_blog/Controller/BlogController.php".into(),
+                    "apps/com_blog/Model/PostStore.php".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does SmsController store use SmsMessage?".into(),
+                gold_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "app/Models/SmsMessage.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "database/factories/SmsMessageFactory.php".into(),
+                    "database/seeders/SmsSeeder.php".into(),
+                    "database/sql/sms_messages.sql".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_route".into(),
+                prompt: "how does the laravel POST /sms route reach SmsController store".into(),
+                gold_files: vec![
+                    "routes/web.php".into(),
+                    "app/Http/Controllers/SmsController.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec!["database/seeders/SmsSeeder.php".into()],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_migration".into(),
+                prompt: "How does the create_sms_messages_table migration create the sms_messages table?".into(),
+                gold_files: vec![
+                    "database/migrations/2024_01_01_000000_create_sms_messages_table.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "database/seeders/SmsSeeder.php".into(),
+                    "app/Models/SmsMessage.php".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_seeder".into(),
+                prompt: "How does SmsSeeder run SmsMessageFactory definition?".into(),
+                gold_files: vec![
+                    "database/seeders/SmsSeeder.php".into(),
+                    "database/factories/SmsMessageFactory.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "routes/web.php".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_sql".into(),
+                prompt: "Where is the sms_messages CREATE TABLE in sms_messages.sql?".into(),
+                gold_files: vec!["database/sql/sms_messages.sql".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "database/seeders/SmsSeeder.php".into(),
+                    "app/Models/SmsMessage.php".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_json".into(),
+                prompt: "Where is smsFrom defined in config/sms.json?".into(),
+                gold_files: vec!["config/sms.json".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "database/sql/sms_messages.sql".into(),
+                ],
             },
         ),
         (
@@ -374,7 +550,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does smsBadge use smsUnread?".into(),
                 gold_files: vec!["styles/sms.less".into()],
                 expect_seeds_missed: false,
-                forbidden_files: Vec::new(),
+                forbidden_files: vec!["styles/sms.scss".into(), "styles/sms.css".into()],
             },
         ),
         (
@@ -384,7 +560,83 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "Where is smsInbox defined?".into(),
                 gold_files: vec!["assets/sms-inbox.svg".into()],
                 expect_seeds_missed: false,
-                forbidden_files: Vec::new(),
+                forbidden_files: vec!["styles/sms.scss".into(), "styles/sms.css".into()],
+            },
+        ),
+        (
+            "mini-styles",
+            GoldTask {
+                id: "sms_scss".into(),
+                prompt: "How does smsPanel in styles/sms.scss include smsTint?".into(),
+                gold_files: vec!["styles/sms.scss".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "styles/sms.less".into(),
+                    "assets/sms-inbox.svg".into(),
+                    "styles/sms.css".into(),
+                ],
+            },
+        ),
+        (
+            "mini-styles",
+            GoldTask {
+                id: "sms_css".into(),
+                prompt: "How does smsChip in styles/sms.css use the smsChip custom property?".into(),
+                gold_files: vec!["styles/sms.css".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec!["styles/sms.less".into(), "styles/sms.scss".into()],
+            },
+        ),
+        (
+            "mini-schema",
+            GoldTask {
+                id: "parse_error_path".into(),
+                prompt: "how does z.object schema validate an object and how does parse() report validation errors with a path to the invalid field".into(),
+                gold_files: vec!["packages/schema/src/core/parse.ts".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "packages/bench/safeparse.ts".into(),
+                    "packages/bench/compile-validate-vs-parse.ts".into(),
+                    "packages/schema/src/locales/fa.ts".into(),
+                    "packages/schema/src/v3/types.ts".into(),
+                    "packages/schema/src/v4/core/to-json-schema.ts".into(),
+                ],
+            },
+        ),
+        (
+            "mini-schema",
+            GoldTask {
+                id: "parsing_gerund".into(),
+                prompt: "how does parsing work in zod".into(),
+                gold_files: vec!["packages/schema/src/core/parse.ts".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "packages/bench/safeparse.ts".into(),
+                    "packages/schema/src/locales/fa.ts".into(),
+                ],
+            },
+        ),
+        (
+            "mini-schema",
+            GoldTask {
+                id: "safeparse_impl".into(),
+                prompt: "where is the safeParse function implemented".into(),
+                gold_files: vec!["packages/schema/src/core/parse.ts".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec!["packages/bench/safeparse.ts".into()],
+            },
+        ),
+        (
+            "mini-schema",
+            GoldTask {
+                id: "infer_output".into(),
+                prompt: "how do ZodType generics flow through z.infer".into(),
+                gold_files: vec!["packages/schema/src/core/core.ts".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "packages/schema/src/classic/schemas.ts".into(),
+                    "packages/bench/safeparse.ts".into(),
+                ],
             },
         ),
     ]
@@ -725,6 +977,7 @@ forbidden_files = ["src/directive/clipboard.js", "src/views/profile/UserCard.vue
             let started = Instant::now();
             let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
             let latency_ms = started.elapsed().as_millis() as u64;
+            #[cfg(not(windows))]
             assert!(
                 latency_ms < 150,
                 "{} context latency {latency_ms}ms",

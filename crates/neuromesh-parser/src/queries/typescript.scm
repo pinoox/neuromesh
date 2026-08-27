@@ -18,6 +18,9 @@
 (type_alias_declaration
   name: (_) @symbol.name) @symbol
 
+(enum_declaration
+  name: (_) @symbol.name) @symbol
+
 (import_statement) @import
 
 (call_expression) @call

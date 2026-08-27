@@ -160,13 +160,18 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     static TICK_RE: OnceLock<Regex> = OnceLock::new();
     static HOW_DOES_RE: OnceLock<Regex> = OnceLock::new();
     static DOTTED_RE: OnceLock<Regex> = OnceLock::new();
+    static CALL_RE: OnceLock<Regex> = OnceLock::new();
+    static NS_DOTTED_RE: OnceLock<Regex> = OnceLock::new();
+    static METHOD_ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static BARE_ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static URL_RE: OnceLock<Regex> = OnceLock::new();
 
     let file_re = FILE_RE.get_or_init(|| {
         Regex::new(r"(?x)(?:[A-Za-z0-9_.-]+[/\\])+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+").unwrap()
     });
     let bare_file_re = BARE_FILE_RE.get_or_init(|| {
         Regex::new(
-            r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|py|vue|go|java|cs|kt|kts|dart|rb|php|astro|svelte|twig|cshtml|razor|swift|css|scss|sass|less|html|htm|svg)\b",
+            r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|mjs|cjs|py|vue|go|java|cs|kt|kts|dart|rb|php|astro|svelte|twig|cshtml|razor|swift|css|scss|sass|less|html|htm|svg|sql|json|jsonc)\b",
         )
         .unwrap()
     });
@@ -188,6 +193,20 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     });
     let dotted_re = DOTTED_RE
         .get_or_init(|| Regex::new(r"\b([A-Z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b").unwrap());
+    let call_re = CALL_RE.get_or_init(|| Regex::new(r"\b([A-Za-z_][A-Za-z0-9_]*)\(\)").unwrap());
+    let ns_dotted_re =
+        NS_DOTTED_RE.get_or_init(|| Regex::new(r"\b[a-z]\.([A-Za-z_][A-Za-z0-9_]{2,})\b").unwrap());
+    let method_route_re = METHOD_ROUTE_RE.get_or_init(|| {
+        Regex::new(r"(?i)\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ANY|MATCH)\s+(/[^\s`'<>,]+)")
+            .unwrap()
+    });
+    let bare_route_re = BARE_ROUTE_RE.get_or_init(|| {
+        Regex::new(
+            r"(?:^|[\s`'(])(/[A-Za-z0-9._~:@!$&'*+,;=%-]+(?:/[A-Za-z0-9._~:@!$&'*+,;=%-]*)*)",
+        )
+        .unwrap()
+    });
+    let url_re = URL_RE.get_or_init(|| Regex::new(r"(?i)https?://[^\s`'<>,]+").unwrap());
 
     for cap in file_re.captures_iter(prompt) {
         let path = cap.get(0).unwrap().as_str().replace('\\', "/");
@@ -207,7 +226,9 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
 
     for cap in tick_re.captures_iter(prompt) {
         let inner = cap.get(1).unwrap().as_str().trim();
-        if inner.contains('.') && inner.contains('/') || inner.contains('\\') {
+        if is_route_query(inner) {
+            push_route_identifiers(&mut identifiers, inner);
+        } else if inner.contains('.') && inner.contains('/') || inner.contains('\\') {
             push_unique(&mut file_hints, inner.replace('\\', "/"));
         } else if is_code_ident(inner) || is_how_does_ident(inner) {
             push_unique(&mut identifiers, inner.to_string());
@@ -232,10 +253,48 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
         }
     }
 
+    for cap in call_re.captures_iter(prompt) {
+        let ident = cap.get(1).unwrap().as_str();
+        if is_seedable_call(ident) {
+            push_unique(&mut identifiers, ident.to_string());
+        }
+    }
+
+    for cap in ns_dotted_re.captures_iter(prompt) {
+        let member = cap.get(1).unwrap().as_str();
+        if is_code_ident(member) || is_how_does_ident(member) {
+            push_unique(&mut identifiers, member.to_string());
+        }
+    }
+
     for cap in ident_re.captures_iter(prompt) {
         let ident = cap.get(0).unwrap().as_str();
         if is_code_ident(ident) {
             push_unique(&mut identifiers, ident.to_string());
+        }
+    }
+
+    for cap in method_route_re.captures_iter(prompt) {
+        let method = cap.get(1).unwrap().as_str().to_uppercase();
+        let path = cap
+            .get(2)
+            .unwrap()
+            .as_str()
+            .trim_end_matches(['.', ',', ')', ']', ';', ':', '!', '?']);
+        if is_http_path(path) {
+            push_unique(&mut identifiers, format!("{method} {path}"));
+            push_unique(&mut identifiers, path.to_string());
+        }
+    }
+    for cap in bare_route_re.captures_iter(prompt) {
+        let path = cap.get(1).unwrap().as_str();
+        if is_http_path(path) {
+            push_unique(&mut identifiers, path.to_string());
+        }
+    }
+    for cap in url_re.captures_iter(prompt) {
+        if let Some(path) = route_from_url(cap.get(0).unwrap().as_str()) {
+            push_unique(&mut identifiers, path);
         }
     }
 
@@ -294,6 +353,34 @@ pub struct PromptAnchors {
     pub file_hints: Vec<String>,
 }
 
+/// Morphological variants so "parsing" can seed `parse` and "validation" can
+/// seed `validate` when the gerund/noun itself is not a symbol.
+pub fn stem_search_queries(query: &str) -> Vec<String> {
+    let q = query.trim().to_lowercase();
+    let mut out = Vec::new();
+    if q.len() >= 7 && q.ends_with("ing") {
+        let stem = &q[..q.len() - 3];
+        push_unique(&mut out, stem.to_string());
+        push_unique(&mut out, format!("{stem}e"));
+    }
+    if q.len() >= 9 && q.ends_with("ation") {
+        let stem = &q[..q.len() - 5];
+        push_unique(&mut out, stem.to_string());
+        push_unique(&mut out, format!("{stem}e"));
+        push_unique(&mut out, format!("{stem}ate"));
+    } else if q.len() >= 8 && q.ends_with("tion") {
+        let stem = &q[..q.len() - 4];
+        push_unique(&mut out, stem.to_string());
+        push_unique(&mut out, format!("{stem}e"));
+    }
+    if q == "infer" {
+        push_unique(&mut out, "output".into());
+        push_unique(&mut out, "input".into());
+    }
+    out.retain(|s| s.len() >= 4 && s != &q);
+    out
+}
+
 pub fn tokenize_ident(name: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     for chunk in name
@@ -322,6 +409,171 @@ pub fn tokenize_ident(name: &str) -> Vec<String> {
     tokens
 }
 
+const ROUTE_METHODS: &[&str] = &[
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "HEAD",
+    "OPTIONS",
+    "ANY",
+    "MATCH",
+    "API-RESOURCE",
+    "RESOURCE",
+    "COLLECTION",
+];
+
+/// True when `query` is an HTTP route (`POST /sms`, `/sms`), not a file path.
+pub fn is_route_query(query: &str) -> bool {
+    let q = query.trim();
+    if q.is_empty() {
+        return false;
+    }
+    if let Some(path) = strip_method_prefix(q) {
+        return is_http_path(path);
+    }
+    is_http_path(q)
+}
+
+/// Path alias for an Api node named `POST /sms` → `Some("/sms")`.
+/// Never the last path segment alone (`sms`).
+pub fn api_path_alias(name: &str) -> Option<String> {
+    let path = strip_method_prefix(name.trim())?;
+    if is_http_path(path) {
+        Some(path.to_string())
+    } else {
+        None
+    }
+}
+
+fn strip_method_prefix(name: &str) -> Option<&str> {
+    let (method, rest) = name.split_once(' ')?;
+    if !ROUTE_METHODS
+        .iter()
+        .any(|wanted| method.eq_ignore_ascii_case(wanted))
+    {
+        return None;
+    }
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    Some(rest)
+}
+
+fn is_http_path(path: &str) -> bool {
+    if !path.starts_with('/') {
+        return false;
+    }
+    if path.contains('\\') {
+        return false;
+    }
+    !http_path_has_source_extension(path)
+}
+
+fn http_path_has_source_extension(path: &str) -> bool {
+    let last = path.rsplit('/').next().unwrap_or(path);
+    let Some((_, ext)) = last.rsplit_once('.') else {
+        return false;
+    };
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "rs" | "ts"
+            | "tsx"
+            | "js"
+            | "jsx"
+            | "mjs"
+            | "cjs"
+            | "py"
+            | "vue"
+            | "go"
+            | "java"
+            | "cs"
+            | "kt"
+            | "kts"
+            | "dart"
+            | "rb"
+            | "php"
+            | "astro"
+            | "svelte"
+            | "twig"
+            | "cshtml"
+            | "razor"
+            | "swift"
+            | "css"
+            | "scss"
+            | "sass"
+            | "less"
+            | "html"
+            | "htm"
+            | "svg"
+            | "sql"
+            | "json"
+            | "jsonc"
+            | "toml"
+            | "md"
+    )
+}
+
+fn route_from_url(raw: &str) -> Option<String> {
+    let trimmed = raw.trim_end_matches(['.', ',', ')', ']', ';', '!', '"', '\'']);
+    let after_scheme = trimmed.split_once("://")?.1;
+    let host_and_path = after_scheme
+        .split_once('?')
+        .map(|(head, _)| head)
+        .unwrap_or(after_scheme);
+    let host_and_path = host_and_path
+        .split_once('#')
+        .map(|(head, _)| head)
+        .unwrap_or(host_and_path);
+    let slash = host_and_path.find('/')?;
+    let host = &host_and_path[..slash];
+    let mut path = &host_and_path[slash..];
+    if path.len() > 1 {
+        path = path.trim_end_matches('/');
+    }
+    if path.is_empty() || path == "/" {
+        return None;
+    }
+    if is_git_web_host(host) && path_segment_count(path) == 2 {
+        return None;
+    }
+    if is_http_path(path) {
+        Some(path.to_string())
+    } else {
+        None
+    }
+}
+
+fn is_git_web_host(host: &str) -> bool {
+    let host = host.to_ascii_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(host.as_str());
+    host == "github.com" || host == "gitlab.com" || host == "bitbucket.org"
+}
+
+fn path_segment_count(path: &str) -> usize {
+    path.trim_matches('/')
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .count()
+}
+
+fn push_route_identifiers(identifiers: &mut Vec<String>, raw: &str) {
+    let trimmed = raw.trim();
+    if let Some(path) = strip_method_prefix(trimmed) {
+        if is_http_path(path) {
+            let method = trimmed.split_once(' ').unwrap().0.to_uppercase();
+            push_unique(identifiers, format!("{method} {path}"));
+            push_unique(identifiers, path.to_string());
+        }
+        return;
+    }
+    if is_http_path(trimmed) {
+        push_unique(identifiers, trimmed.to_string());
+    }
+}
+
 fn is_cluster_noun(value: &str) -> bool {
     if value.len() < 5 || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return false;
@@ -331,6 +583,13 @@ fn is_cluster_noun(value: &str) -> bool {
         return false;
     }
     true
+}
+
+fn is_seedable_call(value: &str) -> bool {
+    if !is_how_does_ident(value) {
+        return false;
+    }
+    !STOPWORDS.contains(&value.to_lowercase().as_str())
 }
 
 fn is_code_ident(value: &str) -> bool {
@@ -488,6 +747,18 @@ mod tests {
     }
 
     #[test]
+    fn extracts_json_and_sql_file_hints() {
+        let anchors = extract_prompt_anchors(
+            "Where is smsFrom defined in config/sms.json and sms_messages in sms_messages.sql?",
+        );
+        assert!(anchors.file_hints.iter().any(|p| p.contains("sms.json")));
+        assert!(anchors
+            .file_hints
+            .iter()
+            .any(|p| p.contains("sms_messages.sql")));
+    }
+
+    #[test]
     fn splits_compound_auth_and_guard_clusters() {
         let prompt = "how does the user login and logout flow work, including the login action, getInfo action, and how the router permission guard checks roles before each route";
         let clusters = split_task_clusters(prompt);
@@ -531,5 +802,119 @@ mod tests {
             "English 'the user' is not a how-does seed: {:?}",
             anchors.identifiers
         );
+    }
+
+    #[test]
+    fn extracts_call_and_single_letter_namespace() {
+        let anchors = extract_prompt_anchors(
+            "how does z.object schema validate an object and how does parse() report validation errors",
+        );
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "parse"),
+            "parse() must be a seed, identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "object"),
+            "z.object must seed object, identifiers = {:?}",
+            anchors.identifiers
+        );
+        let infer = extract_prompt_anchors("how do ZodType generics flow through z.infer");
+        assert!(
+            infer.identifiers.iter().any(|id| id == "infer"),
+            "z.infer must seed infer, identifiers = {:?}",
+            infer.identifiers
+        );
+        assert!(
+            infer.identifiers.iter().any(|id| id == "ZodType"),
+            "ZodType must be a seed, identifiers = {:?}",
+            infer.identifiers
+        );
+    }
+
+    #[test]
+    fn stems_gerunds_and_ations() {
+        let parsing = stem_search_queries("parsing");
+        assert!(
+            parsing.iter().any(|s| s == "parse"),
+            "parsing stems = {parsing:?}"
+        );
+        let validation = stem_search_queries("validation");
+        assert!(
+            validation.iter().any(|s| s == "validate"),
+            "validation stems = {validation:?}"
+        );
+        let infer = stem_search_queries("infer");
+        assert!(
+            infer.iter().any(|s| s == "output"),
+            "infer aliases = {infer:?}"
+        );
+    }
+
+    #[test]
+    fn extracts_http_routes_not_file_hints() {
+        let method = extract_prompt_anchors("how does POST /sms persist the message?");
+        assert!(
+            method.identifiers.iter().any(|id| id == "POST /sms"),
+            "identifiers = {:?}",
+            method.identifiers
+        );
+        assert!(
+            method.identifiers.iter().any(|id| id == "/sms"),
+            "identifiers = {:?}",
+            method.identifiers
+        );
+        assert!(
+            !method.file_hints.iter().any(|h| h.contains("/sms")),
+            "file_hints = {:?}",
+            method.file_hints
+        );
+
+        let nested = extract_prompt_anchors("where is /api/v1/sms handled?");
+        assert!(
+            nested.identifiers.iter().any(|id| id == "/api/v1/sms"),
+            "identifiers = {:?}",
+            nested.identifiers
+        );
+
+        let url = extract_prompt_anchors("trace https://example.com/sms from the client");
+        assert!(
+            url.identifiers.iter().any(|id| id == "/sms"),
+            "identifiers = {:?}",
+            url.identifiers
+        );
+
+        let file = extract_prompt_anchors(
+            "How does neuromesh_get_context extract task intent from crates/neuromesh-mcp/src/tools.rs?",
+        );
+        assert!(
+            file.file_hints.iter().any(|p| p.contains("tools.rs")),
+            "file_hints = {:?}",
+            file.file_hints
+        );
+        assert!(
+            !file
+                .identifiers
+                .iter()
+                .any(|id| id.starts_with('/') && !id.contains('.')),
+            "file path must not become a route identifier: {:?}",
+            file.identifiers
+        );
+
+        let github = extract_prompt_anchors("see https://github.com/pinoox/pinoox for the app");
+        assert!(
+            !github
+                .identifiers
+                .iter()
+                .any(|id| id == "/pinoox/pinoox" || id == "/pinoox"),
+            "github repo URL is not a route seed: {:?}",
+            github.identifiers
+        );
+
+        assert!(is_route_query("POST /sms"));
+        assert!(is_route_query("/sms"));
+        assert!(!is_route_query("crates/neuromesh-mcp/src/tools.rs"));
+        assert_eq!(api_path_alias("POST /sms").as_deref(), Some("/sms"));
+        assert_eq!(api_path_alias("store"), None);
     }
 }

@@ -13,8 +13,9 @@ use crate::query::{
 };
 use crate::synapse::{StdpConfig, SynapticPlasticityEngine};
 use neuromesh_core::{
-    ContextEdge, ContextNode, EdgeConfidence, EdgeId, EdgeType, IndexMeta, NodeId, NodeType,
-    ProjectId, UnresolvedRef,
+    hmvc_app_prefix, is_core_source_path, is_json_schema_path, is_low_priority_source_path,
+    is_name_collision_decoy, name_match_specificity, ContextEdge, ContextNode, EdgeConfidence,
+    EdgeId, EdgeType, IndexMeta, NodeId, NodeType, ProjectId, UnresolvedRef,
 };
 use neuromesh_index::{FileFingerprint, IndexedFile, ScanReport};
 use neuromesh_parser::AstAnalysisResult;
@@ -723,8 +724,10 @@ impl NeuralProjectGraph {
                 if name == &query_lower {
                     continue;
                 }
+                let spec = name_match_specificity(&query_lower, name);
+                let score = 80.0 + 12.0 * spec;
                 for id in ids {
-                    scored.entry(id.clone()).or_insert((86.0, "prefix".into()));
+                    scored.entry(id.clone()).or_insert((score, "prefix".into()));
                 }
             }
             if !exact_type_hit {
@@ -733,10 +736,12 @@ impl NeuralProjectGraph {
                         continue;
                     }
                     if name.contains(&query_lower) {
+                        let spec = name_match_specificity(&query_lower, name);
+                        let score = 48.0 + 28.0 * spec;
                         for id in ids {
                             scored
                                 .entry(id.clone())
-                                .or_insert((68.0, "substring".into()));
+                                .or_insert((score, "substring".into()));
                         }
                     }
                 }
@@ -1158,6 +1163,30 @@ impl NeuralProjectGraph {
 
         if let Some(id) = self.resolve_call_target(name, source_file, imported_files) {
             return Some((id, EdgeConfidence::Proven));
+        }
+        if let Some(prefix) = hmvc_app_prefix(source_file) {
+            let prefix_slash = format!("{prefix}/");
+            let name_lower = name.to_lowercase();
+            let in_app: Vec<NodeId> = {
+                let data = self.inner.read();
+                data.name_to_nodes
+                    .get(&name_lower)
+                    .into_iter()
+                    .flatten()
+                    .filter(|id| {
+                        data.mesh.node(id).is_some_and(|n| {
+                            n.file_path
+                                .to_string_lossy()
+                                .replace('\\', "/")
+                                .contains(&prefix_slash)
+                        })
+                    })
+                    .cloned()
+                    .collect()
+            };
+            if !in_app.is_empty() {
+                return self.pick_dominant_candidate(&in_app, name);
+            }
         }
         self.resolve_ranked(
             name,
@@ -1848,6 +1877,7 @@ impl NeuralProjectGraph {
                         | "route.ts"
                         | "web.php"
                         | "app.php"
+                        | "pinx"
                         | "vite.config.ts"
                         | "vite.config.js"
                         | "tauri.conf.json"
@@ -2067,8 +2097,8 @@ impl NeuralProjectGraph {
 
 fn type_search_rank(node_type: &NodeType) -> u8 {
     match node_type {
-        NodeType::Class | NodeType::Component | NodeType::Api => 3,
-        NodeType::Function => 2,
+        NodeType::Class | NodeType::Component | NodeType::Api | NodeType::DbModel => 3,
+        NodeType::Function | NodeType::Symbol => 2,
         NodeType::File => 0,
         _ => 1,
     }
@@ -2076,22 +2106,45 @@ fn type_search_rank(node_type: &NodeType) -> u8 {
 
 fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     let mut bonus = match node.node_type {
-        NodeType::Function | NodeType::Class | NodeType::Component | NodeType::Api => 8.0,
+        NodeType::Function
+        | NodeType::Class
+        | NodeType::Component
+        | NodeType::Api
+        | NodeType::DbModel => 8.0,
+        NodeType::Symbol if node.name.eq_ignore_ascii_case(query) => 8.0,
         NodeType::StyleToken => 6.0,
         NodeType::File => 1.0,
         _ => 0.0,
     };
-    if node.name == query {
+    if node.name.eq_ignore_ascii_case(query) {
         bonus += 16.0;
+    } else if query.len() >= 4 {
+        let spec = name_match_specificity(query, &node.name);
+        if spec > 0.0 {
+            bonus += 10.0 * spec;
+        }
     }
-    if path_echoes_symbol(&node.file_path, query) {
-        bonus += 12.0;
+    let decoy = is_name_collision_decoy(&node.file_path);
+    if !decoy {
+        if path_echoes_symbol(&node.file_path, query) {
+            bonus += 12.0;
+        }
+        if file_stem_equals(&node.file_path, query) {
+            bonus += 30.0;
+        }
+        if is_core_source_path(&node.file_path)
+            && (node.name.eq_ignore_ascii_case(query)
+                || file_stem_equals(&node.file_path, query)
+                || name_match_specificity(query, &node.name) >= 0.5)
+        {
+            bonus += 10.0;
+        }
     }
-    if file_stem_equals(&node.file_path, query) {
-        bonus += 30.0;
+    if is_json_schema_path(&node.file_path) {
+        bonus -= 20.0;
     }
     if is_fixture_path(&node.file_path) {
-        bonus -= 24.0;
+        bonus -= if decoy { 40.0 } else { 24.0 };
     }
     bonus
 }
@@ -2160,21 +2213,9 @@ pub fn path_echoes_symbol(path: &Path, query: &str) -> bool {
 
 fn is_fixture_path(path: &Path) -> bool {
     let lower = path.to_string_lossy().replace('\\', "/").to_lowercase();
-    lower.contains("/tests/")
-        || lower.contains("_tests.rs")
-        || lower.contains("/test/")
-        || lower.ends_with("/tests.rs")
-        || lower.contains("quality_tests")
+    is_low_priority_source_path(path)
         || lower.contains("/editors/")
         || lower.starts_with("editors/")
-        || lower.contains("/benches/")
-        || lower.starts_with("benches/")
-        || lower.contains("/examples/")
-        || lower.starts_with("examples/")
-        || lower.contains("/testdata/")
-        || lower.contains("/test_data/")
-        || lower.starts_with("testdata/")
-        || lower.starts_with("test_data/")
 }
 
 fn is_crate_path(path: &Path) -> bool {

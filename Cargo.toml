@@ -20,7 +20,7 @@ members = [
 exclude = ["tests/fixtures/mini-axum"]
 
 [workspace.package]
-version = "0.7.4"
+version = "0.7.6"
 edition = "2021"
 rust-version = "1.80"
 authors = ["NeuroMesh Team <team@neuromesh.local>"]

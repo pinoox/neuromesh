@@ -104,7 +104,9 @@ impl ProjectWalker {
                 || current.join("Package.swift").exists()
                 || current.join("Gemfile").exists()
                 || current.join("composer.json").exists()
+                || current.join("artisan").exists()
                 || current.join("app.php").exists()
+                || current.join("bin").join("pinx").exists()
                 || current.join("go.mod").exists()
                 || current.join("angular.json").exists()
                 || current.join("App.csproj").exists()
@@ -184,11 +186,26 @@ impl ProjectWalker {
                 || s_lower == ".playwright-cli"
                 || s_lower == ".playwright"
                 || s_lower == ".output"
+                || s_lower == "~pinx"
+                || s_lower == ".pinx"
             {
                 return true;
             }
         }
-        false
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        matches!(
+            name.as_str(),
+            "package-lock.json"
+                | "yarn.lock"
+                | "pnpm-lock.yaml"
+                | "bun.lock"
+                | "bun.lockb"
+                | "composer.lock"
+        )
     }
 
     pub fn scan(&self) -> Result<Vec<(IndexedFile, String)>> {
@@ -438,6 +455,19 @@ mod tests {
         assert!(!ProjectWalker::is_ignored(Path::new(
             "crates/foo/tests/gold.rs"
         )));
+        assert!(ProjectWalker::is_ignored(Path::new(
+            "~pinx/export/app.pinx"
+        )));
+        assert!(ProjectWalker::is_ignored(Path::new(
+            "apps/shop/.pinx/identity.json"
+        )));
+        assert!(
+            !ProjectWalker::is_ignored(Path::new("packages/bench/safeparse.ts")),
+            "JS bench/ stays indexed so ranking can deprioritize it vs production"
+        );
+        assert!(ProjectWalker::is_ignored(Path::new("composer.lock")));
+        assert!(ProjectWalker::is_ignored(Path::new("package-lock.json")));
+        assert!(!ProjectWalker::is_ignored(Path::new("composer.json")));
     }
 
     #[test]

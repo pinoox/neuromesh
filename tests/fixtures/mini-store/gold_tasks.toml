@@ -3,3 +3,11 @@ id = "cart_add"
 prompt = "How does addToCart use createStore?"
 gold_files = ["src/cart.ts", "src/store.ts"]
 expect_seeds_missed = false
+forbidden_files = ["src/theme.ts"]
+
+[[task]]
+id = "theme_tokens"
+prompt = "How does smsTheme use smsUnread from tokens.json?"
+gold_files = ["src/theme.ts", "src/tokens.json"]
+expect_seeds_missed = false
+forbidden_files = ["src/cart.ts"]

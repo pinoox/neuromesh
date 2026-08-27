@@ -62,7 +62,7 @@ impl VueParser {
                         source_symbol: filename.to_string(),
                         target_symbol: sym,
                         relationship: EdgeType::Imports,
-                        target_file_hint: Some(source_path.to_string()),
+                        target_file_hint: Some(vue_import_hint(source_path)),
                         receiver_hint: None,
                     });
                 }
@@ -75,11 +75,12 @@ impl VueParser {
 
         for cap in store_regex.captures_iter(content) {
             if let Some(store_hook) = cap.get(1) {
+                let hook = store_hook.as_str();
                 result.relationships.push(ParsedRelationship {
                     source_symbol: filename.to_string(),
-                    target_symbol: store_hook.as_str().to_string(),
+                    target_symbol: hook.to_string(),
                     relationship: EdgeType::DependsOn,
-                    target_file_hint: None,
+                    target_file_hint: Some(pinia_store_hint(hook)),
                     receiver_hint: None,
                 });
             }
@@ -100,19 +101,31 @@ impl VueParser {
             }
         }
 
-        // 4. Extract Template Component Usages
-        let tag_regex = Regex::new(r"<([A-Z][a-zA-Z0-9]+)[\s/>]").unwrap();
+        // 4. Extract Template Component Usages (PascalCase + kebab-case PrimeVue)
+        let tag_regex =
+            Regex::new(r"<([A-Z][a-zA-Z0-9]+|[a-z][a-z0-9]*(?:-[a-z0-9]+)+)[\s/>]").unwrap();
         for cap in tag_regex.captures_iter(content) {
             if let Some(tag) = cap.get(1) {
-                let child_component = tag.as_str();
-                if child_component != filename {
+                let child_component = vue_tag_to_component(tag.as_str());
+                if child_component != filename && !is_native_html_tag(tag.as_str()) {
                     result.relationships.push(ParsedRelationship {
                         source_symbol: filename.to_string(),
-                        target_symbol: child_component.to_string(),
+                        target_symbol: child_component.clone(),
                         relationship: EdgeType::Contains,
-                        target_file_hint: Some(format!("{}.vue", child_component)),
+                        target_file_hint: Some(format!("{child_component}.vue")),
                         receiver_hint: None,
                     });
+                    if tag.as_str().contains('-')
+                        && !result.symbols.iter().any(|s| s.name == child_component)
+                    {
+                        result.symbols.push(ParsedSymbol::new(
+                            &child_component,
+                            NodeType::Component,
+                            Some(format!("<{} />", tag.as_str())),
+                            1..2,
+                            false,
+                        ));
+                    }
                 }
             }
         }
@@ -150,4 +163,150 @@ impl VueParser {
 
         result
     }
+}
+
+fn vue_import_hint(source_path: &str) -> String {
+    let trimmed = source_path.trim();
+    if Path::new(trimmed)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| !e.is_empty())
+    {
+        return trimmed.to_string();
+    }
+    format!("{trimmed}.ts")
+}
+
+fn pinia_store_hint(hook: &str) -> String {
+    let stem = hook
+        .strip_prefix("use")
+        .unwrap_or(hook)
+        .strip_suffix("Store")
+        .unwrap_or(hook);
+    let mut out = String::new();
+    for (i, ch) in stem.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i > 0 {
+                out.push('-');
+            }
+            out.extend(ch.to_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    if out.is_empty() {
+        format!("{hook}.ts")
+    } else {
+        format!("stores/{out}.ts")
+    }
+}
+
+fn vue_tag_to_component(tag: &str) -> String {
+    if !tag.contains('-') {
+        return tag.to_string();
+    }
+    tag.split('-')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect()
+}
+
+fn is_native_html_tag(tag: &str) -> bool {
+    matches!(
+        tag,
+        "a" | "abbr"
+            | "article"
+            | "aside"
+            | "audio"
+            | "b"
+            | "blockquote"
+            | "body"
+            | "br"
+            | "button"
+            | "canvas"
+            | "caption"
+            | "code"
+            | "col"
+            | "colgroup"
+            | "data"
+            | "datalist"
+            | "dd"
+            | "details"
+            | "dialog"
+            | "div"
+            | "dl"
+            | "dt"
+            | "em"
+            | "embed"
+            | "fieldset"
+            | "figcaption"
+            | "figure"
+            | "footer"
+            | "form"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "head"
+            | "header"
+            | "hr"
+            | "html"
+            | "i"
+            | "iframe"
+            | "img"
+            | "input"
+            | "label"
+            | "legend"
+            | "li"
+            | "link"
+            | "main"
+            | "map"
+            | "meta"
+            | "nav"
+            | "object"
+            | "ol"
+            | "optgroup"
+            | "option"
+            | "p"
+            | "path"
+            | "picture"
+            | "pre"
+            | "progress"
+            | "script"
+            | "section"
+            | "select"
+            | "slot"
+            | "small"
+            | "source"
+            | "span"
+            | "strong"
+            | "style"
+            | "sub"
+            | "summary"
+            | "sup"
+            | "svg"
+            | "table"
+            | "tbody"
+            | "td"
+            | "template"
+            | "textarea"
+            | "tfoot"
+            | "th"
+            | "thead"
+            | "time"
+            | "title"
+            | "tr"
+            | "track"
+            | "ul"
+            | "video"
+            | "wbr"
+    )
 }

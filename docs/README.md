@@ -7,6 +7,8 @@ Start with the [root README](../README.md) if you want install and the agent loo
 | [Living systems](nature.md) | Physarum, STDP, exons, osmosis — mapped to crates |
 | [Architecture](architecture.md) | Pipeline, crate map, runtime guarantees |
 | [MCP tools](mcp.md) | What each tool returns and how the agent should call them |
+| [Agent guide](agent-guide.md) | Teach every IDE to prefer NeuroMesh (rules, AGENTS.md, smoke test) |
+| [Agent rule](agent-rule.mdc) | Cursor-ready `.mdc` template (same body as the guide) |
 | [CLI](cli.md) | Commands you run in a terminal |
 | [Quality](quality.md) | Gold harness, `neuromesh eval`, measured numbers |
 | [HTTP monitor](api.md) | Local UI, SSE, management endpoints |

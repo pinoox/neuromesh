@@ -1,4 +1,6 @@
-use neuromesh_core::{EdgeConfidence, EdgeType, NodeId, NodeType, OptimizationMode};
+use neuromesh_core::{
+    hmvc_app_prefix, EdgeConfidence, EdgeType, NodeId, NodeType, OptimizationMode,
+};
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -148,6 +150,9 @@ pub fn select(
                 continue;
             };
             if required.contains(&file_id) {
+                continue;
+            }
+            if hmvc_apps_conflict(&seed_node.file_path, &node.file_path) {
                 continue;
             }
             let stem_focus = focus_terms.iter().any(|t| file_stem_eq(&node.file_path, t));
@@ -371,6 +376,16 @@ pub fn select(
         .into_iter()
         .map(|(id, gain)| (id, gain.min(24.0)))
         .collect();
+    if let Some(lock) = locked_hmvc_prefix(graph, &required) {
+        optional_files.retain(|(id, _)| {
+            graph
+                .get_node(id)
+                .is_some_and(|node| match hmvc_app_prefix(&node.file_path) {
+                    Some(prefix) => prefix == lock,
+                    None => true,
+                })
+        });
+    }
     let mut owned_stems: HashSet<String> = HashSet::new();
     for id in required
         .iter()
@@ -561,6 +576,30 @@ fn crate_dir(path: &Path) -> String {
         .unwrap_or_else(|| "pkg".into())
 }
 
+fn locked_hmvc_prefix(graph: &NeuralProjectGraph, required: &HashSet<NodeId>) -> Option<String> {
+    let mut prefixes = HashSet::new();
+    for id in required {
+        if let Some(prefix) = graph
+            .get_node(id)
+            .and_then(|node| hmvc_app_prefix(&node.file_path))
+        {
+            prefixes.insert(prefix);
+        }
+    }
+    if prefixes.len() == 1 {
+        prefixes.into_iter().next()
+    } else {
+        None
+    }
+}
+
+fn hmvc_apps_conflict(seed: &Path, other: &Path) -> bool {
+    match (hmvc_app_prefix(seed), hmvc_app_prefix(other)) {
+        (Some(a), Some(b)) => a != b,
+        _ => false,
+    }
+}
+
 fn file_stem_eq(path: &Path, query: &str) -> bool {
     path.file_stem()
         .and_then(|s| s.to_str())
@@ -587,20 +626,9 @@ pub fn is_noise_path(path: &Path) -> bool {
         || lower.contains("/docs/")
         || lower.contains("/changelog")
         || lower.ends_with("/license")
-        || lower.contains("quality_tests")
-        || lower.contains("repo_quality_tests")
-        || lower.contains("/tests/")
-        || lower.contains("_tests.rs")
         || lower.contains("/editors/")
         || lower.starts_with("editors/")
-        || lower.contains("/benches/")
-        || lower.starts_with("benches/")
-        || lower.contains("/examples/")
-        || lower.starts_with("examples/")
-        || lower.contains("/testdata/")
-        || lower.contains("/test_data/")
-        || lower.starts_with("testdata/")
-        || lower.starts_with("test_data/")
+        || neuromesh_core::is_low_priority_source_path(path)
 }
 
 pub fn is_common_call(name: &str) -> bool {

@@ -67,12 +67,32 @@ impl TaskSignatureExtractor {
             "TypeScript".to_string()
         } else if lower.contains("golang") || lower.contains(" go ") {
             "Go".to_string()
+        } else if lower.contains("pinoox") || lower.contains("pinx") || lower.contains("pincore") {
+            "Pinoox".to_string()
+        } else if lower.contains("laravel") || lower.contains("eloquent") {
+            "Laravel".to_string()
+        } else if lower.contains("primevue") || lower.contains("prime vue") {
+            "Vue".to_string()
+        } else if lower.contains("javascript")
+            || lower.contains(".cjs")
+            || lower.contains(".mjs")
+            || lower.contains(".jsx")
+        {
+            "JavaScript".to_string()
+        } else if lower.contains(".sql")
+            || lower.contains("create table")
+            || lower.contains("postgres")
+            || lower.contains("mysql")
+        {
+            "SQL".to_string()
         } else {
             "Fullstack".to_string()
         };
 
         let style = if lower.contains("scss") || lower.contains("sass") {
             Some("SCSS".to_string())
+        } else if lower.contains("less") {
+            Some("Less".to_string())
         } else if lower.contains("tailwind") {
             Some("Tailwind".to_string())
         } else if lower.contains("css") {
