@@ -681,6 +681,11 @@ impl McpToolHandler {
                 self.record_mycelium_path(&path);
 
                 let pid = self.graph.project_id();
+                let learning_episodes_in_store = self
+                    .memory_db
+                    .list_project_episodes(&pid)
+                    .map(|eps| eps.len())
+                    .unwrap_or(0);
                 let mut episode_id = String::new();
                 if !path.is_empty() {
                     let summary = if success {
@@ -722,6 +727,9 @@ impl McpToolHandler {
                     "path_nodes": path.len(),
                     "resolved_nodes": resolved,
                     "weight_deltas": weight_deltas,
+                    "episode_saved_this_call": !path.is_empty(),
+                    "learning_episodes_in_store": learning_episodes_in_store,
+                    "persisted_to": "graph.bin",
                     "episodes_recorded": if path.is_empty() { 0 } else { 1 },
                     "updated_graph_stats": self.graph.stats()
                 }))

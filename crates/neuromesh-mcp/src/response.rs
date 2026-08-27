@@ -42,6 +42,7 @@ pub struct FileEntry {
     pub code: String,
     pub tokens: usize,
     pub why: Option<String>,
+    pub sidecar: bool,
     pub line_range: Option<std::ops::Range<usize>>,
     pub folded_symbols: Vec<String>,
     pub folds: Vec<FoldDescriptor>,
@@ -64,9 +65,15 @@ struct MinimalFile {
     path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     why: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    sidecar: bool,
     code: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     folds: Vec<Value>,
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
 }
 
 #[derive(Serialize)]
@@ -96,6 +103,7 @@ pub fn collect_file_entries(
                 code: n.node.content.clone().unwrap_or_default(),
                 tokens: n.node.token_cost,
                 why: n.expansion_reason.clone(),
+                sidecar: n.sidecar,
                 line_range: n.node.line_range.clone(),
                 folded_symbols: n.folded_symbols.clone(),
                 folds,
@@ -274,6 +282,7 @@ impl ContextBuild<'_> {
             .map(|f| MinimalFile {
                 path: f.path.clone(),
                 why: f.why.clone().filter(|s| !s.is_empty()),
+                sidecar: f.sidecar,
                 code: f.code.clone(),
                 folds: f
                     .folds
@@ -310,6 +319,9 @@ impl ContextBuild<'_> {
                 });
                 if let Some(why) = f.why.as_ref().filter(|s| !s.is_empty()) {
                     obj["why"] = json!(why);
+                }
+                if f.sidecar {
+                    obj["sidecar"] = json!(true);
                 }
                 if let Some(range) = &f.line_range {
                     obj["line_range"] = json!(range);
@@ -394,6 +406,7 @@ impl ContextBuild<'_> {
                         "skeleton": f.code,
                         "tokens": f.tokens,
                         "why": f.why,
+                        "sidecar": f.sidecar,
                         "line_range": f.line_range,
                         "folded_symbols": f.folded_symbols,
                         "folds": f.folds.iter().map(|d| d.fold_id.clone()).collect::<Vec<_>>(),

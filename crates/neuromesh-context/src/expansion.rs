@@ -67,6 +67,7 @@ impl ExpansionEngine {
             activation_score: 1.0,
             status: ContextStatus::Expanded,
             expansion_reason: Some(reason.to_string()),
+            sidecar: false,
             folded_symbols: Vec::new(),
         };
 

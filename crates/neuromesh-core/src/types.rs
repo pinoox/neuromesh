@@ -277,15 +277,29 @@ pub struct CoverageReport {
     /// For style tasks: share of packet files under styles/ (0.0–1.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub semantic_coverage: Option<f32>,
+    /// Connector / physarum fill files included for context but not task anchors.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sidecar_files: Vec<String>,
 }
 
 impl CoverageReport {
-    /// `no_recorded_gap` only when every *attempted* seed resolved and packet gaps are empty.
-    /// `unresolved` on the packet is graph call/import gaps, not this list.
+    /// `no_recorded_gap` only when every attempted seed resolved, packet gaps are empty,
+    /// no sidecar connector files, and the packet was not truncated by budget.
+    /// `bounded` when seeds resolved but optional connector/sidecar fill or budget cut applied.
     pub fn from_seeds(seeds: &[SeedResolution]) -> Self {
-        Self::from_seeds_with_gaps(seeds, Vec::new(), Vec::new(), Vec::new(), Vec::new(), None)
+        Self::from_seeds_with_gaps(
+            seeds,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            None,
+            Vec::new(),
+            false,
+        )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn from_seeds_with_gaps(
         seeds: &[SeedResolution],
         packet_gaps: Vec<PacketGap>,
@@ -293,6 +307,8 @@ impl CoverageReport {
         covered: Vec<String>,
         skipped: Vec<SkippedFile>,
         semantic_coverage: Option<f32>,
+        sidecar_files: Vec<String>,
+        budget_truncated: bool,
     ) -> Self {
         let seeds_hit: Vec<String> = seeds
             .iter()
@@ -306,10 +322,12 @@ impl CoverageReport {
             .collect();
         let claim = if seeds_hit.is_empty() {
             "no_seed_resolved".to_string()
-        } else if seeds_missed.is_empty() && packet_gaps.is_empty() {
-            "no_recorded_gap".to_string()
-        } else {
+        } else if !seeds_missed.is_empty() || !packet_gaps.is_empty() {
             "partial".to_string()
+        } else if !sidecar_files.is_empty() || budget_truncated {
+            "bounded".to_string()
+        } else {
+            "no_recorded_gap".to_string()
         };
         Self {
             seeds_hit,
@@ -320,6 +338,7 @@ impl CoverageReport {
             covered,
             skipped,
             semantic_coverage,
+            sidecar_files,
         }
     }
 }
@@ -368,6 +387,8 @@ pub struct ActivatedNodeView {
     pub activation_score: f32,
     pub status: ContextStatus,
     pub expansion_reason: Option<String>,
+    #[serde(default)]
+    pub sidecar: bool,
     #[serde(default)]
     pub folded_symbols: Vec<String>,
 }
@@ -484,5 +505,26 @@ mod tests {
         );
         let bare = NodeId::from_symbol("gson/TypeAdapter.java", "write");
         assert_eq!(bare.as_str(), "sym:gson/TypeAdapter.java:write");
+    }
+
+    #[test]
+    fn coverage_claim_bounded_when_sidecars_present() {
+        use super::{CoverageReport, SeedResolution};
+        let seeds = vec![SeedResolution {
+            query: "CheckoutView".into(),
+            resolved_id: Some(NodeId::new("file:checkout")),
+            confidence: 1.0,
+        }];
+        let report = CoverageReport::from_seeds_with_gaps(
+            &seeds,
+            Vec::new(),
+            Vec::new(),
+            vec!["src/CheckoutView.vue".into()],
+            Vec::new(),
+            None,
+            vec!["src/App.vue".into()],
+            false,
+        );
+        assert_eq!(report.claim, "bounded");
     }
 }

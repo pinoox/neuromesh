@@ -105,9 +105,9 @@ Aliases exist for older clients (`activate_context`, `expand_context`, `search_c
 `neuromesh_get_context` is the product. Default (`response_detail=minimal`) shape:
 
 - `packet_id` — session key for `neuromesh_explain_packet` (LRU, ~10 minutes, 32 packets)
-- `coverage` — `claim` (`no_recorded_gap`, `partial`, `no_seed_resolved`), plus `covered`, `skipped`, `unsure`, `packet_gaps`, and optional `semantic_coverage` for style tasks. `no_recorded_gap` only when every attempted seed resolved **and** `packet_gaps` is empty
+- `coverage` — `claim` (`no_recorded_gap`, `bounded`, `partial`, `no_seed_resolved`), plus `covered`, `skipped`, `sidecar_files`, `unsure`, `packet_gaps`, and optional `semantic_coverage` for style tasks. `no_recorded_gap` only when every attempted seed resolved, `packet_gaps` is empty, no sidecar connector files, and the packet was not budget-truncated. `bounded` means seeds resolved but optional connector/sidecar fill or budget cut was applied — do not Grep unless you need more context.
 - `tokens.selected` / `tokens.packet` — raw selected vs skeletonized packet
-- `files[]` — `path`, short `why`, skeleton `code`, `folds[]` as descriptors (`fold_id`, `symbol`, `signature`, lines, `saved_tokens`) with **no** `original_body`
+- `files[]` — `path`, short `why`, optional `sidecar: true` (connector fill, not a task anchor), skeleton `code`, `folds[]` as descriptors (`fold_id`, `symbol`, `signature`, lines, `saved_tokens`) with **no** `original_body`
 - `missing` / `next` — only when coverage is incomplete; one search action, not a repeated seed list
 
 `mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality. `mode` does not add metadata; `response_detail` does (`minimal` ≤ 256 metadata tokens, `standard` ≤ 750, `diagnostic` on demand).
@@ -126,4 +126,4 @@ Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `quer
 
 ## Learning
 
-`neuromesh_record_feedback` updates `base_relevance`, edge pheromones, and episodic memory on disk (`graph.bin`, `neuromesh.json`). Effects apply on the **next** `get_context` in the same MCP process (search ranking, selector fill, episodic recall). Use `neuromesh_get_node_weights` before and after feedback to verify deltas. Learning does not change a packet mid-request; restart the MCP server to load persisted graph state from a prior session.
+`neuromesh_record_feedback` updates `base_relevance`, edge pheromones, and episodic memory. **Durable weights** persist in `graph.bin` (episode checkpoints in the snapshot); `neuromesh.json` holds episodic records for recall. The response includes `episode_saved_this_call`, `learning_episodes_in_store`, and `persisted_to: "graph.bin"` (`episodes_recorded` is a per-call 0/1 compat field). Effects apply on the **next** `get_context` in the same MCP process (search ranking, selector fill, episodic recall). Use `neuromesh_get_node_weights` before and after feedback to verify deltas. Learning does not change a packet mid-request; restart the MCP server to load persisted graph state from a prior session.

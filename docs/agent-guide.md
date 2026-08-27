@@ -25,7 +25,7 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 ## Default loop
 
 1. Start with `neuromesh_get_context` using the task as written (`task_description` / `prompt` / `task`).
-2. If `coverage.claim` is `partial` or `no_seed_resolved`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep.
+2. If `coverage.claim` is `partial` or `no_seed_resolved`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
 3. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
 4. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
 5. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched. Use `neuromesh_get_node_weights` before/after to verify learning deltas when debugging routing.

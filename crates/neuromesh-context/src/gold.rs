@@ -1100,9 +1100,14 @@ forbidden_files = ["src/directive/clipboard.js", "src/views/profile/UserCard.vue
                     task.id,
                     packet_file_names(&view)
                 );
-                assert_eq!(
-                    view.coverage.as_ref().map(|c| c.claim.as_str()),
-                    Some("no_recorded_gap")
+                assert!(
+                    matches!(
+                        view.coverage.as_ref().map(|c| c.claim.as_str()),
+                        Some("no_recorded_gap") | Some("bounded")
+                    ),
+                    "{} unexpected coverage {:?}",
+                    task.id,
+                    view.coverage
                 );
             }
             scored.push(metrics);
