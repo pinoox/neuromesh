@@ -28,6 +28,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Bump when parser/linker output changes; older snapshots re-parse on load.
+pub const GRAPH_PARSER_EPOCH: u32 = 3;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphStats {
     pub total_nodes: usize,
@@ -1385,12 +1388,46 @@ impl NeuralProjectGraph {
         self.save_to(&Self::persist_path(workspace))
     }
 
+    pub fn save_persisted_if_ready(&self) -> neuromesh_core::Result<()> {
+        if let Some(workspace) = self.persist_workspace() {
+            self.save_persisted(&workspace)?;
+        }
+        Ok(())
+    }
+
     pub fn set_workspace(&self, workspace: &Path) {
         self.inner.write().workspace_root = Some(workspace.to_path_buf());
     }
 
     pub fn workspace_root(&self) -> Option<PathBuf> {
         self.inner.read().workspace_root.clone()
+    }
+
+    /// Workspace directory for graph/memory persistence (never silently use wrong cwd).
+    pub fn persist_workspace(&self) -> Option<PathBuf> {
+        self.workspace_root()
+    }
+
+    pub fn parser_epoch(&self) -> u32 {
+        self.inner.read().parser_epoch
+    }
+
+    pub fn learning_episode_applied(&self, episode_id: &str) -> bool {
+        self.inner
+            .read()
+            .applied_learning_episodes
+            .contains(episode_id)
+    }
+
+    pub fn mark_learning_episode_applied(&self, episode_id: &str) {
+        self.inner
+            .write()
+            .applied_learning_episodes
+            .insert(episode_id.to_string());
+    }
+
+    pub fn needs_parser_relink(&self) -> bool {
+        self.parser_epoch() < GRAPH_PARSER_EPOCH
     }
 
     pub fn file_fingerprints(&self) -> HashMap<String, FileFingerprint> {
@@ -1440,6 +1477,7 @@ impl NeuralProjectGraph {
         match walker.scan_report_with(&self.file_fingerprints()) {
             Ok(report) => {
                 self.ingest_scan_report(&report);
+                self.inner.write().parser_epoch = GRAPH_PARSER_EPOCH;
                 let _ = self.save_persisted(workspace);
                 self.mark_index_ready();
             }
@@ -1543,7 +1581,7 @@ impl NeuralProjectGraph {
         let snapshot = {
             let data = self.inner.read();
             GraphSnapshot {
-                version: 2,
+                version: 3,
                 nodes: data
                     .mesh
                     .nodes()
@@ -1559,6 +1597,8 @@ impl NeuralProjectGraph {
                 indexed_at: data.indexed_at,
                 stale_files: data.stale_files.clone(),
                 workspace_root: data.workspace_root.clone(),
+                parser_epoch: data.parser_epoch.max(GRAPH_PARSER_EPOCH),
+                applied_learning_episodes: data.applied_learning_episodes.clone(),
             }
         };
         if snapshot_structurally_unchanged(path, &snapshot) {
@@ -1602,6 +1642,8 @@ impl NeuralProjectGraph {
                 indexed_at: legacy.indexed_at,
                 stale_files: legacy.stale_files,
                 workspace_root: None,
+                parser_epoch: 0,
+                applied_learning_episodes: HashSet::new(),
             });
             return Ok(true);
         }
@@ -1609,6 +1651,7 @@ impl NeuralProjectGraph {
     }
 
     fn install_snapshot(&self, snapshot: GraphSnapshot) {
+        let relink_needed = snapshot.parser_epoch < GRAPH_PARSER_EPOCH;
         let mut data = self.inner.write();
         data.mesh.load_lists(snapshot.nodes, snapshot.edges);
         data.pending = snapshot.pending;
@@ -1619,8 +1662,14 @@ impl NeuralProjectGraph {
         data.generation = snapshot.generation;
         data.indexed_at = snapshot.indexed_at;
         data.stale_files = snapshot.stale_files;
+        data.applied_learning_episodes = snapshot.applied_learning_episodes;
+        data.parser_epoch = snapshot.parser_epoch;
         if snapshot.workspace_root.is_some() {
             data.workspace_root = snapshot.workspace_root;
+        }
+        if relink_needed {
+            data.file_hashes.clear();
+            data.parser_epoch = 0;
         }
         data.source_overlay.clear();
         rebuild_indexes(&mut data);
@@ -2567,13 +2616,17 @@ fn structural_digest(snapshot: &GraphSnapshot) -> String {
         })
         .collect();
     edge_learning.sort();
+    let mut applied: Vec<String> = snapshot.applied_learning_episodes.iter().cloned().collect();
+    applied.sort();
     let payload = format!(
-        "{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}|{}|{}|{}",
         node_ids.join("\n"),
         edge_ids.join("\n"),
         hashes.join("\n"),
         learning.join("\n"),
-        edge_learning.join("\n")
+        edge_learning.join("\n"),
+        applied.join("\n"),
+        snapshot.parser_epoch
     );
     neuromesh_index::ContentHasher::hash_str(&payload)
 }

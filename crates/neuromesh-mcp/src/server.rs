@@ -58,6 +58,7 @@ impl McpServer {
             }
         }
 
+        self.handler.flush_on_shutdown();
         Ok(())
     }
 

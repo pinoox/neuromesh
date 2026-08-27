@@ -5,12 +5,20 @@ use neuromesh_memory::{replay_unapplied_episodes, LearningReplayTarget, MemoryDa
 struct GraphLearning<'a>(&'a NeuralProjectGraph);
 
 impl LearningReplayTarget for GraphLearning<'_> {
-    fn node_access_count(&self, id: &NodeId) -> Option<u64> {
-        self.0.get_node(id).map(|node| node.access_count)
+    fn learning_episode_applied(&self, episode_id: &str) -> bool {
+        self.0.learning_episode_applied(episode_id)
+    }
+
+    fn mark_learning_episode_applied(&self, episode_id: &str) {
+        self.0.mark_learning_episode_applied(episode_id);
     }
 
     fn replay_learning_paths(&self, paths: &[(&[NodeId], bool)]) {
         NeuralProjectGraph::replay_learning_paths(self.0, paths);
+    }
+
+    fn persist_replayed_learning(&self) -> Result<()> {
+        self.0.save_persisted_if_ready()
     }
 }
 
