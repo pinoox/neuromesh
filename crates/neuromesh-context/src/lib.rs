@@ -4,10 +4,12 @@ pub mod expansion;
 pub mod fold;
 pub mod genetic_optimizer;
 pub mod gold;
+pub mod packet_analysis;
 pub mod registry;
 pub mod scoring;
 pub mod selector;
 pub mod skeleton;
+pub mod style_routing;
 
 pub use activator::{ContextActivator, PacketSnapshot, PhysarumTelemetry};
 pub use dedup::ContextDeduplicator;

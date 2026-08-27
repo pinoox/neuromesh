@@ -230,16 +230,46 @@ pub struct SeedResolution {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PacketGap {
+    pub kind: String,
+    pub path: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StructuralEvidence {
+    pub symbol: String,
+    pub path: String,
+    pub line: Option<usize>,
+    pub callers_count: usize,
+    pub is_dead: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoverageReport {
     pub seeds_hit: Vec<String>,
     pub seeds_missed: Vec<String>,
     pub claim: String,
+    /// Files the task likely needs but that are not in the packet.
+    #[serde(default)]
+    pub packet_gaps: Vec<PacketGap>,
+    /// Near-miss files worth expanding before Grep.
+    #[serde(default)]
+    pub unsure: Vec<String>,
 }
 
 impl CoverageReport {
-    /// `no_recorded_gap` only when every *attempted* seed resolved.
+    /// `no_recorded_gap` only when every *attempted* seed resolved and packet gaps are empty.
     /// `unresolved` on the packet is graph call/import gaps, not this list.
     pub fn from_seeds(seeds: &[SeedResolution]) -> Self {
+        Self::from_seeds_with_gaps(seeds, Vec::new(), Vec::new())
+    }
+
+    pub fn from_seeds_with_gaps(
+        seeds: &[SeedResolution],
+        packet_gaps: Vec<PacketGap>,
+        unsure: Vec<String>,
+    ) -> Self {
         let seeds_hit: Vec<String> = seeds
             .iter()
             .filter(|s| s.resolved_id.is_some())
@@ -250,10 +280,10 @@ impl CoverageReport {
             .filter(|s| s.resolved_id.is_none())
             .map(|s| s.query.clone())
             .collect();
-        let claim = if seeds.is_empty() || seeds_missed.is_empty() {
-            "no_recorded_gap".to_string()
-        } else if seeds_hit.is_empty() {
+        let claim = if seeds_hit.is_empty() {
             "no_seed_resolved".to_string()
+        } else if seeds_missed.is_empty() && packet_gaps.is_empty() {
+            "no_recorded_gap".to_string()
         } else {
             "partial".to_string()
         };
@@ -261,6 +291,8 @@ impl CoverageReport {
             seeds_hit,
             seeds_missed,
             claim,
+            packet_gaps,
+            unsure,
         }
     }
 }
@@ -366,6 +398,9 @@ pub struct ContextView {
     /// `seed_then_fill` or `physarum_seed_fill`.
     #[serde(default)]
     pub selection_method: String,
+    /// Caller counts / dead-code hints for seeded symbols.
+    #[serde(default)]
+    pub structural_evidence: Vec<StructuralEvidence>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

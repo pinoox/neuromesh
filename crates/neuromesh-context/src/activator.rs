@@ -1,10 +1,16 @@
 use crate::fold::{FoldPolicy, OPTIONAL_EXON_BUDGET, SEED_EXON_BUDGET};
+use crate::packet_analysis::{
+    build_structural_evidence, compute_packet_gaps, enrich_coverage, inject_caller_context,
+};
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
 use crate::selector::{
     budget_mode_name, fill_budget, is_noise_path, packet_cap, seed_callee_exon_names, select,
 };
 use crate::skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan};
+use crate::style_routing::{
+    inject_style_seeds, inject_view_component_seeds, is_style_task, style_noise_penalty,
+};
 use neuromesh_core::{
     decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, is_schema_path,
     prompt_targets_database, prompt_targets_types, ActivatedNodeView, ContextStatus, ContextView,
@@ -188,7 +194,7 @@ impl ContextActivator {
                 sink.push(graph, prompt, query, energy, reason);
             }
 
-            if sink.energies.is_empty() {
+            if sink.energies.is_empty() && !is_style_task(signature) {
                 for token in signature.raw_prompt.split_whitespace().take(8) {
                     let clean = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
                     if clean.len() < 4 {
@@ -206,6 +212,15 @@ impl ContextActivator {
             &mut seed_energies,
             &mut seed_reasons,
         );
+        {
+            let mut sink = SeedSink {
+                resolutions: &mut seed_resolutions,
+                energies: &mut seed_energies,
+                reasons: &mut seed_reasons,
+            };
+            inject_style_seeds(graph, prompt, signature, &mut sink);
+            inject_view_component_seeds(graph, prompt, signature, &mut sink);
+        }
         mark_equivalent_file_hits(graph, &mut seed_resolutions, &mut seed_energies);
         cohere_ambiguous_seeds_to_app(graph, &mut seed_resolutions, &mut seed_energies, prompt);
 
@@ -251,6 +266,26 @@ impl ContextActivator {
             &focus_terms,
             effective_mode,
         );
+        inject_caller_context(graph, &seed_set, prompt, &mut selection);
+        if is_style_task(signature) {
+            selection.optional.retain(|id| {
+                graph
+                    .get_node(id)
+                    .map(|n| style_noise_penalty(&n.file_path, signature) < 20.0)
+                    .unwrap_or(true)
+            });
+            for id in selection.optional.clone() {
+                let Some(node) = graph.get_node(&id) else {
+                    continue;
+                };
+                let penalty = style_noise_penalty(&node.file_path, signature);
+                if penalty > 0.0 {
+                    if let Some(score) = selection.scores.get_mut(&id) {
+                        *score = (*score - penalty).max(0.0);
+                    }
+                }
+            }
+        }
         let fill_cap = fill_budget(effective_mode);
 
         let mut physarum_used = false;
@@ -387,10 +422,11 @@ impl ContextActivator {
                 }
             }
             let rel_strength = *seed_energies.get(id).unwrap_or(&0.35);
+            let hist_success = (node.base_relevance / 3.0).clamp(0.20, 1.0);
             let score = scores
                 .get(id)
                 .copied()
-                .unwrap_or_else(|| scorer.score_node(&node, signature, rel_strength, 1.0));
+                .unwrap_or_else(|| scorer.score_node(&node, signature, rel_strength, hist_success));
             let reason = seed_reasons.get(id).cloned().unwrap_or_else(|| {
                 scores
                     .get(id)
@@ -562,11 +598,14 @@ impl ContextActivator {
             0.0
         };
 
-        let coverage = CoverageReport::from_seeds(&seed_resolutions);
         let selected_paths: HashSet<String> = active_nodes
             .iter()
             .map(|n| n.node.file_path.to_string_lossy().replace('\\', "/"))
             .collect();
+        let (packet_gaps, unsure) =
+            compute_packet_gaps(graph, &seed_set, &selected_paths, signature);
+        let coverage = enrich_coverage(&seed_resolutions, packet_gaps, unsure);
+        let structural_evidence = build_structural_evidence(graph, &seed_set);
         let unresolved: Vec<_> = graph
             .unresolved_refs()
             .into_iter()
@@ -612,20 +651,21 @@ impl ContextActivator {
             physarum_used,
             physarum_ms,
             selection_method: selection.method.to_string(),
+            structural_evidence,
         };
         *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
         view
     }
 }
 
-struct SeedSink<'a> {
+pub(crate) struct SeedSink<'a> {
     resolutions: &'a mut Vec<SeedResolution>,
     energies: &'a mut HashMap<NodeId, f32>,
     reasons: &'a mut HashMap<NodeId, String>,
 }
 
 impl SeedSink<'_> {
-    fn push(
+    pub(crate) fn push(
         &mut self,
         graph: &NeuralProjectGraph,
         prompt: &str,
@@ -1217,6 +1257,13 @@ fn build_next_actions(
                 tool: "neuromesh_search_symbols".into(),
                 query: missed.clone(),
                 why: why.into(),
+            });
+        }
+        for gap in &coverage.packet_gaps {
+            actions.push(NextAction {
+                tool: "neuromesh_search_symbols".into(),
+                query: gap.path.clone(),
+                why: format!("packet gap ({}): {}", gap.kind, gap.reason),
             });
         }
     }
@@ -2730,5 +2777,110 @@ export function clipboard(el, binding) {
             "partial coverage must offer Grep, next={:?}",
             view.next_actions
         );
+    }
+
+    #[test]
+    fn style_task_seeds_tokens_and_product_card() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_lang(
+            &graph,
+            "src/styles/_tokens.scss",
+            "$radius-sm: 8px;\n$shadow-lift: 0 4px 12px rgba(0,0,0,.12);\n",
+            SourceLanguage::SCSS,
+        );
+        ingest_lang(
+            &graph,
+            "src/styles/_mixins.scss",
+            "@mixin card-base { border-radius: $radius-sm; }\n",
+            SourceLanguage::SCSS,
+        );
+        ingest_vue(
+            &graph,
+            "src/components/ProductCard.vue",
+            r#"<script setup>
+defineProps({ product: Object })
+</script>
+<template><article class="product-card">{{ product.name }}</article></template>
+<style lang="scss" scoped>
+@use '../styles/tokens.scss' as *;
+.product-card { border-radius: $radius-sm; }
+</style>
+"#,
+        );
+        ingest_js(
+            &graph,
+            "src/stores/cart.js",
+            "export function applyPromo(code) { return code }\n",
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "Apply hover-lift and focus-within styles to ProductCard using SCSS tokens and mixins",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let files = packet_paths(&view);
+        assert!(
+            files.iter().any(|p| p.contains("ProductCard")),
+            "ProductCard must be in packet, files={files:?}"
+        );
+        assert!(
+            files
+                .iter()
+                .any(|p| p.contains("tokens") || p.contains("mixins")),
+            "style task must include tokens/mixins, files={files:?}"
+        );
+    }
+
+    #[test]
+    fn dead_code_task_flags_missing_callers_as_packet_gap() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_js(
+            &graph,
+            "src/stores/ui.js",
+            r#"
+export function goCart() { return 'cart' }
+export function goCheckout() { return 'checkout' }
+"#,
+        );
+        ingest_vue(
+            &graph,
+            "src/App.vue",
+            r#"<script setup>
+import { goCart } from './stores/ui.js'
+goCart()
+</script>
+<template><div /></template>
+"#,
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "Find unused goCart in ui store and list all references across the project",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        assert!(
+            view.structural_evidence
+                .iter()
+                .any(|e| e.symbol == "goCart"),
+            "structural evidence must include goCart, evidence={:?}",
+            view.structural_evidence
+        );
+        if !coverage.packet_gaps.is_empty() {
+            assert_eq!(
+                coverage.claim, "partial",
+                "missing caller files must downgrade coverage, coverage={coverage:?}"
+            );
+        }
     }
 }

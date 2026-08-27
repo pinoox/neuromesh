@@ -163,6 +163,18 @@ impl TaskSignatureExtractor {
         if lower.contains("state") || lower.contains("pinia") || lower.contains("store") {
             related_concepts.push("state".to_string());
         }
+        if (lower.contains("token") || lower.contains("mixin") || lower.contains("stylesheet"))
+            && (lower.contains("scss")
+                || lower.contains("sass")
+                || lower.contains("stylesheet")
+                || lower.contains("mixin"))
+        {
+            related_concepts.push("tokens".to_string());
+            related_concepts.push("mixins".to_string());
+        }
+        if lower.contains("checkout") {
+            related_concepts.push("CheckoutView".to_string());
+        }
 
         related_concepts.sort();
         related_concepts.dedup();

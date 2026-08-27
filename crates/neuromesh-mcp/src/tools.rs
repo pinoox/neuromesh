@@ -568,17 +568,60 @@ impl McpToolHandler {
                 let touched_nodes = read_string_list(arguments, "touched_nodes");
 
                 let mut path: Vec<NodeId> = Vec::new();
+                let mut resolved: Vec<Value> = Vec::new();
+                let mut weight_deltas: Vec<Value> = Vec::new();
                 for node_name in &touched_nodes {
-                    let node_id = NodeId::new(node_name);
+                    let Some(node) = self.graph.resolve_feedback_node(node_name) else {
+                        resolved.push(json!({
+                            "query": node_name,
+                            "resolved": false
+                        }));
+                        continue;
+                    };
+                    let delta = self.graph.reinforce_node_access(&node.id, success);
                     self.graph
-                        .record_neural_spike(node_id.clone(), true, success);
-                    path.push(node_id);
+                        .record_neural_spike(node.id.clone(), true, success);
+                    path.push(node.id.clone());
+                    resolved.push(json!({
+                        "query": node_name,
+                        "resolved": true,
+                        "node_id": node.id.as_str(),
+                        "name": node.name,
+                        "path": node.file_path.to_string_lossy().replace('\\', "/"),
+                        "relevance_delta": delta,
+                        "access_count": node.access_count.saturating_add(1),
+                        "base_relevance": (node.base_relevance + delta).min(3.0)
+                    }));
+                    weight_deltas.push(json!({
+                        "node_id": node.id.as_str(),
+                        "relevance_delta": delta
+                    }));
                 }
                 self.graph.apply_stdp_on_path(&path);
                 self.graph.reinforce_path(&path, success);
                 self.record_mycelium_path(&path);
                 if let Ok(cwd) = std::env::current_dir() {
                     let _ = self.graph.save_persisted(&cwd);
+                }
+
+                let pid = self.graph.project_id();
+                if !path.is_empty() {
+                    let summary = if success {
+                        format!("successful edit touching {}", path.len())
+                    } else {
+                        format!("failed attempt touching {}", path.len())
+                    };
+                    let episode = neuromesh_memory::EpisodicRecord::new(
+                        pid.clone(),
+                        format!("feedback:{summary}"),
+                        if success { "success" } else { "failure" }.into(),
+                        summary,
+                        path.clone(),
+                        touched_nodes.clone(),
+                        success,
+                        0,
+                    );
+                    let _ = self.memory_db.save_episodic_record(&episode);
                 }
 
                 self.emit_telemetry(ToolTelemetry {
@@ -595,6 +638,9 @@ impl McpToolHandler {
                     "success": success,
                     "stdp_learning_applied": true,
                     "path_nodes": path.len(),
+                    "resolved_nodes": resolved,
+                    "weight_deltas": weight_deltas,
+                    "episodes_recorded": if path.is_empty() { 0 } else { 1 },
                     "updated_graph_stats": self.graph.stats()
                 }))
             }
