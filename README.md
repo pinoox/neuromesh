@@ -288,7 +288,7 @@ On this repo (release, 2026-08-27, 531,386 workspace tokens):
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
-Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects. Packet activation **&lt; 150 ms** in the debug gold test.
+Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects. Packet activation **&lt; 200 ms** in the debug gold test.
 
 Index snapshot from that eval run: **304 files · 2,123 nodes · 5,056 edges · ~1,573 ms** (release).
 

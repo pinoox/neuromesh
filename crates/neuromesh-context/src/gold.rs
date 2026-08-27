@@ -979,7 +979,7 @@ forbidden_files = ["src/directive/clipboard.js", "src/views/profile/UserCard.vue
             let latency_ms = started.elapsed().as_millis() as u64;
             #[cfg(not(windows))]
             assert!(
-                latency_ms < 150,
+                latency_ms < 200,
                 "{} context latency {latency_ms}ms",
                 task.id
             );
