@@ -4,6 +4,15 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.8 — 2026-08-28
+
+RETEST v0.7.7 follow-up: cross-session learning, Vue trace edges, and honest fuzzy trace.
+
+- **Learning persistence.** `graph.bin` snapshot digest now includes `access_count`, `base_relevance`, and edge pheromone weights so `save_persisted` after `record_feedback` is not skipped as “structurally unchanged”. Episodes replay on MCP startup when graph nodes are still cold (`warmup_project_learning`).
+- **Vue trace / dead-code.** Pinia `actions` methods become `Function` symbols; template `@click` / `@view` and `<script setup>` store calls emit `Calls` edges; store file hints are extension-agnostic (`stores/ui` resolves `ui.js`). `trace` inbound callers work for `goCheckout` and similar.
+- **Trace honesty.** `TraceResult.origin_reliable` and `match_reason: "fuzzy"` when the seed is not an exact/prefix hit — agents must not treat fuzzy origins as dead-code proof.
+- **Pinia alias resolve.** Store alias `ui` maps to `useUiStore::action` during call linking.
+
 ## 0.7.7 — 2026-08-28
 
 Benchmark-driven routing, honest coverage, and a falsifiable learning loop (Vue shop fixture).

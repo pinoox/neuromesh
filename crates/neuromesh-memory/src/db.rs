@@ -3,7 +3,7 @@ use crate::project::ProjectFact;
 use neuromesh_core::{ProjectId, Result};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -12,6 +12,8 @@ use std::sync::Arc;
 struct StorageData {
     project_facts: HashMap<String, ProjectFact>,
     episodes: Vec<EpisodicRecord>,
+    #[serde(default)]
+    replayed_episode_ids: HashSet<String>,
 }
 
 pub struct MemoryDatabase {
@@ -79,6 +81,43 @@ impl MemoryDatabase {
         self.data.write().episodes.push(record.clone());
         self.persist()?;
         Ok(())
+    }
+
+    pub fn list_project_episodes(&self, project_id: &ProjectId) -> Result<Vec<EpisodicRecord>> {
+        let data = self.data.read();
+        let mut episodes: Vec<EpisodicRecord> = data
+            .episodes
+            .iter()
+            .filter(|e| e.project_id == *project_id)
+            .cloned()
+            .collect();
+        episodes.sort_by_key(|e| e.created_at);
+        Ok(episodes)
+    }
+
+    pub fn unreplayed_episodes(&self, project_id: &ProjectId) -> Result<Vec<EpisodicRecord>> {
+        let data = self.data.read();
+        let mut episodes: Vec<EpisodicRecord> = data
+            .episodes
+            .iter()
+            .filter(|e| e.project_id == *project_id && !data.replayed_episode_ids.contains(&e.id))
+            .cloned()
+            .collect();
+        episodes.sort_by_key(|e| e.created_at);
+        Ok(episodes)
+    }
+
+    pub fn mark_episodes_replayed(&self, episode_ids: &[String]) -> Result<()> {
+        if episode_ids.is_empty() {
+            return Ok(());
+        }
+        {
+            let mut data = self.data.write();
+            for id in episode_ids {
+                data.replayed_episode_ids.insert(id.clone());
+            }
+        }
+        self.persist()
     }
 
     pub fn find_similar_episodes(

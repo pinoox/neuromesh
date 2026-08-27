@@ -82,6 +82,11 @@ impl McpToolHandler {
         &self.graph
     }
 
+    pub fn warmup_persisted_learning(&self) {
+        let pid = self.graph.project_id();
+        let _ = crate::learning::warmup_project_learning(&self.memory_db, &self.graph, &pid);
+    }
+
     pub fn mycelium_stats(&self) -> MyceliumStats {
         self.mycelium.stats()
     }

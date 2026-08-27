@@ -73,8 +73,9 @@ impl TypeScriptParser {
 
         for cap in pinia_regex.captures_iter(content) {
             if let Some(store_name) = cap.get(1) {
+                let store = store_name.as_str().to_string();
                 result.symbols.push(ParsedSymbol::new(
-                    store_name.as_str(),
+                    &store,
                     NodeType::Component,
                     Some(format!(
                         "defineStore('{}')",
@@ -83,6 +84,7 @@ impl TypeScriptParser {
                     1..content.lines().count() + 1,
                     true,
                 ));
+                collect_pinia_actions(content, &store, &mut result);
             }
         }
 
@@ -204,6 +206,44 @@ impl TypeScriptParser {
     }
 }
 
+fn collect_pinia_actions(content: &str, store_name: &str, result: &mut AstAnalysisResult) {
+    let action_method_re = Regex::new(r"^\s+(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{").unwrap();
+    let mut in_actions = false;
+    let mut depth = 0i32;
+    for (line_idx, line) in content.lines().enumerate() {
+        if !in_actions {
+            if line.contains("actions") && line.contains('{') {
+                in_actions = true;
+                depth = brace_delta(line);
+            }
+            continue;
+        }
+        depth += brace_delta(line);
+        if let Some(cap) = action_method_re.captures(line) {
+            if let Some(name) = cap.get(1) {
+                let action = name.as_str();
+                if matches!(action, "state" | "getters" | "actions") {
+                    continue;
+                }
+                result.symbols.push({
+                    let mut sym = ParsedSymbol::new(
+                        action,
+                        NodeType::Function,
+                        Some(format!("{store_name}.{action}()")),
+                        (line_idx + 1)..(line_idx + 2),
+                        false,
+                    );
+                    sym.parent = Some(store_name.to_string());
+                    sym
+                });
+            }
+        }
+        if depth <= 0 {
+            in_actions = false;
+        }
+    }
+}
+
 fn asset_import_label(source: &str) -> String {
     Path::new(source)
         .file_stem()
@@ -305,5 +345,36 @@ fn collect_cjs_requires(result: &mut AstAnalysisResult, filename: &str, content:
                 result.exports.push(name.to_string());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pinia_actions_become_function_symbols_with_parent() {
+        let src = r#"import { defineStore } from 'pinia'
+
+export const useUiStore = defineStore('ui', {
+  actions: {
+    goCheckout() {
+      this.currentView = 'checkout'
+    },
+    showToast(message) {
+      this.toast = message
+    },
+  },
+})
+"#;
+        let ast = TypeScriptParser::parse(std::path::Path::new("src/stores/ui.js"), src);
+        assert!(
+            ast.symbols
+                .iter()
+                .any(|s| { s.name == "goCheckout" && s.parent.as_deref() == Some("useUiStore") }),
+            "symbols={:?}",
+            ast.symbols
+        );
+        assert!(ast.symbols.iter().any(|s| s.name == "showToast"));
     }
 }
