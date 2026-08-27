@@ -354,6 +354,9 @@ impl ContextBuild<'_> {
         if !self.view.next_actions.is_empty() {
             packet["next_actions"] = json!(self.view.next_actions);
         }
+        if !self.view.structural_evidence.is_empty() {
+            packet["structural_evidence"] = json!(self.view.structural_evidence);
+        }
         json!({
             "packet_id": self.packet_id,
             "task": {

@@ -29,5 +29,6 @@ pub use token::TokenCounter;
 pub use types::{
     ActivatedNodeView, ContextDiff, ContextEdge, ContextNode, ContextStatus, ContextView,
     CoverageReport, EdgeConfidence, EdgeId, EdgeType, InactiveContextDescriptor, IndexMeta,
-    NextAction, NodeId, NodeType, OptimizationMetadata, ProjectId, SeedResolution, UnresolvedRef,
+    NextAction, NodeId, NodeType, OptimizationMetadata, PacketGap, ProjectId, SeedResolution,
+    SkippedFile, StructuralEvidence, UnresolvedRef,
 };

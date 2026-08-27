@@ -12,6 +12,7 @@ use crate::query::{
     NeighborView, SearchHit, TraceDirection, TraceHop, TraceResult,
 };
 use crate::synapse::{StdpConfig, SynapticPlasticityEngine};
+use chrono::Utc;
 use neuromesh_core::{
     hmvc_app_prefix, is_core_source_path, is_json_schema_path, is_low_priority_source_path,
     is_name_collision_decoy, name_match_specificity, ContextEdge, ContextNode, EdgeConfidence,
@@ -44,6 +45,27 @@ pub struct GraphStats {
     pub unresolved_count: usize,
     #[serde(default)]
     pub generation: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NeighborLearningWeight {
+    pub node_id: String,
+    pub name: String,
+    pub path: String,
+    pub edge_type: String,
+    pub pheromone_weight: f32,
+    pub reinforcement_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeLearningProfile {
+    pub node_id: String,
+    pub name: String,
+    pub path: String,
+    pub access_count: u64,
+    pub base_relevance: f32,
+    pub learning_bonus: f32,
+    pub neighbors: Vec<NeighborLearningWeight>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1999,6 +2021,118 @@ impl NeuralProjectGraph {
             .record_spike(node_id, was_modified, was_useful);
     }
 
+    /// Resolve human-friendly node names (`CheckoutView`, paths, sym ids) to graph nodes.
+    pub fn resolve_feedback_node(&self, query: &str) -> Option<ContextNode> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if let Some(node) = self.get_node(&NodeId::new(trimmed)) {
+            return Some(node);
+        }
+        self.resolve_best(trimmed)
+    }
+
+    /// Bump per-node learning signals so the next search/packet can prefer touched symbols.
+    pub fn reinforce_node_access(&self, node_id: &NodeId, success: bool) -> f32 {
+        let mut data = self.inner.write();
+        let Some(node) = data.mesh.node_mut(node_id) else {
+            return 0.0;
+        };
+        let before = node.base_relevance;
+        node.access_count = node.access_count.saturating_add(1);
+        node.last_accessed = Utc::now();
+        if success {
+            node.base_relevance = (node.base_relevance + 0.08).min(3.0);
+        } else {
+            node.base_relevance = (node.base_relevance - 0.12).max(0.1);
+        }
+        node.base_relevance - before
+    }
+
+    /// Observable learning state for a symbol/path (falsifiable feedback checks).
+    pub fn node_learning_profile(&self, query: &str) -> Option<NodeLearningProfile> {
+        let node = self.resolve_feedback_node(query)?;
+        let bonus = learning_bonus(&node);
+        let neighbors: Vec<NeighborLearningWeight> = self
+            .get_connected_neighbors(&node.id)
+            .into_iter()
+            .take(12)
+            .filter_map(|(neighbor_id, edge)| {
+                let neighbor = self.get_node(&neighbor_id)?;
+                Some(NeighborLearningWeight {
+                    node_id: neighbor_id.as_str().to_string(),
+                    name: neighbor.name.clone(),
+                    path: neighbor.file_path.to_string_lossy().replace('\\', "/"),
+                    edge_type: format!("{:?}", edge.edge_type),
+                    pheromone_weight: edge.pheromone_weight,
+                    reinforcement_count: edge.reinforcement_count,
+                })
+            })
+            .collect();
+        Some(NodeLearningProfile {
+            node_id: node.id.as_str().to_string(),
+            name: node.name.clone(),
+            path: node.file_path.to_string_lossy().replace('\\', "/"),
+            access_count: node.access_count,
+            base_relevance: node.base_relevance,
+            learning_bonus: bonus,
+            neighbors,
+        })
+    }
+
+    /// Reinforce 1-hop call/import edges around touched nodes so related files enter packets.
+    pub fn reinforce_callee_edges(&self, node_ids: &[NodeId], success: bool) {
+        let mut edge_ids: HashSet<EdgeId> = HashSet::new();
+        for id in node_ids {
+            for (_, edge) in self.get_connected_neighbors(id) {
+                if matches!(
+                    edge.edge_type,
+                    EdgeType::Calls | EdgeType::Imports | EdgeType::References | EdgeType::UsedBy
+                ) {
+                    edge_ids.insert(edge.id.clone());
+                }
+            }
+        }
+        let mut data = self.inner.write();
+        for edge_id in edge_ids {
+            if let Some(edge) = data.mesh.edge_mut(&edge_id) {
+                if success {
+                    self.pheromone_engine.reinforce_success(edge, 1);
+                } else {
+                    self.pheromone_engine.penalize_failure(edge);
+                }
+            }
+        }
+    }
+
+    /// Count inbound call/import edges to a symbol (for dead-code evidence).
+    pub fn inbound_caller_count(&self, node_id: &NodeId) -> usize {
+        self.get_connected_neighbors(node_id)
+            .into_iter()
+            .filter(|(_, edge)| {
+                edge.target == *node_id
+                    && matches!(
+                        edge.edge_type,
+                        EdgeType::Calls | EdgeType::UsedBy | EdgeType::References
+                    )
+            })
+            .count()
+    }
+
+    pub fn is_likely_dead_symbol(&self, node_id: &NodeId) -> bool {
+        let Some(node) = self.get_node(node_id) else {
+            return false;
+        };
+        if !matches!(
+            node.node_type,
+            NodeType::Function | NodeType::Symbol | NodeType::Api
+        ) {
+            return false;
+        }
+        self.inbound_caller_count(node_id) == 0
+    }
+
     /// Applies STDP only on edges whose endpoints have recorded spikes.
     pub fn apply_stdp_learning(&self) {
         let spiked: HashSet<NodeId> = {
@@ -2104,6 +2238,12 @@ fn type_search_rank(node_type: &NodeType) -> u8 {
     }
 }
 
+fn learning_bonus(node: &ContextNode) -> f32 {
+    let access = (node.access_count as f32).ln_1p() * 5.0;
+    let relevance = (node.base_relevance - 1.0).max(0.0) * 10.0;
+    access + relevance
+}
+
 fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     let mut bonus = match node.node_type {
         NodeType::Function
@@ -2146,6 +2286,7 @@ fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     if is_fixture_path(&node.file_path) {
         bonus -= if decoy { 40.0 } else { 24.0 };
     }
+    bonus += learning_bonus(node);
     bonus
 }
 

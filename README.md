@@ -200,14 +200,14 @@ neuromesh connect --print   # copy-paste snippets only
 
 That writes an **absolute** `command` (this binary) plus `args: ["mcp", "<workspace>"]` and `NEUROMESH_WORKSPACE`, so the agent does not need `neuromesh` on PATH.
 
-**Manual (PATH required):** if `neuromesh` is on PATH, paste into Cursor MCP settings (`.cursor/mcp.json`):
+**Manual (PATH required):** if `neuromesh` is on PATH, paste into Cursor MCP settings (`.cursor/mcp.json`). Always pass the **workspace path** as the second argument — `args: ["mcp"]` alone may index your home directory:
 
 ```json
 {
   "mcpServers": {
     "neuromesh": {
       "command": "neuromesh",
-      "args": ["mcp"]
+      "args": ["mcp", "/absolute/path/to/your/project"]
     }
   }
 }
@@ -294,18 +294,18 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release, 2026-08-27, 531,386 workspace tokens):
+On this repo (release, 2026-08-28, 554,554 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | balanced | 531386 | 57835 | 13087 | 97.5% | 77.4% | 1.00 | 0.75 | **0** | 98 |
-| `physarum_usage` | balanced | 531386 | 17997 | 3955 | 99.3% | 78.0% | 1.00 | 0.50 | **0** | 57 |
+| `handle_tool_call_intent` | balanced | 554554 | 63462 | 15900 | 97.1% | 74.9% | 1.00 | 0.75 | **0** | 33 |
+| `physarum_usage` | balanced | 554554 | 18631 | 3945 | 99.3% | 78.8% | 1.00 | 0.50 | **0** | 17 |
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
-Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects. Packet activation **&lt; 200 ms** in the debug gold test.
+Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects (including `mini-shop` SCSS/dead-code/checkout). Packet activation **&lt; 200 ms** in the debug gold test.
 
-Index snapshot from that eval run: **304 files · 2,123 nodes · 5,056 edges · ~1,573 ms** (release).
+Index snapshot from that eval run: **323 files · 2,458 nodes · 5,594 edges · ~490 ms** index (release).
 
 ---
 
@@ -318,6 +318,6 @@ Index snapshot from that eval run: **304 files · 2,123 nodes · 5,056 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.7.6 |
+| [Changelog](docs/CHANGELOG.md) | 0.7.7 |
 
 MIT · [LICENSE](LICENSE)

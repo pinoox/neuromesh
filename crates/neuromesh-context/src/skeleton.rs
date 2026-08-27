@@ -323,7 +323,11 @@ impl CodeSkeletonizer {
     ) -> SkeletonResult {
         let original_tokens = TokenCounter::count_tokens(content);
         let line_count = content.lines().count();
-        let min_lines = fold_intron_min_lines();
+        let min_lines = if line_count <= 60 {
+            2
+        } else {
+            fold_intron_min_lines()
+        };
 
         let tiny = line_count < 4 || original_tokens < 20;
         if tiny && spans.len() < 2 {

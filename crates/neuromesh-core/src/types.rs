@@ -230,16 +230,70 @@ pub struct SeedResolution {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PacketGap {
+    pub kind: String,
+    pub path: String,
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkippedFile {
+    pub path: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StructuralEvidence {
+    pub symbol: String,
+    pub path: String,
+    pub line: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exact_line: Option<String>,
+    pub callers_count: usize,
+    pub is_dead: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub who_reads: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoverageReport {
     pub seeds_hit: Vec<String>,
     pub seeds_missed: Vec<String>,
     pub claim: String,
+    /// Files the task likely needs but that are not in the packet.
+    #[serde(default)]
+    pub packet_gaps: Vec<PacketGap>,
+    /// Near-miss files worth expanding before Grep.
+    #[serde(default)]
+    pub unsure: Vec<String>,
+    /// Files included in this packet.
+    #[serde(default)]
+    pub covered: Vec<String>,
+    /// Files intentionally excluded (noise filter, budget, parse partial).
+    #[serde(default)]
+    pub skipped: Vec<SkippedFile>,
+    /// For style tasks: share of packet files under styles/ (0.0–1.0).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantic_coverage: Option<f32>,
 }
 
 impl CoverageReport {
-    /// `no_recorded_gap` only when every *attempted* seed resolved.
+    /// `no_recorded_gap` only when every *attempted* seed resolved and packet gaps are empty.
     /// `unresolved` on the packet is graph call/import gaps, not this list.
     pub fn from_seeds(seeds: &[SeedResolution]) -> Self {
+        Self::from_seeds_with_gaps(seeds, Vec::new(), Vec::new(), Vec::new(), Vec::new(), None)
+    }
+
+    pub fn from_seeds_with_gaps(
+        seeds: &[SeedResolution],
+        packet_gaps: Vec<PacketGap>,
+        unsure: Vec<String>,
+        covered: Vec<String>,
+        skipped: Vec<SkippedFile>,
+        semantic_coverage: Option<f32>,
+    ) -> Self {
         let seeds_hit: Vec<String> = seeds
             .iter()
             .filter(|s| s.resolved_id.is_some())
@@ -250,10 +304,10 @@ impl CoverageReport {
             .filter(|s| s.resolved_id.is_none())
             .map(|s| s.query.clone())
             .collect();
-        let claim = if seeds.is_empty() || seeds_missed.is_empty() {
-            "no_recorded_gap".to_string()
-        } else if seeds_hit.is_empty() {
+        let claim = if seeds_hit.is_empty() {
             "no_seed_resolved".to_string()
+        } else if seeds_missed.is_empty() && packet_gaps.is_empty() {
+            "no_recorded_gap".to_string()
         } else {
             "partial".to_string()
         };
@@ -261,6 +315,11 @@ impl CoverageReport {
             seeds_hit,
             seeds_missed,
             claim,
+            packet_gaps,
+            unsure,
+            covered,
+            skipped,
+            semantic_coverage,
         }
     }
 }
@@ -366,6 +425,9 @@ pub struct ContextView {
     /// `seed_then_fill` or `physarum_seed_fill`.
     #[serde(default)]
     pub selection_method: String,
+    /// Caller counts / dead-code hints for seeded symbols.
+    #[serde(default)]
+    pub structural_evidence: Vec<StructuralEvidence>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

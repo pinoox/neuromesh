@@ -103,6 +103,8 @@ pub fn canonical_tool_name(name: &str) -> String {
         "get_architecture" | "architecture" => "neuromesh_get_architecture".into(),
         "get_project_memory" | "project_memory" | "memory" => "neuromesh_get_project_memory".into(),
         "get_stats" | "stats" => "neuromesh_get_stats".into(),
+        "get_node_weights" | "node_weights" | "weights" => "neuromesh_get_node_weights".into(),
+        "expand_gap" | "gap" => "neuromesh_expand_gap".into(),
         "explain_packet" | "get_context_details" => "neuromesh_explain_packet".into(),
         _ if trimmed.starts_with("neuromesh_") => trimmed.to_string(),
         _ => trimmed.to_string(),

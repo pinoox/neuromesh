@@ -1,0 +1,40 @@
+@use './tokens' as *;
+@use './mixins' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: $font-body;
+  color: $color-text;
+  background: $color-surface-alt;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4 {
+  margin-top: 0;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: $space-4;
+
+  @include responsive(md) {
+    padding: $space-5;
+  }
+}

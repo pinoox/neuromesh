@@ -1,0 +1,33 @@
+@use './tokens' as *;
+
+@mixin card-base {
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  box-shadow: $shadow-card;
+}
+
+@mixin hover-lift {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-lift;
+  }
+}
+
+@mixin responsive($name) {
+  @if $name == sm {
+    @media (min-width: $break-sm) {
+      @content;
+    }
+  } @else if $name == md {
+    @media (min-width: $break-md) {
+      @content;
+    }
+  } @else if $name == lg {
+    @media (min-width: $break-lg) {
+      @content;
+    }
+  }
+}

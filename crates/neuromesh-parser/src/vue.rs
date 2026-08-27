@@ -1,6 +1,7 @@
 use crate::types::{AstAnalysisResult, ParsedImport, ParsedRelationship, ParsedSymbol};
 use neuromesh_core::{EdgeType, NodeType};
 use regex::Regex;
+use std::collections::HashMap;
 use std::path::Path;
 
 pub struct VueParser;
@@ -128,6 +129,36 @@ impl VueParser {
                     }
                 }
             }
+        }
+
+        // 4b. Template handlers (@click="ui.goCart()") -> store action calls
+        let mut store_aliases: HashMap<String, String> = HashMap::new();
+        let alias_store_regex = Regex::new(r"const\s+(\w+)\s*=\s*(use\w+Store)\s*\(").unwrap();
+        for cap in alias_store_regex.captures_iter(content) {
+            if let (Some(alias), Some(hook)) = (cap.get(1), cap.get(2)) {
+                store_aliases.insert(alias.as_str().to_string(), pinia_store_hint(hook.as_str()));
+            }
+        }
+        let handler_regex =
+            Regex::new(r#"(?:@click|@submit|v-on:click|v-on:submit)\s*=\s*["']([^"']+)["']"#)
+                .unwrap();
+        let action_call_regex = Regex::new(r"(\w+)\.(\w+)\s*\(").unwrap();
+        for cap in handler_regex.captures_iter(content) {
+            let Some(expr) = cap.get(1) else {
+                continue;
+            };
+            let Some(am) = action_call_regex.captures(expr.as_str()) else {
+                continue;
+            };
+            let alias = am.get(1).map(|m| m.as_str()).unwrap_or("");
+            let action = am.get(2).map(|m| m.as_str()).unwrap_or("");
+            result.relationships.push(ParsedRelationship {
+                source_symbol: filename.to_string(),
+                target_symbol: action.to_string(),
+                relationship: EdgeType::Calls,
+                target_file_hint: store_aliases.get(alias).cloned(),
+                receiver_hint: Some(alias.to_string()),
+            });
         }
 
         // 5. Extract SCSS @use / @import / Design tokens from <style>
@@ -309,4 +340,30 @@ fn is_native_html_tag(tag: &str) -> bool {
             | "video"
             | "wbr"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn template_click_extracts_store_action_call() {
+        let src = r#"<script setup>
+const ui = useUiStore()
+</script>
+<template>
+  <button @click="ui.goCart()">Cart</button>
+</template>
+"#;
+        let ast = VueParser::parse(std::path::Path::new("Header.vue"), src);
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.target_symbol == "goCart"
+                    && r.relationship == EdgeType::Calls
+                    && r.target_file_hint.as_deref() == Some("stores/ui.ts")
+            }),
+            "expected goCart call edge, rels={:?}",
+            ast.relationships
+        );
+    }
 }
