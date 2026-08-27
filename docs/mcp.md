@@ -15,6 +15,27 @@ neuromesh connect --global  # also create user-level files
 
 The command points each client at **this binary** (absolute path) and the current workspace (`args: ["mcp", "<workspace>"]` plus `NEUROMESH_WORKSPACE`). PATH is not required. It merges a `neuromesh` server into existing files and does not delete other MCP servers.
 
+### Manual
+
+When `neuromesh` is on **PATH** and the IDE runs MCP from your project root (or you set `NEUROMESH_WORKSPACE`), paste this into MCP settings — no `neuromesh connect` required.
+
+**Cursor** — `.cursor/mcp.json`, or **Settings → MCP → Edit config**:
+
+```json
+{
+  "mcpServers": {
+    "neuromesh": {
+      "command": "neuromesh",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Same `mcpServers` shape works for Claude Desktop (`claude_desktop_config.json`), Trae (`.trae/mcp.json`), MiniMax (`.minimax/mcp.json`), and other clients that use that key. VS Code / Copilot uses `.vscode/mcp.json` with a top-level `servers` object instead — run `neuromesh connect --print` for that shape.
+
+`neuromesh connect` is still preferred when PATH is unreliable: it writes an absolute `command` and pins the workspace via `args: ["mcp", "<path>"]` plus `NEUROMESH_WORKSPACE`.
+
 | Client | Project file | User file (if the app is installed) |
 | :--- | :--- | :--- |
 | Cursor | `.cursor/mcp.json` | `~/.cursor/mcp.json` |
