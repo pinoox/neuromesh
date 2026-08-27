@@ -290,9 +290,7 @@ mod tests {
             "How does the create_sms_messages_table migration create the sms_messages table?"
         ));
         assert!(decoy_allowed_for_prompt(
-            Path::new(
-                "database/migrations/2024_01_01_000000_create_sms_messages_table.php"
-            ),
+            Path::new("database/migrations/2024_01_01_000000_create_sms_messages_table.php"),
             "How does the create_sms_messages_table migration create the sms_messages table?"
         ));
         assert!(decoy_allowed_for_prompt(
@@ -300,9 +298,7 @@ mod tests {
             "Where is the sms_messages CREATE TABLE in sms_messages.sql?"
         ));
         assert!(!decoy_allowed_for_prompt(
-            Path::new(
-                "database/migrations/2024_01_01_000000_create_sms_messages_table.php"
-            ),
+            Path::new("database/migrations/2024_01_01_000000_create_sms_messages_table.php"),
             "Where is the sms_messages CREATE TABLE in sms_messages.sql?"
         ));
         assert!(!decoy_allowed_for_prompt(
