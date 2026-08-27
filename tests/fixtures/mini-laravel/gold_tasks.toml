@@ -26,6 +26,20 @@ forbidden_files = [
 ]
 
 [[task]]
+id = "sms_route_path_only"
+prompt = "how does POST /sms persist the message?"
+gold_files = [
+  "routes/web.php",
+  "app/Http/Controllers/SmsController.php",
+]
+expect_seeds_missed = false
+forbidden_files = [
+  "database/factories/SmsMessageFactory.php",
+  "database/seeders/SmsSeeder.php",
+  "database/sql/sms_messages.sql",
+]
+
+[[task]]
 id = "sms_migration"
 prompt = "How does the create_sms_messages_table migration create the sms_messages table?"
 gold_files = [

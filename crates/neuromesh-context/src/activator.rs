@@ -12,7 +12,9 @@ use neuromesh_core::{
     SeedResolution, TaskSignature,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
-use neuromesh_task::{extract_cluster_nouns, split_task_clusters, stem_search_queries};
+use neuromesh_task::{
+    extract_cluster_nouns, is_route_query, split_task_clusters, stem_search_queries,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -685,7 +687,7 @@ fn resolve_seed_query_once(
             }
         }
     }
-    if query.contains(['/', '\\', '.']) {
+    if query.contains(['/', '\\', '.']) && !is_route_query(query) {
         if let Some(id) = graph.resolve_file_hint(query) {
             if seed_path_allowed(graph, &id, prompt) {
                 return Some((id, 0.95));

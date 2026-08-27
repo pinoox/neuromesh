@@ -4,20 +4,20 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-Pinoox/Pinx layout detection, real Pinx routes, and stronger Vue/PrimeVue/React overlays.
+## 0.7.6 — 2026-08-27
 
+Agent setup guide, HTTP route seeds, Pinx/Vue overlays, Laravel/SQL/JSON, and tighter TS seed ranking.
+
+- **Agent guide (all clients).** [agent-guide.md](agent-guide.md) walks connect → instructions for Cursor, VS Code/Copilot, Claude, Codex, Antigravity, Kilo, Trae, MiniMax, Windsurf, Cline/Roo, and Zed, plus a universal paste block, one-shot prompt, and smoke test. Cursor template remains [agent-rule.mdc](agent-rule.mdc); [mcp.md](mcp.md#agent-rule-recommended) links the tutorial.
+- **Route identifiers.** `POST /sms`, `/api/v1/sms`, and `https://example.com/sms` (path only) are identifiers — never file hints — so `/sms` cannot steal every SMS fixture via `resolve_file_hint`. GitHub-style `/org/repo` URLs stay out.
+- **Api path aliases.** An `Api` node named `POST /sms` is also indexed as `/sms` for exact search; the last segment (`sms`) is not aliased.
+- **Route→handler edges.** Laravel `Route::post('/sms', [SmsController::class, 'store'])`, Axum `.route(..., post(store))`, FastAPI `@app.post`→`def`, and Express named handlers emit `Calls` from `POST /sms` to the handler. Gold: `mini-laravel` / `mini-express` route-only prompts.
 - **Pinx `get()/post()` routes.** `get('/')->action([MainController::class, 'index'])->name('home')` is an `Api` node, not only the older `action([Class, method])` form. `collection('/api')`, `action('home', [Class, method])`, `render()` / `view()`, `app.php` package/theme/pinx, and `vite()` entry hints are overlayed too.
 - **Single-app vs multi-app.** Root `app.php` + `bin/pinx` is Pinx single-app; `apps/com_*` with nested `app.php` is multi-app. Theme `package.json` under `theme/` is scanned for Vue, PrimeVue, PrimeUIX, Pinia, and React.
 - **Vue kebab-case and React `FC`.** `<data-table>` becomes `DataTable`; `const StatCard: FC = () =>` is a `Component`. Gold: `mini-pinoox` dashboard/StatCard, `mini-pinoox-platform` shop vs blog.
-
-Laravel Eloquent, SQL/JSON, and stronger TypeScript/CSS overlays.
-
 - **Laravel is a real stack, not only `Route::get`.** Eloquent `Model` / `$table` / `belongsTo` become `DbModel` nodes; `Schema::create`, seeders, factories, `Route::resource` / `match`, and Blade `@include` overlay too. Gold: `mini-laravel` store/route/migration/seeder/SQL/JSON.
 - **SQL and JSON are parsed.** `CREATE TABLE` / views / routines are `DbModel` symbols; `config/*.json` and `package.json` scripts are `Config` (dependency maps are skipped). Lockfiles stay out of the walk.
 - **JS/TS modules and stylesheets.** `require()` / `import()` / CSS+JSON side-effect imports; nested SCSS `@include` / `@function` / `@keyframes`; comma-nested classes in CSS/SCSS/Less. Gold: `mini-store` theme+CJS, `mini-styles` SCSS+CSS.
-
-Seed ranking on TypeScript repos with parallel API surfaces (core + bench + i18n).
-
 - **Tighter name matches beat decorated twins.** `safeParse` outranks `parseSimpleObject` / `parseNestedObject` for the identifier `parse`; substring score now scales with how much of the symbol name is the identifier.
 - **Bench, locale, and legacy paths are decoys.** `bench/`, `locales/` / `i18n/`, and `v3/` / `compat/` / `legacy/` are penalized like tests unless the prompt is about them. `to-json-schema` loses to `core/parse` on parse/validate questions.
 - **Type aliases seed.** `z.infer` extracts `infer` and stems to `output` / `input`, so generic questions hit `export type output<T>` in `core.ts` instead of a runtime schema helper.

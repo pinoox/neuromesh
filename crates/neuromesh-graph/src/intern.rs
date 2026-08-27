@@ -309,8 +309,9 @@ impl MeshStore {
 }
 
 use crate::query::tokenize;
-use neuromesh_core::{EdgeType, UnresolvedRef};
+use neuromesh_core::{EdgeType, NodeType, UnresolvedRef};
 use neuromesh_index::{FileFingerprint, IndexedFile};
+use neuromesh_parser::api_path_alias;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -385,16 +386,46 @@ pub(crate) fn insert_indexed_node(data: &mut GraphData, node: ContextNode) {
     let path = node.file_path.clone();
     let name = node.name.clone();
     let parent = node.parent.clone();
+    let node_type = node.node_type;
     data.mesh.insert_node(node);
     data.file_to_nodes.entry(path).or_default().push(id.clone());
-    data.name_to_nodes
-        .entry(name.to_lowercase())
-        .or_default()
-        .push(id.clone());
+    index_name_keys(data, &id, node_type, &name);
     index_tokens(data, &id, &name);
     if let Some(parent) = parent {
         let key = format!("{}::{}", parent.to_lowercase(), name.to_lowercase());
         data.impl_index.entry(key).or_default().push(id);
+    }
+}
+
+fn index_name_keys(data: &mut GraphData, id: &NodeId, node_type: NodeType, name: &str) {
+    data.name_to_nodes
+        .entry(name.to_lowercase())
+        .or_default()
+        .push(id.clone());
+    if node_type != NodeType::Api {
+        return;
+    }
+    let Some(alias) = api_path_alias(name) else {
+        return;
+    };
+    let key = alias.to_lowercase();
+    if key == name.to_lowercase() {
+        return;
+    }
+    let list = data.name_to_nodes.entry(key).or_default();
+    if !list.iter().any(|existing| existing == id) {
+        list.push(id.clone());
+    }
+}
+
+fn unindex_name_keys(data: &mut GraphData, id: &NodeId, name: &str) {
+    if let Some(list) = data.name_to_nodes.get_mut(&name.to_lowercase()) {
+        list.retain(|existing| existing != id);
+    }
+    if let Some(alias) = api_path_alias(name) {
+        if let Some(list) = data.name_to_nodes.get_mut(&alias.to_lowercase()) {
+            list.retain(|existing| existing != id);
+        }
     }
 }
 
@@ -458,9 +489,7 @@ pub(crate) fn remove_file_nodes_locked(data: &mut GraphData, path: &Path) {
     }
     for id in &ids {
         if let Some(node) = data.mesh.node(id).cloned() {
-            if let Some(list) = data.name_to_nodes.get_mut(&node.name.to_lowercase()) {
-                list.retain(|existing| existing != id);
-            }
+            unindex_name_keys(data, id, &node.name);
             if let Some(parent) = &node.parent {
                 let key = format!("{}::{}", parent.to_lowercase(), node.name.to_lowercase());
                 if let Some(list) = data.impl_index.get_mut(&key) {
@@ -490,10 +519,7 @@ pub(crate) fn rebuild_indexes(data: &mut GraphData) {
             .entry(node.file_path.clone())
             .or_default()
             .push(id.clone());
-        data.name_to_nodes
-            .entry(node.name.to_lowercase())
-            .or_default()
-            .push(id.clone());
+        index_name_keys(data, &id, node.node_type, &node.name);
         index_tokens(data, &id, &node.name);
         if let Some(parent) = &node.parent {
             let key = format!("{}::{}", parent.to_lowercase(), node.name.to_lowercase());

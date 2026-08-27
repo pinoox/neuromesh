@@ -185,9 +185,13 @@ fn fastapi_overlay(content: &str, ast: &mut AstAnalysisResult) {
         return;
     }
     static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static DEF_RE: OnceLock<Regex> = OnceLock::new();
     let route_re = ROUTE_RE.get_or_init(|| {
         Regex::new(r#"@(?:app|router|api)\.(get|post|put|patch|delete|route)\(\s*["']([^"']+)["']"#)
             .unwrap()
+    });
+    let def_re = DEF_RE.get_or_init(|| {
+        Regex::new(r"(?m)^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap()
     });
     for cap in route_re.captures_iter(content) {
         let verb = cap.get(1).map(|m| m.as_str()).unwrap_or("route");
@@ -200,13 +204,17 @@ fn fastapi_overlay(content: &str, ast: &mut AstAnalysisResult) {
         } else {
             verb.to_uppercase()
         };
-        let line = line_of(content, cap.get(0).map(|m| m.start()).unwrap_or(0));
-        push_api(
-            ast,
-            &format!("{method} {route}"),
-            format!("@{verb}(\"{route}\")"),
-            line,
-        );
+        let start = cap.get(0).map(|m| m.start()).unwrap_or(0);
+        let line = line_of(content, start);
+        let api_name = format!("{method} {route}");
+        push_api(ast, &api_name, format!("@{verb}(\"{route}\")"), line);
+        let after = &content[cap.get(0).map(|m| m.end()).unwrap_or(0)..];
+        if let Some(def) = def_re.captures(after) {
+            let handler = def.get(1).map(|m| m.as_str()).unwrap_or("");
+            if !handler.is_empty() {
+                link_api_to_handler(ast, &api_name, handler, None, None);
+            }
+        }
     }
 }
 
@@ -291,6 +299,7 @@ fn laravel_route_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult
     static MATCH_RE: OnceLock<Regex> = OnceLock::new();
     static RESOURCE_RE: OnceLock<Regex> = OnceLock::new();
     static ACTION_RE: OnceLock<Regex> = OnceLock::new();
+    static HANDLER_RE: OnceLock<Regex> = OnceLock::new();
     let route_re = ROUTE_RE.get_or_init(|| {
         Regex::new(r#"Route::(get|post|put|patch|delete|any|view)\s*\(\s*['"]([^'"]+)['"]"#)
             .unwrap()
@@ -303,6 +312,12 @@ fn laravel_route_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult
     });
     let action_re = ACTION_RE.get_or_init(|| {
         Regex::new(r#"\[\s*([A-Za-z_][A-Za-z0-9_\\]*)::class\s*,\s*['"]([^'"]+)['"]\s*\]"#).unwrap()
+    });
+    let handler_re = HANDLER_RE.get_or_init(|| {
+        Regex::new(
+            r#"Route::(get|post|put|patch|delete|any|view)\s*\(\s*['"]([^'"]+)['"]\s*,\s*\[\s*([A-Za-z_][A-Za-z0-9_\\]*)::class\s*,\s*['"]([^'"]+)['"]"#,
+        )
+        .unwrap()
     });
     for cap in route_re.captures_iter(content) {
         let method = cap
@@ -385,6 +400,33 @@ fn laravel_route_overlay(path: &Path, content: &str, ast: &mut AstAnalysisResult
             target_file_hint: Some(format!("{short}.php")),
             receiver_hint: None,
         });
+    }
+    for cap in handler_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        let class = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        let action = cap.get(4).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() || class.is_empty() || action.is_empty() {
+            continue;
+        }
+        let method = if method == "VIEW" {
+            "GET".into()
+        } else if method == "ANY" {
+            "ANY".into()
+        } else {
+            method
+        };
+        let short = class.rsplit('\\').next().unwrap_or(class);
+        link_api_to_handler(
+            ast,
+            &format!("{method} {route}"),
+            action,
+            Some(format!("{short}.php")),
+            Some(short.to_string()),
+        );
     }
 }
 
@@ -1413,9 +1455,16 @@ fn express_overlay(content: &str, ast: &mut AstAnalysisResult) {
         return;
     }
     static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static NAMED_RE: OnceLock<Regex> = OnceLock::new();
     let route_re = ROUTE_RE.get_or_init(|| {
         Regex::new(r#"(?:app|router|r)\.(get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)['"]"#)
             .unwrap()
+    });
+    let named_re = NAMED_RE.get_or_init(|| {
+        Regex::new(
+            r#"(?:app|router|r)\.(get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)['"]\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*[,)]"#,
+        )
+        .unwrap()
     });
     for cap in route_re.captures_iter(content) {
         let method = cap
@@ -1433,6 +1482,18 @@ fn express_overlay(content: &str, ast: &mut AstAnalysisResult) {
             format!("{method} {route}"),
             line,
         );
+    }
+    for cap in named_re.captures_iter(content) {
+        let method = cap
+            .get(1)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let route = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+        let handler = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() || handler.is_empty() {
+            continue;
+        }
+        link_api_to_handler(ast, &format!("{method} {route}"), handler, None, None);
     }
 }
 
@@ -1879,9 +1940,16 @@ fn axum_overlay(content: &str, ast: &mut AstAnalysisResult) {
         return;
     }
     static ROUTE_RE: OnceLock<Regex> = OnceLock::new();
+    static NAMED_RE: OnceLock<Regex> = OnceLock::new();
     let route_re = ROUTE_RE.get_or_init(|| {
         Regex::new(r#"\.route\(\s*["']([^"']+)["']\s*,\s*(get|post|put|patch|delete)\s*\("#)
             .unwrap()
+    });
+    let named_re = NAMED_RE.get_or_init(|| {
+        Regex::new(
+            r#"\.route\(\s*["']([^"']+)["']\s*,\s*(get|post|put|patch|delete)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)"#,
+        )
+        .unwrap()
     });
     for cap in route_re.captures_iter(content) {
         let route = cap.get(1).map(|m| m.as_str()).unwrap_or("");
@@ -1899,6 +1967,18 @@ fn axum_overlay(content: &str, ast: &mut AstAnalysisResult) {
             format!("{method} {route}"),
             line,
         );
+    }
+    for cap in named_re.captures_iter(content) {
+        let route = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let method = cap
+            .get(2)
+            .map(|m| m.as_str().to_uppercase())
+            .unwrap_or_else(|| "GET".into());
+        let handler = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        if route.is_empty() || handler.is_empty() {
+            continue;
+        }
+        link_api_to_handler(ast, &format!("{method} {route}"), handler, None, None);
     }
 }
 
@@ -2134,6 +2214,34 @@ fn push_api(ast: &mut AstAnalysisResult, name: &str, signature: String, line: us
     ));
 }
 
+/// Walkable edge from an Api route node to a named handler (same pattern as Twig).
+fn link_api_to_handler(
+    ast: &mut AstAnalysisResult,
+    api_name: &str,
+    handler: &str,
+    target_file_hint: Option<String>,
+    receiver_hint: Option<String>,
+) {
+    if api_name.is_empty() || handler.is_empty() {
+        return;
+    }
+    if ast.relationships.iter().any(|r| {
+        r.source_symbol == api_name
+            && r.target_symbol == handler
+            && r.relationship == EdgeType::Calls
+            && r.target_file_hint == target_file_hint
+    }) {
+        return;
+    }
+    ast.relationships.push(ParsedRelationship {
+        source_symbol: api_name.to_string(),
+        target_symbol: handler.to_string(),
+        relationship: EdgeType::Calls,
+        target_file_hint,
+        receiver_hint,
+    });
+}
+
 fn line_of(content: &str, byte: usize) -> usize {
     content
         .get(..byte)
@@ -2206,6 +2314,76 @@ mod tests {
             has_api(&ast, "POST /sms"),
             "symbols = {:?}",
             ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.source_symbol == "POST /sms"
+                    && r.target_symbol == "store"
+                    && r.relationship == EdgeType::Calls
+                    && r.target_file_hint.as_deref() == Some("SmsController.php")
+            }),
+            "POST /sms must Call store, relationships = {:?}",
+            ast.relationships
+        );
+        assert!(
+            ast.relationships
+                .iter()
+                .any(|r| r.source_symbol == "web" && r.target_symbol == "store"),
+            "filename→handler edge must remain, relationships = {:?}",
+            ast.relationships
+        );
+    }
+
+    #[test]
+    fn axum_fastapi_named_express_link_handlers() {
+        let axum = "use axum::{routing::post, Router};\nfn app() -> Router { Router::new().route(\"/sms\", post(store)) }\nasync fn store() {}\n";
+        let ast = analyze("src/main.rs", axum, SourceLanguage::Rust);
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.source_symbol == "POST /sms"
+                    && r.target_symbol == "store"
+                    && r.relationship == EdgeType::Calls
+            }),
+            "axum relationships = {:?}",
+            ast.relationships
+        );
+
+        let fastapi = "@app.post(\"/sms\")\ndef store(body: str):\n    return body\n";
+        let ast = analyze("src/main.py", fastapi, SourceLanguage::Python);
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.source_symbol == "POST /sms"
+                    && r.target_symbol == "store"
+                    && r.relationship == EdgeType::Calls
+            }),
+            "fastapi relationships = {:?}",
+            ast.relationships
+        );
+
+        let named = "import express from \"express\";\nconst app = express();\nfunction store() {}\napp.post(\"/sms\", store);\n";
+        let ast = analyze("src/app.ts", named, SourceLanguage::TypeScript);
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(
+            ast.relationships.iter().any(|r| {
+                r.source_symbol == "POST /sms"
+                    && r.target_symbol == "store"
+                    && r.relationship == EdgeType::Calls
+            }),
+            "named express relationships = {:?}",
+            ast.relationships
+        );
+
+        let inline = "import express from \"express\";\nconst app = express();\napp.post(\"/sms\", (req) => saveSms(req.body));\n";
+        let ast = analyze("src/app.ts", inline, SourceLanguage::TypeScript);
+        assert!(has_api(&ast, "POST /sms"));
+        assert!(
+            !ast.relationships
+                .iter()
+                .any(|r| r.source_symbol == "POST /sms" && r.relationship == EdgeType::Calls),
+            "inline express must not invent a handler edge: {:?}",
+            ast.relationships
         );
     }
 

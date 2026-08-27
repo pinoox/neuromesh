@@ -4,7 +4,7 @@ Claims in this project are supposed to come from commands you can run, not from 
 
 ## Gold
 
-`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store including `require()` CJS + `tokens.json` CSS import, Vue/JS auth+permission-guard compound task with a `directive/permission` ranking thief and forbidden clipboard/profile decoys, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox Pinx `get()->action()` plus `MainController::index` → Twig, Vue/PrimeVue `Dashboard.vue` + React `StatCard`, multi-app `apps/com_shop` vs `com_blog`, Laravel Eloquent + `Schema::create` migration + seeder/factory + SQL + JSON config, FastAPI, Rails, Astro, Express, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS/SCSS/CSS badge tokens + SVG `smsInbox` icon, Zod-like schema core vs `packages/bench` + `locales/` + `v3/` + json-schema decoys, plus a `z.infer` → `core.ts` type-alias task), including edit/refactor-style prompts — not only “where is this symbol”.
+`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store including `require()` CJS + `tokens.json` CSS import, Vue/JS auth+permission-guard compound task with a `directive/permission` ranking thief and forbidden clipboard/profile decoys, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox Pinx `get()->action()` plus `MainController::index` → Twig, Vue/PrimeVue `Dashboard.vue` + React `StatCard`, multi-app `apps/com_shop` vs `com_blog`, Laravel Eloquent + `Schema::create` migration + seeder/factory + SQL + JSON config plus route-only `POST /sms` prompts, FastAPI, Rails, Astro, Express route-only `POST /sms`, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS/SCSS/CSS badge tokens + SVG `smsInbox` icon, Zod-like schema core vs `packages/bench` + `locales/` + `v3/` + json-schema decoys, plus a `z.infer` → `core.ts` type-alias task), including edit/refactor-style prompts — not only “where is this symbol”.
 
 Thresholds locked in tests:
 
@@ -34,8 +34,8 @@ From `neuromesh eval` on this workspace (release, 2026-08-27, balanced):
 
 | Task | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | 479679 | 53564 | 12668 | 97.4% | 76.3% | 1.00 | 0.75 | **0** | 40 |
-| `physarum_usage` | 479679 | 17997 | 3955 | 99.2% | 78.0% | 1.00 | 0.50 | **0** | 22 |
+| `handle_tool_call_intent` | 531386 | 57835 | 13087 | 97.5% | 77.4% | 1.00 | 0.75 | **0** | 98 |
+| `physarum_usage` | 531386 | 17997 | 3955 | 99.3% | 78.0% | 1.00 | 0.50 | **0** | 57 |
 
 That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
 
@@ -45,10 +45,10 @@ From `neuromesh eval` (release, 2026-08-27) on this repository:
 
 | Metric | Value |
 | :--- | ---: |
-| Files | 260 (`target/` ignored) |
-| Nodes | 1,920 |
-| Edges | 4,389 |
-| Index time (release) | ~728 ms |
+| Files | 304 (`target/` ignored) |
+| Nodes | 2,123 |
+| Edges | 5,056 |
+| Index time (release) | ~1,573 ms |
 
 Index file cap is **auto** by default (production sources first, tests last, ceiling 50,000). Override with `neuromesh index --max-files N`. See [cli.md](cli.md#index-file-cap).
 
@@ -60,12 +60,12 @@ From `snapshot_load_and_single_file_reindex_beat_full_index` (release, this repo
 
 | Metric | Value |
 | :--- | ---: |
-| Files scanned | 260 |
-| Nodes | 1,920 |
-| Full workspace index | 1,113 ms |
-| Snapshot size | 2.6 MB |
-| **Snapshot cold load** | **49 ms** |
-| **One-file reindex** (parse + local relink) | **88 ms** |
+| Files scanned | 305 |
+| Nodes | 2,245 |
+| Full workspace index | 1,296 ms |
+| Snapshot size | 3.0 MB |
+| **Snapshot cold load** | **63 ms** |
+| **One-file reindex** (parse + local relink) | **140 ms** |
 
 ```bash
 cargo test --release -p neuromesh-graph --lib snapshot_load_and_single_file_reindex -- --nocapture
