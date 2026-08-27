@@ -2097,7 +2097,7 @@ impl NeuralProjectGraph {
 
 fn type_search_rank(node_type: &NodeType) -> u8 {
     match node_type {
-        NodeType::Class | NodeType::Component | NodeType::Api => 3,
+        NodeType::Class | NodeType::Component | NodeType::Api | NodeType::DbModel => 3,
         NodeType::Function | NodeType::Symbol => 2,
         NodeType::File => 0,
         _ => 1,
@@ -2106,7 +2106,11 @@ fn type_search_rank(node_type: &NodeType) -> u8 {
 
 fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     let mut bonus = match node.node_type {
-        NodeType::Function | NodeType::Class | NodeType::Component | NodeType::Api => 8.0,
+        NodeType::Function
+        | NodeType::Class
+        | NodeType::Component
+        | NodeType::Api
+        | NodeType::DbModel => 8.0,
         NodeType::Symbol if node.name.eq_ignore_ascii_case(query) => 8.0,
         NodeType::StyleToken => 6.0,
         NodeType::File => 1.0,

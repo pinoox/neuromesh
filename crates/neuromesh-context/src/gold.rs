@@ -94,6 +94,26 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does addToCart use createStore?".into(),
                 gold_files: vec!["src/cart.ts".into(), "src/store.ts".into()],
                 expect_seeds_missed: false,
+                forbidden_files: vec!["src/theme.ts".into()],
+            },
+        ),
+        (
+            "mini-store",
+            GoldTask {
+                id: "theme_tokens".into(),
+                prompt: "How does smsTheme use smsUnread from tokens.json?".into(),
+                gold_files: vec!["src/theme.ts".into(), "src/tokens.json".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec!["src/cart.ts".into()],
+            },
+        ),
+        (
+            "mini-cjs",
+            GoldTask {
+                id: "cjs_require".into(),
+                prompt: "How does saveSms require createStore?".into(),
+                gold_files: vec!["src/saveSms.cjs".into(), "src/store.js".into()],
+                expect_seeds_missed: false,
                 forbidden_files: Vec::new(),
             },
         ),
@@ -299,6 +319,95 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_store".into(),
+                prompt: "How does SmsController store use SmsMessage?".into(),
+                gold_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "app/Models/SmsMessage.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "database/factories/SmsMessageFactory.php".into(),
+                    "database/seeders/SmsSeeder.php".into(),
+                    "database/sql/sms_messages.sql".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_route".into(),
+                prompt: "how does the laravel POST /sms route reach SmsController store".into(),
+                gold_files: vec![
+                    "routes/web.php".into(),
+                    "app/Http/Controllers/SmsController.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec!["database/seeders/SmsSeeder.php".into()],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_migration".into(),
+                prompt: "How does the create_sms_messages_table migration create the sms_messages table?".into(),
+                gold_files: vec![
+                    "database/migrations/2024_01_01_000000_create_sms_messages_table.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "database/seeders/SmsSeeder.php".into(),
+                    "app/Models/SmsMessage.php".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_seeder".into(),
+                prompt: "How does SmsSeeder run SmsMessageFactory definition?".into(),
+                gold_files: vec![
+                    "database/seeders/SmsSeeder.php".into(),
+                    "database/factories/SmsMessageFactory.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "routes/web.php".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_sql".into(),
+                prompt: "Where is the sms_messages CREATE TABLE in sms_messages.sql?".into(),
+                gold_files: vec!["database/sql/sms_messages.sql".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "database/seeders/SmsSeeder.php".into(),
+                    "app/Models/SmsMessage.php".into(),
+                ],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "sms_json".into(),
+                prompt: "Where is smsFrom defined in config/sms.json?".into(),
+                gold_files: vec!["config/sms.json".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "app/Http/Controllers/SmsController.php".into(),
+                    "database/sql/sms_messages.sql".into(),
+                ],
+            },
+        ),
+        (
             "mini-next",
             GoldTask {
                 id: "sms_api".into(),
@@ -441,7 +550,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "How does smsBadge use smsUnread?".into(),
                 gold_files: vec!["styles/sms.less".into()],
                 expect_seeds_missed: false,
-                forbidden_files: Vec::new(),
+                forbidden_files: vec!["styles/sms.scss".into(), "styles/sms.css".into()],
             },
         ),
         (
@@ -451,7 +560,31 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 prompt: "Where is smsInbox defined?".into(),
                 gold_files: vec!["assets/sms-inbox.svg".into()],
                 expect_seeds_missed: false,
-                forbidden_files: Vec::new(),
+                forbidden_files: vec!["styles/sms.scss".into(), "styles/sms.css".into()],
+            },
+        ),
+        (
+            "mini-styles",
+            GoldTask {
+                id: "sms_scss".into(),
+                prompt: "How does smsPanel in styles/sms.scss include smsTint?".into(),
+                gold_files: vec!["styles/sms.scss".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "styles/sms.less".into(),
+                    "assets/sms-inbox.svg".into(),
+                    "styles/sms.css".into(),
+                ],
+            },
+        ),
+        (
+            "mini-styles",
+            GoldTask {
+                id: "sms_css".into(),
+                prompt: "How does smsChip in styles/sms.css use the smsChip custom property?".into(),
+                gold_files: vec!["styles/sms.css".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec!["styles/sms.less".into(), "styles/sms.scss".into()],
             },
         ),
         (

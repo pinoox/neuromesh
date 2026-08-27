@@ -1,0 +1,71 @@
+[[task]]
+id = "sms_store"
+prompt = "How does SmsController store use SmsMessage?"
+gold_files = [
+  "app/Http/Controllers/SmsController.php",
+  "app/Models/SmsMessage.php",
+]
+expect_seeds_missed = false
+forbidden_files = [
+  "database/factories/SmsMessageFactory.php",
+  "database/seeders/SmsSeeder.php",
+  "database/sql/sms_messages.sql",
+]
+
+[[task]]
+id = "sms_route"
+prompt = "how does the laravel POST /sms route reach SmsController store"
+gold_files = [
+  "routes/web.php",
+  "app/Http/Controllers/SmsController.php",
+]
+expect_seeds_missed = false
+forbidden_files = [
+  "database/seeders/SmsSeeder.php",
+  "Helper/Greeter.php",
+]
+
+[[task]]
+id = "sms_migration"
+prompt = "How does the create_sms_messages_table migration create the sms_messages table?"
+gold_files = [
+  "database/migrations/2024_01_01_000000_create_sms_messages_table.php",
+]
+expect_seeds_missed = false
+forbidden_files = [
+  "app/Http/Controllers/SmsController.php",
+  "database/seeders/SmsSeeder.php",
+]
+
+[[task]]
+id = "sms_seeder"
+prompt = "How does SmsSeeder run SmsMessageFactory definition?"
+gold_files = [
+  "database/seeders/SmsSeeder.php",
+  "database/factories/SmsMessageFactory.php",
+]
+expect_seeds_missed = false
+forbidden_files = [
+  "app/Http/Controllers/SmsController.php",
+  "routes/web.php",
+]
+
+[[task]]
+id = "sms_sql"
+prompt = "Where is the sms_messages CREATE TABLE in sms_messages.sql?"
+gold_files = ["database/sql/sms_messages.sql"]
+expect_seeds_missed = false
+forbidden_files = [
+  "app/Http/Controllers/SmsController.php",
+  "database/seeders/SmsSeeder.php",
+]
+
+[[task]]
+id = "sms_json"
+prompt = "Where is smsFrom defined in config/sms.json?"
+gold_files = ["config/sms.json"]
+expect_seeds_missed = false
+forbidden_files = [
+  "app/Http/Controllers/SmsController.php",
+  "database/sql/sms_messages.sql",
+]

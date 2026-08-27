@@ -1,0 +1,11 @@
+$sms-unread: #ef4444;
+
+@mixin smsTint {
+  color: $sms-unread;
+}
+
+.smsPanel {
+  .smsBadge {
+    @include smsTint;
+  }
+}

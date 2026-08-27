@@ -145,7 +145,10 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
     }
 
     if let Ok(composer) = fs::read_to_string(root.join("composer.json")) {
-        if composer.contains("laravel/framework") {
+        if composer.contains("laravel/framework")
+            || composer.contains("illuminate/database")
+            || composer.contains("laravel/tinker")
+        {
             facts.push(ProjectFact::new(
                 project_id.clone(),
                 "framework",
@@ -252,6 +255,49 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             "pinoox_mode",
             format!("multi-app ({})", nested_apps.join(", ")),
         ));
+    }
+
+    let laravel_layout = root.join("artisan").exists()
+        || root.join("app").join("Models").is_dir()
+        || root.join("database").join("migrations").is_dir()
+        || root.join("database").join("seeders").is_dir()
+        || root.join("database").join("factories").is_dir();
+    if laravel_layout
+        && !facts
+            .iter()
+            .any(|f| f.category == "framework" && f.key == "laravel")
+    {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "laravel",
+            "Laravel layout (artisan, app/Models, or database/migrations)",
+        ));
+    }
+    if laravel_layout {
+        let mut parts = Vec::new();
+        if root.join("database").join("migrations").is_dir() {
+            parts.push("migrations");
+        }
+        if root.join("database").join("seeders").is_dir()
+            || root.join("database").join("seeds").is_dir()
+        {
+            parts.push("seeders");
+        }
+        if root.join("database").join("factories").is_dir() {
+            parts.push("factories");
+        }
+        if root.join("app").join("Models").is_dir() {
+            parts.push("eloquent");
+        }
+        if !parts.is_empty() {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "architecture",
+                "laravel_database",
+                parts.join(", "),
+            ));
+        }
     }
 
     if root.join("wp-config.php").exists() || root.join("wp-content").is_dir() {
@@ -513,6 +559,13 @@ fn push_js_toolchain_facts(facts: &mut Vec<ProjectFact>, project_id: &ProjectId,
             "react_router",
             "React Router app (package.json dependency)",
         ),
+        (
+            "\"typescript\"",
+            "typescript",
+            "TypeScript (package.json dependency)",
+        ),
+        ("\"sass\"", "sass", "Sass/SCSS (package.json dependency)"),
+        ("\"less\"", "less", "Less (package.json dependency)"),
     ] {
         if pkg.contains(needle)
             && !facts
@@ -801,6 +854,27 @@ mod tests {
         fs::write(dir.join("requirements.txt"), "fastapi>=0.115\n").unwrap();
         let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
         assert!(facts.iter().any(|f| f.key == "fastapi"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn laravel_layout_and_database_facts() {
+        let dir = temp_root();
+        fs::create_dir_all(dir.join("app/Models")).unwrap();
+        fs::create_dir_all(dir.join("database/migrations")).unwrap();
+        fs::create_dir_all(dir.join("database/seeders")).unwrap();
+        fs::create_dir_all(dir.join("database/factories")).unwrap();
+        fs::write(dir.join("artisan"), "#!/usr/bin/env php\n").unwrap();
+        fs::write(
+            dir.join("composer.json"),
+            r#"{ "require": { "laravel/framework": "^11" } }"#,
+        )
+        .unwrap();
+        let facts = extract_project_facts(&dir, &ProjectId::new("shop"));
+        assert!(facts.iter().any(|f| f.key == "laravel"));
+        assert!(facts
+            .iter()
+            .any(|f| f.key == "laravel_database" && f.content.contains("migrations")));
         let _ = fs::remove_dir_all(&dir);
     }
 }

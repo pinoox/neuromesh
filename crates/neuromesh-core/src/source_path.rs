@@ -63,6 +63,27 @@ pub fn is_legacy_path(path: &Path) -> bool {
             })
 }
 
+/// Laravel `database/migrations`, `seeders`, `factories`, and raw `.sql` schema files.
+pub fn is_schema_path(path: &Path) -> bool {
+    let lower = normalized_source_path(path);
+    has_dir_segment(path, &["migrations", "seeders", "seeds", "factories"])
+        || lower.contains("/database/")
+        || lower.ends_with(".sql")
+        || has_dir_segment(path, &["sql"])
+}
+
+pub fn prompt_targets_database(prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    lower.contains("migration")
+        || lower.contains("seeder")
+        || lower.contains("factory")
+        || lower.contains("eloquent")
+        || lower.contains("schema::")
+        || lower.contains("create table")
+        || lower.contains(".sql")
+        || (lower.contains(" sql") || lower.contains("sql "))
+}
+
 /// Schema *conversion* twins (`to-json-schema.ts`) — related, not parse/validate.
 pub fn is_json_schema_path(path: &Path) -> bool {
     let lower = normalized_source_path(path);
@@ -86,7 +107,7 @@ pub fn is_core_source_path(path: &Path) -> bool {
 
 /// Parallel API surfaces that steal seeds via similar names.
 pub fn is_name_collision_decoy(path: &Path) -> bool {
-    is_bench_path(path) || is_locale_path(path) || is_legacy_path(path)
+    is_bench_path(path) || is_locale_path(path) || is_legacy_path(path) || is_schema_path(path)
 }
 
 /// Test / bench / example / testdata / locale / legacy — indexed but not
@@ -169,6 +190,9 @@ pub fn decoy_allowed_for_prompt(path: &Path, prompt: &str) -> bool {
     if is_legacy_path(path) {
         return prompt_targets_legacy(prompt);
     }
+    if is_schema_path(path) {
+        return prompt_targets_database(prompt);
+    }
     true
 }
 
@@ -217,6 +241,27 @@ mod tests {
             hmvc_app_prefix(Path::new("Controller/MainController.php")),
             None
         );
+        assert!(is_schema_path(Path::new(
+            "database/migrations/2024_01_01_000000_create_sms_messages_table.php"
+        )));
+        assert!(is_schema_path(Path::new("database/sql/sms_messages.sql")));
+        assert!(!is_schema_path(Path::new(
+            "app/Http/Controllers/SmsController.php"
+        )));
+        assert!(prompt_targets_database(
+            "How does the create_sms_messages_table migration create sms_messages?"
+        ));
+        assert!(!prompt_targets_database(
+            "How does SmsController store use SmsMessage?"
+        ));
+        assert!(!decoy_allowed_for_prompt(
+            Path::new("database/factories/SmsMessageFactory.php"),
+            "How does SmsController store use SmsMessage?"
+        ));
+        assert!(decoy_allowed_for_prompt(
+            Path::new("database/factories/SmsMessageFactory.php"),
+            "How does SmsSeeder run SmsMessageFactory definition?"
+        ));
         assert!(!decoy_allowed_for_prompt(
             Path::new("packages/bench/safeparse.ts"),
             "where is the safeParse function implemented"

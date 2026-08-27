@@ -1,0 +1,5 @@
+[[task]]
+id = "cjs_require"
+prompt = "How does saveSms require createStore?"
+gold_files = ["src/saveSms.cjs", "src/store.js"]
+expect_seeds_missed = false

@@ -1,5 +1,6 @@
 use crate::generic::GenericParser;
 use crate::html::HtmlParser;
+use crate::json::JsonParser;
 use crate::python_lang::PythonParser;
 use crate::query_extract::{
     self, Grammar, QueryOptions, CSHARP_QUERIES, DART_QUERIES, GO_QUERIES, JAVA_QUERIES,
@@ -8,6 +9,7 @@ use crate::query_extract::{
 };
 use crate::rust_lang::RustParser;
 use crate::scss::ScssParser;
+use crate::sql::SqlParser;
 use crate::types::AstAnalysisResult;
 use crate::typescript::TypeScriptParser;
 use crate::vue::VueParser;
@@ -35,6 +37,8 @@ enum Fallback {
     Scss,
     Css,
     Less,
+    Json,
+    Sql,
     None,
 }
 
@@ -160,11 +164,21 @@ impl LanguageSpec {
                 options: QueryOptions::java(),
                 fallback: Fallback::Generic,
             },
-            SourceLanguage::JSON
-            | SourceLanguage::YAML
-            | SourceLanguage::Markdown
-            | SourceLanguage::SQL
-            | SourceLanguage::Unknown => Self {
+            SourceLanguage::JSON => Self {
+                language,
+                grammar: None,
+                queries: None,
+                options: QueryOptions::typescript(),
+                fallback: Fallback::Json,
+            },
+            SourceLanguage::SQL => Self {
+                language,
+                grammar: None,
+                queries: None,
+                options: QueryOptions::typescript(),
+                fallback: Fallback::Sql,
+            },
+            SourceLanguage::YAML | SourceLanguage::Markdown | SourceLanguage::Unknown => Self {
                 language,
                 grammar: None,
                 queries: None,
@@ -196,6 +210,8 @@ impl Fallback {
             Fallback::Scss => ScssParser::parse(path, content),
             Fallback::Css => ScssParser::parse_css(path, content),
             Fallback::Less => ScssParser::parse_less(path, content),
+            Fallback::Json => JsonParser::parse(path, content),
+            Fallback::Sql => SqlParser::parse(path, content),
             Fallback::None => AstAnalysisResult::default(),
         }
     }

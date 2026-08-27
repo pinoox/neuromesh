@@ -168,7 +168,7 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     });
     let bare_file_re = BARE_FILE_RE.get_or_init(|| {
         Regex::new(
-            r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|py|vue|go|java|cs|kt|kts|dart|rb|php|astro|svelte|twig|cshtml|razor|swift|css|scss|sass|less|html|htm|svg)\b",
+            r"\b[A-Za-z0-9_.-]+\.(?:rs|ts|tsx|js|jsx|mjs|cjs|py|vue|go|java|cs|kt|kts|dart|rb|php|astro|svelte|twig|cshtml|razor|swift|css|scss|sass|less|html|htm|svg|sql|json|jsonc)\b",
         )
         .unwrap()
     });
@@ -539,6 +539,18 @@ mod tests {
             .any(|p| p.contains("sms-inbox.svg")));
         assert!(anchors.identifiers.iter().any(|id| id == "smsBadge"));
         assert!(anchors.identifiers.iter().any(|id| id == "smsUnread"));
+    }
+
+    #[test]
+    fn extracts_json_and_sql_file_hints() {
+        let anchors = extract_prompt_anchors(
+            "Where is smsFrom defined in config/sms.json and sms_messages in sms_messages.sql?",
+        );
+        assert!(anchors.file_hints.iter().any(|p| p.contains("sms.json")));
+        assert!(anchors
+            .file_hints
+            .iter()
+            .any(|p| p.contains("sms_messages.sql")));
     }
 
     #[test]

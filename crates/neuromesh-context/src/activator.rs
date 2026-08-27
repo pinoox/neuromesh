@@ -6,9 +6,10 @@ use crate::selector::{
 };
 use crate::skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan};
 use neuromesh_core::{
-    decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, prompt_targets_types,
-    ActivatedNodeView, ContextStatus, ContextView, CoverageReport, EdgeConfidence, EdgeType,
-    NextAction, NodeId, NodeType, OptimizationMode, SeedResolution, TaskSignature,
+    decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, is_schema_path,
+    prompt_targets_database, prompt_targets_types, ActivatedNodeView, ContextStatus, ContextView,
+    CoverageReport, EdgeConfidence, EdgeType, NextAction, NodeId, NodeType, OptimizationMode,
+    SeedResolution, TaskSignature,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
 use neuromesh_task::{extract_cluster_nouns, split_task_clusters, stem_search_queries};
@@ -311,6 +312,12 @@ impl ContextActivator {
                 .optional
                 .retain(|id| keep_hmvc_packet_file(graph, &seed_set, &lock, id));
         }
+        selection
+            .required
+            .retain(|id| keep_schema_packet_file(graph, &seed_set, prompt, id));
+        selection
+            .optional
+            .retain(|id| keep_schema_packet_file(graph, &seed_set, prompt, id));
         *self.last_physarum.lock() = PhysarumTelemetry {
             used: physarum_used,
             ms: physarum_ms,
@@ -856,6 +863,30 @@ fn keep_hmvc_packet_file(
         Some(prefix) => prefix == lock,
         None => true,
     }
+}
+
+fn keep_schema_packet_file(
+    graph: &NeuralProjectGraph,
+    seeds: &HashSet<NodeId>,
+    prompt: &str,
+    id: &NodeId,
+) -> bool {
+    let Some(node) = graph.get_node(id) else {
+        return false;
+    };
+    if seeds.contains(id)
+        || seeds.iter().any(|seed| {
+            graph
+                .get_node(seed)
+                .is_some_and(|s| s.file_path == node.file_path)
+        })
+    {
+        return true;
+    }
+    if !is_schema_path(&node.file_path) {
+        return true;
+    }
+    prompt_targets_database(prompt)
 }
 
 fn locked_seed_hmvc_prefix(graph: &NeuralProjectGraph, seeds: &HashSet<NodeId>) -> Option<String> {

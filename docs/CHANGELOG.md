@@ -10,6 +10,12 @@ Pinoox/Pinx layout detection, real Pinx routes, and stronger Vue/PrimeVue/React 
 - **Single-app vs multi-app.** Root `app.php` + `bin/pinx` is Pinx single-app; `apps/com_*` with nested `app.php` is multi-app. Theme `package.json` under `theme/` is scanned for Vue, PrimeVue, PrimeUIX, Pinia, and React.
 - **Vue kebab-case and React `FC`.** `<data-table>` becomes `DataTable`; `const StatCard: FC = () =>` is a `Component`. Gold: `mini-pinoox` dashboard/StatCard, `mini-pinoox-platform` shop vs blog.
 
+Laravel Eloquent, SQL/JSON, and stronger TypeScript/CSS overlays.
+
+- **Laravel is a real stack, not only `Route::get`.** Eloquent `Model` / `$table` / `belongsTo` become `DbModel` nodes; `Schema::create`, seeders, factories, `Route::resource` / `match`, and Blade `@include` overlay too. Gold: `mini-laravel` store/route/migration/seeder/SQL/JSON.
+- **SQL and JSON are parsed.** `CREATE TABLE` / views / routines are `DbModel` symbols; `config/*.json` and `package.json` scripts are `Config` (dependency maps are skipped). Lockfiles stay out of the walk.
+- **JS/TS modules and stylesheets.** `require()` / `import()` / CSS+JSON side-effect imports; nested SCSS `@include` / `@function` / `@keyframes`; comma-nested classes in CSS/SCSS/Less. Gold: `mini-store` theme+CJS, `mini-styles` SCSS+CSS.
+
 Seed ranking on TypeScript repos with parallel API surfaces (core + bench + i18n).
 
 - **Tighter name matches beat decorated twins.** `safeParse` outranks `parseSimpleObject` / `parseNestedObject` for the identifier `parse`; substring score now scales with how much of the symbol name is the identifier.

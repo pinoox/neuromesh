@@ -1,0 +1,7 @@
+:root {
+  --smsChip: #22c55e;
+}
+
+.smsChip {
+  color: var(--smsChip);
+}

@@ -3,9 +3,25 @@ id = "sms_badge"
 prompt = "How does smsBadge use smsUnread?"
 gold_files = ["styles/sms.less"]
 expect_seeds_missed = false
+forbidden_files = ["styles/sms.scss", "styles/sms.css"]
 
 [[task]]
 id = "sms_icon"
 prompt = "Where is smsInbox defined?"
 gold_files = ["assets/sms-inbox.svg"]
 expect_seeds_missed = false
+forbidden_files = ["styles/sms.scss", "styles/sms.css"]
+
+[[task]]
+id = "sms_scss"
+prompt = "How does smsPanel in styles/sms.scss include smsTint?"
+gold_files = ["styles/sms.scss"]
+expect_seeds_missed = false
+forbidden_files = ["styles/sms.less", "assets/sms-inbox.svg", "styles/sms.css"]
+
+[[task]]
+id = "sms_css"
+prompt = "How does smsChip in styles/sms.css use the smsChip custom property?"
+gold_files = ["styles/sms.css"]
+expect_seeds_missed = false
+forbidden_files = ["styles/sms.less", "styles/sms.scss"]

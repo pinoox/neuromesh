@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS sms_messages (
+  id INTEGER PRIMARY KEY,
+  body TEXT NOT NULL
+);

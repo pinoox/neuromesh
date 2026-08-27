@@ -1,8 +1,9 @@
 use chrono::Utc;
 use neuromesh_core::{
-    is_bench_path, is_json_schema_path, is_legacy_path, is_locale_path, name_match_specificity,
-    prompt_targets_bench, prompt_targets_json_schema, prompt_targets_legacy, prompt_targets_locale,
-    prompt_targets_types, ContextNode, NodeType, TaskSignature,
+    is_bench_path, is_json_schema_path, is_legacy_path, is_locale_path, is_schema_path,
+    name_match_specificity, prompt_targets_bench, prompt_targets_database,
+    prompt_targets_json_schema, prompt_targets_legacy, prompt_targets_locale, prompt_targets_types,
+    ContextNode, NodeType, TaskSignature,
 };
 
 #[derive(Debug, Clone)]
@@ -118,7 +119,11 @@ impl ActivationScorer {
 
         // Technology / style match (e.g. SCSS file when style is SCSS)
         if let Some(style) = &signature.style {
-            if style.to_lowercase() == "scss" && node.file_path.to_string_lossy().ends_with(".scss")
+            let style_l = style.to_lowercase();
+            let path = node.file_path.to_string_lossy().to_lowercase();
+            if (style_l == "scss" && (path.ends_with(".scss") || path.ends_with(".sass")))
+                || (style_l == "less" && path.ends_with(".less"))
+                || (style_l == "css" && path.ends_with(".css"))
             {
                 return 0.80;
             }
@@ -132,6 +137,7 @@ impl ActivationScorer {
         let base: f32 = match node.node_type {
             NodeType::Component | NodeType::Api => 0.95,
             NodeType::File => 0.90,
+            NodeType::DbModel => 0.90,
             NodeType::Function | NodeType::Class => 0.85,
             NodeType::StyleToken => 0.80,
             NodeType::Symbol => {
@@ -168,6 +174,9 @@ impl ActivationScorer {
         }
         if is_locale_path(&node.file_path) && !prompt_targets_locale(prompt) {
             return base.min(0.30);
+        }
+        if is_schema_path(&node.file_path) && !prompt_targets_database(prompt) {
+            return base.min(0.35);
         }
         base
     }
