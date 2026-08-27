@@ -160,6 +160,8 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     static TICK_RE: OnceLock<Regex> = OnceLock::new();
     static HOW_DOES_RE: OnceLock<Regex> = OnceLock::new();
     static DOTTED_RE: OnceLock<Regex> = OnceLock::new();
+    static CALL_RE: OnceLock<Regex> = OnceLock::new();
+    static NS_DOTTED_RE: OnceLock<Regex> = OnceLock::new();
 
     let file_re = FILE_RE.get_or_init(|| {
         Regex::new(r"(?x)(?:[A-Za-z0-9_.-]+[/\\])+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+").unwrap()
@@ -188,6 +190,9 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     });
     let dotted_re = DOTTED_RE
         .get_or_init(|| Regex::new(r"\b([A-Z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b").unwrap());
+    let call_re = CALL_RE.get_or_init(|| Regex::new(r"\b([A-Za-z_][A-Za-z0-9_]*)\(\)").unwrap());
+    let ns_dotted_re =
+        NS_DOTTED_RE.get_or_init(|| Regex::new(r"\b[a-z]\.([A-Za-z_][A-Za-z0-9_]{2,})\b").unwrap());
 
     for cap in file_re.captures_iter(prompt) {
         let path = cap.get(0).unwrap().as_str().replace('\\', "/");
@@ -227,6 +232,20 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
         if is_code_ident(owner) {
             push_unique(&mut identifiers, owner.to_string());
         }
+        if is_code_ident(member) || is_how_does_ident(member) {
+            push_unique(&mut identifiers, member.to_string());
+        }
+    }
+
+    for cap in call_re.captures_iter(prompt) {
+        let ident = cap.get(1).unwrap().as_str();
+        if is_seedable_call(ident) {
+            push_unique(&mut identifiers, ident.to_string());
+        }
+    }
+
+    for cap in ns_dotted_re.captures_iter(prompt) {
+        let member = cap.get(1).unwrap().as_str();
         if is_code_ident(member) || is_how_does_ident(member) {
             push_unique(&mut identifiers, member.to_string());
         }
@@ -294,6 +313,30 @@ pub struct PromptAnchors {
     pub file_hints: Vec<String>,
 }
 
+/// Morphological variants so "parsing" can seed `parse` and "validation" can
+/// seed `validate` when the gerund/noun itself is not a symbol.
+pub fn stem_search_queries(query: &str) -> Vec<String> {
+    let q = query.trim().to_lowercase();
+    let mut out = Vec::new();
+    if q.len() >= 7 && q.ends_with("ing") {
+        let stem = &q[..q.len() - 3];
+        push_unique(&mut out, stem.to_string());
+        push_unique(&mut out, format!("{stem}e"));
+    }
+    if q.len() >= 9 && q.ends_with("ation") {
+        let stem = &q[..q.len() - 5];
+        push_unique(&mut out, stem.to_string());
+        push_unique(&mut out, format!("{stem}e"));
+        push_unique(&mut out, format!("{stem}ate"));
+    } else if q.len() >= 8 && q.ends_with("tion") {
+        let stem = &q[..q.len() - 4];
+        push_unique(&mut out, stem.to_string());
+        push_unique(&mut out, format!("{stem}e"));
+    }
+    out.retain(|s| s.len() >= 4 && s != &q);
+    out
+}
+
 pub fn tokenize_ident(name: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     for chunk in name
@@ -331,6 +374,13 @@ fn is_cluster_noun(value: &str) -> bool {
         return false;
     }
     true
+}
+
+fn is_seedable_call(value: &str) -> bool {
+    if !is_how_does_ident(value) {
+        return false;
+    }
+    !STOPWORDS.contains(&value.to_lowercase().as_str())
 }
 
 fn is_code_ident(value: &str) -> bool {
@@ -530,6 +580,37 @@ mod tests {
                 .any(|id| id.eq_ignore_ascii_case("user")),
             "English 'the user' is not a how-does seed: {:?}",
             anchors.identifiers
+        );
+    }
+
+    #[test]
+    fn extracts_call_and_single_letter_namespace() {
+        let anchors = extract_prompt_anchors(
+            "how does z.object schema validate an object and how does parse() report validation errors",
+        );
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "parse"),
+            "parse() must be a seed, identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "object"),
+            "z.object must seed object, identifiers = {:?}",
+            anchors.identifiers
+        );
+    }
+
+    #[test]
+    fn stems_gerunds_and_ations() {
+        let parsing = stem_search_queries("parsing");
+        assert!(
+            parsing.iter().any(|s| s == "parse"),
+            "parsing stems = {parsing:?}"
+        );
+        let validation = stem_search_queries("validation");
+        assert!(
+            validation.iter().any(|s| s == "validate"),
+            "validation stems = {validation:?}"
         );
     }
 }

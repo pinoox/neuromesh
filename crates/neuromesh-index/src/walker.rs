@@ -438,6 +438,10 @@ mod tests {
         assert!(!ProjectWalker::is_ignored(Path::new(
             "crates/foo/tests/gold.rs"
         )));
+        assert!(
+            !ProjectWalker::is_ignored(Path::new("packages/bench/safeparse.ts")),
+            "JS bench/ stays indexed so ranking can deprioritize it vs production"
+        );
     }
 
     #[test]

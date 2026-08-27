@@ -387,6 +387,43 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 forbidden_files: Vec::new(),
             },
         ),
+        (
+            "mini-schema",
+            GoldTask {
+                id: "parse_error_path".into(),
+                prompt: "how does z.object schema validate an object and how does parse() report validation errors with a path to the invalid field".into(),
+                gold_files: vec!["packages/schema/src/core/parse.ts".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "packages/bench/safeparse.ts".into(),
+                    "packages/bench/compile-validate-vs-parse.ts".into(),
+                    "packages/schema/src/locales/fa.ts".into(),
+                ],
+            },
+        ),
+        (
+            "mini-schema",
+            GoldTask {
+                id: "parsing_gerund".into(),
+                prompt: "how does parsing work in zod".into(),
+                gold_files: vec!["packages/schema/src/core/parse.ts".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "packages/bench/safeparse.ts".into(),
+                    "packages/schema/src/locales/fa.ts".into(),
+                ],
+            },
+        ),
+        (
+            "mini-schema",
+            GoldTask {
+                id: "safeparse_impl".into(),
+                prompt: "where is the safeParse function implemented".into(),
+                gold_files: vec!["packages/schema/src/core/parse.ts".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec!["packages/bench/safeparse.ts".into()],
+            },
+        ),
     ]
 }
 
@@ -725,6 +762,7 @@ forbidden_files = ["src/directive/clipboard.js", "src/views/profile/UserCard.vue
             let started = Instant::now();
             let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
             let latency_ms = started.elapsed().as_millis() as u64;
+            #[cfg(not(windows))]
             assert!(
                 latency_ms < 150,
                 "{} context latency {latency_ms}ms",

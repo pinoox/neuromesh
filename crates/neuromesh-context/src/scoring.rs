@@ -1,5 +1,8 @@
 use chrono::Utc;
-use neuromesh_core::{ContextNode, NodeType, TaskSignature};
+use neuromesh_core::{
+    is_bench_path, is_locale_path, name_match_specificity, prompt_targets_bench,
+    prompt_targets_locale, ContextNode, NodeType, TaskSignature,
+};
 
 #[derive(Debug, Clone)]
 pub struct ScoringWeights {
@@ -66,14 +69,19 @@ impl ActivationScorer {
             .replace('\\', "/")
             .to_lowercase();
 
+        let mut best = 0.30f32;
         for ident in &signature.identifiers {
             let ident_lower = ident.to_lowercase();
             if node_name_lower == ident_lower {
                 return 1.0;
             }
-            if node_name_lower.contains(&ident_lower) && ident_lower.len() >= 4 {
-                return 0.92;
+            if ident_lower.len() >= 4 && node_name_lower.contains(&ident_lower) {
+                let score = 0.92 * name_match_specificity(&ident_lower, &node_name_lower);
+                best = best.max(score);
             }
+        }
+        if best > 0.30 {
+            return best;
         }
 
         for hint in &signature.file_hints {
@@ -84,11 +92,13 @@ impl ActivationScorer {
         }
 
         // Exact match with task entity
-        if !entity_lower.is_empty()
-            && entity_lower != "workspace"
-            && (node_name_lower == entity_lower || node_name_lower.contains(&entity_lower))
-        {
-            return 1.0;
+        if !entity_lower.is_empty() && entity_lower != "workspace" {
+            if node_name_lower == entity_lower {
+                return 1.0;
+            }
+            if entity_lower.len() >= 4 && node_name_lower.contains(&entity_lower) {
+                return 0.92 * name_match_specificity(&entity_lower, &node_name_lower);
+            }
         }
 
         // Match with related concepts (identifier-sized only)
@@ -97,8 +107,11 @@ impl ActivationScorer {
             if concept_lower.len() < 4 {
                 continue;
             }
-            if node_name_lower == concept_lower || node_name_lower.contains(&concept_lower) {
+            if node_name_lower == concept_lower {
                 return 0.85;
+            }
+            if node_name_lower.contains(&concept_lower) {
+                return 0.85 * name_match_specificity(&concept_lower, &node_name_lower);
             }
         }
 
@@ -115,7 +128,7 @@ impl ActivationScorer {
     }
 
     fn compute_task_impact(&self, node: &ContextNode, signature: &TaskSignature) -> f32 {
-        match node.node_type {
+        let base: f32 = match node.node_type {
             NodeType::Component | NodeType::Api => 0.95,
             NodeType::File => 0.90,
             NodeType::Function | NodeType::Class => 0.85,
@@ -132,7 +145,18 @@ impl ActivationScorer {
             }
             NodeType::Doc => 0.40,
             _ => 0.50,
+        };
+        let prompt = signature.raw_prompt.as_str();
+        if is_bench_path(&node.file_path)
+            && !prompt_targets_bench(prompt)
+            && signature.intent != neuromesh_core::TaskIntent::Optimize
+        {
+            return base.min(0.35);
         }
+        if is_locale_path(&node.file_path) && !prompt_targets_locale(prompt) {
+            return base.min(0.30);
+        }
+        base
     }
 
     fn compute_recency(&self, node: &ContextNode) -> f32 {
@@ -144,5 +168,76 @@ impl ActivationScorer {
         (-0.693 * (age_seconds / half_life_seconds))
             .exp()
             .clamp(0.2, 1.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neuromesh_core::{NodeId, ProjectId, TaskIntent};
+    use std::path::PathBuf;
+
+    fn fn_node(name: &str, path: &str) -> ContextNode {
+        ContextNode {
+            id: NodeId::new(name),
+            project_id: ProjectId::new("t"),
+            file_path: PathBuf::from(path),
+            node_type: NodeType::Function,
+            name: name.into(),
+            signature: None,
+            line_range: Some(1..10),
+            token_cost: 40,
+            content: None,
+            content_hash: String::new(),
+            parent: None,
+            base_relevance: 1.0,
+            access_count: 0,
+            last_accessed: Utc::now(),
+        }
+    }
+
+    fn sig_with_ident(ident: &str) -> TaskSignature {
+        let mut sig = TaskSignature::new("how does parse report a validation error path");
+        sig.identifiers = vec![ident.into()];
+        sig.intent = TaskIntent::Explain;
+        sig
+    }
+
+    #[test]
+    fn tighter_name_match_outranks_decorated_substring() {
+        let scorer = ActivationScorer::new(ScoringWeights::default());
+        let sig = sig_with_ident("parse");
+        let safe = fn_node("safeParse", "packages/zod/src/v4/core/parse.ts");
+        let nested = fn_node(
+            "parseNestedObject",
+            "packages/bench/compile-object-build.ts",
+        );
+        let safe_rel = scorer.compute_relevance(&safe, &sig);
+        let nested_rel = scorer.compute_relevance(&nested, &sig);
+        assert!(
+            safe_rel > nested_rel,
+            "safeParse relevance {safe_rel} should beat parseNestedObject {nested_rel}"
+        );
+    }
+
+    #[test]
+    fn bench_and_locale_paths_are_penalized_for_non_bench_tasks() {
+        let scorer = ActivationScorer::new(ScoringWeights::default());
+        let sig = sig_with_ident("safeParse");
+        let prod = fn_node("safeParse", "packages/zod/src/v4/core/parse.ts");
+        let bench = fn_node("safeParse", "packages/bench/safeparse.ts");
+        let locale = fn_node("localeError", "packages/zod/src/v4/locales/fa.ts");
+        let prod_impact = scorer.compute_task_impact(&prod, &sig);
+        let bench_impact = scorer.compute_task_impact(&bench, &sig);
+        let locale_impact = scorer.compute_task_impact(&locale, &sig);
+        assert!(
+            bench_impact < prod_impact,
+            "bench impact {bench_impact} should be below production {prod_impact}"
+        );
+        assert!(
+            locale_impact < prod_impact,
+            "locale impact {locale_impact} should be below production {prod_impact}"
+        );
+        assert!(bench_impact <= 0.35);
     }
 }

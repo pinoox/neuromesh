@@ -13,8 +13,9 @@ use crate::query::{
 };
 use crate::synapse::{StdpConfig, SynapticPlasticityEngine};
 use neuromesh_core::{
-    ContextEdge, ContextNode, EdgeConfidence, EdgeId, EdgeType, IndexMeta, NodeId, NodeType,
-    ProjectId, UnresolvedRef,
+    is_low_priority_source_path, is_name_collision_decoy, name_match_specificity, ContextEdge,
+    ContextNode, EdgeConfidence, EdgeId, EdgeType, IndexMeta, NodeId, NodeType, ProjectId,
+    UnresolvedRef,
 };
 use neuromesh_index::{FileFingerprint, IndexedFile, ScanReport};
 use neuromesh_parser::AstAnalysisResult;
@@ -723,8 +724,10 @@ impl NeuralProjectGraph {
                 if name == &query_lower {
                     continue;
                 }
+                let spec = name_match_specificity(&query_lower, name);
+                let score = 80.0 + 12.0 * spec;
                 for id in ids {
-                    scored.entry(id.clone()).or_insert((86.0, "prefix".into()));
+                    scored.entry(id.clone()).or_insert((score, "prefix".into()));
                 }
             }
             if !exact_type_hit {
@@ -733,10 +736,12 @@ impl NeuralProjectGraph {
                         continue;
                     }
                     if name.contains(&query_lower) {
+                        let spec = name_match_specificity(&query_lower, name);
+                        let score = 48.0 + 28.0 * spec;
                         for id in ids {
                             scored
                                 .entry(id.clone())
-                                .or_insert((68.0, "substring".into()));
+                                .or_insert((score, "substring".into()));
                         }
                     }
                 }
@@ -2083,15 +2088,23 @@ fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     };
     if node.name == query {
         bonus += 16.0;
+    } else if query.len() >= 4 {
+        let spec = name_match_specificity(query, &node.name);
+        if spec > 0.0 {
+            bonus += 10.0 * spec;
+        }
     }
-    if path_echoes_symbol(&node.file_path, query) {
-        bonus += 12.0;
-    }
-    if file_stem_equals(&node.file_path, query) {
-        bonus += 30.0;
+    let decoy = is_name_collision_decoy(&node.file_path);
+    if !decoy {
+        if path_echoes_symbol(&node.file_path, query) {
+            bonus += 12.0;
+        }
+        if file_stem_equals(&node.file_path, query) {
+            bonus += 30.0;
+        }
     }
     if is_fixture_path(&node.file_path) {
-        bonus -= 24.0;
+        bonus -= if decoy { 40.0 } else { 24.0 };
     }
     bonus
 }
@@ -2160,21 +2173,9 @@ pub fn path_echoes_symbol(path: &Path, query: &str) -> bool {
 
 fn is_fixture_path(path: &Path) -> bool {
     let lower = path.to_string_lossy().replace('\\', "/").to_lowercase();
-    lower.contains("/tests/")
-        || lower.contains("_tests.rs")
-        || lower.contains("/test/")
-        || lower.ends_with("/tests.rs")
-        || lower.contains("quality_tests")
+    is_low_priority_source_path(path)
         || lower.contains("/editors/")
         || lower.starts_with("editors/")
-        || lower.contains("/benches/")
-        || lower.starts_with("benches/")
-        || lower.contains("/examples/")
-        || lower.starts_with("examples/")
-        || lower.contains("/testdata/")
-        || lower.contains("/test_data/")
-        || lower.starts_with("testdata/")
-        || lower.starts_with("test_data/")
 }
 
 fn is_crate_path(path: &Path) -> bool {
