@@ -259,6 +259,7 @@ pub fn semantic_style_coverage(
     Some(style_count as f32 / selected_paths.len() as f32)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn enrich_coverage(
     seeds: &[SeedResolution],
     packet_gaps: Vec<PacketGap>,
@@ -266,6 +267,8 @@ pub fn enrich_coverage(
     covered: Vec<String>,
     skipped: Vec<SkippedFile>,
     semantic_coverage: Option<f32>,
+    sidecar_files: Vec<String>,
+    budget_truncated: bool,
 ) -> neuromesh_core::CoverageReport {
     neuromesh_core::CoverageReport::from_seeds_with_gaps(
         seeds,
@@ -274,5 +277,7 @@ pub fn enrich_coverage(
         covered,
         skipped,
         semantic_coverage,
+        sidecar_files,
+        budget_truncated,
     )
 }

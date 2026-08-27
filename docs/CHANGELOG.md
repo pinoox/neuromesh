@@ -4,6 +4,14 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.10 — 2026-08-28
+
+Honest bounded coverage, physarum sidecar cap, and clearer learning feedback fields.
+
+- **Coverage `bounded`.** `no_recorded_gap` only when seeds resolve, gaps are empty, no sidecar connector files, and the packet was not budget-truncated. Tasks with physarum/utility fill now report `bounded` instead of false-complete.
+- **Sidecar files.** Optional connector fill (`physarum_tube`, `utility:*`) is capped at 3 files and marked `sidecar: true` in packet output; `coverage.sidecar_files` lists them.
+- **Learning feedback clarity.** `record_feedback` returns `episode_saved_this_call`, `learning_episodes_in_store`, and `persisted_to: graph.bin`. `episodes_recorded` kept for compatibility (per-call 0/1).
+
 ## 0.7.9 — 2026-08-28
 
 durable learning, parser relink, and Vue trace on stale snapshots.

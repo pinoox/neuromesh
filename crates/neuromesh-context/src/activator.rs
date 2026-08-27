@@ -32,11 +32,13 @@ use std::time::Instant;
 
 const MAX_INACTIVE: usize = 12;
 const PHYSARUM_SLA_MS: u64 = 20;
+const MAX_PHYSARUM_SIDECAR_FILES: usize = 3;
 
 struct MaterializedNode {
     node: neuromesh_core::ContextNode,
     score: f32,
     reason: String,
+    sidecar: bool,
     raw_tokens: usize,
     folds: Vec<FoldedIntron>,
     folded_symbols: Vec<String>,
@@ -98,7 +100,7 @@ impl PacketSnapshot {
             budget_mode: view.budget_mode.clone(),
             seed_call_coverage: view.seed_call_coverage,
             next_action_count: view.next_actions.len(),
-            grep_needed: claim == "partial" || claim == "no_seed_resolved",
+            grep_needed: matches!(claim.as_str(), "partial" | "no_seed_resolved"),
             file_paths: files.into_iter().take(12).collect(),
         }
     }
@@ -358,6 +360,7 @@ impl ContextActivator {
             let ran = tube.iterations_converged > 0;
             if ran && physarum_ms <= PHYSARUM_SLA_MS {
                 physarum_used = true;
+                let mut physarum_candidates: Vec<(NodeId, f32)> = Vec::new();
                 for id in &tube.active_nodes {
                     let Some(node) = graph.get_node(id) else {
                         continue;
@@ -368,15 +371,38 @@ impl ContextActivator {
                     if selection.required.contains(&file_id) {
                         continue;
                     }
+                    let score = selection.scores.get(&file_id).copied().unwrap_or(8.0);
+                    physarum_candidates.push((file_id, score));
+                }
+                physarum_candidates.sort_by(|(a, sa), (b, sb)| {
+                    sb.partial_cmp(sa)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| {
+                            let pa = graph
+                                .get_node(a)
+                                .map(|n| n.file_path.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            let pb = graph
+                                .get_node(b)
+                                .map(|n| n.file_path.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            pa.cmp(&pb)
+                        })
+                });
+                physarum_candidates.dedup_by(|(a, _), (b, _)| a == b);
+                for (file_id, _) in physarum_candidates
+                    .into_iter()
+                    .take(MAX_PHYSARUM_SIDECAR_FILES)
+                {
                     let entry = selection.scores.entry(file_id.clone()).or_insert(0.0);
                     if *entry < 8.0 {
                         *entry = 8.0;
                     }
                     if !selection.optional.contains(&file_id) {
-                        selection.optional.push(file_id);
+                        selection.optional.push(file_id.clone());
                     }
                     seed_reasons
-                        .entry(id.clone())
+                        .entry(file_id)
                         .or_insert_with(|| "physarum_tube".into());
                 }
                 selection.method = "physarum_seed_fill";
@@ -470,7 +496,8 @@ impl ContextActivator {
                            seed_energies: &HashMap<NodeId, f32>,
                            seed_reasons: &HashMap<NodeId, String>,
                            scorer: &crate::scoring::ActivationScorer,
-                           exon_budget: usize|
+                           exon_budget: usize,
+                           required_file: bool|
          -> Option<MaterializedNode> {
             let mut node = graph.get_node(id)?;
             if is_noise_path(&node.file_path) && !seed_set.contains(id) {
@@ -495,6 +522,8 @@ impl ContextActivator {
                     .map(|s| format!("utility:{s:.2}"))
                     .unwrap_or_else(|| "connector".into())
             });
+            let sidecar =
+                !required_file && (reason == "physarum_tube" || reason.starts_with("utility:"));
             let mut folds = Vec::new();
             let mut folded_symbols = Vec::new();
             let policy = fold_policy.clone().with_exon_budget(exon_budget);
@@ -522,12 +551,14 @@ impl ContextActivator {
                 node,
                 score,
                 reason,
+                sidecar,
                 raw_tokens: raw,
                 folds,
                 folded_symbols,
             })
         };
 
+        let mut packet_truncated = false;
         let mut seed_items: Vec<MaterializedNode> = Vec::new();
         for id in &selection.required {
             if included.contains(id) {
@@ -540,6 +571,7 @@ impl ContextActivator {
                 &seed_reasons,
                 &self.scorer,
                 SEED_EXON_BUDGET,
+                true,
             ) else {
                 continue;
             };
@@ -561,6 +593,7 @@ impl ContextActivator {
                 &seed_reasons,
                 &self.scorer,
                 OPTIONAL_EXON_BUDGET,
+                false,
             ) else {
                 continue;
             };
@@ -585,6 +618,7 @@ impl ContextActivator {
             unique_file_tokens(seeds.iter().chain(fill.iter()))
         };
         while packet_tokens(&seed_items, &fill_items) > packet_limit && !fill_items.is_empty() {
+            packet_truncated = true;
             let dropped = fill_items.pop().expect("non-empty");
             fill_used = fill_used.saturating_sub(dropped.node.token_cost.max(1));
             total_raw_tokens = total_raw_tokens.saturating_sub(dropped.raw_tokens);
@@ -606,6 +640,7 @@ impl ContextActivator {
                     &seed_reasons,
                     &self.scorer,
                     2,
+                    selection.required.contains(&item.node.id),
                 ) else {
                     continue;
                 };
@@ -623,6 +658,7 @@ impl ContextActivator {
                 activation_score: item.score,
                 status: ContextStatus::Active,
                 expansion_reason: Some(item.reason),
+                sidecar: item.sidecar,
                 folded_symbols: item.folded_symbols,
             });
         }
@@ -666,9 +702,16 @@ impl ContextActivator {
             .map(|n| n.node.file_path.to_string_lossy().replace('\\', "/"))
             .collect();
         let covered: Vec<String> = selected_paths.iter().cloned().collect();
+        let sidecar_files: Vec<String> = active_nodes
+            .iter()
+            .filter(|n| n.sidecar && n.node.node_type == NodeType::File)
+            .map(|n| n.node.file_path.to_string_lossy().replace('\\', "/"))
+            .collect();
         let (packet_gaps, unsure) =
             compute_packet_gaps(graph, &seed_set, &selected_paths, signature);
         let semantic_cov = semantic_style_coverage(&selected_paths, signature);
+        let budget_truncated =
+            packet_truncated || fill_used > fill_cap || active_tokens > packet_limit;
         let coverage = enrich_coverage(
             &seed_resolutions,
             packet_gaps,
@@ -676,6 +719,8 @@ impl ContextActivator {
             covered,
             skipped_files,
             semantic_cov,
+            sidecar_files,
+            budget_truncated,
         );
         let structural_evidence = build_structural_evidence(graph, &seed_set);
         let unresolved: Vec<_> = graph
@@ -2990,5 +3035,46 @@ function setQty(id, q) { cart.setQty(id, q) }
             after > before,
             "learning_bonus should increase after feedback: before={before} after={after}"
         );
+    }
+
+    #[test]
+    fn coverage_claim_matches_sidecar_state() {
+        use neuromesh_index::ProjectWalker;
+        use std::path::PathBuf;
+
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/mini-shop");
+        if !root.exists() {
+            return;
+        }
+        let graph = NeuralProjectGraph::new(ProjectId::new("mini-shop-coverage"));
+        let walker = ProjectWalker::new(root, ProjectId::new("mini-shop-coverage"));
+        let scanned = walker.scan().expect("scan mini-shop");
+        graph.ingest_workspace(&scanned);
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "introduce a price-card promo tile using design tokens, mixins, and component styling conventions",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        if !coverage.sidecar_files.is_empty() {
+            assert_eq!(
+                coverage.claim, "bounded",
+                "sidecar fill must downgrade claim, coverage={coverage:?}"
+            );
+        }
+        for node in &view.active_nodes {
+            if node.sidecar {
+                let path = node.node.file_path.to_string_lossy().replace('\\', "/");
+                assert!(
+                    coverage.sidecar_files.iter().any(|p| p == &path),
+                    "sidecar node {path} missing from coverage.sidecar_files"
+                );
+            }
+        }
     }
 }
