@@ -181,7 +181,7 @@ pub fn compute_packet_gaps(
         for hit in graph.search_symbols("tokens", 6) {
             let path = hit.file_path.to_string_lossy().replace('\\', "/");
             if !crate::style_routing::is_style_path(&hit.file_path)
-                || !style_path_matches_task(&path, style_ext.as_deref())
+                || !crate::style_routing::style_path_matches_task(&path, style_ext.as_deref())
                 || selected_paths.contains(&path)
             {
                 continue;
@@ -275,14 +275,4 @@ pub fn enrich_coverage(
         skipped,
         semantic_coverage,
     )
-}
-
-fn style_path_matches_task(path: &str, style: Option<&str>) -> bool {
-    let p = path.to_ascii_lowercase();
-    match style {
-        Some("scss") | Some("sass") => p.ends_with(".scss") || p.ends_with(".sass"),
-        Some("less") => p.ends_with(".less"),
-        Some("css") => p.ends_with(".css"),
-        _ => true,
-    }
 }

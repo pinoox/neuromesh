@@ -28,6 +28,16 @@ pub fn is_style_task(signature: &TaskSignature) -> bool {
     STYLE_KEYWORDS.iter().any(|k| lower.contains(k))
 }
 
+pub fn style_path_matches_task(path: &str, style: Option<&str>) -> bool {
+    let p = path.replace('\\', "/").to_ascii_lowercase();
+    match style {
+        Some("scss") | Some("sass") => p.ends_with(".scss") || p.ends_with(".sass"),
+        Some("less") => p.ends_with(".less"),
+        Some("css") => p.ends_with(".css"),
+        _ => true,
+    }
+}
+
 pub fn is_style_path(path: &std::path::Path) -> bool {
     let p = path.to_string_lossy().replace('\\', "/").to_lowercase();
     p.contains("/styles/")
@@ -52,10 +62,17 @@ pub(crate) fn inject_style_seeds(
 
     let style_ext = signature.style.as_deref().map(|s| s.to_ascii_lowercase());
     for hint in style_file_hints(&style_ext) {
-        if let Some(id) = graph.resolve_file_hint(hint) {
-            sink.push(graph, prompt, hint.to_string(), 0.95, "style_hint");
-            let _ = id;
+        let Some(id) = graph.resolve_file_hint(hint) else {
+            continue;
+        };
+        let path = graph
+            .get_node(&id)
+            .map(|n| n.file_path.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        if !style_path_matches_task(&path, style_ext.as_deref()) {
+            continue;
         }
+        sink.push(graph, prompt, hint.to_string(), 0.95, "style_hint");
     }
 
     let lower = signature.raw_prompt.to_lowercase();
@@ -192,6 +209,43 @@ fn prompt_contains_word(lower: &str, word: &str) -> bool {
         .any(|w| w == word)
 }
 
+/// Keep only files whose extension matches an explicit stylesheet kind (CSS/Less/SCSS).
+pub(crate) fn tighten_style_extension_selection(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    selection: &mut crate::selector::Selection,
+) {
+    if !is_style_task(signature) {
+        return;
+    }
+    let style_ext = signature
+        .style
+        .as_deref()
+        .map(|s| s.to_ascii_lowercase())
+        .filter(|s| matches!(s.as_str(), "css" | "less" | "scss" | "sass"));
+    let Some(style_ext) = style_ext else {
+        return;
+    };
+    let keep = |path: &str| {
+        if !is_style_path(std::path::Path::new(path)) {
+            return true;
+        }
+        style_path_matches_task(path, Some(style_ext.as_str()))
+    };
+    selection.optional.retain(|id| {
+        graph
+            .get_node(id)
+            .map(|n| keep(&n.file_path.to_string_lossy()))
+            .unwrap_or(false)
+    });
+    selection.required.retain(|id| {
+        graph
+            .get_node(id)
+            .map(|n| keep(&n.file_path.to_string_lossy()))
+            .unwrap_or(true)
+    });
+}
+
 /// Drop optional connector fill when checkout/store seeds already anchor the task.
 pub(crate) fn tighten_focused_view_selection(
     graph: &NeuralProjectGraph,
@@ -260,6 +314,13 @@ mod tests {
     #[test]
     fn pascal_case_handles_checkout() {
         assert_eq!(pascal_case("checkout"), "Checkout");
+    }
+
+    #[test]
+    fn css_style_path_filter_rejects_less() {
+        assert!(style_path_matches_task("styles/sms.css", Some("css")));
+        assert!(!style_path_matches_task("styles/sms.less", Some("css")));
+        assert!(style_path_matches_task("styles/sms.less", Some("less")));
     }
 
     #[test]
