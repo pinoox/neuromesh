@@ -43,86 +43,11 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
     }
 
     if let Ok(pkg) = fs::read_to_string(root.join("package.json")) {
-        facts.push(ProjectFact::new(
-            project_id.clone(),
-            "framework",
-            "javascript_toolchain",
-            "Node/TypeScript project with package.json",
-        ));
-        for (needle, key, label) in [
-            (
-                "\"next\"",
-                "nextjs",
-                "Next.js app (package.json dependency)",
-            ),
-            ("\"react\"", "react", "React app (package.json dependency)"),
-            ("\"vue\"", "vue", "Vue app (package.json dependency)"),
-            (
-                "\"svelte\"",
-                "svelte",
-                "Svelte app (package.json dependency)",
-            ),
-            (
-                "\"vite\"",
-                "vite",
-                "Vite toolchain (package.json dependency)",
-            ),
-            (
-                "\"electron\"",
-                "electron",
-                "Electron app (package.json dependency)",
-            ),
-            (
-                "\"@tauri-apps/",
-                "tauri",
-                "Tauri app (package.json dependency)",
-            ),
-            (
-                "\"primereact\"",
-                "primereact",
-                "PrimeReact UI (package.json dependency)",
-            ),
-            (
-                "\"primevue\"",
-                "primevue",
-                "PrimeVue UI (package.json dependency)",
-            ),
-            ("\"astro\"", "astro", "Astro app (package.json dependency)"),
-            ("\"nuxt\"", "nuxt", "Nuxt app (package.json dependency)"),
-            (
-                "\"express\"",
-                "express",
-                "Express app (package.json dependency)",
-            ),
-            (
-                "\"@nestjs/core\"",
-                "nestjs",
-                "NestJS app (package.json dependency)",
-            ),
-            (
-                "\"@angular/core\"",
-                "angular",
-                "Angular app (package.json dependency)",
-            ),
-            (
-                "\"@remix-run/",
-                "remix",
-                "Remix app (package.json dependency)",
-            ),
-            (
-                "\"react-router\"",
-                "react_router",
-                "React Router app (package.json dependency)",
-            ),
-        ] {
-            if pkg.contains(needle) {
-                facts.push(ProjectFact::new(
-                    project_id.clone(),
-                    "framework",
-                    key,
-                    label,
-                ));
-            }
+        push_js_toolchain_facts(&mut facts, project_id, &pkg);
+    }
+    for nested in nested_package_jsons(root) {
+        if let Ok(pkg) = fs::read_to_string(&nested) {
+            push_js_toolchain_facts(&mut facts, project_id, &pkg);
         }
     }
 
@@ -228,12 +153,23 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
                 "Laravel project (composer.json)",
             ));
         }
-        if composer.contains("pinoox/pincore") || composer.contains("pinoox/pinx") {
+        if composer.contains("pinoox/pincore")
+            || composer.contains("pinoox/pinx")
+            || composer.contains("pinoox/app")
+        {
             facts.push(ProjectFact::new(
                 project_id.clone(),
                 "framework",
                 "pinoox",
                 "Pinoox/Pinx app (composer.json pinoox/pincore)",
+            ));
+        }
+        if composer.contains("pinoox/pinx-cli") || composer.contains("pinoox/pinx-inspector") {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "pinx",
+                "Pinx CLI (composer.json pinoox/pinx-cli)",
             ));
         }
         if composer.contains("symfony/framework-bundle") || composer.contains("symfony/symfony") {
@@ -264,11 +200,19 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
         }
     }
 
-    if root.join("app.php").exists()
+    let nested_apps = pinoox_app_packages(root);
+    let root_is_app = root.join("app.php").exists()
         && (root.join("Controller").is_dir()
             || root.join("routes").is_dir()
+            || root.join("theme").is_dir()
             || file_mentions(root, &["composer.json", "app.php"], "pinoox")
-            || file_mentions(root, &["app.php"], "package"))
+            || file_mentions(root, &["app.php"], "package")
+            || file_mentions(root, &["app.php"], "pinx"));
+    let has_pinx_cli = root.join("bin").join("pinx").exists()
+        || facts
+            .iter()
+            .any(|f| f.category == "framework" && f.key == "pinx");
+    if (root_is_app || !nested_apps.is_empty() || root.join("pinoox").is_file())
         && !facts
             .iter()
             .any(|f| f.category == "framework" && f.key == "pinoox")
@@ -277,7 +221,36 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
             project_id.clone(),
             "framework",
             "pinoox",
-            "Pinoox/Pinx layout (app.php + Controller/routes)",
+            "Pinoox/Pinx layout (app.php, apps/, or pinoox CLI)",
+        ));
+    }
+    if root_is_app && nested_apps.is_empty() {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "architecture",
+            "pinoox_mode",
+            "single-app (root app.php; Pinx layout)",
+        ));
+        if (has_pinx_cli
+            || file_mentions(root, &["app.php"], "pinx")
+            || root.join("platform").join("apps.config.php").exists())
+            && !facts
+                .iter()
+                .any(|f| f.category == "framework" && f.key == "pinx")
+        {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                "pinx",
+                "Pinx single-app (bin/pinx, app.php pinx, or platform/)",
+            ));
+        }
+    } else if !nested_apps.is_empty() {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "architecture",
+            "pinoox_mode",
+            format!("multi-app ({})", nested_apps.join(", ")),
         ));
     }
 
@@ -448,6 +421,167 @@ pub fn extract_project_facts(root: &Path, project_id: &ProjectId) -> Vec<Project
     facts
 }
 
+fn push_js_toolchain_facts(facts: &mut Vec<ProjectFact>, project_id: &ProjectId, pkg: &str) {
+    if !facts
+        .iter()
+        .any(|f| f.category == "framework" && f.key == "javascript_toolchain")
+    {
+        facts.push(ProjectFact::new(
+            project_id.clone(),
+            "framework",
+            "javascript_toolchain",
+            "Node/TypeScript project with package.json",
+        ));
+    }
+    for (needle, key, label) in [
+        (
+            "\"next\"",
+            "nextjs",
+            "Next.js app (package.json dependency)",
+        ),
+        ("\"react\"", "react", "React app (package.json dependency)"),
+        ("\"vue\"", "vue", "Vue app (package.json dependency)"),
+        (
+            "\"svelte\"",
+            "svelte",
+            "Svelte app (package.json dependency)",
+        ),
+        (
+            "\"vite\"",
+            "vite",
+            "Vite toolchain (package.json dependency)",
+        ),
+        (
+            "\"electron\"",
+            "electron",
+            "Electron app (package.json dependency)",
+        ),
+        (
+            "\"@tauri-apps/",
+            "tauri",
+            "Tauri app (package.json dependency)",
+        ),
+        (
+            "\"primereact\"",
+            "primereact",
+            "PrimeReact UI (package.json dependency)",
+        ),
+        (
+            "\"primevue\"",
+            "primevue",
+            "PrimeVue UI (package.json dependency)",
+        ),
+        (
+            "\"@primeuix/",
+            "primeuix",
+            "PrimeUIX theme tokens (package.json dependency)",
+        ),
+        (
+            "\"pinia\"",
+            "pinia",
+            "Pinia store (package.json dependency)",
+        ),
+        (
+            "\"vue-router\"",
+            "vue_router",
+            "Vue Router (package.json dependency)",
+        ),
+        ("\"astro\"", "astro", "Astro app (package.json dependency)"),
+        ("\"nuxt\"", "nuxt", "Nuxt app (package.json dependency)"),
+        (
+            "\"express\"",
+            "express",
+            "Express app (package.json dependency)",
+        ),
+        (
+            "\"@nestjs/core\"",
+            "nestjs",
+            "NestJS app (package.json dependency)",
+        ),
+        (
+            "\"@angular/core\"",
+            "angular",
+            "Angular app (package.json dependency)",
+        ),
+        (
+            "\"@remix-run/",
+            "remix",
+            "Remix app (package.json dependency)",
+        ),
+        (
+            "\"react-router\"",
+            "react_router",
+            "React Router app (package.json dependency)",
+        ),
+    ] {
+        if pkg.contains(needle)
+            && !facts
+                .iter()
+                .any(|f| f.category == "framework" && f.key == key)
+        {
+            facts.push(ProjectFact::new(
+                project_id.clone(),
+                "framework",
+                key,
+                label,
+            ));
+        }
+    }
+}
+
+fn nested_package_jsons(root: &Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    collect_named_files(root, "package.json", 0, 5, &mut out);
+    out.retain(|path| path != &root.join("package.json"));
+    out
+}
+
+fn pinoox_app_packages(root: &Path) -> Vec<String> {
+    let apps = root.join("apps");
+    let Ok(entries) = fs::read_dir(&apps) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter(|entry| entry.path().join("app.php").exists())
+        .filter_map(|entry| entry.file_name().to_str().map(str::to_string))
+        .collect();
+    names.sort();
+    names
+}
+
+fn collect_named_files(
+    dir: &Path,
+    filename: &str,
+    depth: usize,
+    max_depth: usize,
+    out: &mut Vec<std::path::PathBuf>,
+) {
+    if depth > max_depth || out.len() >= 24 {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let lower = name.to_ascii_lowercase();
+        if matches!(
+            lower.as_str(),
+            "node_modules" | "vendor" | "target" | ".git" | "dist" | "build" | "storage" | "~pinx"
+        ) {
+            continue;
+        }
+        if path.is_dir() {
+            collect_named_files(&path, filename, depth + 1, max_depth, out);
+        } else if name.eq_ignore_ascii_case(filename) {
+            out.push(path);
+        }
+    }
+}
+
 fn file_mentions(root: &Path, names: &[&str], needle: &str) -> bool {
     names
         .iter()
@@ -534,6 +668,69 @@ mod tests {
         let facts = extract_project_facts(&dir, &ProjectId::new("demo"));
         assert!(facts.iter().any(|f| f.key == "pinoox"));
         assert!(facts.iter().any(|f| f.key == "shopfa"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pinx_single_app_layout_and_nested_primevue() {
+        let dir = temp_root();
+        fs::create_dir_all(dir.join("bin")).unwrap();
+        fs::create_dir_all(dir.join("Controller")).unwrap();
+        fs::create_dir_all(dir.join("theme/spark")).unwrap();
+        fs::write(dir.join("bin/pinx"), "#!/usr/bin/env php\n").unwrap();
+        fs::write(
+            dir.join("app.php"),
+            "<?php return ['package' => 'com_pinoox_app', 'pinx' => ['type' => 'app']];\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("theme/spark/package.json"),
+            r#"{ "dependencies": { "vue": "3", "primevue": "4", "@primeuix/themes": "1", "pinia": "3" } }"#,
+        )
+        .unwrap();
+        let facts = extract_project_facts(&dir, &ProjectId::new("shop"));
+        assert!(facts.iter().any(|f| f.key == "pinoox"));
+        assert!(facts.iter().any(|f| f.key == "pinx"));
+        assert!(facts
+            .iter()
+            .any(|f| f.key == "pinoox_mode" && f.content.contains("single-app")));
+        assert!(facts.iter().any(|f| f.key == "vue"));
+        assert!(facts.iter().any(|f| f.key == "primevue"));
+        assert!(facts.iter().any(|f| f.key == "primeuix"));
+        assert!(facts.iter().any(|f| f.key == "pinia"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pinoox_multi_app_detects_packages() {
+        let dir = temp_root();
+        fs::create_dir_all(dir.join("apps/com_shop")).unwrap();
+        fs::create_dir_all(dir.join("apps/com_blog")).unwrap();
+        fs::write(
+            dir.join("composer.json"),
+            r#"{ "require": { "pinoox/pincore": "*" } }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join("apps/com_shop/app.php"),
+            "<?php return ['package' => 'com_shop'];\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("apps/com_blog/app.php"),
+            "<?php return ['package' => 'com_blog'];\n",
+        )
+        .unwrap();
+        let facts = extract_project_facts(&dir, &ProjectId::new("platform"));
+        assert!(facts.iter().any(|f| f.key == "pinoox"));
+        let mode = facts
+            .iter()
+            .find(|f| f.key == "pinoox_mode")
+            .map(|f| f.content.as_str())
+            .unwrap_or("");
+        assert!(mode.contains("multi-app"), "{mode}");
+        assert!(mode.contains("com_shop"));
+        assert!(mode.contains("com_blog"));
         let _ = fs::remove_dir_all(&dir);
     }
 

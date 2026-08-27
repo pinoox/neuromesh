@@ -228,7 +228,74 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "theme/default/hello.twig".into(),
                 ],
                 expect_seeds_missed: false,
-                forbidden_files: vec!["Helper/Greeter.php".into()],
+                forbidden_files: vec![
+                    "Helper/Greeter.php".into(),
+                    "theme/spark/src/Dashboard.vue".into(),
+                    "theme/spark/src/StatCard.tsx".into(),
+                ],
+            },
+        ),
+        (
+            "mini-pinoox",
+            GoldTask {
+                id: "pinx_home_route".into(),
+                prompt: "how does the pinx get home action reach MainController::index".into(),
+                gold_files: vec![
+                    "routes/web.php".into(),
+                    "Controller/MainController.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "Helper/Greeter.php".into(),
+                    "theme/spark/src/StatCard.tsx".into(),
+                ],
+            },
+        ),
+        (
+            "mini-pinoox",
+            GoldTask {
+                id: "dashboard_primevue".into(),
+                prompt: "How does Dashboard.vue use DataTable from primevue and useDashboardStore in stores/dashboard.ts?".into(),
+                gold_files: vec![
+                    "theme/spark/src/Dashboard.vue".into(),
+                    "theme/spark/src/stores/dashboard.ts".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "Helper/Greeter.php".into(),
+                    "theme/default/hello.twig".into(),
+                    "theme/spark/src/StatCard.tsx".into(),
+                ],
+            },
+        ),
+        (
+            "mini-pinoox",
+            GoldTask {
+                id: "stat_card_react".into(),
+                prompt: "How does the StatCard React FC render a label?".into(),
+                gold_files: vec!["theme/spark/src/StatCard.tsx".into()],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "theme/default/hello.twig".into(),
+                    "Helper/Greeter.php".into(),
+                    "theme/spark/src/Dashboard.vue".into(),
+                ],
+            },
+        ),
+        (
+            "mini-pinoox-platform",
+            GoldTask {
+                id: "shop_checkout".into(),
+                prompt: "How does ShopController checkout use OrderStore.save?".into(),
+                gold_files: vec![
+                    "apps/com_shop/Controller/ShopController.php".into(),
+                    "apps/com_shop/Model/OrderStore.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![
+                    "apps/com_blog/Controller/BlogController.php".into(),
+                    "apps/com_blog/Model/PostStore.php".into(),
+                ],
             },
         ),
         (

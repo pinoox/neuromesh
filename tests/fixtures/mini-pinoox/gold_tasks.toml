@@ -8,5 +8,26 @@ expect_seeds_missed = false
 id = "home_view_twig"
 prompt = "how does MainController::index render the hello view and where is the actual hello template file"
 gold_files = ["Controller/MainController.php", "routes/web.php", "theme/default/hello.twig"]
-forbidden_files = ["Helper/Greeter.php"]
+forbidden_files = ["Helper/Greeter.php", "theme/spark/src/Dashboard.vue", "theme/spark/src/StatCard.tsx"]
+expect_seeds_missed = false
+
+[[task]]
+id = "pinx_home_route"
+prompt = "how does the pinx get home action reach MainController::index"
+gold_files = ["routes/web.php", "Controller/MainController.php"]
+forbidden_files = ["Helper/Greeter.php", "theme/spark/src/StatCard.tsx"]
+expect_seeds_missed = false
+
+[[task]]
+id = "dashboard_primevue"
+prompt = "How does Dashboard.vue use DataTable from primevue and useDashboardStore in stores/dashboard.ts?"
+gold_files = ["theme/spark/src/Dashboard.vue", "theme/spark/src/stores/dashboard.ts"]
+forbidden_files = ["Helper/Greeter.php", "theme/default/hello.twig", "theme/spark/src/StatCard.tsx"]
+expect_seeds_missed = false
+
+[[task]]
+id = "stat_card_react"
+prompt = "How does the StatCard React FC render a label?"
+gold_files = ["theme/spark/src/StatCard.tsx"]
+forbidden_files = ["theme/default/hello.twig", "Helper/Greeter.php", "theme/spark/src/Dashboard.vue"]
 expect_seeds_missed = false

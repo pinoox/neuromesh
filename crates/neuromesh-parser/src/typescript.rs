@@ -34,7 +34,7 @@ impl TypeScriptParser {
 
         // 2. Extract functions, composables & classes
         let fn_regex = Regex::new(
-            r#"(?m)^\s*(?:export\s+)?(?:async\s+)?(?:function\s+([A-Za-z0-9_]+)|const\s+([A-Za-z0-9_]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|class\s+([A-Za-z0-9_]+))"#,
+            r#"(?m)^\s*(?:export\s+)?(?:async\s+)?(?:function\s+([A-Za-z0-9_]+)|const\s+([A-Za-z0-9_]+)\s*(?::[^=]{1,80})?\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|class\s+([A-Za-z0-9_]+))"#,
         )
         .unwrap();
 

@@ -4,6 +4,12 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+Pinoox/Pinx layout detection, real Pinx routes, and stronger Vue/PrimeVue/React overlays.
+
+- **Pinx `get()/post()` routes.** `get('/')->action([MainController::class, 'index'])->name('home')` is an `Api` node, not only the older `action([Class, method])` form. `collection('/api')`, `action('home', [Class, method])`, `render()` / `view()`, `app.php` package/theme/pinx, and `vite()` entry hints are overlayed too.
+- **Single-app vs multi-app.** Root `app.php` + `bin/pinx` is Pinx single-app; `apps/com_*` with nested `app.php` is multi-app. Theme `package.json` under `theme/` is scanned for Vue, PrimeVue, PrimeUIX, Pinia, and React.
+- **Vue kebab-case and React `FC`.** `<data-table>` becomes `DataTable`; `const StatCard: FC = () =>` is a `Component`. Gold: `mini-pinoox` dashboard/StatCard, `mini-pinoox-platform` shop vs blog.
+
 Seed ranking on TypeScript repos with parallel API surfaces (core + bench + i18n).
 
 - **Tighter name matches beat decorated twins.** `safeParse` outranks `parseSimpleObject` / `parseNestedObject` for the identifier `parse`; substring score now scales with how much of the symbol name is the identifier.

@@ -100,6 +100,20 @@ pub fn is_low_priority_source_path(path: &Path) -> bool {
         || is_testdata_path(path)
 }
 
+/// `apps/com_shop/...` → `apps/com_shop` so multi-app HMVC (Pinoox) stays in-package.
+pub fn hmvc_app_prefix(path: &Path) -> Option<String> {
+    let parts: Vec<String> = path
+        .iter()
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect();
+    let idx = parts.iter().position(|p| p.eq_ignore_ascii_case("apps"))?;
+    let pkg = parts.get(idx + 1)?.as_str();
+    if pkg.is_empty() || pkg.starts_with('.') {
+        return None;
+    }
+    Some(format!("apps/{pkg}"))
+}
+
 pub fn prompt_targets_bench(prompt: &str) -> bool {
     let lower = prompt.to_lowercase();
     lower.contains("benchmark")
@@ -195,6 +209,14 @@ mod tests {
         assert!(is_name_collision_decoy(Path::new(
             "packages/bench/compile-validate-vs-parse.ts"
         )));
+        assert_eq!(
+            hmvc_app_prefix(Path::new("apps/com_shop/Controller/ShopController.php")).as_deref(),
+            Some("apps/com_shop")
+        );
+        assert_eq!(
+            hmvc_app_prefix(Path::new("Controller/MainController.php")),
+            None
+        );
         assert!(!decoy_allowed_for_prompt(
             Path::new("packages/bench/safeparse.ts"),
             "where is the safeParse function implemented"

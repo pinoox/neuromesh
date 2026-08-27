@@ -6,9 +6,9 @@ use crate::selector::{
 };
 use crate::skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan};
 use neuromesh_core::{
-    decoy_allowed_for_prompt, is_name_collision_decoy, prompt_targets_types, ActivatedNodeView,
-    ContextStatus, ContextView, CoverageReport, EdgeConfidence, EdgeType, NextAction, NodeId,
-    NodeType, OptimizationMode, SeedResolution, TaskSignature,
+    decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, prompt_targets_types,
+    ActivatedNodeView, ContextStatus, ContextView, CoverageReport, EdgeConfidence, EdgeType,
+    NextAction, NodeId, NodeType, OptimizationMode, SeedResolution, TaskSignature,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
 use neuromesh_task::{extract_cluster_nouns, split_task_clusters, stem_search_queries};
@@ -204,6 +204,7 @@ impl ContextActivator {
             &mut seed_reasons,
         );
         mark_equivalent_file_hits(graph, &mut seed_resolutions, &mut seed_energies);
+        cohere_ambiguous_seeds_to_app(graph, &mut seed_resolutions, &mut seed_energies, prompt);
 
         let seed_set: HashSet<NodeId> = seed_energies.keys().cloned().collect();
         let neighborhood = if seed_set.is_empty() {
@@ -302,6 +303,14 @@ impl ContextActivator {
         });
         let extra_cap = selection.optional_cap;
         selection.optional.truncate(extra_cap);
+        if let Some(lock) = locked_seed_hmvc_prefix(graph, &seed_set) {
+            selection
+                .required
+                .retain(|id| keep_hmvc_packet_file(graph, &seed_set, &lock, id));
+            selection
+                .optional
+                .retain(|id| keep_hmvc_packet_file(graph, &seed_set, &lock, id));
+        }
         *self.last_physarum.lock() = PhysarumTelemetry {
             used: physarum_used,
             ms: physarum_ms,
@@ -750,6 +759,119 @@ fn mark_equivalent_file_hits(
             seed.confidence = seed.confidence.max(0.95);
             seed_energies.entry(id.clone()).or_insert(0.95);
         }
+    }
+}
+
+fn cohere_ambiguous_seeds_to_app(
+    graph: &NeuralProjectGraph,
+    seeds: &mut [SeedResolution],
+    seed_energies: &mut HashMap<NodeId, f32>,
+    prompt: &str,
+) {
+    let mut prefixes = HashSet::new();
+    for seed in seeds.iter() {
+        if seed.confidence < 0.9 {
+            continue;
+        }
+        let Some(id) = seed.resolved_id.as_ref() else {
+            continue;
+        };
+        if let Some(prefix) = graph
+            .get_node(id)
+            .and_then(|node| hmvc_app_prefix(&node.file_path))
+        {
+            prefixes.insert(prefix);
+        }
+    }
+    if prefixes.len() != 1 {
+        return;
+    }
+    let prefix = prefixes.into_iter().next().expect("checked len");
+    let prefix_slash = format!("{prefix}/");
+    for seed in seeds.iter_mut() {
+        if seed.confidence >= 0.9 {
+            continue;
+        }
+        let Some(id) = seed.resolved_id.clone() else {
+            continue;
+        };
+        let Some(node) = graph.get_node(&id) else {
+            continue;
+        };
+        let path = node.file_path.to_string_lossy().replace('\\', "/");
+        if path.contains(&prefix_slash) {
+            continue;
+        }
+        let hits = graph.search_symbols(&seed.query, 16);
+        let Some(hit) = hits.into_iter().find(|hit| {
+            if !seed_path_allowed(graph, &hit.id, prompt) {
+                return false;
+            }
+            if !hit
+                .file_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .contains(&prefix_slash)
+            {
+                return false;
+            }
+            let name = hit
+                .name
+                .rsplit(['.', ':'])
+                .next()
+                .unwrap_or(hit.name.as_str());
+            name.eq_ignore_ascii_case(&seed.query)
+        }) else {
+            continue;
+        };
+        seed_energies.remove(&id);
+        seed.resolved_id = Some(hit.id.clone());
+        seed.confidence = seed.confidence.max(0.9);
+        seed_energies
+            .entry(hit.id)
+            .and_modify(|energy| *energy = (*energy).max(0.7))
+            .or_insert(0.7);
+    }
+}
+
+fn keep_hmvc_packet_file(
+    graph: &NeuralProjectGraph,
+    seeds: &HashSet<NodeId>,
+    lock: &str,
+    id: &NodeId,
+) -> bool {
+    let Some(node) = graph.get_node(id) else {
+        return false;
+    };
+    if seeds.contains(id)
+        || seeds.iter().any(|seed| {
+            graph
+                .get_node(seed)
+                .is_some_and(|s| s.file_path == node.file_path)
+        })
+    {
+        return true;
+    }
+    match hmvc_app_prefix(&node.file_path) {
+        Some(prefix) => prefix == lock,
+        None => true,
+    }
+}
+
+fn locked_seed_hmvc_prefix(graph: &NeuralProjectGraph, seeds: &HashSet<NodeId>) -> Option<String> {
+    let mut prefixes = HashSet::new();
+    for id in seeds {
+        if let Some(prefix) = graph
+            .get_node(id)
+            .and_then(|node| hmvc_app_prefix(&node.file_path))
+        {
+            prefixes.insert(prefix);
+        }
+    }
+    if prefixes.len() == 1 {
+        prefixes.into_iter().next()
+    } else {
+        None
     }
 }
 

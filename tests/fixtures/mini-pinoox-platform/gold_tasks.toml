@@ -1,0 +1,6 @@
+[[task]]
+id = "shop_checkout"
+prompt = "How does ShopController checkout use OrderStore.save?"
+gold_files = ["apps/com_shop/Controller/ShopController.php", "apps/com_shop/Model/OrderStore.php"]
+forbidden_files = ["apps/com_blog/Controller/BlogController.php", "apps/com_blog/Model/PostStore.php"]
+expect_seeds_missed = false

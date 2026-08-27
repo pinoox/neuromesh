@@ -67,6 +67,10 @@ impl TaskSignatureExtractor {
             "TypeScript".to_string()
         } else if lower.contains("golang") || lower.contains(" go ") {
             "Go".to_string()
+        } else if lower.contains("pinoox") || lower.contains("pinx") || lower.contains("pincore") {
+            "Pinoox".to_string()
+        } else if lower.contains("primevue") || lower.contains("prime vue") {
+            "Vue".to_string()
         } else {
             "Fullstack".to_string()
         };

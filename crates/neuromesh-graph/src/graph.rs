@@ -13,9 +13,9 @@ use crate::query::{
 };
 use crate::synapse::{StdpConfig, SynapticPlasticityEngine};
 use neuromesh_core::{
-    is_core_source_path, is_json_schema_path, is_low_priority_source_path, is_name_collision_decoy,
-    name_match_specificity, ContextEdge, ContextNode, EdgeConfidence, EdgeId, EdgeType, IndexMeta,
-    NodeId, NodeType, ProjectId, UnresolvedRef,
+    hmvc_app_prefix, is_core_source_path, is_json_schema_path, is_low_priority_source_path,
+    is_name_collision_decoy, name_match_specificity, ContextEdge, ContextNode, EdgeConfidence,
+    EdgeId, EdgeType, IndexMeta, NodeId, NodeType, ProjectId, UnresolvedRef,
 };
 use neuromesh_index::{FileFingerprint, IndexedFile, ScanReport};
 use neuromesh_parser::AstAnalysisResult;
@@ -1164,6 +1164,30 @@ impl NeuralProjectGraph {
         if let Some(id) = self.resolve_call_target(name, source_file, imported_files) {
             return Some((id, EdgeConfidence::Proven));
         }
+        if let Some(prefix) = hmvc_app_prefix(source_file) {
+            let prefix_slash = format!("{prefix}/");
+            let name_lower = name.to_lowercase();
+            let in_app: Vec<NodeId> = {
+                let data = self.inner.read();
+                data.name_to_nodes
+                    .get(&name_lower)
+                    .into_iter()
+                    .flatten()
+                    .filter(|id| {
+                        data.mesh.node(id).is_some_and(|n| {
+                            n.file_path
+                                .to_string_lossy()
+                                .replace('\\', "/")
+                                .contains(&prefix_slash)
+                        })
+                    })
+                    .cloned()
+                    .collect()
+            };
+            if !in_app.is_empty() {
+                return self.pick_dominant_candidate(&in_app, name);
+            }
+        }
         self.resolve_ranked(
             name,
             Some(&source_file.to_string_lossy()),
@@ -1853,6 +1877,7 @@ impl NeuralProjectGraph {
                         | "route.ts"
                         | "web.php"
                         | "app.php"
+                        | "pinx"
                         | "vite.config.ts"
                         | "vite.config.js"
                         | "tauri.conf.json"

@@ -105,6 +105,7 @@ impl ProjectWalker {
                 || current.join("Gemfile").exists()
                 || current.join("composer.json").exists()
                 || current.join("app.php").exists()
+                || current.join("bin").join("pinx").exists()
                 || current.join("go.mod").exists()
                 || current.join("angular.json").exists()
                 || current.join("App.csproj").exists()
@@ -184,6 +185,8 @@ impl ProjectWalker {
                 || s_lower == ".playwright-cli"
                 || s_lower == ".playwright"
                 || s_lower == ".output"
+                || s_lower == "~pinx"
+                || s_lower == ".pinx"
             {
                 return true;
             }
@@ -437,6 +440,12 @@ mod tests {
         )));
         assert!(!ProjectWalker::is_ignored(Path::new(
             "crates/foo/tests/gold.rs"
+        )));
+        assert!(ProjectWalker::is_ignored(Path::new(
+            "~pinx/export/app.pinx"
+        )));
+        assert!(ProjectWalker::is_ignored(Path::new(
+            "apps/shop/.pinx/identity.json"
         )));
         assert!(
             !ProjectWalker::is_ignored(Path::new("packages/bench/safeparse.ts")),

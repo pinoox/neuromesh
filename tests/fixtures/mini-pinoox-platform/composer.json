@@ -1,0 +1,6 @@
+{
+  "name": "pinoox/mini-pinoox-platform",
+  "require": {
+    "pinoox/pincore": "*"
+  }
+}
