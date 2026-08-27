@@ -123,7 +123,7 @@ flowchart LR
 3. **Ship seeds, grow the tube, fill the rest.** The files that own those symbols always go in. With two or more seeds, Physarum traces the cheapest connecting tissue on a neighborhood subgraph. Callees and synaptic neighbors fill a **real** budget (`balanced` = 5k extra tokens).  
 4. **Splice.** Untargeted bodies become fold markers. Coverage tells you if a seed was missed — only then is Grep fair. Folds stay in the MCP session so the next tool can wake them.
 
-Tell the agent:
+Tell the agent ([full install guide](docs/agent-guide.md)):
 
 ```
 neuromesh_get_context(task_description)
@@ -216,6 +216,8 @@ That writes an **absolute** `command` (this binary) plus `args: ["mcp", "<worksp
 | Zed | `context_servers` in settings (`neuromesh connect --print`) |
 
 It finds the git / Cargo / `package.json` root. It **refuses** `$HOME` and drive roots (that is how you accidentally index 11k junk files).
+
+**Optional but recommended:** teach the agent to call NeuroMesh — full per-IDE tutorial in [docs/agent-guide.md](docs/agent-guide.md). Cursor shortcut: copy [docs/agent-rule.mdc](docs/agent-rule.mdc) → `.cursor/rules/neuromesh.mdc`.
 
 **3D galaxy UI** of the live graph: [screenshots above](#3d-neural-galaxy) · `neuromesh monitor` → [http://127.0.0.1:8765](http://127.0.0.1:8765) by default.
 
