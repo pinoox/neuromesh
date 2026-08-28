@@ -559,6 +559,7 @@ pub fn select(
         &required,
         optional_files,
         max_extra_files,
+        thresholds.learning_promotion_min_bonus,
     );
 
     let mut optional_ids = Vec::new();
@@ -771,12 +772,10 @@ fn promote_high_learning_into_emitted(
     required: &HashSet<NodeId>,
     mut optional: Vec<(NodeId, f32)>,
     cap: usize,
+    learned_swap_min: f32,
 ) -> Vec<(NodeId, f32)> {
-    const LEARNED_SWAP_MIN: f32 = 18.0;
-    const DISPLACE_MAX: f32 = 20.0;
-
     let mut promoted: Vec<(NodeId, f32)> = graph
-        .high_learning_files(LEARNED_SWAP_MIN, 16)
+        .high_learning_files(learned_swap_min, 16)
         .into_iter()
         .filter(|(id, _)| !required.contains(id) && !optional.iter().any(|(oid, _)| oid == id))
         .map(|(id, bonus)| {
@@ -794,11 +793,10 @@ fn promote_high_learning_into_emitted(
         if let Some((min_idx, min_score)) = optional
             .iter()
             .enumerate()
-            .filter(|(_, (_, s))| *s <= DISPLACE_MAX)
             .min_by(|(_, a), (_, b)| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(idx, (_, s))| (idx, *s))
         {
-            if learned_score > min_score + 2.0 {
+            if learned_score > min_score + 1.0 {
                 optional[min_idx] = (learned_id, learned_score);
             }
         }

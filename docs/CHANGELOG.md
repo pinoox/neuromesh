@@ -4,6 +4,15 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.16 — 2026-08-28
+
+Close the positive learning→emission loop (audit v0.7.15 follow-up).
+
+- **Positive promotion.** `EmissionPipeline::ensure_learned_emission` prepends heavily reinforced files into the optional emission queue before materialize (focus match or `learning_bonus ≥ 28`).
+- **Selector swap.** `promote_high_learning_into_emitted` uses `learning_promotion_min_bonus` (default **14**, was hard-coded **18**) so +8 reinforcement (~17 bonus) can enter the packet; displacement no longer caps victims at utility ≤ 20.
+- **Threshold.** `Thresholds.learning_promotion_min_bonus` in config (serde default 14).
+- **CI.** `positive_learning_unrelated_high_bonus_enters_emission`, `ensure_learned_emission_prepends_focused_file`; kosha `routes.py` must show `emitted: true`.
+
 ## 0.7.15 — 2026-08-28
 
 Adaptive context routing: learning now drives emission with full observability and benchmark harness.

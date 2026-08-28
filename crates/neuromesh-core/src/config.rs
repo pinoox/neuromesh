@@ -99,6 +99,9 @@ pub struct Thresholds {
     /// Hard cap on learned score component in unified ranking.
     #[serde(default = "default_max_learned_influence")]
     pub max_learned_influence: f32,
+    /// Min learning bonus before a reinforced file can be injected into emission.
+    #[serde(default = "default_learning_promotion_min_bonus")]
+    pub learning_promotion_min_bonus: f32,
 }
 
 fn default_penalized_suppression() -> f32 {
@@ -112,6 +115,9 @@ fn default_learning_decay_half_life() -> f32 {
 }
 fn default_max_learned_influence() -> f32 {
     48.0
+}
+fn default_learning_promotion_min_bonus() -> f32 {
+    14.0
 }
 
 impl Default for Thresholds {
@@ -127,6 +133,7 @@ impl Default for Thresholds {
             learning_relevance_cap_unrelated: default_learning_unrelated_cap(),
             learning_decay_half_life_days: default_learning_decay_half_life(),
             max_learned_influence: default_max_learned_influence(),
+            learning_promotion_min_bonus: default_learning_promotion_min_bonus(),
         }
     }
 }

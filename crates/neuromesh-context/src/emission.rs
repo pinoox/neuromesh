@@ -1,5 +1,7 @@
 use crate::selector::RankCandidate;
-use crate::unified_score::{cmp_score_path, compute_unified_file_score, file_path_str};
+use crate::unified_score::{
+    cmp_score_path, compute_unified_file_score, file_matches_focus_terms, file_path_str,
+};
 use neuromesh_core::{ContextScoreBreakdown, EmissionDropStage, NodeId, NodeType, Thresholds};
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::{HashMap, HashSet};
@@ -165,5 +167,143 @@ impl EmissionPipeline {
         out.sort_by(|a, b| cmp_score_path(a.score, &a.path, b.score, &b.path));
         out.truncate(24);
         out
+    }
+
+    /// Inject heavily reinforced files into the optional emission queue (positive learning loop).
+    #[allow(clippy::too_many_arguments)]
+    pub fn ensure_learned_emission(
+        graph: &NeuralProjectGraph,
+        optional: &mut Vec<NodeId>,
+        scores: &mut HashMap<NodeId, f32>,
+        required: &HashSet<NodeId>,
+        learning_index: &HashMap<NodeId, f32>,
+        focus_terms: &HashSet<String>,
+        thresholds: &Thresholds,
+        optional_cap: usize,
+    ) {
+        let min_bonus = thresholds.learning_promotion_min_bonus;
+        const UNRELATED_FORCE: f32 = 28.0;
+
+        let mut promoted: Vec<(NodeId, f32)> = graph
+            .high_learning_files(min_bonus, 24)
+            .into_iter()
+            .filter(|(id, bonus)| {
+                !required.contains(id)
+                    && !graph
+                        .file_min_base_relevance(id)
+                        .is_some_and(|r| r < thresholds.penalized_suppression_threshold)
+                    && (file_matches_focus_terms(graph, id, focus_terms)
+                        || *bonus >= UNRELATED_FORCE)
+            })
+            .map(|(id, _)| {
+                let utility = scores.get(&id).copied().unwrap_or(12.0);
+                let breakdown = compute_unified_file_score(
+                    graph,
+                    &id,
+                    utility,
+                    learning_index,
+                    focus_terms,
+                    thresholds,
+                    0.0,
+                );
+                (id, breakdown.final_score)
+            })
+            .collect();
+        promoted.sort_by(|a, b| {
+            cmp_score_path(
+                a.1,
+                &file_path_str(graph, &a.0),
+                b.1,
+                &file_path_str(graph, &b.0),
+            )
+        });
+
+        for (id, score) in promoted {
+            scores.insert(id.clone(), score);
+            if let Some(pos) = optional.iter().position(|x| x == &id) {
+                optional.remove(pos);
+            } else if optional.len() >= optional_cap {
+                let weakest = optional
+                    .iter()
+                    .enumerate()
+                    .min_by(|(_, a), (_, b)| {
+                        let sa = scores.get(*a).copied().unwrap_or(0.0);
+                        let sb = scores.get(*b).copied().unwrap_or(0.0);
+                        cmp_score_path(sa, &file_path_str(graph, a), sb, &file_path_str(graph, b))
+                    })
+                    .map(|(idx, _)| idx);
+                if let Some(idx) = weakest {
+                    let weak_score = scores.get(&optional[idx]).copied().unwrap_or(0.0);
+                    if score <= weak_score + 1.0 {
+                        continue;
+                    }
+                    optional.remove(idx);
+                }
+            }
+            optional.insert(0, id);
+        }
+        optional.truncate(optional_cap);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neuromesh_core::ProjectId;
+    use neuromesh_graph::NeuralProjectGraph;
+
+    #[test]
+    fn ensure_learned_emission_prepends_focused_file() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("promo"));
+        let promo_path = std::path::PathBuf::from("src/components/PromoCodeInput.vue");
+        let file = neuromesh_index::IndexedFile::new(
+            ProjectId::new("promo"),
+            promo_path.clone(),
+            promo_path.clone(),
+            "export default { name: 'PromoCodeInput' }",
+            "hash".to_string(),
+            40,
+            chrono::Utc::now(),
+        );
+        graph.ingest_file(
+            &file,
+            &neuromesh_parser::CodeIntelligenceEngine::analyze(
+                &promo_path,
+                "export default { name: 'PromoCodeInput' }",
+                neuromesh_index::SourceLanguage::Vue,
+            ),
+            Some("export default { name: 'PromoCodeInput' }"),
+        );
+        if let Some(node) = graph.resolve_feedback_node("PromoCodeInput") {
+            for _ in 0..8 {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        let thresholds = Thresholds::default();
+        let learning_index = graph.file_learning_boost_index();
+        let focus: HashSet<String> = ["promocodeinput".into(), "checkout".into()]
+            .into_iter()
+            .collect();
+        let mut optional = Vec::new();
+        let mut scores = HashMap::new();
+        let required = HashSet::new();
+        EmissionPipeline::ensure_learned_emission(
+            &graph,
+            &mut optional,
+            &mut scores,
+            &required,
+            &learning_index,
+            &focus,
+            &thresholds,
+            5,
+        );
+        assert!(
+            optional.iter().any(|id| {
+                graph
+                    .get_node(id)
+                    .is_some_and(|n| n.file_path.to_string_lossy().contains("PromoCodeInput"))
+            }),
+            "reinforced PromoCodeInput must enter optional emission queue"
+        );
     }
 }
