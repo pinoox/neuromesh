@@ -648,6 +648,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                     "packages/schema/src/locales/fa.ts".into(),
                     "packages/schema/src/v3/types.ts".into(),
                     "packages/schema/src/v4/core/to-json-schema.ts".into(),
+                    "packages/schema/src/v4/mini/schemas.ts".into(),
                 ],
             },
         ),
@@ -661,6 +662,7 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
                 forbidden_files: vec![
                     "packages/bench/safeparse.ts".into(),
                     "packages/schema/src/locales/fa.ts".into(),
+                    "packages/schema/src/v4/mini/schemas.ts".into(),
                 ],
             },
         ),

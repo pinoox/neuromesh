@@ -4,7 +4,7 @@ Claims in this project are supposed to come from commands you can run, not from 
 
 ## Gold
 
-`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store including `require()` CJS + `tokens.json` CSS import, Vue/JS auth+permission-guard compound task with a `directive/permission` ranking thief and forbidden clipboard/profile decoys, **mini-shop** Vue 3 + Pinia + SCSS price-card / dead-code / checkout stepper, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox Pinx `get()->action()` plus `MainController::index` → Twig, Vue/PrimeVue `Dashboard.vue` + React `StatCard`, multi-app `apps/com_shop` vs `com_blog`, Laravel Eloquent + `Schema::create` migration + seeder/factory + SQL + JSON config plus route-only `POST /sms` prompts, FastAPI, Rails, Astro, Express route-only `POST /sms`, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS/SCSS/CSS badge tokens + SVG `smsInbox` icon, Zod-like schema core vs `packages/bench` + `locales/` + `v3/` + json-schema decoys, plus a `z.infer` → `core.ts` type-alias task), including edit/refactor-style prompts — not only “where is this symbol”.
+`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store including `require()` CJS + `tokens.json` CSS import, Vue/JS auth+permission-guard compound task with a `directive/permission` ranking thief and forbidden clipboard/profile decoys, **mini-shop** Vue 3 + Pinia + SCSS price-card / dead-code / checkout stepper, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox Pinx `get()->action()` plus `MainController::index` → Twig, Vue/PrimeVue `Dashboard.vue` + React `StatCard`, multi-app `apps/com_shop` vs `com_blog`, Laravel Eloquent + `Schema::create` migration + seeder/factory + SQL + JSON config plus route-only `POST /sms` prompts, FastAPI, Rails, Astro, Express route-only `POST /sms`, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS/SCSS/CSS badge tokens + SVG `smsInbox` icon, Zod-like schema core vs `packages/bench` + `locales/` + `v3/` + `v4/mini/` + json-schema decoys, plus a `z.infer` → `core.ts` type-alias task), including edit/refactor-style prompts — not only “where is this symbol”.
 
 Thresholds locked in tests:
 
@@ -30,12 +30,12 @@ neuromesh eval
 
 ## Grep after get_context
 
-From `neuromesh eval` on this workspace (release, 2026-08-28, balanced):
+From `neuromesh eval` on this workspace (debug, 2026-08-28 v0.7.12, balanced):
 
 | Task | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | 554554 | 63462 | 15900 | 97.1% | 74.9% | 1.00 | 0.75 | **0** | 33 |
-| `physarum_usage` | 554554 | 18631 | 3945 | 99.3% | 78.8% | 1.00 | 0.50 | **0** | 17 |
+| `handle_tool_call_intent` | 627634 | 65084 | 16713 | 97.3% | 74.3% | 1.00 | 0.75 | **0** | 236 |
+| `physarum_usage` | 627634 | 19207 | 4016 | 99.4% | 79.1% | 1.00 | 0.50 | **0** | 148 |
 
 That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
 

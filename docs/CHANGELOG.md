@@ -4,6 +4,16 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.12 — 2026-08-28
+
+Complete the learning→emission loop and close v4 mini decoy gaps from benchmark reports.
+
+- **Emission.** `promote_high_learning_into_emitted` swaps high-bonus learned files into the emitted optional set (displaces low-utility slots). Heavily reinforced files bypass per-crate caps (`learning_bonus ≥ 28`).
+- **Feedback semantics.** `access_count` increments only on successful reinforcement; `node_learning_bonus` applies a demerit when `base_relevance < 1.0`. Penalized files show `penalized:` reasons in `selection.candidates`.
+- **Seed demotion.** `file_min_base_relevance` demotes seeds when any symbol on the path is penalized (not only the file node).
+- **v4/mini decoy.** `is_alt_surface_path` penalizes `mini` / `lite` / `slim` / `light` paths in activation scoring and decoy filters; mini-schema gold tasks forbid `v4/mini/schemas.ts`.
+- **Tests.** Negative-feedback bonus regression, routes.py emission after saturation, alt-surface scoring.
+
 ## 0.7.11 — 2026-08-28
 
 Learning weights now change `get_context` packet selection, not just persisted graph state.

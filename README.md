@@ -191,7 +191,7 @@ Two copies are common: installer vs Cargo.
 
 ## Connect
 
-Native **MCP stdio** — what Cursor, Claude, Codex, [OpenCode](https://opencode.ai/), MiMo CLI, [Antigravity](https://antigravity.google/), VS Code, Kilo Code, Trae, MiniMax, Windsurf, Cline, and Zed launch.
+Native **MCP stdio** — what Cursor, Claude, Codex, OpenCode, MiMo CLI, Antigravity, VS Code, Kilo Code, Trae, MiniMax, Windsurf, Cline, and Zed launch.
 
 ```bash
 neuromesh connect           # merge NeuroMesh into project + installed-app configs
@@ -221,10 +221,10 @@ Details and other clients: [docs/mcp.md#manual](docs/mcp.md#manual).
 | :--- | :--- |
 | Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
 | VS Code / Copilot | `.vscode/mcp.json` (`servers`) |
-| [Codex](https://openai.com/codex/) | `.codex/config.toml` or `~/.codex/config.toml` |
-| [OpenCode](https://opencode.ai/) | `opencode.json` / `~/.config/opencode/opencode.jsonc` (`mcp` → local server) |
+| Codex | `.codex/config.toml` or `~/.codex/config.toml` |
+| OpenCode | `opencode.json` / `~/.config/opencode/opencode.jsonc` (`mcp` → local server) |
 | MiMo CLI | `.mimo-code.json` or `~/.mimo-code/config.json` (`mcpServers`) |
-| [Antigravity](https://antigravity.google/) | `.agents/mcp_config.json` or `~/.gemini/config/mcp_config.json` |
+| Antigravity | `.agents/mcp_config.json` or `~/.gemini/config/mcp_config.json` |
 | Gemini CLI | `~/.gemini/settings.json` |
 | Kilo Code | `.kilo/kilo.jsonc` (`mcp` + command array) |
 | Trae | `.trae/mcp.json` or `Trae/User/mcp.json` |
@@ -323,6 +323,6 @@ Index snapshot from that eval run: **323 files · 2,458 nodes · 5,594 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.7.11 |
+| [Changelog](docs/CHANGELOG.md) | 0.7.12 |
 
 MIT · [LICENSE](LICENSE)

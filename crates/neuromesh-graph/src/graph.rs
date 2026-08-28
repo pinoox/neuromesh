@@ -2235,6 +2235,22 @@ impl NeuralProjectGraph {
         out
     }
 
+    /// Minimum `base_relevance` across the file node and symbols on the same path.
+    pub fn file_min_base_relevance(&self, file_id: &NodeId) -> Option<f32> {
+        let file = self.get_node(file_id)?;
+        let path = file.file_path.clone();
+        let data = self.inner.read();
+        let mut min = file.base_relevance;
+        if let Some(ids) = data.file_to_nodes.get(&path) {
+            for id in ids {
+                if let Some(node) = data.mesh.node(id) {
+                    min = min.min(node.base_relevance);
+                }
+            }
+        }
+        Some(min)
+    }
+
     /// Bump per-node learning signals so the next search/packet can prefer touched symbols.
     pub fn reinforce_node_access(&self, node_id: &NodeId, success: bool) -> f32 {
         let mut data = self.inner.write();
@@ -2242,9 +2258,9 @@ impl NeuralProjectGraph {
             return 0.0;
         };
         let before = node.base_relevance;
-        node.access_count = node.access_count.saturating_add(1);
         node.last_accessed = Utc::now();
         if success {
+            node.access_count = node.access_count.saturating_add(1);
             node.base_relevance = (node.base_relevance + 0.08).min(3.0);
         } else {
             node.base_relevance = (node.base_relevance - 0.12).max(0.1);
@@ -2444,7 +2460,12 @@ fn type_search_rank(node_type: &NodeType) -> u8 {
 pub fn node_learning_bonus(node: &ContextNode) -> f32 {
     let access = (node.access_count as f32).ln_1p() * 5.0;
     let relevance = (node.base_relevance - 1.0).max(0.0) * 10.0;
-    access + relevance
+    let demerit = if node.base_relevance < 1.0 {
+        (1.0 - node.base_relevance) * 12.0
+    } else {
+        0.0
+    };
+    (access + relevance - demerit).max(0.0)
 }
 
 fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {

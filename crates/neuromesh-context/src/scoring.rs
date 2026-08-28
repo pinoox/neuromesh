@@ -1,9 +1,9 @@
 use chrono::Utc;
 use neuromesh_core::{
-    is_bench_path, is_json_schema_path, is_legacy_path, is_locale_path, is_schema_path,
-    name_match_specificity, prompt_targets_bench, prompt_targets_database,
-    prompt_targets_json_schema, prompt_targets_legacy, prompt_targets_locale, prompt_targets_types,
-    ContextNode, NodeType, TaskSignature,
+    is_alt_surface_path, is_bench_path, is_json_schema_path, is_legacy_path, is_locale_path,
+    is_schema_path, name_match_specificity, prompt_targets_alt_surface, prompt_targets_bench,
+    prompt_targets_database, prompt_targets_json_schema, prompt_targets_legacy,
+    prompt_targets_locale, prompt_targets_types, ContextNode, NodeType, TaskSignature,
 };
 
 #[derive(Debug, Clone)]
@@ -175,6 +175,9 @@ impl ActivationScorer {
         if is_legacy_path(&node.file_path) && !prompt_targets_legacy(prompt) {
             return base.min(0.35);
         }
+        if is_alt_surface_path(&node.file_path) && !prompt_targets_alt_surface(prompt) {
+            return base.min(0.35);
+        }
         if is_json_schema_path(&node.file_path) && !prompt_targets_json_schema(prompt) {
             return base.min(0.45);
         }
@@ -279,5 +282,20 @@ mod tests {
             "json-schema impact {json_impact} should be below production {prod_impact}"
         );
         assert!(bench_impact <= 0.35);
+    }
+
+    #[test]
+    fn alt_surface_mini_paths_are_penalized_for_generic_parse_tasks() {
+        let scorer = ActivationScorer::new(ScoringWeights::default());
+        let sig = sig_with_ident("parse");
+        let prod = fn_node("parse", "packages/schema/src/core/parse.ts");
+        let mini = fn_node("parse", "packages/schema/src/v4/mini/schemas.ts");
+        let prod_impact = scorer.compute_task_impact(&prod, &sig);
+        let mini_impact = scorer.compute_task_impact(&mini, &sig);
+        assert!(
+            mini_impact < prod_impact,
+            "mini impact {mini_impact} should be below production {prod_impact}"
+        );
+        assert!(mini_impact <= 0.35);
     }
 }
