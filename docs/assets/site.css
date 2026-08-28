@@ -258,8 +258,9 @@ nav a:hover { color: var(--fg-default); background: var(--canvas-overlay); }
   .header-actions .btn-ghost { display: none; }
 
   .lang-trigger {
-    min-width: 0;
+    min-width: auto;
     padding: 6px 8px;
+    flex-shrink: 0;
   }
 
   .header-actions .btn {
@@ -275,8 +276,6 @@ nav a:hover { color: var(--fg-default); background: var(--canvas-overlay); }
   }
 
   .logo-text { display: none; }
-
-  .lang-trigger-label { display: none; }
 }
 
 /* ── Layout ── */
@@ -2113,7 +2112,7 @@ footer a:hover { text-decoration: underline; }
 }
 
 .lang-trigger-label {
-  flex: 1;
+  flex: 1 0 auto;
   text-align: start;
   white-space: nowrap;
 }
