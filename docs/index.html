@@ -895,11 +895,33 @@ neuromesh connect    # write MCP configs for this repo</pre>
       }, line.delay);
     });
 
-    // Scroll reveal
+    // Scroll perf — pause decorative anims while scrolling
+    let scrollIdleTimer;
+    window.addEventListener('scroll', () => {
+      document.body.classList.add('is-scrolling');
+      clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = setTimeout(() => {
+        document.body.classList.remove('is-scrolling');
+      }, 140);
+    }, { passive: true });
+
+    // Scroll reveal — fade only, trigger early, run once
     const revealEls = document.querySelectorAll('.reveal');
     const revealObs = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        const el = e.target;
+        el.classList.add('visible');
+        revealObs.unobserve(el);
+        const done = () => el.classList.add('revealed');
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          done();
+        } else {
+          el.addEventListener('transitionend', done, { once: true });
+          setTimeout(done, 400);
+        }
+      });
+    }, { threshold: 0.06, rootMargin: '0px 0px 60px 0px' });
     revealEls.forEach(el => revealObs.observe(el));
 
     // Pipeline — interactive 3-phase tour
@@ -1001,7 +1023,7 @@ neuromesh connect    # write MCP configs for this repo</pre>
       const pipeObs = new IntersectionObserver((entries) => {
         if (!entries[0].isIntersecting) return;
         nodes.forEach((n, i) => {
-          setTimeout(() => n.classList.add('visible'), i * 80);
+          setTimeout(() => n.classList.add('visible'), i * 35);
         });
         goTo(0);
         startTour();
@@ -1192,6 +1214,10 @@ neuromesh connect    # write MCP configs for this repo</pre>
       }
 
       function frame() {
+        if (document.body.classList.contains('is-scrolling')) {
+          requestAnimationFrame(frame);
+          return;
+        }
         t++;
         ctx.clearRect(0, 0, w, h);
 
@@ -1326,8 +1352,13 @@ neuromesh connect    # write MCP configs for this repo</pre>
       let w, h, dpr, turnIdx = 0, phase = 'travel', phaseT = 0, pulsePos = 0;
       const edgeWeights = Object.fromEntries(edges.map(e => [`${e.a}-${e.b}`, e.w]));
       let running = false;
+      let vizVisible = false;
 
       const ctx = canvas.getContext('2d');
+
+      function shouldAnimate() {
+        return vizVisible && !document.body.classList.contains('is-scrolling');
+      }
 
       function nodeById(id) { return nodes.find(n => n.id === id); }
       function pos(n) { return { x: n.nx * w, y: n.ny * h }; }
@@ -1432,6 +1463,10 @@ neuromesh connect    # write MCP configs for this repo</pre>
 
       function runTurnCycle() {
         if (!running) return;
+        if (!shouldAnimate()) {
+          requestAnimationFrame(runTurnCycle);
+          return;
+        }
         const t = turns[turnIdx];
         const segs = pathSegments(t.path);
         ctx.clearRect(0, 0, w, h);
@@ -1489,15 +1524,14 @@ neuromesh connect    # write MCP configs for this repo</pre>
       }
 
       const obs = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && !running) {
+        vizVisible = entries[0].isIntersecting;
+        if (vizVisible && !running) {
           running = true;
           resetWeights();
           applyTurn(0);
           runTurnCycle();
-        } else if (!entries[0].isIntersecting) {
-          running = false;
         }
-      }, { threshold: 0.2 });
+      }, { threshold: 0.15 });
       obs.observe(canvas.parentElement);
 
       resize();
@@ -1511,6 +1545,10 @@ neuromesh connect    # write MCP configs for this repo</pre>
       const ctx = c.getContext('2d');
       let f = 0;
       function draw() {
+        if (document.body.classList.contains('is-scrolling')) {
+          requestAnimationFrame(draw);
+          return;
+        }
         f++;
         ctx.clearRect(0, 0, 36, 36);
         ctx.fillStyle = '#56d364';

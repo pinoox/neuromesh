@@ -35,7 +35,11 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-h) + 24px); }
+    html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-h) + 24px); }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
 
 body {
   font-family: var(--font-sans);
@@ -213,7 +217,11 @@ nav a:hover { color: var(--fg-default); background: var(--canvas-overlay); }
 
 /* ── Layout ── */
 main { padding-bottom: 80px; }
-section { padding: 96px 24px; }
+section {
+  padding: 96px 24px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
 .container { width: min(var(--max-w), 100%); margin: 0 auto; }
 
 .section-label {
@@ -249,13 +257,59 @@ h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 8px; }
 /* ── Reveal animations ── */
 .reveal {
   opacity: 0;
-  transform: translateY(32px);
-  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+  transition: opacity 0.32s var(--ease-out);
+  will-change: opacity;
 }
-.reveal.visible { opacity: 1; transform: translateY(0); }
-.reveal-delay-1 { transition-delay: 0.1s; }
-.reveal-delay-2 { transition-delay: 0.2s; }
-.reveal-delay-3 { transition-delay: 0.3s; }
+
+.reveal.visible {
+  opacity: 1;
+}
+
+.reveal.revealed {
+  will-change: auto;
+  transition: none;
+}
+
+.reveal-delay-1 { transition-delay: 0.04s; }
+.reveal-delay-2 { transition-delay: 0.08s; }
+.reveal-delay-3 { transition-delay: 0.12s; }
+
+/* Pause decorative motion while scrolling — keeps scroll smooth */
+body.is-scrolling .bg-grid,
+body.is-scrolling .orb,
+body.is-scrolling .slime-panel,
+body.is-scrolling .graph-tube,
+body.is-scrolling .graph-node,
+body.is-scrolling .fold-marker,
+body.is-scrolling .mini-code .folded,
+body.is-scrolling .hero-slime-tag svg,
+body.is-scrolling .pipeline-tubes path,
+body.is-scrolling .phase-connector::after {
+  animation-play-state: paused !important;
+}
+
+body.is-scrolling header {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(13, 17, 23, 0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transition: none;
+    will-change: auto;
+  }
+
+  .bg-grid,
+  .orb,
+  .slime-panel,
+  .graph-tube,
+  .fold-marker,
+  .hero-slime-tag svg {
+    animation: none !important;
+  }
+}
 
 /* ── Slime hero banner ── */
 .hero {
@@ -1074,14 +1128,12 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   font-family: inherit;
   color: inherit;
   width: 100%;
-  transition: background 0.25s, border-color 0.25s, transform 0.25s var(--ease-out);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s var(--ease-out), opacity 0.25s var(--ease-out);
   opacity: 0;
-  transform: translateX(-12px);
 }
 
 .pipe-node.visible {
   opacity: 1;
-  transform: translateX(0);
 }
 
 .pipe-node:hover {
