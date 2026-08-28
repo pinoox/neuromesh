@@ -107,21 +107,23 @@ header {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border-muted);
-  background: rgba(13, 17, 23, 0.85);
+  background: rgba(13, 17, 23, 0.88);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 rgba(63, 185, 80, 0.06);
 }
 
 .header-inner {
   width: min(var(--max-w), 100% - 48px);
   margin: 0 auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
 }
 
 .logo {
+  justify-self: start;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -129,6 +131,17 @@ header {
   color: var(--fg-default);
   font-weight: 700;
   font-size: 1.05rem;
+}
+
+header nav {
+  justify-self: center;
+}
+
+.header-actions {
+  justify-self: end;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .logo-icon {
@@ -167,8 +180,6 @@ nav a {
 }
 
 nav a:hover { color: var(--fg-default); background: var(--canvas-overlay); }
-
-.header-actions { display: flex; gap: 8px; align-items: center; }
 
 .btn {
   display: inline-flex;
@@ -313,18 +324,23 @@ body.is-scrolling header {
 
 /* ── Slime hero banner ── */
 .hero {
-  padding: 0 0 80px;
-  text-align: center;
   position: relative;
+  display: grid;
+  grid-template-areas: "hero-main";
+  padding: 0 0 64px;
+  min-height: calc(100dvh - var(--header-h));
+  text-align: center;
   overflow: hidden;
-  min-height: 720px;
 }
 
 .hero-slime-wrap {
+  grid-area: hero-main;
   position: relative;
   width: 100%;
-  height: clamp(340px, 52vw, 520px);
-  margin-bottom: -60px;
+  height: 100%;
+  min-height: inherit;
+  margin-bottom: 0;
+  z-index: 0;
 }
 
 #slime-canvas {
@@ -339,19 +355,20 @@ body.is-scrolling header {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(13, 17, 23, 0.15) 0%, rgba(13, 17, 23, 0.55) 55%, var(--canvas-default) 100%),
-    radial-gradient(ellipse 50% 40% at 50% 50%, transparent 0%, rgba(13, 17, 23, 0.4) 100%);
+    linear-gradient(180deg, var(--canvas-default) 0%, rgba(13, 17, 23, 0.92) 18%, rgba(13, 17, 23, 0.55) 52%, rgba(13, 17, 23, 0.82) 78%, var(--canvas-default) 100%),
+    radial-gradient(ellipse 55% 45% at 50% 42%, transparent 0%, rgba(13, 17, 23, 0.45) 100%);
   pointer-events: none;
 }
 
 .hero-slime-panels {
   position: absolute;
-  inset: 0;
+  inset: auto 0 0;
+  top: 42%;
   display: grid;
   grid-template-columns: 1fr 1.2fr 1fr;
-  align-items: center;
+  align-items: end;
   gap: 12px;
-  padding: 24px clamp(12px, 4vw, 48px);
+  padding: 0 clamp(12px, 4vw, 48px) clamp(20px, 4vh, 48px);
   pointer-events: none;
   z-index: 2;
 }
@@ -359,12 +376,12 @@ body.is-scrolling header {
 @media (max-width: 900px) {
   .hero-slime-panels {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    align-content: center;
-    gap: 10px;
-    padding-top: 40px;
+    grid-template-rows: auto;
+    top: 48%;
+    gap: 8px;
+    padding-bottom: 16px;
+    opacity: 0.72;
   }
-  .hero-slime-wrap { height: clamp(480px, 70vw, 620px); margin-bottom: -40px; }
 }
 
 .slime-panel {
@@ -542,9 +559,33 @@ body.is-scrolling header {
 }
 
 .hero-content {
+  grid-area: hero-main;
   position: relative;
   z-index: 3;
-  padding: 0 24px;
+  align-self: start;
+  width: 100%;
+  padding: clamp(28px, 5vh, 56px) 24px 0;
+  pointer-events: none;
+}
+
+.hero-content .container,
+.hero-content a,
+.hero-content button {
+  pointer-events: auto;
+}
+
+.hero-headline {
+  filter: drop-shadow(0 4px 28px rgba(13, 17, 23, 0.85));
+  margin-bottom: 20px;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 12px;
+  margin-bottom: 28px;
 }
 
 .hero-slime-tag {
@@ -558,7 +599,9 @@ body.is-scrolling header {
   color: var(--slime-core);
   background: rgba(63, 185, 80, 0.1);
   border: 1px solid rgba(63, 185, 80, 0.3);
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .hero-slime-tag svg { animation: wobble 4s ease-in-out infinite; }
@@ -574,7 +617,7 @@ body.is-scrolling header {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 32px;
+  margin-bottom: 0;
 }
 
 .badge {
@@ -601,20 +644,21 @@ body.is-scrolling header {
 }
 
 .hero h1 {
-  font-size: clamp(2.5rem, 7vw, 4.5rem);
+  font-size: clamp(2.75rem, 8vw, 5rem);
   font-weight: 800;
-  margin-bottom: 8px;
-  background: linear-gradient(135deg, var(--fg-default) 0%, var(--fg-muted) 100%);
+  margin-bottom: 10px;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #ffffff 0%, var(--fg-muted) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .hero-tagline {
-  font-size: clamp(1.125rem, 3vw, 1.5rem);
+  font-size: clamp(1.125rem, 3vw, 1.625rem);
   color: var(--accent-fg);
   font-weight: 600;
-  margin-bottom: 24px;
+  margin-bottom: 0;
   min-height: 1.5em;
 }
 
@@ -1381,7 +1425,19 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 @media (max-width: 768px) {
   .mode-cards { grid-template-columns: 1fr; }
-  nav ul { display: none; }
+  .header-inner {
+    grid-template-columns: 1fr auto;
+  }
+  header nav { display: none; }
+  .header-actions { justify-self: end; }
+  .hero-meta {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hero-slime-panels .slime-panel:nth-child(1),
+  .hero-slime-panels .slime-panel:nth-child(3) {
+    display: none;
+  }
 }
 
 .mode-card {
@@ -1984,6 +2040,14 @@ html[dir="rtl"] body {
 
 html[dir="rtl"] .header-inner nav ul {
   flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .logo {
+  justify-self: end;
+}
+
+html[dir="rtl"] .header-actions {
+  justify-self: start;
 }
 
 html[dir="rtl"] .doc-link:hover {
