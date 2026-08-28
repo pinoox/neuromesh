@@ -1994,48 +1994,141 @@ footer a:hover { text-decoration: underline; }
   color: var(--purple-fg);
 }
 
-/* ── Language switcher ── */
-.lang-switch {
-  display: inline-flex;
-  padding: 3px;
-  gap: 2px;
-  background: var(--canvas-inset);
-  border: 1px solid var(--border-muted);
-  border-radius: 8px;
+/* ── Language dropdown ── */
+.lang-dropdown {
+  position: relative;
 }
 
-.lang-btn {
-  padding: 4px 10px;
+.lang-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  min-width: 108px;
   font-family: var(--font-sans);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  color: var(--fg-default);
+  background: var(--canvas-overlay);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.lang-trigger:hover,
+.lang-dropdown.open .lang-trigger {
+  border-color: var(--fg-subtle);
+  background: #21262d;
+}
+
+.lang-dropdown.open .lang-trigger {
+  box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.12);
+}
+
+.lang-trigger-icon {
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+
+.lang-trigger-label {
+  flex: 1;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.lang-trigger-chevron {
+  color: var(--fg-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s var(--ease-out);
+}
+
+.lang-dropdown.open .lang-trigger-chevron {
+  transform: rotate(180deg);
+}
+
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-end: 0;
+  min-width: 100%;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--canvas-overlay);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  animation: langMenuIn 0.16s var(--ease-out);
+}
+
+.lang-menu[hidden] {
+  display: none;
+}
+
+@keyframes langMenuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.lang-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
   color: var(--fg-muted);
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  text-align: start;
+  transition: color 0.15s, background 0.15s;
 }
 
-.lang-btn:hover {
+.lang-option:hover {
   color: var(--fg-default);
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.lang-btn.active {
+.lang-option.active {
   color: var(--fg-default);
-  background: var(--canvas-overlay);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  background: rgba(63, 185, 80, 0.12);
+  font-weight: 600;
+}
+
+.lang-option-name {
+  flex: 1;
+}
+
+.lang-option[data-lang="fa"] .lang-option-name {
+  font-family: var(--font-fa);
 }
 
 /* ── Persian / RTL ── */
-html[dir="rtl"],
-body.lang-fa {
-  --font-sans: Vazirmatn, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Arabic", Helvetica, Arial, sans-serif;
+:root {
+  --font-fa: "Vazirmatn", "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
 }
 
-html[dir="rtl"] body {
-  font-family: var(--font-sans);
+html[dir="rtl"],
+body.lang-fa {
+  --font-sans: var(--font-fa);
+}
+
+html[dir="rtl"] body,
+body.lang-fa {
+  font-family: var(--font-fa);
+  font-feature-settings: "ss01" on;
+  letter-spacing: 0;
+  line-height: 1.85;
+}
+
+body.lang-fa .lang-trigger-label,
+body.lang-fa .lang-option[data-lang="fa"] .lang-option-name {
+  font-family: var(--font-fa);
 }
 
 html[dir="rtl"] .header-inner nav ul {

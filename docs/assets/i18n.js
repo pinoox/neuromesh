@@ -194,12 +194,14 @@ window.NMI18n = (function () {
       'ui.prev': 'Previous',
       'ui.next': 'Next',
       'ui.lang': 'Language',
+      'ui.langEn': 'English',
+      'ui.langFa': 'فارسی',
     },
     fa: {
-      'meta.title': 'NeuroMesh — کد اضافه را حذف نکن. تا کن.',
-      'meta.description': 'NeuroMesh: گراف عصبی در RAM، تا کردن یک‌خطی برگشت‌پذیر، و بسته شواهد به‌جای هزاران خط فایل در Cursor یا Claude.',
+      'meta.title': 'NeuroMesh — کد اضافه را حذف نکن؛ تا کن.',
+      'meta.description': 'NeuroMesh: گراف عصبی در RAM، تا کردن یک‌خطی و برگشت‌پذیر، و بستهٔ شواهد — به‌جای هزاران خط کد در Cursor یا Claude.',
 
-      'nav.pain': 'درد',
+      'nav.pain': 'مسئله',
       'nav.fold': 'تا کردن',
       'nav.galaxy': 'کهکشان',
       'nav.learning': 'یادگیری',
@@ -210,8 +212,8 @@ window.NMI18n = (function () {
       'nav.installBtn': 'نصب',
 
       'hero.slimeTag': 'مسیریابی Physarum · مش عصبی زنده',
-      'hero.badgeRelease': 'آخرین نسخه',
-      'hero.desc': 'طبیعت چطور دو متر DNA را بدون حذف یک حرف در هسته جا می‌دهد؟ با دور انداختن ژن‌ها نیست — با <strong>تا کردن</strong>. NeuroMesh همین کار را روی مخزن کد شما می‌کند: گراف عصبی در RAM، تا یک‌خطی برگشت‌پذیر، و بسته شواهد به‌جای سه هزار خط فایل در Cursor یا Claude.',
+      'hero.badgeRelease': 'آخرین انتشار',
+      'hero.desc': 'طبیعت چطور دو متر DNA را بدون حذف یک حرف در هسته جا می‌دهد؟ با دور انداختن ژن‌ها نیست — با <strong>تا کردن</strong>. NeuroMesh همین کار را با مخزن کد شما می‌کند: گراف عصبی در RAM، تا کردن یک‌خطی و برگشت‌پذیر، و بستهٔ شواهد به‌جای سه هزار خط فایل در Cursor یا Claude.',
       'hero.ctaInstall': 'نصب سریع',
       'hero.ctaDocs': 'مستندات',
       'hero.ctaStar': 'ستاره در GitHub',
@@ -222,70 +224,70 @@ window.NMI18n = (function () {
       'panel.code': 'کد · برش تا',
       'panel.engine': 'موتور · بسته',
 
-      'pain.label': 'مشکل',
-      'pain.title': 'درد',
-      'pain.lead': 'یک سؤال ساده در پروژه بزرگ می‌پرسید. ویرایشگر دو یا سه <strong>فایل هزارخطی</strong> را کپی می‌کند و به مدل می‌فرستد.',
-      'pain.c1.title': 'توکن‌های بی‌مصرف',
-      'pain.c1.desc': 'هزینه دلاری هر نوبت — برای helperهایی که هرگز لمس نمی‌شوند.',
-      'pain.c2.title': 'ثانیه‌های بارگذاری ظاهری',
-      'pain.c2.desc': 'پنجره از بدنه‌های نامرتبط و utilityهای خصوصی پر می‌شود.',
-      'pain.c3.title': 'غرق در وسط',
-      'pain.c3.desc': 'مدل در کد نامرتبط غرق می‌شود و باگ‌هایی می‌سازد که وجود ندارند.',
+      'pain.label': 'مسئله',
+      'pain.title': 'درد واقعی توسعه',
+      'pain.lead': 'یک سؤال ساده در پروژهٔ بزرگ می‌پرسید. ویرایشگر دو یا سه <strong>فایل هزارخطی</strong> را کپی می‌کند و مستقیم به مدل می‌فرستد.',
+      'pain.c1.title': 'توکن‌های بیهوده',
+      'pain.c1.desc': 'هزینهٔ دلاری در هر نوبت — برای helperهایی که هرگز به آن‌ها نمی‌رسید.',
+      'pain.c2.title': 'بارگذاری ظاهری',
+      'pain.c2.desc': 'چند ثانیه منتظر می‌مانید تا پنجره از بدنه‌های نامرتبط و utilityهای خصوصی پر شود.',
+      'pain.c3.title': 'غرق در میانه',
+      'pain.c3.desc': 'مدل در کد نامرتبط غرق می‌شود و باگ‌هایی می‌سازد که اصلاً وجود ندارند.',
       'pain.th.approach': 'رویکرد',
       'pain.th.wrong': 'کجا می‌لنگد',
       'pain.r1.a': 'Vector RAG',
-      'pain.r1.b': 'chunkها تابع را می‌شکنند. شکل کد ناپدید می‌شود.',
+      'pain.r1.b': 'تکه‌تکه کردن، ساختار تابع را از بین می‌برد. نقشهٔ کد محو می‌شود.',
       'pain.r2.a': '«فقط فایل‌ها را attach کن»',
-      'pain.r2.b': 'مدل همه‌چیز را می‌بیند و هیچ‌چیز را نمی‌فهمد.',
+      'pain.r2.b': 'مدل همه‌چیز را می‌بیند و در نهایت هیچ‌چیز را درست نمی‌فهمد.',
       'pain.r3.a': 'گراف کد ایستا',
-      'pain.r3.b': 'نقشه بهتر — بعد باز هم <strong>فایل کامل</strong> در prompt می‌چسباند.',
+      'pain.r3.b': 'نقشه بهتر است — اما باز هم <strong>فایل کامل</strong> را در prompt می‌چسباند.',
       'pain.r4.a': 'NeuroMesh',
       'pain.r4.b': '<strong>اول مسیریابی، بعد تا.</strong> گراف مسیر را پیدا می‌کند. بسته همان چیزی است که مدل می‌خواند.',
 
-      'fold.label': 'ایdea اصلی',
+      'fold.label': 'ایده اصلی',
       'fold.title': 'حذف نکن. تا کن.',
-      'fold.lead': 'طبیعت DNA را برای جا شدن در هسته حذف نمی‌کند. <strong>ابرپیچ</strong> می‌دهد. NeuroMesh درخت syntax را مثل رشته ژنتیک در RAM می‌بیند.',
+      'fold.lead': 'طبیعت برای جا دادن DNA در هسته، آن را حذف نمی‌کند — <strong>ابرمی‌پیچد</strong>. NeuroMesh درخت نحوی را مثل رشتهٔ ژنتیک در RAM می‌بیند.',
       'fold.c1.title': 'Exon — بیان‌شده',
-      'fold.c1.desc': 'تابع‌های مورد نیاز کاملاً visible می‌مانند — بدنه و خط واقعی.',
+      'fold.c1.desc': 'تابع‌های مورد نیاز کاملاً باز می‌مانند: بدنه و خط واقعی.',
       'fold.c2.title': 'Intron — تا شده',
-      'fold.c2.desc': 'بقیه به marker یک‌خطی برگشت‌پذیر با fold ID جمع می‌شوند.',
+      'fold.c2.desc': 'بقیه به یک marker یک‌خطی و برگشت‌پذیر با fold ID جمع می‌شوند.',
       'fold.c3.title': 'بیدار کردن درخواستی',
-      'fold.c3.desc': '<code style="color:var(--purple-fg)">neuromesh_expand_fold</code> از حافظه باز می‌کند. بدون grep روی دیسک.',
-      'fold.quote': '<strong>ساختار می‌ماند. توکن‌ها می‌خوابند. وقتی لازم شد fold را بیدار کن.</strong>',
-      'fold.bio.label': 'زیست‌مimicry',
+      'fold.c3.desc': '<code style="color:var(--purple-fg)">neuromesh_expand_fold</code> از حافظه باز می‌کند — بدون grep روی دیسک.',
+      'fold.quote': '<strong>ساختار می‌ماند. توکن‌ها می‌خوابند. وقتی لازم شد، fold را بیدار کن.</strong>',
+      'fold.bio.label': 'تقلید از طبیعت',
       'fold.bio.title': 'الهام از سیستم‌های زنده',
 
-      'nature.n1.t': 'ابرپیچ DNA',
+      'nature.n1.t': 'ابرمی‌پیچی DNA',
       'nature.n1.e': 'Genetic skeletonizer',
-      'nature.n1.p': 'بدنه‌های بی‌استفاده تا می‌شوند؛ نقشه فایل می‌ماند.',
+      'nature.n1.p': 'بدنه‌های بلااستفاده تا می‌شوند؛ نقشهٔ فایل حفظ می‌ماند.',
       'nature.n2.t': 'Physarum (کپک مخاطی)',
       'nature.n2.e': 'Steiner / کوتاه‌ترین بافت',
       'nature.n2.p': 'کم‌هزینه‌ترین مسیر بین seedها — نه کل همسایگی.',
       'nature.n3.t': 'سیناپس و STDP',
-      'nature.n3.e': 'لبه فرومون + record_feedback',
-      'nature.n3.p': 'مسیرهایی که واقعاً edit شدند، دفعه بعد قوی‌ترند.',
+      'nature.n3.e': 'لبهٔ فرومون + record_feedback',
+      'nature.n3.p': 'مسیرهایی که واقعاً ویرایش شدند، بار بعد قوی‌تر می‌شوند.',
       'nature.n4.t': 'غشای سلول',
       'nature.n4.e': 'QualityGate',
-      'nature.n4.p': 'پیش‌فرض سخت؛ taskهای auth/payment غشا را باز می‌کنند.',
+      'nature.n4.p': 'پیش‌فرض سخت‌گیرانه؛ taskهای auth/payment غشا را باز می‌کنند.',
       'nature.n5.t': 'Mycelium',
       'nature.n5.e': 'Hyphal prefetch',
-      'nature.n5.p': 'hop بعدی را قبل از tool call دوم گرم کن.',
+      'nature.n5.p': 'hop بعدی را قبل از tool call دوم گرم می‌کند.',
       'nature.n6.t': 'مش عصبی',
       'nature.n6.e': 'گراف پروژه در RAM',
-      'nature.n6.p': 'فایل، تابع، Imports، Calls — سیستم عصبی، نه کیسه رشته.',
+      'nature.n6.p': 'فایل، تابع، Imports، Calls — سیستم عصبی، نه کیسهٔ رشته.',
 
       'galaxy.label': 'Visualization',
-      'galaxy.title': 'کهکشان عصبی ۳D',
-      'galaxy.lead': '<code style="color:var(--accent-fg)">neuromesh monitor</code> مش زنده است: subsystemها مثل صورت فلکی، بعد گراف فایل، بعد symbolهای داخل ماژول.',
-      'galaxy.c1': 'صورت فلکی — crate و subsystem',
-      'galaxy.c2': 'کهکشان 3D — فایل و سیناپس؛ لوله Physarum',
-      'galaxy.c3': 'زوم ماژول — فایل و symbol AST در یک crate',
+      'galaxy.title': 'کهکشان عصبی سه‌بعدی',
+      'galaxy.lead': '<code style="color:var(--accent-fg)">neuromesh monitor</code> مش زنده است: subsystemها مثل صورت فلکی، سپس گراف فایل، و در نهایت symbolهای داخل ماژول.',
+      'galaxy.c1': 'صورت‌فلکی — crate و subsystem',
+      'galaxy.c2': 'کهکشان 3D — فایل و سیناپس؛ لوله‌های Physarum',
+      'galaxy.c3': 'زوم ماژول — فایل و symbolهای AST در یک crate',
       'galaxy.url': 'URL پیش‌فرض:',
       'galaxy.port': 'پورت:',
 
       'how.label': 'Pipeline',
       'how.title': 'یک نوبت واقعاً چطور پیش می‌رود',
-      'how.lead': 'اول مسیریابی، بعد تا. seedها هرگز برای کوچک‌نمایی بسته بریده نمی‌شوند.',
+      'how.lead': 'اول مسیریابی، بعد تا. seedها هرگز برای کوچک‌نمایی بریده نمی‌شوند.',
       'how.phase1.title': 'خواندن',
       'how.phase1.sub': 'Task همان‌طور که نوشته شده',
       'how.phase2.title': 'مسیریابی',
@@ -297,40 +299,40 @@ window.NMI18n = (function () {
       'how.pauseTour': '⏸ توقف تور',
       'how.playTour': '▶ پخش تور',
       'how.mode1': 'ویرایش‌های کوچک و واضح',
-      'how.mode2': 'توسعه روزمره',
+      'how.mode2': 'توسعهٔ روزمره',
       'how.mode3': 'Refactor، auth، مسیرهای بحرانی',
       'how.extraTokens': 'توکن اضافه',
       'how.tagDefault': 'پیش‌فرض',
 
       'learn.label': 'STDP سیناپسی',
       'learn.title': 'هر نوبت باهوش‌تر',
-      'learn.lead': 'NeuroMesh آنچه جواب داد را فراموش نمی‌کند. هر edit موفق تجربه است — <code>neuromesh_record_feedback</code> سیناپس‌های مسیر واقعی را تقویت می‌کند. بسته بعدی سریع‌تر و نزدیک‌تر به gold مسیریابی می‌شود.',
+      'learn.lead': 'NeuroMesh آنچه جواب داده را فراموش نمی‌کند. هر ویرایش موفق، تجربه است — <code>neuromesh_record_feedback</code> سیناپس‌های مسیر واقعی را تقویت می‌کند. بستهٔ بعدی سریع‌تر و نزدیک‌تر به gold مسیریابی می‌شود.',
       'learn.turn': 'نوبت',
       'learn.turnOf': '/ ۳',
       'learn.turnCap1': 'اولین بازدید — مش مسیرهای ضعیف‌تر را کاوش می‌کند.',
-      'learn.loopTitle': 'حلقه یادگیری',
+      'learn.loopTitle': 'حلقهٔ یادگیری',
       'learn.loop1.t': 'get_context',
-      'learn.loop1.s': 'مسیریابی روی لبه فرومون',
-      'learn.loop2.t': 'Edit موفق',
+      'learn.loop1.s': 'مسیریابی روی لبه‌های فرومون',
+      'learn.loop2.t': 'ویرایش موفق',
       'learn.loop2.s': 'Agent فایل‌های واقعی را لمس می‌کند',
       'learn.loop3.t': 'record_feedback',
       'learn.loop3.s': 'Spike سیناپس — STDP یاد می‌گیرد',
-      'learn.loop4.t': 'بسته بعدی',
+      'learn.loop4.t': 'بستهٔ بعدی',
       'learn.loop4.s': 'مسیر قوی‌تر، خطای کمتر',
       'learn.m1': 'قدرت سیناپسی',
       'learn.m2': 'Recall',
       'learn.m3': 'Fallback grep',
-      'learn.c1.t': 'تجربه از editها',
-      'learn.c1.p': 'فقط مسیرهایی که agent <em>واقعاً edit کرد</em> امتیاز می‌گیرند. resolve یکتا گراف را صادق نگه می‌دارد.',
-      'learn.c2.t': 'لبه فرومون',
-      'learn.c2.p': 'فایل‌های co-edit لوله قوی‌تر دارند — مثل کپک مخاطی که غذا را به خاطر می‌سپارد.',
-      'learn.c3.t': 'حافظه Mycelial',
-      'learn.c3.p': 'Hyphal prefetch hop بعدی را در RAM گرم می‌کند. مش فقط مسیر یاد نمی‌گیرد — آنچه expand می‌کنید را از قبل آماده می‌کند.',
-      'learn.quote': '<strong>با هم fire، با هم wire.</strong> بدون <code>record_feedback</code> بسته بعدی از صفر plasticity شروع می‌کند.',
+      'learn.c1.t': 'تجربه از ویرایش‌ها',
+      'learn.c1.p': 'فقط مسیرهایی که agent <em>واقعاً ویرایش کرده</em> امتیاز می‌گیرند. resolve یکتا، گراف را صادق نگه می‌دارد.',
+      'learn.c2.t': 'لبهٔ فرومون',
+      'learn.c2.p': 'فایل‌های co-edit لولهٔ قوی‌تری دارند — مثل کپک مخاطی که مسیر غذا را به خاطر می‌سپارد.',
+      'learn.c3.t': 'حافظهٔ Mycelial',
+      'learn.c3.p': 'Hyphal prefetch، hop بعدی را در RAM گرم می‌کند. مش فقط مسیر یاد نمی‌گیرد — آنچه expand می‌کنید را از قبل آماده می‌کند.',
+      'learn.quote': '<strong>با هم fire، با هم wire.</strong> بدون <code>record_feedback</code>، بستهٔ بعدی از صفر plasticity شروع می‌کند.',
 
       'stats.label': 'اندازه‌گیری',
       'stats.title': 'آنچه واقعاً اندازه گرفتیم',
-      'stats.lead': 'صرفه‌جویی per task، بعد از fold. دوباره: <code>neuromesh eval</code>',
+      'stats.lead': 'صرفه‌جویی per task، بعد از fold. دوباره اجرا: <code>neuromesh eval</code>',
       'stats.sub': 'Release 2026-08-28 · 554,554 workspace token',
       'stats.s1': '٪ نسبت workspace (handle_tool_call)',
       'stats.s2': '٪ نسبت workspace (physarum)',
@@ -349,33 +351,33 @@ window.NMI18n = (function () {
       'install.powershell': 'PowerShell',
       'install.buildSource': 'ساخت از سورس (rustup 1.80+)',
       'install.cargoInstall': 'نصب با Cargo',
-      'connect.snippet': 'نمونه پیکربندی MCP',
+      'connect.snippet': 'نمونهٔ پیکربندی MCP',
 
       'connect.label': 'یکپارچه‌سازی',
       'connect.title': 'اتصال',
-      'connect.lead': '<strong>MCP stdio</strong> بومی — Cursor، Claude، Codex، Antigravity، VS Code، Kilo Code، Trae و بیشتر. <code>neuromesh connect</code> مسیر absolute باینری می‌نویسد؛ agent به PATH نیاز ندارد.',
+      'connect.lead': '<strong>MCP stdio</strong> بومی — Cursor، Claude، Codex، Antigravity، VS Code، Kilo Code، Trae و بیشتر. <code>neuromesh connect</code> مسیر absolute باینری را می‌نویسد؛ agent به PATH نیاز ندارد.',
 
       'tools.label': 'ابزار MCP',
       'tools.title': 'ابزارها',
-      'tools.lead': 'به agent بگویید: context → expand fold → trace → record feedback.',
-      'tools.footer': 'Rust، TypeScript، Python، Go، Java، Kotlin، PHP، C#، Dart، Swift، Ruby — tree-sitter. overlay فریم‌ورک برای Laravel، Django، Next، Nuxt، Spring، Android و ۳۰+ مورد.',
+      'tools.lead': 'به agent بگویید: context بگیر → در صورت نیاز fold را expand کن → trace → record_feedback.',
+      'tools.footer': 'Rust، TypeScript، Python، Go، Java، Kotlin، PHP، C#، Dart، Swift، Ruby — tree-sitter. overlay فریم‌ورک برای Laravel، Django، Next، Nuxt، Spring، Android و بیش از ۳۰ مورد.',
 
       'docs.label': 'بیشتر بدانید',
       'docs.title': 'مستندات',
       'docs.d1.t': 'سیستم‌های زنده',
-      'docs.d1.s': 'DNA، Physarum، STDP — mapped به crate',
+      'docs.d1.s': 'DNA، Physarum، STDP — نگاشت به crateها',
       'docs.d2.t': 'معماری',
       'docs.d2.s': 'Pipeline و تضمین‌ها',
       'docs.d3.t': 'MCP و CLI',
-      'docs.d3.s': 'مرجع ابزار و دستور',
+      'docs.d3.s': 'مرجع ابزارها و دستورات',
       'docs.d4.t': 'راهنمای agent',
-      'docs.d4.s': 'آموزش setup هر IDE',
+      'docs.d4.s': 'راه‌اندازی برای هر IDE',
       'docs.d5.t': 'کیفیت',
       'docs.d5.s': 'Gold، eval، اعداد',
       'docs.d6.t': 'مشارکت',
-      'docs.d6.s': 'Solver یا زبان جدید بساز',
+      'docs.d6.s': 'ساخت solver یا زبان جدید',
 
-      'footer.tagline': 'NeuroMesh · کد اضافه را حذف نکن. تا کن.',
+      'footer.tagline': 'NeuroMesh · کد اضافه را حذف نکن؛ تا کن.',
       'footer.changelog': 'Changelog',
 
       'ui.copy': 'کپی',
@@ -386,6 +388,8 @@ window.NMI18n = (function () {
       'ui.prev': 'قبلی',
       'ui.next': 'بعدی',
       'ui.lang': 'زبان',
+      'ui.langEn': 'English',
+      'ui.langFa': 'فارسی',
     },
   };
 
@@ -396,7 +400,7 @@ window.NMI18n = (function () {
       'Structure stays. Tokens sleep.',
     ],
     fa: [
-      'کد اضافه را حذف نکن. تا کن.',
+      'کد اضافه را حذف نکن؛ تا کن.',
       'اول مسیریابی، بعد تا.',
       'ساختار می‌ماند. توکن‌ها می‌خوابند.',
     ],
@@ -423,21 +427,21 @@ window.NMI18n = (function () {
     ],
     fa: [
       { icon: '💬', title: 'Prompt', phase: 'read', key: 'pipe.0',
-        desc: 'Task دقیقاً همان‌طور خوانده می‌شود — intentِ handle_tool_call زنده می‌ماند.' },
+        desc: 'Task دقیقاً همان‌طور که نوشته شده خوانده می‌شود — intentِ handle_tool_call زنده می‌ماند و خرد نمی‌شود.' },
       { icon: '🔍', title: 'Identifiers', phase: 'read', key: 'pipe.1',
-        desc: 'نام symbol و path از prompt استخراج می‌شود. نام‌های مبهم «خواب» می‌مانند — لینک جعلی انبوه نه.' },
+        desc: 'نام symbol و path از prompt استخراج می‌شود. نام‌های مبهم «خواب» می‌مانند — نه لینک جعلی انبوه.' },
       { icon: '🕸️', title: 'Graph in RAM', phase: 'route', key: 'pipe.2',
-        desc: 'Resolve روی مش عصبی: فایل، تابع، Imports، Calls. لبه فقط وقتی target یکتا است.' },
+        desc: 'Resolve روی مش عصبی: فایل، تابع، Imports، Calls. لبه فقط وقتی ساخته می‌شود که target یکتا باشد.' },
       { icon: '🌱', title: 'Seed files', phase: 'route', key: 'pipe.3',
-        desc: 'فایل‌های صاحب symbol همیشه می‌آیند. seed برای کوچک‌نمایی بریده نمی‌شود.' },
+        desc: 'فایل‌های صاحب symbol همیشه در بسته می‌آیند. seed برای کوچک‌نمایی بریده نمی‌شود.' },
       { icon: '🦠', title: 'Physarum tubes', phase: 'route', key: 'pipe.4',
         desc: 'با دو seed یا بیشتر، کپک مخاطی کوتاه‌ترین بافت اتصال را روی subgraph همسایگی می‌سازد — زیر ۲۰ms.' },
       { icon: '⚡', title: 'Fill + synapses', phase: 'splice', key: 'pipe.5',
-        desc: 'callee و همسایه سیناپسی بودجه token واقعی پر می‌کنند. balanced = 5k اضافه؛ max_quality = 16k.' },
+        desc: 'callee و همسایهٔ سیناپسی بودجهٔ token واقعی را پر می‌کنند. balanced = 5k اضافه؛ max_quality = 16k.' },
       { icon: '🧬', title: 'Exon / intron', phase: 'splice', key: 'pipe.6',
-        desc: 'بدنه‌های off-target به marker fold یک‌خطی جمع می‌شوند. امضا، import و شکل فایل می‌ماند.' },
+        desc: 'بدنه‌های off-target به marker fold یک‌خطی جمع می‌شوند. امضا، import و شکل فایل حفظ می‌ماند.' },
       { icon: '📦', title: 'Evidence packet', phase: 'splice', key: 'pipe.7',
-        desc: 'بسته فشرده به agent. fold را با neuromesh_expand_fold بیدار کن — بعد record_feedback.' },
+        desc: 'بستهٔ فشرده به agent. fold را با neuromesh_expand_fold بیدار کن — بعد از ویرایش خوب، record_feedback.' },
     ],
   };
 
@@ -458,7 +462,7 @@ window.NMI18n = (function () {
       { title: 'Graph in RAM', key: 'فایل · Call · Import' },
       { title: 'Seed files', key: 'صاحب symbolها' },
       { title: 'Physarum tubes', key: 'کوتاه‌ترین مسیر < 20ms' },
-      { title: 'Fill + synapses', key: 'بودجه token · فرومون' },
+      { title: 'Fill + synapses', key: 'بودجهٔ token · فرومون' },
       { title: 'Exon / intron', key: 'بدنه → marker fold' },
       { title: 'Evidence packet', key: 'expand_fold در صورت نیاز' },
     ],
@@ -471,9 +475,9 @@ window.NMI18n = (function () {
       { caption: 'Third turn — direct synapse wins. Zero grep. Gold recall.' },
     ],
     fa: [
-      { caption: 'اولین بازدید — مش مسیرهای ضعیف را کاوش می‌کند. Agent دو بار grep.' },
-      { caption: 'بعد از record_feedback — مسیر co-edit تقویت شد. یک grep باقی.' },
-      { caption: 'نوبت سوم — سیناپس مستقیم برنده. grep صفر. recall طلایی.' },
+      { caption: 'اولین بازدید — مش مسیرهای ضعیف‌تر را کاوش می‌کند. Agent دو بار grep می‌زند.' },
+      { caption: 'بعد از record_feedback — مسیر co-edit تقویت شد. یک grep باقی مانده.' },
+      { caption: 'نوبت سوم — سیناپس مستقیم برنده شد. grep صفر. recall طلایی.' },
     ],
   };
 
@@ -507,6 +511,72 @@ window.NMI18n = (function () {
     });
   }
 
+  function syncLangDropdown() {
+    const root = document.getElementById('lang-dropdown');
+    const trigger = document.getElementById('lang-trigger');
+    const label = document.getElementById('lang-trigger-label');
+    if (label) label.textContent = lang === 'fa' ? t('ui.langFa') : t('ui.langEn');
+    if (trigger) {
+      trigger.setAttribute('aria-label', t('ui.lang'));
+    }
+    document.querySelectorAll('.lang-option').forEach(opt => {
+      const selected = opt.dataset.lang === lang;
+      opt.classList.toggle('active', selected);
+      opt.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+    if (root && root.classList.contains('open')) {
+      closeLangMenu();
+    }
+  }
+
+  function openLangMenu() {
+    const root = document.getElementById('lang-dropdown');
+    const trigger = document.getElementById('lang-trigger');
+    const menu = document.getElementById('lang-menu');
+    if (!root || !trigger || !menu) return;
+    root.classList.add('open');
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeLangMenu() {
+    const root = document.getElementById('lang-dropdown');
+    const trigger = document.getElementById('lang-trigger');
+    const menu = document.getElementById('lang-menu');
+    if (!root || !trigger || !menu) return;
+    root.classList.remove('open');
+    menu.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+  }
+
+  function initLangDropdown() {
+    const root = document.getElementById('lang-dropdown');
+    const trigger = document.getElementById('lang-trigger');
+    const menu = document.getElementById('lang-menu');
+    if (!root || !trigger || !menu) return;
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (root.classList.contains('open')) closeLangMenu();
+      else openLangMenu();
+    });
+
+    menu.querySelectorAll('.lang-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        setLang(opt.dataset.lang);
+        closeLangMenu();
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!root.contains(e.target)) closeLangMenu();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLangMenu();
+    });
+  }
+
   function applyStatic() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
       el.textContent = t(el.dataset.i18n);
@@ -533,10 +603,7 @@ window.NMI18n = (function () {
     document.body.classList.toggle('lang-fa', lang === 'fa');
     document.body.classList.toggle('lang-en', lang === 'en');
 
-    document.querySelectorAll('.lang-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.lang === lang);
-      btn.setAttribute('aria-pressed', btn.dataset.lang === lang ? 'true' : 'false');
-    });
+    syncLangDropdown();
 
     document.querySelectorAll('.copy-btn').forEach(btn => {
       if (!btn.classList.contains('copied')) btn.textContent = t('ui.copy');
@@ -570,9 +637,7 @@ window.NMI18n = (function () {
   function getPipeNodeKeys() { return pipeNodeKeys[lang] || pipeNodeKeys.en; }
   function getLearningTurns() { return learningTurns[lang] || learningTurns.en; }
 
-  document.querySelectorAll('.lang-btn').forEach(btn => {
-    btn.addEventListener('click', () => setLang(btn.dataset.lang));
-  });
+  initLangDropdown();
   setLang(lang);
 
   return { t, setLang, onChange, applyDynamic, get lang() { return lang; }, getPhrases, getPipelineSteps, getPipeNodeKeys, getLearningTurns };
