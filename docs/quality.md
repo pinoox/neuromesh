@@ -47,7 +47,7 @@ Measured with `cargo run --release -p neuromesh-cli -- eval` and `mcp_driver.mjs
 
 ### `neuromesh eval` latency (this repo, balanced)
 
-| Task | Before (v0.7.16) ms | After (v0.7.17) ms |
+| Task | Before ms | After ms |
 | :--- | ---: | ---: |
 | `handle_tool_call_intent` | 44 | **22** |
 | `physarum_usage` | 22 | **12** |
@@ -63,7 +63,7 @@ Measured with `cargo run --release -p neuromesh-cli -- eval` and `mcp_driver.mjs
 
 Driver: `benchmark/nm_vs_cbm/mcp_driver.mjs`. Artifacts: `mcp_before_*.json`, `mcp_after_*.json`.
 
-## Learning → emission (v0.7.16)
+## Learning → emission (v0.7.17)
 
 Feedback changes **which files are emitted** in both directions: penalized hop-expanded files drop out; reinforced files that **match the current query focus terms** are prepended into optional emission via `ensure_learned_emission`. Default promotion floor: `learning_promotion_min_bonus` **14** (covers +8 strong reinforcement ≈ 17 bonus). Unrelated queries still get at most `learning_relevance_cap_unrelated` (default **0.35**) of the learned score in ranking — they do not inject new files into the packet.
 

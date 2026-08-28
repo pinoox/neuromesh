@@ -19,7 +19,7 @@ Seed files always ship (skeletonized)
   ▼
 Fill callees, usages, imports under fill_cap
   │
-  ├─ learning rerank + bidirectional emission (v0.7.16+)
+  ├─ learning rerank + bidirectional emission (v0.7.17+)
   │
   ├─ max_savings: seeds only
   ├─ balanced: +5k extra, soft crate cap
