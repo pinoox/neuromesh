@@ -8,10 +8,10 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d1117'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%232ea043'/%3E%3Ccircle cx='12' cy='13' r='3' fill='%2356d364'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/site.css">
 </head>
-<body>
+<body class="lang-en">
   <div class="bg-mesh"></div>
   <div class="bg-grid"></div>
   <div class="orb orb-1"></div>
@@ -26,18 +26,22 @@
       </a>
       <nav>
         <ul>
-          <li><a href="#pain">The pain</a></li>
-          <li><a href="#fold">Fold</a></li>
-          <li><a href="#galaxy">Galaxy</a></li>
-          <li><a href="#learning">Learning</a></li>
-          <li><a href="#install">Install</a></li>
-          <li><a href="#connect">Connect</a></li>
-          <li><a href="#tools">Tools</a></li>
+          <li><a href="#pain" data-i18n="nav.pain">The pain</a></li>
+          <li><a href="#fold" data-i18n="nav.fold">Fold</a></li>
+          <li><a href="#galaxy" data-i18n="nav.galaxy">Galaxy</a></li>
+          <li><a href="#learning" data-i18n="nav.learning">Learning</a></li>
+          <li><a href="#install" data-i18n="nav.install">Install</a></li>
+          <li><a href="#connect" data-i18n="nav.connect">Connect</a></li>
+          <li><a href="#tools" data-i18n="nav.tools">Tools</a></li>
         </ul>
       </nav>
       <div class="header-actions">
-        <a href="https://github.com/pinoox/neuromesh" class="btn btn-ghost" target="_blank" rel="noopener">GitHub</a>
-        <a href="#install" class="btn btn-primary">Install</a>
+        <div class="lang-switch" role="group" data-i18n-aria="ui.lang" aria-label="Language">
+          <button type="button" class="lang-btn active" data-lang="en" aria-pressed="true">EN</button>
+          <button type="button" class="lang-btn" data-lang="fa" aria-pressed="false">FA</button>
+        </div>
+        <a href="https://github.com/pinoox/neuromesh" class="btn btn-ghost" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
+        <a href="#install" class="btn btn-primary" data-i18n="nav.installBtn">Install</a>
       </div>
     </div>
   </header>
@@ -50,7 +54,7 @@
         <div class="hero-slime-overlay"></div>
         <div class="hero-slime-panels">
           <div class="slime-panel">
-            <div class="slime-panel-label"><span class="dot"></span> Graph · RAM mesh</div>
+            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.graph">Graph · RAM mesh</span></div>
             <div class="mini-graph">
               <svg viewBox="0 0 240 88" xmlns="http://www.w3.org/2000/svg">
                 <defs>
@@ -72,7 +76,7 @@
             </div>
           </div>
           <div class="slime-panel">
-            <div class="slime-panel-label"><span class="dot"></span> Code · fold splice</div>
+            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.code">Code · fold splice</span></div>
             <div class="mini-code">
               <span class="expressed">fn handle_tool_call()</span> { … }<br>
               <span class="folded">/* fold: 12 lines | unused_helper */</span>
@@ -81,7 +85,7 @@
             </div>
           </div>
           <div class="slime-panel">
-            <div class="slime-panel-label"><span class="dot"></span> Engine · packet</div>
+            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.engine">Engine · packet</span></div>
             <div class="mini-engine" id="mini-engine">
               <div class="engine-step" data-step="0"><span class="engine-tag">Seeds</span><div class="engine-bar"></div></div>
               <div class="engine-step" data-step="1"><span class="engine-tag">Physarum</span><div class="engine-bar"></div></div>
@@ -97,11 +101,11 @@
       <div class="container">
         <div class="hero-slime-tag reveal">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8 2 5 5.5 5 10c0 3.5 2 6.5 5 8 1 .5 2 .5 3 0 3-1.5 5-4.5 5-8 0-4.5-3-8-6-8zm0 3c1.5 0 3 1.5 3 4s-1.5 4-3 4-3-1.5-3-4 1.5-4 3-4z"/></svg>
-          Physarum routing · live neural mesh
+          <span data-i18n="hero.slimeTag">Physarum routing · live neural mesh</span>
         </div>
         <div class="hero-badge-row reveal">
           <a href="https://github.com/pinoox/neuromesh/releases/latest" class="badge" target="_blank" rel="noopener">
-            <span class="badge-dot green"></span> Latest release
+            <span class="badge-dot green"></span> <span data-i18n="hero.badgeRelease">Latest release</span>
           </a>
           <span class="badge">Rust 1.80+</span>
           <span class="badge">MCP stdio</span>
@@ -111,7 +115,7 @@
         <h1 class="reveal reveal-delay-1">NeuroMesh</h1>
         <p class="hero-tagline reveal reveal-delay-2" id="typewriter"></p>
 
-        <p class="hero-desc reveal reveal-delay-3">
+        <p class="hero-desc reveal reveal-delay-3" data-i18n-html="hero.desc">
           How does nature pack two metres of DNA into a nucleus without deleting a single letter?
           Not by throwing genes away — by <strong>folding</strong>.
           NeuroMesh does the same to your repository: a neural graph in RAM, reversible one-line folds,
@@ -121,24 +125,24 @@
         <div class="hero-cta reveal reveal-delay-3">
           <a href="#install" class="btn btn-primary">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm9.78-2.22-4.5 4.5a.75.75 0 0 1-1.06 0l-2-2a.75.75 0 1 1 1.06-1.06L6.25 9.94l3.97-3.97a.75.75 0 0 1 1.06 1.06Z"/></svg>
-            Quick install
+            <span data-i18n="hero.ctaInstall">Quick install</span>
           </a>
-          <a href="README.md" class="btn btn-secondary">Documentation</a>
+          <a href="README.md" class="btn btn-secondary" data-i18n="hero.ctaDocs">Documentation</a>
           <a href="https://github.com/pinoox/neuromesh" class="btn btn-secondary" target="_blank" rel="noopener">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
-            Star on GitHub
+            <span data-i18n="hero.ctaStar">Star on GitHub</span>
           </a>
         </div>
 
         <p class="hero-clients reveal">
-          Local-first MCP ·
+          <span data-i18n="hero.clients">Local-first MCP ·</span>
           <span>Cursor · Codex · Antigravity · VS Code · Claude · Kilo · Trae</span>
         </p>
 
         <div class="fold-demo reveal" style="margin-top: 48px;" id="fold-demo">
           <div class="fold-demo-header">
             <div class="window-dots"><span></span><span></span><span></span></div>
-            <span>src/handler.rs — folded skeleton</span>
+            <span data-i18n="hero.foldHeader">src/handler.rs — folded skeleton</span>
           </div>
           <div class="fold-demo-body" id="fold-code"></div>
         </div>
@@ -149,9 +153,9 @@
     <!-- The Pain -->
     <section id="pain">
       <div class="container">
-        <div class="section-label reveal">The problem</div>
-        <h2 class="reveal">The pain</h2>
-        <p class="lead reveal">
+        <div class="section-label reveal" data-i18n="pain.label">The problem</div>
+        <h2 class="reveal" data-i18n="pain.title">The pain</h2>
+        <p class="lead reveal" data-i18n-html="pain.lead">
           You ask a simple question in a large project. The editor copies two or three
           <strong>thousand-line files</strong> and ships them to the model.
         </p>
@@ -159,31 +163,31 @@
         <div class="card-grid">
           <div class="card card-problem reveal">
             <div class="card-icon">💸</div>
-            <h3>Tokens you never needed</h3>
-            <p>Dollar cost on every turn — paying for helpers you will never touch.</p>
+            <h3 data-i18n="pain.c1.title">Tokens you never needed</h3>
+            <p data-i18n="pain.c1.desc">Dollar cost on every turn — paying for helpers you will never touch.</p>
           </div>
           <div class="card reveal reveal-delay-1">
             <div class="card-icon" style="background: rgba(210,153,34,0.12);">⏳</div>
-            <h3>Seconds of fake loading</h3>
-            <p>While the window fills with unrelated bodies and private utilities.</p>
+            <h3 data-i18n="pain.c2.title">Seconds of fake loading</h3>
+            <p data-i18n="pain.c2.desc">While the window fills with unrelated bodies and private utilities.</p>
           </div>
           <div class="card reveal reveal-delay-2">
             <div class="card-icon" style="background: rgba(248,81,73,0.12);">🌊</div>
-            <h3>Lost in the middle</h3>
-            <p>The model drowns in unrelated code and invents bugs that don't exist.</p>
+            <h3 data-i18n="pain.c3.title">Lost in the middle</h3>
+            <p data-i18n="pain.c3.desc">The model drowns in unrelated code and invents bugs that don't exist.</p>
           </div>
         </div>
 
         <div class="table-wrap reveal">
           <table>
             <thead>
-              <tr><th>Approach</th><th>What goes wrong</th></tr>
+              <tr><th data-i18n="pain.th.approach">Approach</th><th data-i18n="pain.th.wrong">What goes wrong</th></tr>
             </thead>
             <tbody>
-              <tr><td>Vector RAG</td><td>Chunks smash functions. The shape of the code disappears.</td></tr>
-              <tr><td>"Just attach the files"</td><td>The model sees everything and understands nothing.</td></tr>
-              <tr><td>A static code graph</td><td>Better map — then it still pastes <strong>full files</strong> into the prompt.</td></tr>
-              <tr><td><strong style="color:var(--success-fg)">NeuroMesh</strong></td><td><strong style="color:var(--success-fg)">Route first, then fold.</strong> The graph finds the path. The packet is what the model reads.</td></tr>
+              <tr><td data-i18n="pain.r1.a">Vector RAG</td><td data-i18n="pain.r1.b">Chunks smash functions. The shape of the code disappears.</td></tr>
+              <tr><td data-i18n="pain.r2.a">"Just attach the files"</td><td data-i18n="pain.r2.b">The model sees everything and understands nothing.</td></tr>
+              <tr><td data-i18n="pain.r3.a">A static code graph</td><td data-i18n-html="pain.r3.b">Better map — then it still pastes <strong>full files</strong> into the prompt.</td></tr>
+              <tr><td data-i18n="pain.r4.a"><strong style="color:var(--success-fg)">NeuroMesh</strong></td><td data-i18n-html="pain.r4.b"><strong style="color:var(--success-fg)">Route first, then fold.</strong> The graph finds the path. The packet is what the model reads.</td></tr>
             </tbody>
           </table>
         </div>
@@ -193,9 +197,9 @@
     <!-- Fold -->
     <section id="fold" style="background: linear-gradient(180deg, transparent, rgba(46,160,67,0.03), transparent);">
       <div class="container">
-        <div class="section-label reveal">Core concept</div>
-        <h2 class="reveal">Don't delete. Fold.</h2>
-        <p class="lead reveal">
+        <div class="section-label reveal" data-i18n="fold.label">Core concept</div>
+        <h2 class="reveal" data-i18n="fold.title">Don't delete. Fold.</h2>
+        <p class="lead reveal" data-i18n-html="fold.lead">
           Nature does not delete DNA to fit a nucleus. It <strong>supercoils</strong>.
           NeuroMesh treats the syntax tree like a genetic strand in RAM.
         </p>
@@ -203,76 +207,76 @@
         <div class="card-grid" style="margin-top: 32px;">
           <div class="card reveal">
             <div class="card-icon" style="background: var(--success-muted);">🧬</div>
-            <h3>Exons — expressed</h3>
-            <p>Functions you need stay fully visible — real body, real lines.</p>
+            <h3 data-i18n="fold.c1.title">Exons — expressed</h3>
+            <p data-i18n="fold.c1.desc">Functions you need stay fully visible — real body, real lines.</p>
           </div>
           <div class="card reveal reveal-delay-1">
             <div class="card-icon" style="background: rgba(210,153,34,0.12);">📦</div>
-            <h3>Introns — folded</h3>
-            <p>Everything else collapses to a one-line reversible marker with a fold ID.</p>
+            <h3 data-i18n="fold.c2.title">Introns — folded</h3>
+            <p data-i18n="fold.c2.desc">Everything else collapses to a one-line reversible marker with a fold ID.</p>
           </div>
           <div class="card reveal reveal-delay-2">
             <div class="card-icon" style="background: var(--purple-muted);">⚡</div>
-            <h3>Wake on demand</h3>
-            <p><code style="color:var(--purple-fg)">neuromesh_expand_fold</code> unsplices from memory. No disk grep.</p>
+            <h3 data-i18n="fold.c3.title">Wake on demand</h3>
+            <p data-i18n-html="fold.c3.desc"><code style="color:var(--purple-fg)">neuromesh_expand_fold</code> unsplices from memory. No disk grep.</p>
           </div>
         </div>
 
-        <div class="quote reveal">
+        <div class="quote reveal" data-i18n-html="fold.quote">
           <strong>Structure stays. Tokens sleep. Wake a fold when you need it.</strong>
         </div>
 
         <!-- Nature -->
         <div style="margin-top: 80px;">
-          <div class="section-label reveal">Biomimicry</div>
-          <h2 class="reveal">Inspired by living systems</h2>
+          <div class="section-label reveal" data-i18n="fold.bio.label">Biomimicry</div>
+          <h2 class="reveal" data-i18n="fold.bio.title">Inspired by living systems</h2>
           <div class="nature-grid">
             <div class="nature-item reveal">
               <div class="nature-emoji">🧬</div>
               <div>
-                <h4>DNA supercoiling</h4>
-                <div class="engine">Genetic skeletonizer</div>
-                <p>Fold unused bodies; keep the map of the file.</p>
+                <h4 data-i18n="nature.n1.t">DNA supercoiling</h4>
+                <div class="engine" data-i18n="nature.n1.e">Genetic skeletonizer</div>
+                <p data-i18n="nature.n1.p">Fold unused bodies; keep the map of the file.</p>
               </div>
             </div>
             <div class="nature-item reveal reveal-delay-1">
               <div class="nature-emoji">🦠</div>
               <div>
-                <h4>Physarum (slime mold)</h4>
-                <div class="engine">Steiner / shortest tissue</div>
-                <p>Grow the cheapest path between seeds — not the whole neighborhood.</p>
+                <h4 data-i18n="nature.n2.t">Physarum (slime mold)</h4>
+                <div class="engine" data-i18n="nature.n2.e">Steiner / shortest tissue</div>
+                <p data-i18n="nature.n2.p">Grow the cheapest path between seeds — not the whole neighborhood.</p>
               </div>
             </div>
             <div class="nature-item reveal reveal-delay-2">
               <div class="nature-emoji">⚡</div>
               <div>
-                <h4>Synapses & STDP</h4>
-                <div class="engine">Pheromone edges + record_feedback</div>
-                <p>Paths you actually edited get stronger next time.</p>
+                <h4 data-i18n="nature.n3.t">Synapses & STDP</h4>
+                <div class="engine" data-i18n="nature.n3.e">Pheromone edges + record_feedback</div>
+                <p data-i18n="nature.n3.p">Paths you actually edited get stronger next time.</p>
               </div>
             </div>
             <div class="nature-item reveal">
               <div class="nature-emoji">🛡️</div>
               <div>
-                <h4>Cell membrane</h4>
-                <div class="engine">QualityGate</div>
-                <p>Tight by default; auth / payment tasks open the membrane.</p>
+                <h4 data-i18n="nature.n4.t">Cell membrane</h4>
+                <div class="engine" data-i18n="nature.n4.e">QualityGate</div>
+                <p data-i18n="nature.n4.p">Tight by default; auth / payment tasks open the membrane.</p>
               </div>
             </div>
             <div class="nature-item reveal reveal-delay-1">
               <div class="nature-emoji">🍄</div>
               <div>
-                <h4>Mycelium</h4>
-                <div class="engine">Hyphal prefetch</div>
-                <p>Warm the next hop before the second tool call.</p>
+                <h4 data-i18n="nature.n5.t">Mycelium</h4>
+                <div class="engine" data-i18n="nature.n5.e">Hyphal prefetch</div>
+                <p data-i18n="nature.n5.p">Warm the next hop before the second tool call.</p>
               </div>
             </div>
             <div class="nature-item reveal reveal-delay-2">
               <div class="nature-emoji">🕸️</div>
               <div>
-                <h4>Neural mesh</h4>
-                <div class="engine">Project graph in RAM</div>
-                <p>Files, functions, Imports, Calls — a nervous system, not a bag of strings.</p>
+                <h4 data-i18n="nature.n6.t">Neural mesh</h4>
+                <div class="engine" data-i18n="nature.n6.e">Project graph in RAM</div>
+                <p data-i18n="nature.n6.p">Files, functions, Imports, Calls — a nervous system, not a bag of strings.</p>
               </div>
             </div>
           </div>
@@ -283,37 +287,37 @@
     <!-- Galaxy -->
     <section id="galaxy">
       <div class="container">
-        <div class="section-label reveal">Visualization</div>
-        <h2 class="reveal">3D Neural Galaxy</h2>
-        <p class="lead reveal">
+        <div class="section-label reveal" data-i18n="galaxy.label">Visualization</div>
+        <h2 class="reveal" data-i18n="galaxy.title">3D Neural Galaxy</h2>
+        <p class="lead reveal" data-i18n-html="galaxy.lead">
           <code style="color:var(--accent-fg)">neuromesh monitor</code> is the live mesh: subsystems as a constellation,
           then the file graph, then the symbols inside a module.
         </p>
 
         <div class="gallery">
           <div class="gallery-item reveal">
-            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-constellation.jpg" data-caption="Constellation — crates and subsystems">
+            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-constellation.jpg" data-i18n-caption="galaxy.c1" data-caption="Constellation — crates and subsystems">
               <img src="assets/galaxy-constellation.jpg" alt="Macro constellation of project subsystems" loading="lazy">
             </button>
-            <div class="gallery-caption">Constellation — crates and subsystems</div>
+            <div class="gallery-caption" data-i18n="galaxy.c1">Constellation — crates and subsystems</div>
           </div>
           <div class="gallery-item reveal reveal-delay-1">
-            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-3d.jpg" data-caption="3D galaxy — files and synapses; Physarum tubes">
+            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-3d.jpg" data-i18n-caption="galaxy.c2" data-caption="3D galaxy — files and synapses; Physarum tubes">
               <img src="assets/galaxy-3d.jpg" alt="3D Neural Galaxy file graph with Physarum tubes" loading="lazy">
             </button>
-            <div class="gallery-caption">3D galaxy — files and synapses; Physarum tubes</div>
+            <div class="gallery-caption" data-i18n="galaxy.c2">3D galaxy — files and synapses; Physarum tubes</div>
           </div>
           <div class="gallery-item reveal reveal-delay-2">
-            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-module.jpg" data-caption="Module zoom — files and AST symbols in one crate">
+            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-module.jpg" data-i18n-caption="galaxy.c3" data-caption="Module zoom — files and AST symbols in one crate">
               <img src="assets/galaxy-module.jpg" alt="Module zoom showing Core files and symbols" loading="lazy">
             </button>
-            <div class="gallery-caption">Module zoom — files and AST symbols in one crate</div>
+            <div class="gallery-caption" data-i18n="galaxy.c3">Module zoom — files and AST symbols in one crate</div>
           </div>
         </div>
 
         <p class="reveal" style="margin-top: 24px; text-align: center; color: var(--fg-muted);">
-          Default URL: <a href="http://127.0.0.1:8765" style="color:var(--accent-fg)">http://127.0.0.1:8765</a>
-          · Port: <code style="color:var(--fg-muted)">neuromesh port</code>
+          <span data-i18n="galaxy.url">Default URL:</span> <a href="http://127.0.0.1:8765" style="color:var(--accent-fg)">http://127.0.0.1:8765</a>
+          · <span data-i18n="galaxy.port">Port:</span> <code style="color:var(--fg-muted)">neuromesh port</code>
         </p>
       </div>
     </section>
@@ -321,9 +325,9 @@
     <!-- How it works -->
     <section id="how">
       <div class="container" style="text-align: center;">
-        <div class="section-label reveal" style="justify-content: center;">Pipeline</div>
-        <h2 class="reveal">How a turn actually goes</h2>
-        <p class="lead reveal" style="margin: 0 auto;">Route first, then fold. Seeds are never truncated to fake a small packet.</p>
+        <div class="section-label reveal" style="justify-content: center;" data-i18n="how.label">Pipeline</div>
+        <h2 class="reveal" data-i18n="how.title">How a turn actually goes</h2>
+        <p class="lead reveal" style="margin: 0 auto;" data-i18n="how.lead">Route first, then fold. Seeds are never truncated to fake a small packet.</p>
 
         <div class="pipeline-board reveal" id="pipeline">
           <svg class="pipeline-tubes" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
@@ -349,23 +353,23 @@
               <div class="phase-header">
                 <div class="phase-num">1</div>
                 <div>
-                  <div class="phase-title">Read</div>
-                  <div class="phase-sub">Task as written</div>
+                  <div class="phase-title" data-i18n="how.phase1.title">Read</div>
+                  <div class="phase-sub" data-i18n="how.phase1.sub">Task as written</div>
                 </div>
               </div>
               <div class="phase-steps">
                 <button type="button" class="pipe-node" data-step="0" data-phase="read">
                   <div class="pipe-node-icon">💬</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title">Prompt</div>
-                    <div class="pipe-node-key">handle_tool_call survives</div>
+                    <div class="pipe-node-title" data-pipe-title="0">Prompt</div>
+                    <div class="pipe-node-key" data-pipe-key="0">handle_tool_call survives</div>
                   </div>
                 </button>
                 <button type="button" class="pipe-node" data-step="1" data-phase="read">
                   <div class="pipe-node-icon">🔍</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title">Identifiers</div>
-                    <div class="pipe-node-key">symbols from task text</div>
+                    <div class="pipe-node-title" data-pipe-title="1">Identifiers</div>
+                    <div class="pipe-node-key" data-pipe-key="1">symbols from task text</div>
                   </div>
                 </button>
               </div>
@@ -375,30 +379,30 @@
               <div class="phase-header">
                 <div class="phase-num">2</div>
                 <div>
-                  <div class="phase-title">Route</div>
-                  <div class="phase-sub">Graph + Physarum</div>
+                  <div class="phase-title" data-i18n="how.phase2.title">Route</div>
+                  <div class="phase-sub" data-i18n="how.phase2.sub">Graph + Physarum</div>
                 </div>
               </div>
               <div class="phase-steps">
                 <button type="button" class="pipe-node" data-step="2" data-phase="route">
                   <div class="pipe-node-icon">🕸️</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title">Graph in RAM</div>
-                    <div class="pipe-node-key">Files · Calls · Imports</div>
+                    <div class="pipe-node-title" data-pipe-title="2">Graph in RAM</div>
+                    <div class="pipe-node-key" data-pipe-key="2">Files · Calls · Imports</div>
                   </div>
                 </button>
                 <button type="button" class="pipe-node" data-step="3" data-phase="route">
                   <div class="pipe-node-icon">🌱</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title">Seed files</div>
-                    <div class="pipe-node-key">owners of symbols</div>
+                    <div class="pipe-node-title" data-pipe-title="3">Seed files</div>
+                    <div class="pipe-node-key" data-pipe-key="3">owners of symbols</div>
                   </div>
                 </button>
                 <button type="button" class="pipe-node" data-step="4" data-phase="route">
                   <div class="pipe-node-icon">🦠</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title">Physarum tubes</div>
-                    <div class="pipe-node-key">cheapest path &lt; 20ms</div>
+                    <div class="pipe-node-title" data-pipe-title="4">Physarum tubes</div>
+                    <div class="pipe-node-key" data-pipe-key="4">cheapest path &lt; 20ms</div>
                   </div>
                 </button>
               </div>
@@ -408,30 +412,30 @@
               <div class="phase-header">
                 <div class="phase-num">3</div>
                 <div>
-                  <div class="phase-title">Splice</div>
-                  <div class="phase-sub">Fold + packet</div>
+                  <div class="phase-title" data-i18n="how.phase3.title">Splice</div>
+                  <div class="phase-sub" data-i18n="how.phase3.sub">Fold + packet</div>
                 </div>
               </div>
               <div class="phase-steps">
                 <button type="button" class="pipe-node" data-step="5" data-phase="splice">
                   <div class="pipe-node-icon">⚡</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title">Fill + synapses</div>
-                    <div class="pipe-node-key">token budget · pheromones</div>
+                    <div class="pipe-node-title" data-pipe-title="5">Fill + synapses</div>
+                    <div class="pipe-node-key" data-pipe-key="5">token budget · pheromones</div>
                   </div>
                 </button>
                 <button type="button" class="pipe-node" data-step="6" data-phase="splice">
                   <div class="pipe-node-icon">🧬</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title">Exon / intron</div>
-                    <div class="pipe-node-key">bodies → fold markers</div>
+                    <div class="pipe-node-title" data-pipe-title="6">Exon / intron</div>
+                    <div class="pipe-node-key" data-pipe-key="6">bodies → fold markers</div>
                   </div>
                 </button>
                 <button type="button" class="pipe-node" data-step="7" data-phase="splice">
                   <div class="pipe-node-icon">📦</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title">Evidence packet</div>
-                    <div class="pipe-node-key">expand_fold if needed</div>
+                    <div class="pipe-node-title" data-pipe-title="7">Evidence packet</div>
+                    <div class="pipe-node-key" data-pipe-key="7">expand_fold if needed</div>
                   </div>
                 </button>
               </div>
@@ -446,12 +450,12 @@
             </div>
             <div class="detail-counter">
               <strong id="detail-step-num">1</strong>
-              of 8 steps
+              <span data-i18n="how.stepsOf">of 8 steps</span>
             </div>
           </div>
 
           <div class="pipeline-dots" id="pipeline-dots"></div>
-          <button type="button" class="pipeline-play-toggle" id="pipeline-play" aria-pressed="false">
+          <button type="button" class="pipeline-play-toggle" id="pipeline-play" aria-pressed="false" data-i18n="how.pauseTour">
             ⏸ Pause tour
           </button>
         </div>
@@ -459,19 +463,19 @@
         <div class="mode-cards reveal" style="margin-top: 64px;">
           <div class="mode-card">
             <h3>max_savings</h3>
-            <div class="tokens">0<small> extra tokens</small></div>
-            <p style="color:var(--fg-muted); font-size:0.875rem;">Tiny, obvious edits</p>
+            <div class="tokens">0<small data-i18n="how.extraTokens"> extra tokens</small></div>
+            <p style="color:var(--fg-muted); font-size:0.875rem;" data-i18n="how.mode1">Tiny, obvious edits</p>
           </div>
           <div class="mode-card featured">
-            <span class="tag">Default</span>
+            <span class="tag" data-i18n="how.tagDefault">Default</span>
             <h3>balanced</h3>
-            <div class="tokens">5,000<small> extra tokens</small></div>
-            <p style="color:var(--fg-muted); font-size:0.875rem;">Everyday development</p>
+            <div class="tokens">5,000<small data-i18n="how.extraTokens"> extra tokens</small></div>
+            <p style="color:var(--fg-muted); font-size:0.875rem;" data-i18n="how.mode2">Everyday development</p>
           </div>
           <div class="mode-card">
             <h3>max_quality</h3>
-            <div class="tokens">16,000<small> extra tokens</small></div>
-            <p style="color:var(--fg-muted); font-size:0.875rem;">Refactors, auth, critical paths</p>
+            <div class="tokens">16,000<small data-i18n="how.extraTokens"> extra tokens</small></div>
+            <p style="color:var(--fg-muted); font-size:0.875rem;" data-i18n="how.mode3">Refactors, auth, critical paths</p>
           </div>
         </div>
       </div>
@@ -480,9 +484,9 @@
     <!-- Adaptive learning -->
     <section id="learning" class="learning-section">
       <div class="container">
-        <div class="section-label reveal">Synaptic STDP</div>
-        <h2 class="reveal">Smarter every turn</h2>
-        <p class="lead reveal">
+        <div class="section-label reveal" data-i18n="learn.label">Synaptic STDP</div>
+        <h2 class="reveal" data-i18n="learn.title">Smarter every turn</h2>
+        <p class="lead reveal" data-i18n-html="learn.lead">
           NeuroMesh doesn't forget what worked. Every successful edit is experience —
           <code>neuromesh_record_feedback</code> strengthens the synapses on the path you actually used.
           Next packet, the mesh routes faster and closer to gold.
@@ -494,9 +498,9 @@
             <div class="learning-viz-overlay">
               <div class="learning-turn-pill">
                 <span class="learning-turn-dot"></span>
-                Turn <strong id="learning-turn-num">1</strong> / 3
+                <span data-i18n="learn.turn">Turn</span> <strong id="learning-turn-num">1</strong> <span data-i18n="learn.turnOf">/ 3</span>
               </div>
-              <p class="learning-turn-caption" id="learning-turn-caption">
+              <p class="learning-turn-caption" id="learning-turn-caption" data-i18n="learn.turnCap1">
                 First visit — the mesh explores weaker paths.
               </p>
             </div>
@@ -504,37 +508,37 @@
 
           <div class="learning-panel">
             <div class="learning-loop">
-              <div class="learning-loop-title">The learning loop</div>
+              <div class="learning-loop-title" data-i18n="learn.loopTitle">The learning loop</div>
               <div class="learning-loop-steps">
                 <div class="loop-step" data-loop="0">
                   <span class="loop-icon">📦</span>
                   <div>
-                    <strong>get_context</strong>
-                    <span>Route on pheromone edges</span>
+                    <strong data-i18n="learn.loop1.t">get_context</strong>
+                    <span data-i18n="learn.loop1.s">Route on pheromone edges</span>
                   </div>
                 </div>
                 <div class="loop-arrow">↓</div>
                 <div class="loop-step" data-loop="1">
                   <span class="loop-icon">✏️</span>
                   <div>
-                    <strong>Edit & succeed</strong>
-                    <span>Agent touches real files</span>
+                    <strong data-i18n="learn.loop2.t">Edit & succeed</strong>
+                    <span data-i18n="learn.loop2.s">Agent touches real files</span>
                   </div>
                 </div>
                 <div class="loop-arrow">↓</div>
                 <div class="loop-step loop-step-highlight" data-loop="2">
                   <span class="loop-icon">⚡</span>
                   <div>
-                    <strong>record_feedback</strong>
-                    <span>Spike synapses — STDP learns</span>
+                    <strong data-i18n="learn.loop3.t">record_feedback</strong>
+                    <span data-i18n="learn.loop3.s">Spike synapses — STDP learns</span>
                   </div>
                 </div>
                 <div class="loop-arrow">↓</div>
                 <div class="loop-step" data-loop="3">
                   <span class="loop-icon">🧠</span>
                   <div>
-                    <strong>Next packet</strong>
-                    <span>Stronger path, fewer misses</span>
+                    <strong data-i18n="learn.loop4.t">Next packet</strong>
+                    <span data-i18n="learn.loop4.s">Stronger path, fewer misses</span>
                   </div>
                 </div>
               </div>
@@ -543,21 +547,21 @@
             <div class="learning-metrics">
               <div class="learning-metric">
                 <div class="learning-metric-head">
-                  <span>Synaptic strength</span>
+                  <span data-i18n="learn.m1">Synaptic strength</span>
                   <strong id="metric-strength">18%</strong>
                 </div>
                 <div class="learning-metric-bar"><div class="learning-metric-fill" id="bar-strength" style="width:18%"></div></div>
               </div>
               <div class="learning-metric">
                 <div class="learning-metric-head">
-                  <span>Recall</span>
+                  <span data-i18n="learn.m2">Recall</span>
                   <strong id="metric-recall">0.75</strong>
                 </div>
                 <div class="learning-metric-bar"><div class="learning-metric-fill recall" id="bar-recall" style="width:75%"></div></div>
               </div>
               <div class="learning-metric">
                 <div class="learning-metric-head">
-                  <span>Grep fallbacks</span>
+                  <span data-i18n="learn.m3">Grep fallbacks</span>
                   <strong id="metric-grep">2</strong>
                 </div>
                 <div class="learning-metric-bar"><div class="learning-metric-fill grep" id="bar-grep" style="width:66%"></div></div>
@@ -569,22 +573,22 @@
         <div class="learning-cards reveal">
           <div class="learning-card">
             <div class="learning-card-icon">🧪</div>
-            <h3>Experience from edits</h3>
-            <p>Only paths the agent <em>actually edited</em> get credit. No fake links from guessing — unique resolve keeps the graph honest.</p>
+            <h3 data-i18n="learn.c1.t">Experience from edits</h3>
+            <p data-i18n-html="learn.c1.p">Only paths the agent <em>actually edited</em> get credit. No fake links from guessing — unique resolve keeps the graph honest.</p>
           </div>
           <div class="learning-card featured">
             <div class="learning-card-icon">🔗</div>
-            <h3>Pheromone edges</h3>
-            <p>Co-edited files share stronger tubes. Physarum prefers reinforced routes — like slime mold remembering where food was.</p>
+            <h3 data-i18n="learn.c2.t">Pheromone edges</h3>
+            <p data-i18n="learn.c2.p">Co-edited files share stronger tubes. Physarum prefers reinforced routes — like slime mold remembering where food was.</p>
           </div>
           <div class="learning-card">
             <div class="learning-card-icon">🍄</div>
-            <h3>Mycelial memory</h3>
-            <p>Hyphal prefetch warms the next hop in RAM. The mesh doesn't just learn routes — it pre-warms what you'll expand next.</p>
+            <h3 data-i18n="learn.c3.t">Mycelial memory</h3>
+            <p data-i18n="learn.c3.p">Hyphal prefetch warms the next hop in RAM. The mesh doesn't just learn routes — it pre-warms what you'll expand next.</p>
           </div>
         </div>
 
-        <div class="learning-quote reveal">
+        <div class="learning-quote reveal" data-i18n-html="learn.quote">
           <strong>Fire together, wire together.</strong>
           Skip <code>record_feedback</code> and the next packet starts from zero plasticity.
         </div>
@@ -594,27 +598,27 @@
     <!-- Stats -->
     <section id="stats" style="background: linear-gradient(180deg, transparent, rgba(31,111,235,0.04), transparent);">
       <div class="container" style="text-align: center;">
-        <div class="section-label reveal" style="justify-content: center;">Measured</div>
-        <h2 class="reveal">What we actually measured</h2>
-        <p class="lead reveal" style="margin: 0 auto 8px;">Savings are per task, after folding. Re-run: <code>neuromesh eval</code></p>
-        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal">Release 2026-08-28 · 554,554 workspace tokens</p>
+        <div class="section-label reveal" style="justify-content: center;" data-i18n="stats.label">Measured</div>
+        <h2 class="reveal" data-i18n="stats.title">What we actually measured</h2>
+        <p class="lead reveal" style="margin: 0 auto 8px;" data-i18n-html="stats.lead">Savings are per task, after folding. Re-run: <code>neuromesh eval</code></p>
+        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">Release 2026-08-28 · 554,554 workspace tokens</p>
 
         <div class="stats-row">
           <div class="stat-box reveal">
             <div class="stat-value" data-target="97.1">0</div>
-            <div class="stat-label">% vs workspace (handle_tool_call)</div>
+            <div class="stat-label" data-i18n="stats.s1">% vs workspace (handle_tool_call)</div>
           </div>
           <div class="stat-box reveal reveal-delay-1">
             <div class="stat-value" data-target="99.3">0</div>
-            <div class="stat-label">% vs workspace (physarum)</div>
+            <div class="stat-label" data-i18n="stats.s2">% vs workspace (physarum)</div>
           </div>
           <div class="stat-box reveal reveal-delay-2">
             <div class="stat-value" data-target="323">0</div>
-            <div class="stat-label">Files indexed</div>
+            <div class="stat-label" data-i18n="stats.s3">Files indexed</div>
           </div>
           <div class="stat-box reveal reveal-delay-3">
             <div class="stat-value" data-target="33">0</div>
-            <div class="stat-label">ms packet activation</div>
+            <div class="stat-label" data-i18n="stats.s4">ms packet activation</div>
           </div>
         </div>
 
@@ -643,22 +647,22 @@
     <!-- Install -->
     <section id="install">
       <div class="container">
-        <div class="section-label reveal">Get started</div>
-        <h2 class="reveal">Install</h2>
-        <p class="lead reveal">One command. Then <code>neuromesh doctor</code> and <code>neuromesh connect</code>.</p>
+        <div class="section-label reveal" data-i18n="install.label">Get started</div>
+        <h2 class="reveal" data-i18n="install.title">Install</h2>
+        <p class="lead reveal" data-i18n-html="install.lead">One command. Then <code>neuromesh doctor</code> and <code>neuromesh connect</code>.</p>
 
         <div class="tabs reveal">
-          <button class="tab-btn active" data-tab="mac">macOS / Linux</button>
-          <button class="tab-btn" data-tab="win">Windows</button>
-          <button class="tab-btn" data-tab="source">From source</button>
-          <button class="tab-btn" data-tab="cargo">Cargo</button>
+          <button class="tab-btn active" data-tab="mac" data-i18n="install.tabMac">macOS / Linux</button>
+          <button class="tab-btn" data-tab="win" data-i18n="install.tabWin">Windows</button>
+          <button class="tab-btn" data-tab="source" data-i18n="install.tabSource">From source</button>
+          <button class="tab-btn" data-tab="cargo" data-i18n="install.tabCargo">Cargo</button>
         </div>
 
         <div class="tab-panel active reveal" id="tab-mac">
           <div class="code-block">
             <div class="code-block-header">
-              <span>Terminal</span>
-              <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/pinoox/neuromesh/main/install.sh | bash">Copy</button>
+              <span data-i18n="install.terminal">Terminal</span>
+              <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/pinoox/neuromesh/main/install.sh | bash" data-i18n="ui.copy">Copy</button>
             </div>
             <pre>curl -fsSL https://raw.githubusercontent.com/pinoox/neuromesh/main/install.sh | bash</pre>
           </div>
@@ -667,8 +671,8 @@
         <div class="tab-panel reveal" id="tab-win">
           <div class="code-block">
             <div class="code-block-header">
-              <span>PowerShell</span>
-              <button class="copy-btn" data-copy="irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex">Copy</button>
+              <span data-i18n="install.powershell">PowerShell</span>
+              <button class="copy-btn" data-copy="irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex" data-i18n="ui.copy">Copy</button>
             </div>
             <pre>irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex</pre>
           </div>
@@ -677,8 +681,8 @@
         <div class="tab-panel reveal" id="tab-source">
           <div class="code-block">
             <div class="code-block-header">
-              <span>Build from source (rustup 1.80+)</span>
-              <button class="copy-btn" data-copy="git clone https://github.com/pinoox/neuromesh.git&#10;cd neuromesh&#10;cargo build --release --bin neuromesh">Copy</button>
+              <span data-i18n="install.buildSource">Build from source (rustup 1.80+)</span>
+              <button class="copy-btn" data-copy="git clone https://github.com/pinoox/neuromesh.git&#10;cd neuromesh&#10;cargo build --release --bin neuromesh" data-i18n="ui.copy">Copy</button>
             </div>
             <pre>git clone https://github.com/pinoox/neuromesh.git
 cd neuromesh
@@ -689,8 +693,8 @@ cargo build --release --bin neuromesh</pre>
         <div class="tab-panel reveal" id="tab-cargo">
           <div class="code-block">
             <div class="code-block-header">
-              <span>Cargo install</span>
-              <button class="copy-btn" data-copy="cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh">Copy</button>
+              <span data-i18n="install.cargoInstall">Cargo install</span>
+              <button class="copy-btn" data-copy="cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh" data-i18n="ui.copy">Copy</button>
             </div>
             <pre>cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh</pre>
           </div>
@@ -698,8 +702,8 @@ cargo build --release --bin neuromesh</pre>
 
         <div class="code-block reveal" style="margin-top: 16px;">
           <div class="code-block-header">
-            <span>After install</span>
-            <button class="copy-btn" data-copy="neuromesh doctor&#10;neuromesh connect">Copy</button>
+            <span data-i18n="install.after">After install</span>
+            <button class="copy-btn" data-copy="neuromesh doctor&#10;neuromesh connect" data-i18n="ui.copy">Copy</button>
           </div>
           <pre>neuromesh doctor
 neuromesh connect    # write MCP configs for this repo</pre>
@@ -710,17 +714,17 @@ neuromesh connect    # write MCP configs for this repo</pre>
     <!-- Connect -->
     <section id="connect" style="background: linear-gradient(180deg, transparent, rgba(188,140,255,0.04), transparent);">
       <div class="container">
-        <div class="section-label reveal">Integration</div>
-        <h2 class="reveal">Connect</h2>
-        <p class="lead reveal">
+        <div class="section-label reveal" data-i18n="connect.label">Integration</div>
+        <h2 class="reveal" data-i18n="connect.title">Connect</h2>
+        <p class="lead reveal" data-i18n-html="connect.lead">
           Native <strong>MCP stdio</strong> — Cursor, Claude, Codex, Antigravity, VS Code, Kilo Code, Trae, and more.
           <code>neuromesh connect</code> writes an absolute binary path so the agent doesn't need NeuroMesh on PATH.
         </p>
 
         <div class="code-block reveal">
           <div class="code-block-header">
-            <span>MCP config snippet</span>
-            <button class="copy-btn" data-copy='{"mcpServers":{"neuromesh":{"command":"neuromesh","args":["mcp","/absolute/path/to/your/project"]}}}'>Copy</button>
+            <span data-i18n="connect.snippet">MCP config snippet</span>
+            <button class="copy-btn" data-copy='{"mcpServers":{"neuromesh":{"command":"neuromesh","args":["mcp","/absolute/path/to/your/project"]}}}' data-i18n="ui.copy">Copy</button>
           </div>
           <pre>{
   "mcpServers": {
@@ -750,9 +754,9 @@ neuromesh connect    # write MCP configs for this repo</pre>
     <!-- Tools -->
     <section id="tools">
       <div class="container">
-        <div class="section-label reveal">MCP Tools</div>
-        <h2 class="reveal">Tools</h2>
-        <p class="lead reveal">Tell the agent: get context → expand fold if needed → trace → record feedback.</p>
+        <div class="section-label reveal" data-i18n="tools.label">MCP Tools</div>
+        <h2 class="reveal" data-i18n="tools.title">Tools</h2>
+        <p class="lead reveal" data-i18n="tools.lead">Tell the agent: get context → expand fold if needed → trace → record feedback.</p>
 
         <div class="tools-grid">
           <div class="tool-item reveal"><div class="tool-name">neuromesh_get_context</div><div class="tool-desc">Compact packet: skeletons, why, fold ids, coverage</div></div>
@@ -769,7 +773,7 @@ neuromesh connect    # write MCP configs for this repo</pre>
           <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_get_stats</div><div class="tool-desc">Mesh size and index stats</div></div>
         </div>
 
-        <p class="reveal" style="margin-top: 24px; color: var(--fg-muted); font-size: 0.875rem;">
+        <p class="reveal" style="margin-top: 24px; color: var(--fg-muted); font-size: 0.875rem;" data-i18n="tools.footer">
           Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, Ruby — tree-sitter queries.
           Framework overlays for Laravel, Django, Next, Nuxt, Spring, Android, and 30+ more.
         </p>
@@ -779,33 +783,33 @@ neuromesh connect    # write MCP configs for this repo</pre>
     <!-- Docs -->
     <section id="docs">
       <div class="container">
-        <div class="section-label reveal">Learn more</div>
-        <h2 class="reveal">Documentation</h2>
+        <div class="section-label reveal" data-i18n="docs.label">Learn more</div>
+        <h2 class="reveal" data-i18n="docs.title">Documentation</h2>
 
         <div class="docs-grid">
           <a href="nature.md" class="doc-link reveal">
             <span>🧬</span>
-            <div><div class="doc-title">Living systems</div><div class="doc-sub">DNA, Physarum, STDP — mapped to crates</div></div>
+            <div><div class="doc-title" data-i18n="docs.d1.t">Living systems</div><div class="doc-sub" data-i18n="docs.d1.s">DNA, Physarum, STDP — mapped to crates</div></div>
           </a>
           <a href="architecture.md" class="doc-link reveal reveal-delay-1">
             <span>🏗️</span>
-            <div><div class="doc-title">Architecture</div><div class="doc-sub">Pipeline and guarantees</div></div>
+            <div><div class="doc-title" data-i18n="docs.d2.t">Architecture</div><div class="doc-sub" data-i18n="docs.d2.s">Pipeline and guarantees</div></div>
           </a>
           <a href="mcp.md" class="doc-link reveal reveal-delay-2">
             <span>🔌</span>
-            <div><div class="doc-title">MCP & CLI</div><div class="doc-sub">Tools and commands reference</div></div>
+            <div><div class="doc-title" data-i18n="docs.d3.t">MCP & CLI</div><div class="doc-sub" data-i18n="docs.d3.s">Tools and commands reference</div></div>
           </a>
           <a href="agent-guide.md" class="doc-link reveal">
             <span>🤖</span>
-            <div><div class="doc-title">Agent guide</div><div class="doc-sub">Per-IDE setup tutorial</div></div>
+            <div><div class="doc-title" data-i18n="docs.d4.t">Agent guide</div><div class="doc-sub" data-i18n="docs.d4.s">Per-IDE setup tutorial</div></div>
           </a>
           <a href="quality.md" class="doc-link reveal reveal-delay-1">
             <span>📊</span>
-            <div><div class="doc-title">Quality</div><div class="doc-sub">Gold, eval, numbers</div></div>
+            <div><div class="doc-title" data-i18n="docs.d5.t">Quality</div><div class="doc-sub" data-i18n="docs.d5.s">Gold, eval, numbers</div></div>
           </a>
           <a href="contributing.md" class="doc-link reveal reveal-delay-2">
             <span>🤝</span>
-            <div><div class="doc-title">Contributing</div><div class="doc-sub">Build a solver or a language</div></div>
+            <div><div class="doc-title" data-i18n="docs.d6.t">Contributing</div><div class="doc-sub" data-i18n="docs.d6.s">Build a solver or a language</div></div>
           </a>
         </div>
       </div>
@@ -816,10 +820,10 @@ neuromesh connect    # write MCP configs for this repo</pre>
     <div class="footer-links">
       <a href="https://github.com/pinoox/neuromesh" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/pinoox/neuromesh/releases" target="_blank" rel="noopener">Releases</a>
-      <a href="CHANGELOG.md">Changelog</a>
+      <a href="CHANGELOG.md" data-i18n="footer.changelog">Changelog</a>
       <a href="https://github.com/pinoox/neuromesh/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
     </div>
-    <p>NeuroMesh · Don't delete the extra code. Fold it.</p>
+    <p data-i18n="footer.tagline">NeuroMesh · Don't delete the extra code. Fold it.</p>
   </footer>
 
   <!-- Lightbox -->
@@ -833,39 +837,63 @@ neuromesh connect    # write MCP configs for this repo</pre>
     </div>
   </div>
 
+  <script src="assets/i18n.js"></script>
   <script>
-    // Typewriter hero tagline
-    const phrases = [
-      "Don't delete the extra code. Fold it.",
-      "Route first, then fold.",
-      "Structure stays. Tokens sleep.",
-    ];
-    let phraseIdx = 0, charIdx = 0, deleting = false;
-    const tw = document.getElementById('typewriter');
+    // Typewriter hero tagline (EN / FA via NMI18n)
+    (function initTypewriter() {
+      const tw = document.getElementById('typewriter');
+      if (!tw) return;
 
-    function typeLoop() {
-      const current = phrases[phraseIdx];
-      if (!deleting) {
-        tw.innerHTML = current.slice(0, charIdx + 1) + '<span class="cursor"></span>';
-        charIdx++;
-        if (charIdx === current.length) {
-          setTimeout(() => { deleting = true; typeLoop(); }, 2200);
-          return;
-        }
-        setTimeout(typeLoop, 45);
-      } else {
-        tw.innerHTML = current.slice(0, charIdx - 1) + '<span class="cursor"></span>';
-        charIdx--;
-        if (charIdx === 0) {
-          deleting = false;
-          phraseIdx = (phraseIdx + 1) % phrases.length;
-          setTimeout(typeLoop, 400);
-          return;
-        }
-        setTimeout(typeLoop, 25);
+      let phraseIdx = 0, charIdx = 0, deleting = false, timeoutId = null;
+
+      function phrases() {
+        return window.NMI18n
+          ? NMI18n.getPhrases()
+          : ["Don't delete the extra code. Fold it.", 'Route first, then fold.', 'Structure stays. Tokens sleep.'];
       }
-    }
-    typeLoop();
+
+      function clearTw() {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      function typeLoop() {
+        const list = phrases();
+        const current = list[phraseIdx] || list[0];
+        if (!deleting) {
+          tw.innerHTML = current.slice(0, charIdx + 1) + '<span class="cursor"></span>';
+          charIdx++;
+          if (charIdx === current.length) {
+            timeoutId = setTimeout(() => { deleting = true; typeLoop(); }, 2200);
+            return;
+          }
+          timeoutId = setTimeout(typeLoop, 45);
+        } else {
+          tw.innerHTML = current.slice(0, charIdx - 1) + '<span class="cursor"></span>';
+          charIdx--;
+          if (charIdx === 0) {
+            deleting = false;
+            phraseIdx = (phraseIdx + 1) % list.length;
+            timeoutId = setTimeout(typeLoop, 400);
+            return;
+          }
+          timeoutId = setTimeout(typeLoop, 25);
+        }
+      }
+
+      function restart() {
+        clearTw();
+        phraseIdx = 0;
+        charIdx = 0;
+        deleting = false;
+        typeLoop();
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        restart();
+        if (window.NMI18n) NMI18n.onChange(restart);
+      });
+    })();
 
     // Animated fold demo code
     const foldLines = [
@@ -929,24 +957,9 @@ neuromesh connect    # write MCP configs for this repo</pre>
       const board = document.getElementById('pipeline');
       if (!board) return;
 
-      const steps = [
-        { icon: '💬', title: 'Prompt', phase: 'read',
-          desc: 'Read the task exactly as written — handle_tool_call intent survives; it is not lowercased into mush.' },
-        { icon: '🔍', title: 'Identifiers', phase: 'read',
-          desc: 'Extract symbol names and paths from the prompt. Ambiguous names stay sleepy — never a million fake links.' },
-        { icon: '🕸️', title: 'Graph in RAM', phase: 'route',
-          desc: 'Resolve on the neural mesh: files, functions, Imports, Calls. Edges exist only when the target is unique.' },
-        { icon: '🌱', title: 'Seed files', phase: 'route',
-          desc: 'The files that own those symbols always go in. Seeds are never truncated to fake a small packet.' },
-        { icon: '🦠', title: 'Physarum tubes', phase: 'route',
-          desc: 'With two or more seeds, slime mold grows the cheapest connecting tissue on a neighborhood subgraph — under 20ms.' },
-        { icon: '⚡', title: 'Fill + synapses', phase: 'splice',
-          desc: 'Callees and synaptic neighbors fill a real token budget. balanced = 5k extra; max_quality = 16k.' },
-        { icon: '🧬', title: 'Exon / intron splice', phase: 'splice',
-          desc: 'Untargeted bodies collapse to one-line fold markers. You still see signatures, imports, and the shape of the file.' },
-        { icon: '📦', title: 'Evidence packet', phase: 'splice',
-          desc: 'Ship the compact packet to the agent. Wake a fold with neuromesh_expand_fold — then record_feedback after a good edit.' },
-      ];
+      function getSteps() {
+        return window.NMI18n ? NMI18n.getPipelineSteps() : [];
+      }
 
       const nodes = board.querySelectorAll('.pipe-node');
       const phases = board.querySelectorAll('.pipeline-phase');
@@ -963,17 +976,25 @@ neuromesh connect    # write MCP configs for this repo</pre>
       let playing = true;
       let timer = null;
 
-      steps.forEach((_, i) => {
+      const stepCount = getSteps().length || 8;
+      for (let i = 0; i < stepCount; i++) {
         const dot = document.createElement('button');
         dot.type = 'button';
         dot.className = 'pipeline-dot';
         dot.setAttribute('aria-label', `Step ${i + 1}`);
         dot.addEventListener('click', () => { goTo(i); pauseTour(); });
         dotsWrap.appendChild(dot);
-      });
+      }
       const dots = dotsWrap.querySelectorAll('.pipeline-dot');
 
+      function syncPlayBtn() {
+        if (!playBtn || !window.NMI18n) return;
+        playBtn.textContent = playing ? NMI18n.t('how.pauseTour') : NMI18n.t('how.playTour');
+      }
+
       function goTo(idx) {
+        const steps = getSteps();
+        if (!steps.length) return;
         current = idx;
         const s = steps[idx];
 
@@ -996,6 +1017,7 @@ neuromesh connect    # write MCP configs for this repo</pre>
       }
 
       function nextStep() {
+        const steps = getSteps();
         goTo((current + 1) % steps.length);
       }
 
@@ -1003,22 +1025,27 @@ neuromesh connect    # write MCP configs for this repo</pre>
         if (timer) clearInterval(timer);
         timer = setInterval(nextStep, 2800);
         playing = true;
-        playBtn.textContent = '⏸ Pause tour';
         playBtn.classList.remove('paused');
         playBtn.setAttribute('aria-pressed', 'false');
+        syncPlayBtn();
       }
 
       function pauseTour() {
         if (timer) clearInterval(timer);
         timer = null;
         playing = false;
-        playBtn.textContent = '▶ Play tour';
         playBtn.classList.add('paused');
         playBtn.setAttribute('aria-pressed', 'true');
+        syncPlayBtn();
       }
 
       playBtn.addEventListener('click', () => playing ? pauseTour() : startTour());
       nodes.forEach(n => n.addEventListener('click', () => goTo(+n.dataset.step)));
+
+      document.addEventListener('DOMContentLoaded', () => {
+        syncPlayBtn();
+        if (window.NMI18n) NMI18n.onChange(() => { goTo(current); syncPlayBtn(); });
+      });
 
       const pipeObs = new IntersectionObserver((entries) => {
         if (!entries[0].isIntersecting) return;
@@ -1068,13 +1095,16 @@ neuromesh connect    # write MCP configs for this repo</pre>
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const text = btn.dataset.copy.replace(/&#10;/g, '\n');
+        const copyLabel = () => (window.NMI18n ? NMI18n.t('ui.copy') : 'Copy');
+        const copiedLabel = () => (window.NMI18n ? NMI18n.t('ui.copied') : 'Copied!');
+        const failedLabel = () => (window.NMI18n ? NMI18n.t('ui.failed') : 'Failed');
         try {
           await navigator.clipboard.writeText(text);
-          btn.textContent = 'Copied!';
+          btn.textContent = copiedLabel();
           btn.classList.add('copied');
-          setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+          setTimeout(() => { btn.textContent = copyLabel(); btn.classList.remove('copied'); }, 2000);
         } catch {
-          btn.textContent = 'Failed';
+          btn.textContent = failedLabel();
         }
       });
     });
@@ -1328,26 +1358,31 @@ neuromesh connect    # write MCP configs for this repo</pre>
         { a: 'state', b: 'mcp', w: 0.35 },
       ];
 
-      const turns = [
+      const turnData = [
         {
           path: ['task', 'handler', 'utils', 'state', 'mcp'],
           strength: 18, recall: 0.75, grep: 2, grepBar: 66,
-          caption: 'First visit — the mesh explores weaker paths. Agent greps twice.',
           boost: [['handler', 'utils'], ['utils', 'state'], ['state', 'mcp']],
         },
         {
           path: ['task', 'handler', 'router', 'mcp'],
           strength: 54, recall: 0.92, grep: 1, grepBar: 33,
-          caption: 'After record_feedback — co-edited route reinforced. One grep left.',
           boost: [['handler', 'router'], ['router', 'mcp']],
         },
         {
           path: ['task', 'handler', 'mcp'],
           strength: 91, recall: 1.0, grep: 0, grepBar: 0,
-          caption: 'Third turn — direct synapse wins. Zero grep. Gold recall.',
           boost: [['handler', 'mcp']],
         },
       ];
+
+      function getTurns() {
+        const caps = window.NMI18n ? NMI18n.getLearningTurns() : [];
+        return turnData.map((t, i) => ({
+          ...t,
+          caption: caps[i]?.caption || '',
+        }));
+      }
 
       let w, h, dpr, turnIdx = 0, phase = 'travel', phaseT = 0, pulsePos = 0;
       const edgeWeights = Object.fromEntries(edges.map(e => [`${e.a}-${e.b}`, e.w]));
@@ -1380,8 +1415,9 @@ neuromesh connect    # write MCP configs for this repo</pre>
       }
 
       function applyTurn(idx) {
-        const t = turns[idx];
+        const t = getTurns()[idx];
         turnNum.textContent = idx + 1;
+        turnCaption.dataset.userTurn = '1';
         turnCaption.style.opacity = '0';
         setTimeout(() => {
           turnCaption.textContent = t.caption;
@@ -1467,7 +1503,7 @@ neuromesh connect    # write MCP configs for this repo</pre>
           requestAnimationFrame(runTurnCycle);
           return;
         }
-        const t = turns[turnIdx];
+        const t = getTurns()[turnIdx];
         const segs = pathSegments(t.path);
         ctx.clearRect(0, 0, w, h);
 
@@ -1510,7 +1546,7 @@ neuromesh connect    # write MCP configs for this repo</pre>
           edges.forEach(e => drawEdge(e.a, e.b, edgeWeights[`${e.a}-${e.b}`], edgeWeights[`${e.a}-${e.b}`] > 0.5, null));
           nodes.forEach(n => drawNode(n, n.id === 'handler' || edgeWeights[`handler-${n.id}`] > 0.35));
           if (phaseT > 35) {
-            turnIdx = (turnIdx + 1) % turns.length;
+            turnIdx = (turnIdx + 1) % getTurns().length;
             if (turnIdx === 0) resetWeights();
             applyTurn(turnIdx);
             phase = 'travel';
@@ -1522,6 +1558,10 @@ neuromesh connect    # write MCP configs for this repo</pre>
         phaseT++;
         requestAnimationFrame(runTurnCycle);
       }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.NMI18n) NMI18n.onChange(() => applyTurn(turnIdx));
+      });
 
       const obs = new IntersectionObserver((entries) => {
         vizVisible = entries[0].isIntersecting;

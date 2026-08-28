@@ -1937,3 +1937,99 @@ footer a:hover { text-decoration: underline; }
   font-size: 0.8125rem;
   color: var(--purple-fg);
 }
+
+/* ── Language switcher ── */
+.lang-switch {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--canvas-inset);
+  border: 1px solid var(--border-muted);
+  border-radius: 8px;
+}
+
+.lang-btn {
+  padding: 4px 10px;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.lang-btn:hover {
+  color: var(--fg-default);
+}
+
+.lang-btn.active {
+  color: var(--fg-default);
+  background: var(--canvas-overlay);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Persian / RTL ── */
+html[dir="rtl"],
+body.lang-fa {
+  --font-sans: Vazirmatn, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Arabic", Helvetica, Arial, sans-serif;
+}
+
+html[dir="rtl"] body {
+  font-family: var(--font-sans);
+}
+
+html[dir="rtl"] .header-inner nav ul {
+  flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .doc-link:hover {
+  transform: translateX(-4px);
+}
+
+html[dir="rtl"] .pipe-node.active {
+  transform: translateX(-4px);
+}
+
+html[dir="rtl"] .detail-counter {
+  text-align: left;
+}
+
+html[dir="rtl"] .section-label::before {
+  order: 1;
+}
+
+html[dir="rtl"] .learning-quote {
+  border-left: none;
+  border-right: 4px solid var(--purple-fg);
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+html[dir="rtl"] .phase-connector::after {
+  transform: scaleX(-1);
+}
+
+html[dir="rtl"] .code-block pre,
+html[dir="rtl"] .code-block code,
+html[dir="rtl"] .mini-code,
+html[dir="rtl"] .fold-demo pre,
+html[dir="rtl"] .fold-demo .code-line {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+
+html[dir="rtl"] .stat-value,
+html[dir="rtl"] .detail-counter strong,
+html[dir="rtl"] .learning-metric-value {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  html[dir="rtl"] .header-actions {
+    flex-direction: row-reverse;
+  }
+}
