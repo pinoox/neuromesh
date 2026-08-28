@@ -40,6 +40,10 @@
       --header-h: 64px;
       --max-w: 1200px;
       --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --slime-core: #56d364;
+      --slime-glow: #3fb950;
+      --slime-tube: rgba(86, 211, 100, 0.55);
+      --slime-pulse: rgba(63, 185, 80, 0.25);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -136,16 +140,23 @@
     }
 
     .logo-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, var(--success-emphasis), var(--success-fg));
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(13, 17, 23, 0.9);
+      border: 1px solid rgba(63, 185, 80, 0.4);
       display: grid;
       place-items: center;
-      box-shadow: 0 0 20px rgba(46, 160, 67, 0.3);
+      box-shadow: 0 0 16px rgba(63, 185, 80, 0.25);
+      overflow: hidden;
+      position: relative;
     }
 
-    .logo-icon svg { width: 18px; height: 18px; }
+    .logo-icon canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
 
     nav ul {
       display: flex;
@@ -258,11 +269,262 @@
     .reveal-delay-2 { transition-delay: 0.2s; }
     .reveal-delay-3 { transition-delay: 0.3s; }
 
-    /* ── Hero ── */
+    /* ── Slime hero banner ── */
     .hero {
-      padding: 120px 24px 80px;
+      padding: 0 0 80px;
       text-align: center;
       position: relative;
+      overflow: hidden;
+      min-height: 720px;
+    }
+
+    .hero-slime-wrap {
+      position: relative;
+      width: 100%;
+      height: clamp(340px, 52vw, 520px);
+      margin-bottom: -60px;
+    }
+
+    #slime-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hero-slime-overlay {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(13, 17, 23, 0.15) 0%, rgba(13, 17, 23, 0.55) 55%, var(--canvas-default) 100%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, transparent 0%, rgba(13, 17, 23, 0.4) 100%);
+      pointer-events: none;
+    }
+
+    .hero-slime-panels {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 24px clamp(12px, 4vw, 48px);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    @media (max-width: 900px) {
+      .hero-slime-panels {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        align-content: center;
+        gap: 10px;
+        padding-top: 40px;
+      }
+      .hero-slime-wrap { height: clamp(480px, 70vw, 620px); margin-bottom: -40px; }
+    }
+
+    .slime-panel {
+      background: rgba(13, 17, 23, 0.72);
+      border: 1px solid rgba(63, 185, 80, 0.35);
+      border-radius: var(--radius);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 14px 16px;
+      text-align: left;
+      box-shadow: 0 0 30px rgba(63, 185, 80, 0.08), inset 0 1px 0 rgba(255,255,255,0.04);
+      animation: panelFloat 6s ease-in-out infinite;
+      pointer-events: auto;
+      max-width: 280px;
+      justify-self: center;
+    }
+
+    .slime-panel:nth-child(1) { animation-delay: 0s; justify-self: start; }
+    .slime-panel:nth-child(2) { animation-delay: -2s; justify-self: center; max-width: 300px; }
+    .slime-panel:nth-child(3) { animation-delay: -4s; justify-self: end; }
+
+    @media (max-width: 900px) {
+      .slime-panel, .slime-panel:nth-child(n) { justify-self: center; max-width: 92%; }
+    }
+
+    @keyframes panelFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .slime-panel-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--slime-glow);
+      margin-bottom: 10px;
+    }
+
+    .slime-panel-label .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--slime-core);
+      box-shadow: 0 0 10px var(--slime-core);
+      animation: pulse 2s ease infinite;
+    }
+
+    /* Graph mini viz */
+    .mini-graph {
+      position: relative;
+      height: 88px;
+    }
+
+    .mini-graph svg { width: 100%; height: 100%; }
+
+    .graph-node {
+      fill: var(--canvas-overlay);
+      stroke: var(--slime-glow);
+      stroke-width: 1.5;
+      animation: nodePulse 3s ease-in-out infinite;
+    }
+
+    .graph-node.seed { fill: rgba(63, 185, 80, 0.2); stroke: var(--slime-core); stroke-width: 2; }
+
+    @keyframes nodePulse {
+      0%, 100% { filter: drop-shadow(0 0 2px rgba(63,185,80,0.3)); }
+      50% { filter: drop-shadow(0 0 8px rgba(86,211,100,0.7)); }
+    }
+
+    .graph-tube {
+      fill: none;
+      stroke: url(#tubeGrad);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-dasharray: 120;
+      stroke-dashoffset: 120;
+      animation: tubeGrow 4s ease-in-out infinite;
+    }
+
+    .graph-tube.t2 { animation-delay: 0.8s; }
+    .graph-tube.t3 { animation-delay: 1.6s; }
+
+    @keyframes tubeGrow {
+      0% { stroke-dashoffset: 120; opacity: 0.3; }
+      40%, 70% { stroke-dashoffset: 0; opacity: 1; }
+      100% { stroke-dashoffset: -40; opacity: 0.5; }
+    }
+
+    /* Code mini viz */
+    .mini-code {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      line-height: 1.65;
+      color: var(--fg-muted);
+    }
+
+    .mini-code .expressed { color: #d2a8ff; }
+    .mini-code .folded {
+      display: block;
+      color: var(--attention-fg);
+      background: rgba(210, 153, 34, 0.12);
+      border-left: 2px solid var(--attention-fg);
+      padding: 2px 6px;
+      margin: 4px 0;
+      border-radius: 0 4px 4px 0;
+      animation: foldShrink 5s ease-in-out infinite;
+    }
+
+    @keyframes foldShrink {
+      0%, 30% { max-height: 60px; opacity: 1; }
+      50%, 80% { max-height: 18px; opacity: 0.85; overflow: hidden; }
+      100% { max-height: 60px; opacity: 1; }
+    }
+
+    /* Engine mini viz */
+    .mini-engine {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .engine-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.6875rem;
+      color: var(--fg-muted);
+      opacity: 0.45;
+      transition: opacity 0.4s, color 0.4s;
+    }
+
+    .engine-step.active {
+      opacity: 1;
+      color: var(--fg-default);
+    }
+
+    .engine-step.active .engine-bar {
+      background: linear-gradient(90deg, var(--slime-emphasis, var(--success-emphasis)), var(--slime-core));
+      box-shadow: 0 0 12px rgba(63, 185, 80, 0.4);
+    }
+
+    .engine-bar {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border-default);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .engine-bar::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transform: translateX(-100%);
+      animation: shimmer 2s ease infinite;
+    }
+
+    .engine-step.active .engine-bar::after { animation-play-state: running; }
+
+    @keyframes shimmer {
+      100% { transform: translateX(100%); }
+    }
+
+    .engine-tag {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      color: var(--slime-glow);
+      min-width: 72px;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 3;
+      padding: 0 24px;
+    }
+
+    .hero-slime-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--slime-core);
+      background: rgba(63, 185, 80, 0.1);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+      margin-bottom: 20px;
+    }
+
+    .hero-slime-tag svg { animation: wobble 4s ease-in-out infinite; }
+
+    @keyframes wobble {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(-8deg) scale(1.05); }
+      75% { transform: rotate(8deg) scale(0.95); }
     }
 
     .hero-badge-row {
@@ -539,12 +801,52 @@
       overflow: hidden;
       border: 1px solid var(--border-default);
       background: var(--canvas-overlay);
-      transition: transform 0.4s var(--ease-out), box-shadow 0.4s;
+      transition: transform 0.4s var(--ease-out), box-shadow 0.4s, border-color 0.3s;
     }
 
     .gallery-item:hover {
       transform: scale(1.02);
       box-shadow: var(--shadow-lg);
+      border-color: var(--slime-glow);
+    }
+
+    .gallery-thumb {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+      cursor: zoom-in;
+      position: relative;
+      font: inherit;
+      color: inherit;
+    }
+
+    .gallery-thumb::after {
+      content: '⤢';
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(13, 17, 23, 0.75);
+      border: 1px solid var(--border-default);
+      color: var(--fg-muted);
+      display: grid;
+      place-items: center;
+      font-size: 1rem;
+      opacity: 0;
+      transform: scale(0.85);
+      transition: opacity 0.25s, transform 0.25s var(--ease-out), border-color 0.25s;
+      backdrop-filter: blur(6px);
+    }
+
+    .gallery-item:hover .gallery-thumb::after {
+      opacity: 1;
+      transform: scale(1);
+      border-color: var(--slime-glow);
+      color: var(--slime-core);
     }
 
     .gallery-item img {
@@ -562,6 +864,101 @@
       font-size: 0.8125rem;
       color: var(--fg-muted);
       border-top: 1px solid var(--border-muted);
+    }
+
+    /* ── Lightbox ── */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(1, 4, 9, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.35s var(--ease-out), visibility 0.35s;
+    }
+
+    .lightbox.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .lightbox-inner {
+      position: relative;
+      max-width: min(1100px, 100%);
+      max-height: calc(100vh - 80px);
+      transform: scale(0.92);
+      transition: transform 0.4s var(--ease-out);
+    }
+
+    .lightbox.open .lightbox-inner { transform: scale(1); }
+
+    .lightbox-img {
+      display: block;
+      max-width: 100%;
+      max-height: calc(100vh - 120px);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--shadow-lg);
+      object-fit: contain;
+    }
+
+    .lightbox-caption {
+      text-align: center;
+      margin-top: 16px;
+      color: var(--fg-muted);
+      font-size: 0.9375rem;
+    }
+
+    .lightbox-close,
+    .lightbox-nav {
+      position: absolute;
+      border: 1px solid var(--border-default);
+      background: rgba(22, 27, 34, 0.9);
+      color: var(--fg-default);
+      cursor: pointer;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+      font-family: inherit;
+    }
+
+    .lightbox-close:hover,
+    .lightbox-nav:hover {
+      border-color: var(--slime-glow);
+      background: rgba(63, 185, 80, 0.15);
+    }
+
+    .lightbox-close {
+      top: -48px;
+      right: 0;
+      width: 40px;
+      height: 40px;
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+
+    .lightbox-nav {
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      font-size: 1.25rem;
+    }
+
+    .lightbox-nav.prev { left: -56px; }
+    .lightbox-nav.next { right: -56px; }
+
+    @media (max-width: 768px) {
+      .lightbox-nav.prev { left: 8px; }
+      .lightbox-nav.next { right: 8px; }
+      .lightbox-close { top: 8px; right: 8px; }
     }
 
     /* ── Flow pipeline ── */
@@ -916,9 +1313,7 @@
   <header>
     <div class="header-inner">
       <a href="#" class="logo">
-        <div class="logo-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
-        </div>
+        <div class="logo-icon"><canvas id="logo-slime" width="36" height="36" aria-hidden="true"></canvas></div>
         NeuroMesh
       </a>
       <nav>
@@ -941,7 +1336,60 @@
   <main>
     <!-- Hero -->
     <section class="hero">
+      <div class="hero-slime-wrap" aria-hidden="true">
+        <canvas id="slime-canvas"></canvas>
+        <div class="hero-slime-overlay"></div>
+        <div class="hero-slime-panels">
+          <div class="slime-panel">
+            <div class="slime-panel-label"><span class="dot"></span> Graph · RAM mesh</div>
+            <div class="mini-graph">
+              <svg viewBox="0 0 240 88" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="tubeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#238636"/>
+                    <stop offset="50%" stop-color="#56d364"/>
+                    <stop offset="100%" stop-color="#3fb950"/>
+                  </linearGradient>
+                </defs>
+                <path class="graph-tube t1" d="M40,44 Q80,20 120,44"/>
+                <path class="graph-tube t2" d="M120,44 Q160,68 200,44"/>
+                <path class="graph-tube t3" d="M40,44 Q120,72 200,44"/>
+                <circle class="graph-node seed" cx="40" cy="44" r="10"/>
+                <circle class="graph-node" cx="120" cy="44" r="8"/>
+                <circle class="graph-node seed" cx="200" cy="44" r="10"/>
+                <circle class="graph-node" cx="80" cy="24" r="5" opacity="0.7"/>
+                <circle class="graph-node" cx="160" cy="64" r="5" opacity="0.7"/>
+              </svg>
+            </div>
+          </div>
+          <div class="slime-panel">
+            <div class="slime-panel-label"><span class="dot"></span> Code · fold splice</div>
+            <div class="mini-code">
+              <span class="expressed">fn handle_tool_call()</span> { … }<br>
+              <span class="folded">/* fold: 12 lines | unused_helper */</span>
+              <span class="folded">/* fold: 47 lines | legacy_parser */</span>
+              <span class="expressed">fn health_check()</span> { OK }
+            </div>
+          </div>
+          <div class="slime-panel">
+            <div class="slime-panel-label"><span class="dot"></span> Engine · packet</div>
+            <div class="mini-engine" id="mini-engine">
+              <div class="engine-step" data-step="0"><span class="engine-tag">Seeds</span><div class="engine-bar"></div></div>
+              <div class="engine-step" data-step="1"><span class="engine-tag">Physarum</span><div class="engine-bar"></div></div>
+              <div class="engine-step" data-step="2"><span class="engine-tag">Fill</span><div class="engine-bar"></div></div>
+              <div class="engine-step" data-step="3"><span class="engine-tag">Fold</span><div class="engine-bar"></div></div>
+              <div class="engine-step" data-step="4"><span class="engine-tag">Packet</span><div class="engine-bar"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-content">
       <div class="container">
+        <div class="hero-slime-tag reveal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8 2 5 5.5 5 10c0 3.5 2 6.5 5 8 1 .5 2 .5 3 0 3-1.5 5-4.5 5-8 0-4.5-3-8-6-8zm0 3c1.5 0 3 1.5 3 4s-1.5 4-3 4-3-1.5-3-4 1.5-4 3-4z"/></svg>
+          Physarum routing · live neural mesh
+        </div>
         <div class="hero-badge-row reveal">
           <a href="https://github.com/pinoox/neuromesh/releases/latest" class="badge" target="_blank" rel="noopener">
             <span class="badge-dot green"></span> Latest release
@@ -985,6 +1433,7 @@
           </div>
           <div class="fold-demo-body" id="fold-code"></div>
         </div>
+      </div>
       </div>
     </section>
 
@@ -1134,15 +1583,21 @@
 
         <div class="gallery">
           <div class="gallery-item reveal">
-            <img src="assets/galaxy-constellation.jpg" alt="Macro constellation of project subsystems" loading="lazy">
+            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-constellation.jpg" data-caption="Constellation — crates and subsystems">
+              <img src="assets/galaxy-constellation.jpg" alt="Macro constellation of project subsystems" loading="lazy">
+            </button>
             <div class="gallery-caption">Constellation — crates and subsystems</div>
           </div>
           <div class="gallery-item reveal reveal-delay-1">
-            <img src="assets/galaxy-3d.jpg" alt="3D Neural Galaxy file graph with Physarum tubes" loading="lazy">
+            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-3d.jpg" data-caption="3D galaxy — files and synapses; Physarum tubes">
+              <img src="assets/galaxy-3d.jpg" alt="3D Neural Galaxy file graph with Physarum tubes" loading="lazy">
+            </button>
             <div class="gallery-caption">3D galaxy — files and synapses; Physarum tubes</div>
           </div>
           <div class="gallery-item reveal reveal-delay-2">
-            <img src="assets/galaxy-module.jpg" alt="Module zoom showing Core files and symbols" loading="lazy">
+            <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-module.jpg" data-caption="Module zoom — files and AST symbols in one crate">
+              <img src="assets/galaxy-module.jpg" alt="Module zoom showing Core files and symbols" loading="lazy">
+            </button>
             <div class="gallery-caption">Module zoom — files and AST symbols in one crate</div>
           </div>
         </div>
@@ -1431,6 +1886,17 @@ neuromesh connect    # write MCP configs for this repo</pre>
     <p>NeuroMesh · Don't delete the extra code. Fold it.</p>
   </footer>
 
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Image preview">
+    <div class="lightbox-inner">
+      <button type="button" class="lightbox-close" id="lightbox-close" aria-label="Close">&times;</button>
+      <button type="button" class="lightbox-nav prev" id="lightbox-prev" aria-label="Previous">&#8249;</button>
+      <button type="button" class="lightbox-nav next" id="lightbox-next" aria-label="Next">&#8250;</button>
+      <img class="lightbox-img" id="lightbox-img" src="" alt="">
+      <p class="lightbox-caption" id="lightbox-caption"></p>
+    </div>
+  </div>
+
   <script>
     // Typewriter hero tagline
     const phrases = [
@@ -1564,6 +2030,249 @@ neuromesh connect    # write MCP configs for this repo</pre>
         }
       });
     });
+
+    // ── Lightbox ──
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxCaption = document.getElementById('lightbox-caption');
+    const thumbs = [...document.querySelectorAll('.gallery-thumb')];
+    let lightboxIdx = 0;
+
+    function openLightbox(idx) {
+      lightboxIdx = idx;
+      const btn = thumbs[idx];
+      lightboxImg.src = btn.dataset.lightbox;
+      lightboxImg.alt = btn.dataset.caption;
+      lightboxCaption.textContent = btn.dataset.caption;
+      lightbox.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      lightbox.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function navLightbox(dir) {
+      lightboxIdx = (lightboxIdx + dir + thumbs.length) % thumbs.length;
+      openLightbox(lightboxIdx);
+    }
+
+    thumbs.forEach((btn, i) => btn.addEventListener('click', () => openLightbox(i)));
+    document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+    document.getElementById('lightbox-prev').addEventListener('click', () => navLightbox(-1));
+    document.getElementById('lightbox-next').addEventListener('click', () => navLightbox(1));
+    lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+    document.addEventListener('keydown', (e) => {
+      if (!lightbox.classList.contains('open')) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') navLightbox(-1);
+      if (e.key === 'ArrowRight') navLightbox(1);
+    });
+
+    // ── Mini engine step cycle ──
+    const engineSteps = document.querySelectorAll('#mini-engine .engine-step');
+    let engineIdx = 0;
+    setInterval(() => {
+      engineSteps.forEach(s => s.classList.remove('active'));
+      engineSteps[engineIdx].classList.add('active');
+      engineIdx = (engineIdx + 1) % engineSteps.length;
+    }, 900);
+    engineSteps[0]?.classList.add('active');
+
+    // ── Physarum slime canvas (hero) ──
+    (function initSlimeCanvas() {
+      const canvas = document.getElementById('slime-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let w, h, dpr, t = 0;
+      const particles = [];
+      const nodes = [];
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const rect = canvas.parentElement.getBoundingClientRect();
+        w = rect.width;
+        h = rect.height;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        buildNodes();
+      }
+
+      function buildNodes() {
+        nodes.length = 0;
+        particles.length = 0;
+        const cols = w > 700 ? 5 : 3;
+        const rows = w > 700 ? 3 : 4;
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const nx = (c + 0.5) / cols * w + (Math.random() - 0.5) * 30;
+            const ny = (r + 0.5) / rows * h + (Math.random() - 0.5) * 20;
+            const isSeed = (r === 1 && (c === 1 || c === cols - 2)) || (r === 0 && c === Math.floor(cols / 2));
+            nodes.push({ x: nx, y: ny, r: isSeed ? 7 : 4 + Math.random() * 3, seed: isSeed, phase: Math.random() * Math.PI * 2 });
+          }
+        }
+        for (let i = 0; i < 28; i++) {
+          particles.push({
+            edge: Math.floor(Math.random() * (nodes.length - 1)),
+            progress: Math.random(),
+            speed: 0.003 + Math.random() * 0.004,
+          });
+        }
+      }
+
+      function drawBlob(cx, cy, radius, color, alpha) {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        const segs = 8;
+        for (let i = 0; i <= segs; i++) {
+          const ang = (i / segs) * Math.PI * 2;
+          const wobble = radius + Math.sin(ang * 3 + t * 0.02) * 8 + Math.cos(ang * 2 - t * 0.015) * 6;
+          const px = cx + Math.cos(ang) * wobble;
+          const py = cy + Math.sin(ang) * wobble;
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawTube(a, b, alpha, width) {
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const curl = Math.sin(t * 0.025 + a.x * 0.01) * 25;
+        const cpx = mx - dy * 0.15 + curl;
+        const cpy = my + dx * 0.15 + Math.cos(t * 0.02) * 15;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = '#56d364';
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = '#3fb950';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.quadraticCurveTo(cpx, cpy, b.x, b.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function frame() {
+        t++;
+        ctx.clearRect(0, 0, w, h);
+
+        // Central organic mass
+        drawBlob(w * 0.5, h * 0.5, 55 + Math.sin(t * 0.018) * 8, 'rgba(35, 134, 54, 0.12)', 1);
+        drawBlob(w * 0.5, h * 0.5, 30 + Math.cos(t * 0.022) * 5, 'rgba(86, 211, 100, 0.08)', 1);
+
+        // Connect seeds via Steiner-like tubes
+        const seeds = nodes.filter(n => n.seed);
+        for (let i = 0; i < seeds.length; i++) {
+          for (let j = i + 1; j < seeds.length; j++) {
+            const pulse = 0.35 + 0.25 * Math.sin(t * 0.03 + i + j);
+            drawTube(seeds[i], seeds[j], pulse, 2 + pulse * 2);
+          }
+        }
+
+        // Secondary tubes to nearby nodes
+        nodes.forEach((node, i) => {
+          if (node.seed) return;
+          let nearest = null, minD = Infinity;
+          seeds.forEach(s => {
+            const d = Math.hypot(s.x - node.x, s.y - node.y);
+            if (d < minD) { minD = d; nearest = s; }
+          });
+          if (nearest && minD < w * 0.35) {
+            drawTube(nearest, node, 0.15 + 0.1 * Math.sin(t * 0.04 + i), 1.2);
+          }
+        });
+
+        // Flowing particles along tubes
+        particles.forEach(p => {
+          const a = nodes[p.edge];
+          const b = nodes[p.edge + 1] || nodes[0];
+          if (!a || !b) return;
+          p.progress += p.speed;
+          if (p.progress > 1) p.progress = 0;
+          const mx = (a.x + b.x) / 2;
+          const my = (a.y + b.y) / 2;
+          const curl = Math.sin(t * 0.025 + a.x * 0.01) * 25;
+          const cpx = mx - (b.y - a.y) * 0.15 + curl;
+          const cpy = my + (b.x - a.x) * 0.15;
+          const u = 1 - p.progress;
+          const px = u * u * a.x + 2 * u * p.progress * cpx + p.progress * p.progress * b.x;
+          const py = u * u * a.y + 2 * u * p.progress * cpy + p.progress * p.progress * b.y;
+          ctx.beginPath();
+          ctx.arc(px, py, 2, 0, Math.PI * 2);
+          ctx.fillStyle = '#56d364';
+          ctx.globalAlpha = 0.7;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        });
+
+        // Nodes
+        nodes.forEach(n => {
+          const pulse = 1 + 0.15 * Math.sin(t * 0.05 + n.phase);
+          const r = n.r * pulse;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r + 4, 0, Math.PI * 2);
+          ctx.fillStyle = n.seed ? 'rgba(63, 185, 80, 0.2)' : 'rgba(63, 185, 80, 0.08)';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+          ctx.fillStyle = n.seed ? '#56d364' : '#238636';
+          ctx.fill();
+          if (n.seed) {
+            ctx.strokeStyle = '#3fb950';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+        });
+
+        requestAnimationFrame(frame);
+      }
+
+      resize();
+      window.addEventListener('resize', resize);
+      requestAnimationFrame(frame);
+    })();
+
+    // ── Logo mini slime ──
+    (function initLogoSlime() {
+      const c = document.getElementById('logo-slime');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      let f = 0;
+      function draw() {
+        f++;
+        ctx.clearRect(0, 0, 36, 36);
+        ctx.fillStyle = '#56d364';
+        for (let i = 0; i < 3; i++) {
+          const ang = (f * 0.04 + i * 2.1);
+          const x = 18 + Math.cos(ang) * 6;
+          const y = 18 + Math.sin(ang * 1.3) * 5;
+          ctx.beginPath();
+          ctx.arc(x, y, 3 + Math.sin(f * 0.08 + i) * 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.strokeStyle = 'rgba(86, 211, 100, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(10, 22);
+        ctx.quadraticCurveTo(18, 10 + Math.sin(f * 0.06) * 3, 26, 22);
+        ctx.stroke();
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
   </script>
 </body>
 </html>
