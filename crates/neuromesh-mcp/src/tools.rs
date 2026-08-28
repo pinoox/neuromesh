@@ -190,6 +190,10 @@ impl McpToolHandler {
     }
 
     pub async fn handle_tool_call(&self, name: &str, arguments: &Value) -> Result<Value> {
+        #[cfg(test)]
+        if name == "__neuromesh_panic_probe" {
+            panic!("intentional panic from tool probe");
+        }
         match name {
             // 1. Task-conditioned evidence packet (seed files + fill-budget connectors)
             "neuromesh_get_context" | "activate_context" => {

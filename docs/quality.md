@@ -30,16 +30,38 @@ neuromesh eval
 
 ## Grep after get_context
 
-From `cargo run --release -p neuromesh-cli -- eval` on this workspace (2026-08-28 v0.7.15, balanced):
+From `cargo run --release -p neuromesh-cli -- eval` on this workspace (2026-08-28 v0.7.17, balanced):
 
 | Task | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | 639040 | 68094 | 17251 | 97.3% | 74.7% | 1.00 | 0.75 | **0** | 47 |
-| `physarum_usage` | 639040 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | 43 |
+| `handle_tool_call_intent` | 650859 | 72428 | 17389 | 97.3% | 76.0% | 1.00 | 0.75 | **0** | **22** |
+| `physarum_usage` | 650859 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | **12** |
 
 Debug `neuromesh eval` on the same repo: activation ~157 ms / ~104 ms; full index ~2.3 s.
 
 That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
+
+## Hot-path optimization (v0.7.17)
+
+Measured with `cargo run --release -p neuromesh-cli -- eval` and `mcp_driver.mjs` (25 warm repeats per prompt, 2026-08-28). Correctness unchanged: same recall/precision/coverage on all benchmark prompts.
+
+### `neuromesh eval` latency (this repo, balanced)
+
+| Task | Before (v0.7.16) ms | After (v0.7.17) ms |
+| :--- | ---: | ---: |
+| `handle_tool_call_intent` | 44 | **22** |
+| `physarum_usage` | 22 | **12** |
+
+`handle_tool_call_intent` max_savings: 30 → **17** ms. Index time unchanged (~550 ms).
+
+### MCP stdio warm p50 (5 prompts summed)
+
+| Workspace | Before ms | After ms | Notes |
+| :--- | ---: | ---: | :--- |
+| Express (`test-project`) | 112 | ~140 | Run-to-run variance ±30 ms; files/coverage identical |
+| NeuroMesh (this repo) | 487 | **487** | Large-repo prompts (selector/registry/feedback) dominate |
+
+Driver: `benchmark/nm_vs_cbm/mcp_driver.mjs`. Artifacts: `mcp_before_*.json`, `mcp_after_*.json`.
 
 ## Learning → emission (v0.7.16)
 
@@ -75,15 +97,15 @@ From the same `neuromesh eval` run (balanced, Vue 3 + Pinia + SCSS):
 
 ## Index snapshot
 
-From `cargo run --release -p neuromesh-cli -- eval` (2026-08-28 v0.7.15) on this repository:
+From `cargo run --release -p neuromesh-cli -- eval` (2026-08-28 v0.7.17) on this repository:
 
 | Metric | Value |
 | :--- | ---: |
 | Files | 340 (`target/` ignored) |
-| Nodes | 3,132 |
-| Edges | 6,591 |
-| Workspace tokens | 639,040 |
-| **Index time (release)** | **600 ms** |
+| Nodes | 3,161 |
+| Edges | 6,795 |
+| Workspace tokens | 650,859 |
+| **Index time (release)** | **552 ms** |
 | Index time (debug) | ~2.3 s |
 
 Index file cap is **auto** by default (production sources first, tests last, ceiling 50,000). Override with `neuromesh index --max-files N`. See [cli.md](cli.md#index-file-cap).

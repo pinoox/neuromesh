@@ -7,7 +7,8 @@ use crate::packet_analysis::{
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
 use crate::selector::{
-    budget_mode_name, fill_budget, is_noise_path, packet_cap, seed_callee_exon_names, select,
+    budget_mode_name, fill_budget, is_noise_path, packet_cap, path_sort_keys,
+    seed_callee_exon_names, select, sort_key,
 };
 use crate::skeleton::{CodeSkeletonizer, FoldedIntron, FunctionSpan};
 use crate::style_routing::{
@@ -390,20 +391,11 @@ impl ContextActivator {
                     let score = selection.scores.get(&file_id).copied().unwrap_or(8.0);
                     physarum_candidates.push((file_id, score));
                 }
+                let path_keys = path_sort_keys(graph, physarum_candidates.iter().map(|(id, _)| id));
                 physarum_candidates.sort_by(|(a, sa), (b, sb)| {
                     sb.partial_cmp(sa)
                         .unwrap_or(std::cmp::Ordering::Equal)
-                        .then_with(|| {
-                            let pa = graph
-                                .get_node(a)
-                                .map(|n| n.file_path.to_string_lossy().to_string())
-                                .unwrap_or_default();
-                            let pb = graph
-                                .get_node(b)
-                                .map(|n| n.file_path.to_string_lossy().to_string())
-                                .unwrap_or_default();
-                            pa.cmp(&pb)
-                        })
+                        .then_with(|| sort_key(&path_keys, a).cmp(sort_key(&path_keys, b)))
                 });
                 physarum_candidates.dedup_by(|(a, _), (b, _)| a == b);
                 for (file_id, _) in physarum_candidates
@@ -425,6 +417,7 @@ impl ContextActivator {
             }
         }
         let scores = selection.scores.clone();
+        let path_keys = path_sort_keys(graph, selection.optional.iter());
         selection.optional.sort_by(|a, b| {
             let sa = scores.get(a).copied().unwrap_or(0.0);
             let sb = scores.get(b).copied().unwrap_or(0.0);
@@ -432,15 +425,7 @@ impl ContextActivator {
             if score != std::cmp::Ordering::Equal {
                 return score;
             }
-            let pa = graph
-                .get_node(a)
-                .map(|n| n.file_path.to_string_lossy().to_string())
-                .unwrap_or_default();
-            let pb = graph
-                .get_node(b)
-                .map(|n| n.file_path.to_string_lossy().to_string())
-                .unwrap_or_default();
-            pa.cmp(&pb)
+            sort_key(&path_keys, a).cmp(sort_key(&path_keys, b))
         });
         let extra_cap = selection.optional_cap;
         selection.optional.truncate(extra_cap);
@@ -1450,25 +1435,18 @@ fn resolve_cluster_noun_seeds(
 
 fn resolve_file_path_noun(graph: &NeuralProjectGraph, noun: &str) -> Option<(NodeId, f32)> {
     let noun_l = noun.to_lowercase();
-    for node in graph.get_all_nodes() {
-        if node.node_type != NodeType::File {
-            continue;
-        }
-        let path_l = node
-            .file_path
-            .to_string_lossy()
-            .replace('\\', "/")
-            .to_lowercase();
+    for (id, path) in graph.file_node_paths() {
+        let path_l = path.to_string_lossy().replace('\\', "/").to_lowercase();
         if !path_l
             .split('/')
             .any(|seg| path_segment_matches_noun(seg, &noun_l))
         {
             continue;
         }
-        if is_noise_path(&node.file_path) {
+        if is_noise_path(&path) {
             continue;
         }
-        return Some((node.id, 0.88));
+        return Some((id, 0.88));
     }
     None
 }
@@ -1557,14 +1535,10 @@ fn function_spans_for_file(
     graph: &NeuralProjectGraph,
     path: &std::path::Path,
 ) -> Vec<FunctionSpan> {
-    let norm = path.to_string_lossy().replace('\\', "/");
     graph
-        .get_all_nodes()
+        .nodes_in_file(path)
         .into_iter()
-        .filter(|n| {
-            n.node_type == NodeType::Function
-                && n.file_path.to_string_lossy().replace('\\', "/") == norm
-        })
+        .filter(|n| n.node_type == NodeType::Function)
         .filter_map(|n| {
             let range = n.line_range?;
             Some(FunctionSpan {

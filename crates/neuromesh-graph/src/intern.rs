@@ -12,11 +12,19 @@ pub(crate) struct MeshStore {
     edge_of: HashMap<EdgeId, u32>,
     edges: Vec<Option<ContextEdge>>,
     free_edges: Vec<u32>,
+    /// Bumped on every node write so derived per-node indexes can be memoized.
+    node_revision: u64,
 }
 
 impl MeshStore {
     pub fn clear(&mut self) {
+        let revision = self.node_revision.wrapping_add(1);
         *self = Self::default();
+        self.node_revision = revision;
+    }
+
+    pub fn node_revision(&self) -> u64 {
+        self.node_revision
     }
 
     pub fn node_count(&self) -> usize {
@@ -35,6 +43,7 @@ impl MeshStore {
     #[allow(dead_code)]
     pub fn node_mut(&mut self, id: &NodeId) -> Option<&mut ContextNode> {
         let slot = *self.node_of.get(id)?;
+        self.node_revision = self.node_revision.wrapping_add(1);
         self.nodes.get_mut(slot as usize)?.as_mut()
     }
 
@@ -50,6 +59,7 @@ impl MeshStore {
     }
 
     pub fn insert_node(&mut self, node: ContextNode) -> u32 {
+        self.node_revision = self.node_revision.wrapping_add(1);
         if let Some(&slot) = self.node_of.get(&node.id) {
             if let Some(slot_node) = self.nodes.get_mut(slot as usize) {
                 *slot_node = Some(node);
@@ -91,6 +101,7 @@ impl MeshStore {
     }
 
     pub fn remove_nodes(&mut self, ids: &[NodeId]) {
+        self.node_revision = self.node_revision.wrapping_add(1);
         let drop_slots: HashSet<u32> = ids
             .iter()
             .filter_map(|id| self.node_of.get(id).copied())
@@ -315,11 +326,26 @@ use neuromesh_parser::api_path_alias;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+/// Slash-normalized path key used by `GraphData::path_index`.
+pub(crate) fn normalize_path_key(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+/// Derived lookup for one normalized path: the raw `file_to_nodes` keys that
+/// normalize to it, plus its `NodeType::File` node when one exists.
+#[derive(Default)]
+pub(crate) struct PathEntry {
+    pub keys: Vec<PathBuf>,
+    pub file_id: Option<NodeId>,
+}
+
 #[derive(Default)]
 pub(crate) struct GraphData {
     pub mesh: MeshStore,
     pub name_to_nodes: BTreeMap<String, Vec<NodeId>>,
     pub file_to_nodes: HashMap<PathBuf, Vec<NodeId>>,
+    /// Derived from `file_to_nodes`; never serialized into `graph.bin`.
+    pub path_index: HashMap<String, PathEntry>,
     pub token_to_nodes: HashMap<String, Vec<NodeId>>,
     pub pending: Vec<PendingRel>,
     pub unresolved: Vec<UnresolvedRef>,
@@ -393,12 +419,23 @@ pub(crate) fn insert_indexed_node(data: &mut GraphData, node: ContextNode) {
     let parent = node.parent.clone();
     let node_type = node.node_type;
     data.mesh.insert_node(node);
+    index_path(data, &id, node_type, &path);
     data.file_to_nodes.entry(path).or_default().push(id.clone());
     index_name_keys(data, &id, node_type, &name);
     index_tokens(data, &id, &name);
     if let Some(parent) = parent {
         let key = format!("{}::{}", parent.to_lowercase(), name.to_lowercase());
         data.impl_index.entry(key).or_default().push(id);
+    }
+}
+
+fn index_path(data: &mut GraphData, id: &NodeId, node_type: NodeType, path: &Path) {
+    let entry = data.path_index.entry(normalize_path_key(path)).or_default();
+    if !entry.keys.iter().any(|key| key == path) {
+        entry.keys.push(path.to_path_buf());
+    }
+    if node_type == NodeType::File && entry.file_id.is_none() {
+        entry.file_id = Some(id.clone());
     }
 }
 
@@ -435,12 +472,13 @@ fn unindex_name_keys(data: &mut GraphData, id: &NodeId, name: &str) {
 }
 
 pub(crate) fn capture_inbound_pending(data: &GraphData, path: &Path) -> Vec<PendingRel> {
-    let normalized = path.to_string_lossy().replace('\\', "/");
     let ids: Vec<NodeId> = data
-        .file_to_nodes
-        .iter()
-        .filter(|(stored, _)| stored.to_string_lossy().replace('\\', "/") == normalized)
-        .flat_map(|(_, ids)| ids.iter().cloned())
+        .path_index
+        .get(&normalize_path_key(path))
+        .into_iter()
+        .flat_map(|entry| entry.keys.iter())
+        .filter_map(|key| data.file_to_nodes.get(key))
+        .flat_map(|ids| ids.iter().cloned())
         .collect();
     let mut pending = Vec::new();
     for edge in data.mesh.inbound_edges(&ids) {
@@ -473,13 +511,12 @@ pub(crate) fn capture_inbound_pending(data: &GraphData, path: &Path) -> Vec<Pend
 }
 
 pub(crate) fn remove_file_nodes_locked(data: &mut GraphData, path: &Path) {
-    let normalized = path.to_string_lossy().replace('\\', "/");
+    let normalized = normalize_path_key(path);
     let keys: Vec<PathBuf> = data
-        .file_to_nodes
-        .keys()
-        .filter(|p| p.to_string_lossy().replace('\\', "/") == normalized)
-        .cloned()
-        .collect();
+        .path_index
+        .remove(&normalized)
+        .map(|entry| entry.keys)
+        .unwrap_or_default();
     if keys.is_empty() {
         data.file_hashes.remove(&normalized);
         data.file_fingerprints.remove(&normalized);
@@ -515,11 +552,13 @@ pub(crate) fn remove_file_nodes_locked(data: &mut GraphData, path: &Path) {
 pub(crate) fn rebuild_indexes(data: &mut GraphData) {
     data.name_to_nodes.clear();
     data.file_to_nodes.clear();
+    data.path_index.clear();
     data.token_to_nodes.clear();
     data.impl_index.clear();
     let nodes = data.mesh.snapshot_nodes();
     for node in nodes {
         let id = node.id.clone();
+        index_path(data, &id, node.node_type, &node.file_path);
         data.file_to_nodes
             .entry(node.file_path.clone())
             .or_default()

@@ -24,8 +24,21 @@ pub struct JsonRpcRequest {
     pub params: Option<Value>,
 }
 
+#[derive(Clone)]
 pub struct McpServer {
     handler: Arc<McpToolHandler>,
+}
+
+/// JSON-RPC error returned when a handler panics, so the stdio loop keeps serving.
+fn internal_panic_error(id: Option<Value>, method: &str) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": -32603,
+            "message": format!("Internal error: handler for '{method}' panicked")
+        }
+    })
 }
 
 impl McpServer {
@@ -72,7 +85,7 @@ impl McpServer {
                         if is_notification(req.id.as_ref(), &req.method) {
                             continue;
                         }
-                        out.push(self.process_request(req).await);
+                        out.push(self.process_request_isolated(req).await);
                     }
                     out
                 }
@@ -85,7 +98,7 @@ impl McpServer {
                 if is_notification(req.id.as_ref(), &req.method) {
                     return Vec::new();
                 }
-                vec![self.process_request(req).await]
+                vec![self.process_request_isolated(req).await]
             }
             Err(_) => {
                 if let Ok(val) = serde_json::from_str::<Value>(trimmed) {
@@ -100,6 +113,21 @@ impl McpServer {
                     }
                 }
                 Vec::new()
+            }
+        }
+    }
+
+    /// Run one request on its own task so a panicking tool degrades to a JSON-RPC
+    /// error instead of tearing down the stdio loop for the whole IDE session.
+    pub async fn process_request_isolated(&self, req: JsonRpcRequest) -> Value {
+        let id = req.id.clone();
+        let method = req.method.clone();
+        let server = self.clone();
+        match tokio::spawn(async move { server.process_request(req).await }).await {
+            Ok(value) => value,
+            Err(err) => {
+                tracing::error!(method = %method, error = %err, "mcp handler panicked");
+                internal_panic_error(id, &method)
             }
         }
     }
@@ -390,6 +418,45 @@ mod tests {
         assert!(resp["result"]["structuredContent"]
             .get("packet_id")
             .is_some());
+    }
+
+    #[test]
+    fn panicking_tool_yields_rpc_error_and_loop_keeps_serving() {
+        let srv = server();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let previous_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+
+        let panic_raw = json!({
+            "jsonrpc": "2.0",
+            "id": 41,
+            "method": "tools/call",
+            "params": { "name": "__neuromesh_panic_probe", "arguments": {} }
+        })
+        .to_string();
+        let responses = rt.block_on(srv.dispatch_raw(&panic_raw));
+
+        std::panic::set_hook(previous_hook);
+
+        assert_eq!(responses.len(), 1);
+        let failed = &responses[0];
+        assert_eq!(failed["jsonrpc"], "2.0");
+        assert_eq!(failed["id"], 41);
+        assert_eq!(failed["error"]["code"], -32603);
+        assert!(failed["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("panicked"));
+
+        let next_raw = json!({
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "tools/list"
+        })
+        .to_string();
+        let after = rt.block_on(srv.dispatch_raw(&next_raw));
+        assert_eq!(after.len(), 1);
+        assert!(after[0]["result"]["tools"].as_array().unwrap().len() > 1);
     }
 
     #[test]

@@ -4,6 +4,17 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.17 — 2026-08-28
+
+Hot-path optimization and stability hardening (activation + MCP stdio).
+
+- **Graph path index.** Normalized `path_index` beside `file_to_nodes`; `file_id_for_path` is a hash lookup instead of a full-map scan with per-entry string allocation.
+- **Per-file reads.** `nodes_in_file` / `file_node_paths` replace `get_all_nodes()` clones in `function_spans_for_file` and `resolve_file_path_noun`.
+- **Learning index memo.** `file_learning_boost_index` is rebuilt once per mesh revision and shared via `Arc`; `file_min_base_relevance` uses `path_index` under a single read lock.
+- **Sort keys.** Selector and activator precompute path tiebreak keys instead of allocating inside `sort_by` comparators.
+- **MCP panic isolation.** Each JSON-RPC request runs in `tokio::spawn`; a panicking tool returns `-32603` and the stdio loop keeps serving.
+- **Fold registry bounds.** Folds are LRU-trimmed per activation (`MAX_RETAINED_FOLDS` 2000); symbol/prefix lookups use indexes instead of scanning all folds.
+
 ### Fixed (benchmark regressions v0.7.16)
 
 - **Seed extraction.** Lowercase member access (`app.handle`, `app.listen`, `Loader.init`) is extracted again; English stopwords (`does`, etc.) are no longer fallback seeds.
