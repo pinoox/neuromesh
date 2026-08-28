@@ -5,6 +5,7 @@ use neuromesh_core::{
     prompt_targets_database, prompt_targets_json_schema, prompt_targets_legacy,
     prompt_targets_locale, prompt_targets_types, ContextNode, NodeType, TaskSignature,
 };
+use neuromesh_graph::node_learning_bonus;
 
 #[derive(Debug, Clone)]
 pub struct ScoringWeights {
@@ -58,9 +59,14 @@ impl ActivationScorer {
         let hist_success = historical_success.clamp(0.20, 1.0);
 
         let learning_lift = {
-            let access = (node.access_count as f32).ln_1p() * 0.04;
-            let relevance = ((node.base_relevance - 1.0).max(0.0) / 2.0) * 0.10;
-            (access + relevance).min(0.40)
+            let bonus = node_learning_bonus(node);
+            let lift = (bonus / 48.0) * 0.40;
+            let demerit = if node.base_relevance < 1.0 {
+                (1.0 - node.base_relevance) * 0.20
+            } else {
+                0.0
+            };
+            (lift - demerit).clamp(0.0, 0.40)
         };
 
         let final_score =

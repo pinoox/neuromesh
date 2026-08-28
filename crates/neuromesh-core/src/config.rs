@@ -87,6 +87,31 @@ pub struct Thresholds {
     pub spreading_hops: usize,
     pub pheromone_evaporation_rate: f32,
     pub expansion_confidence_floor: f32,
+    /// Files with min symbol `base_relevance` below this leave optional/required sets.
+    #[serde(default = "default_penalized_suppression")]
+    pub penalized_suppression_threshold: f32,
+    /// Scale learned influence when file does not match query focus terms.
+    #[serde(default = "default_learning_unrelated_cap")]
+    pub learning_relevance_cap_unrelated: f32,
+    /// Half-life for temporal decay of learned influence (days).
+    #[serde(default = "default_learning_decay_half_life")]
+    pub learning_decay_half_life_days: f32,
+    /// Hard cap on learned score component in unified ranking.
+    #[serde(default = "default_max_learned_influence")]
+    pub max_learned_influence: f32,
+}
+
+fn default_penalized_suppression() -> f32 {
+    0.55
+}
+fn default_learning_unrelated_cap() -> f32 {
+    0.35
+}
+fn default_learning_decay_half_life() -> f32 {
+    30.0
+}
+fn default_max_learned_influence() -> f32 {
+    48.0
 }
 
 impl Default for Thresholds {
@@ -98,6 +123,10 @@ impl Default for Thresholds {
             spreading_hops: 3,
             pheromone_evaporation_rate: 0.02,
             expansion_confidence_floor: 0.40,
+            penalized_suppression_threshold: default_penalized_suppression(),
+            learning_relevance_cap_unrelated: default_learning_unrelated_cap(),
+            learning_decay_half_life_days: default_learning_decay_half_life(),
+            max_learned_influence: default_max_learned_influence(),
         }
     }
 }

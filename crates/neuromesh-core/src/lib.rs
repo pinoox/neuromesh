@@ -27,8 +27,9 @@ pub use source_path::{
 pub use task::{SubtaskNode, SubtaskStatus, TaskGraph, TaskIntent, TaskRisk, TaskSignature};
 pub use token::TokenCounter;
 pub use types::{
-    ActivatedNodeView, ContextDiff, ContextEdge, ContextNode, ContextStatus, ContextView,
-    CoverageReport, EdgeConfidence, EdgeId, EdgeType, InactiveContextDescriptor, IndexMeta,
-    NextAction, NodeId, NodeType, OptimizationMetadata, PacketGap, ProjectId, RankCandidateView,
-    SeedResolution, SkippedFile, StructuralEvidence, UnresolvedRef,
+    ActivatedNodeView, ContextDiff, ContextEdge, ContextNode, ContextScoreBreakdown, ContextStatus,
+    ContextView, CoverageReport, EdgeConfidence, EdgeId, EdgeType, EmissionDropStage,
+    InactiveContextDescriptor, IndexMeta, NextAction, NodeId, NodeType, OptimizationMetadata,
+    PacketGap, ProjectId, RankCandidateView, SeedResolution, SkippedFile, StructuralEvidence,
+    UnresolvedRef,
 };

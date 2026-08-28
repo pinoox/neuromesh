@@ -100,7 +100,7 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             let prompt = args.get(2).cloned();
             commands::optimize::execute(prompt)?;
         }
-        "eval" | "evaluate" => commands::evaluate::execute()?,
+        "eval" | "evaluate" => commands::evaluate::execute(args)?,
         "benchmark" => commands::benchmark::execute()?,
         "mcp" => {
             // Handshake over stdio must start immediately. Index on a blocking

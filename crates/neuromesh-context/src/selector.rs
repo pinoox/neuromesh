@@ -76,6 +76,9 @@ pub struct RankCandidate {
     pub learning_bonus: f32,
     pub reason: String,
     pub selected: bool,
+    pub emitted: bool,
+    pub drop_stage: Option<neuromesh_core::EmissionDropStage>,
+    pub breakdown: Option<neuromesh_core::ContextScoreBreakdown>,
 }
 
 #[derive(Debug, Clone)]
@@ -544,6 +547,12 @@ pub fn select(
         limited.push((id, gain));
     }
     optional_files = limited;
+    let thresholds = neuromesh_core::Thresholds::default();
+    optional_files.retain(|(id, _)| {
+        !graph
+            .file_min_base_relevance(id)
+            .is_some_and(|r| r < thresholds.penalized_suppression_threshold)
+    });
     optional_files = promote_high_learning_into_emitted(
         graph,
         &learning_index,
@@ -600,6 +609,9 @@ pub fn select(
                 learning_bonus: learned,
                 reason,
                 selected: selected_set.contains(id),
+                emitted: false,
+                drop_stage: None,
+                breakdown: None,
             })
         })
         .collect();
@@ -783,10 +795,7 @@ fn promote_high_learning_into_emitted(
             .iter()
             .enumerate()
             .filter(|(_, (_, s))| *s <= DISPLACE_MAX)
-            .min_by(|(_, a), (_, b)| {
-                a.1.partial_cmp(&b.1)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+            .min_by(|(_, a), (_, b)| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(idx, (_, s))| (idx, *s))
         {
             if learned_score > min_score + 2.0 {

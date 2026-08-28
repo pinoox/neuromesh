@@ -4,7 +4,17 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-## 0.7.12 — 2026-08-28
+## 0.7.15 — 2026-08-28
+
+Adaptive context routing: learning now drives emission with full observability and benchmark harness.
+
+- **Emission pipeline.** `EmissionPipeline` tracks `emitted` / `drop_stage` per file through filters, penalized suppression, learning rerank, fill cap, and packet cap. `rank_candidates` refreshed after materialization.
+- **Unified score.** `compute_unified_file_score` merges utility, semantic, graph, learned (focus-aware + decay), pheromone, and penalty into `ContextScoreBreakdown`.
+- **Explainability.** `RankCandidateView` adds `emitted`, `drop_stage`, `score_breakdown` for `explain_packet` diagnostics.
+- **Configurable thresholds.** `penalized_suppression_threshold`, `learning_relevance_cap_unrelated`, `learning_decay_half_life_days`, `max_learned_influence`.
+- **Learning eval.** `neuromesh eval --learning` dose-response sweep; `learning_eval` module with MRR, NDCG@K, Learning Gain, Emission Gain.
+- **CI tests.** `LearningToEmissionCausalTest` (T5 + Kosha), determinism (4-run identical), catastrophic learning on unrelated queries, generalization, persistence reload.
+- **Fixture.** `tests/fixtures/learning-causal/` for reinforcement benchmarks.
 
 Complete the learning→emission loop and close v4 mini decoy gaps from benchmark reports.
 

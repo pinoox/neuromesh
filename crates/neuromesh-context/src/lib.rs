@@ -1,21 +1,25 @@
 pub mod activator;
 pub mod dedup;
+pub mod emission;
 pub mod expansion;
 pub mod fold;
 pub mod genetic_optimizer;
 pub mod gold;
+pub mod learning_eval;
 pub mod packet_analysis;
 pub mod registry;
 pub mod scoring;
 pub mod selector;
 pub mod skeleton;
 pub mod style_routing;
+pub mod unified_score;
 
 pub use activator::{ContextActivator, PacketSnapshot, PhysarumTelemetry};
 pub use dedup::ContextDeduplicator;
 pub use expansion::{ExpansionAuditRecord, ExpansionEngine, FoldExpansion};
 pub use fold::{normalize_fold_query, FoldPolicy, OPTIONAL_EXON_BUDGET, SEED_EXON_BUDGET};
 pub use genetic_optimizer::{ContextChromosome, GeneticContextOptimizer};
+pub use learning_eval::{compute_ranking_metrics, mrr, ndcg_at_k, RankingMetrics};
 pub use registry::ReversibleContextRegistry;
 pub use scoring::{ActivationScorer, ScoringWeights};
 pub use selector::{fill_budget, packet_cap, select, token_budget, Selection};

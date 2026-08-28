@@ -6,5 +6,5 @@ pub fn execute() -> neuromesh_core::Result<()> {
         "\nNeuroMesh benchmark runs the same honest workspace evaluation as `neuromesh eval`."
     );
     println!("It indexes the current directory and scores gold (or builtin) tasks under real fill caps.\n");
-    evaluate::execute()
+    evaluate::execute(&[])
 }

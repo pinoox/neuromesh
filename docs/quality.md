@@ -39,6 +39,14 @@ From `neuromesh eval` on this workspace (debug, 2026-08-28 v0.7.12, balanced):
 
 That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
 
+## Learning → emission (v0.7.15)
+
+Causal routing is gated in CI via `learning_to_emission_causal_*`, `deterministic_packet_same_state`, and `catastrophic_learning_does_not_emit_on_unrelated_query` in `neuromesh-context`.
+
+`neuromesh eval --learning` runs a dose-response sweep on `tests/fixtures/learning-causal/` and prints reinforcement → bonus → rank → emitted → MRR.
+
+`explain_packet` / `selection.candidates` now include `emitted`, `drop_stage`, and `score_breakdown` (utility, learned, penalty, final).
+
 ## Shop fixture (mini-shop)
 
 From the same `neuromesh eval` run (balanced, Vue 3 + Pinia + SCSS):
