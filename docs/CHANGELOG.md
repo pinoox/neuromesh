@@ -4,6 +4,14 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.11 — 2026-08-28
+
+Learning weights now change `get_context` packet selection, not just persisted graph state.
+
+- **Learning → routing.** `file_learning_boost` aggregates symbol + file reinforcement; learned files enter optional fill via focus-term match or high-bonus saturation; penalized seed files (`base_relevance < 0.55`) leave the required set.
+- **Activation scoring.** `ActivationScorer` adds a `learning_lift` from `access_count` / `base_relevance` so `inactive_hints` and fallback scores reflect feedback.
+- **Explain diagnostics.** `neuromesh_explain_packet` → `selection.candidates` lists `{path, score, learning_bonus, reason, selected}` for before/after feedback comparison.
+- **Tests.** Selector acceptance tests for promote (PromoCodeInput), demote (App.vue), and kosha-style saturation (+50 on `routes.py` / `schema.py`).
 - **Docs & landing.** MCP client lists now include OpenCode, MiMo CLI, and Gemini CLI in [README](../README.md), [mcp.md](mcp.md), [agent-guide.md](agent-guide.md), and the GitHub Pages site. OpenCode and MiMo CLI setup sections added to the agent guide.
 
 ## 0.7.10 — 2026-08-28
