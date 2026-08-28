@@ -237,8 +237,8 @@ fn execute_learning_eval(
             .node_learning_profile("PromoCodeInput")
             .map(|p| p.learning_bonus)
             .unwrap_or(0.0);
-        let (rank, score, emitted) = dose_response_rank(&view.rank_candidates, "PromoCodeInput")
-            .unwrap_or((0, 0.0, false));
+        let (rank, score, emitted) =
+            dose_response_rank(&view.rank_candidates, "PromoCodeInput").unwrap_or((0, 0.0, false));
         let metrics = compute_ranking_metrics(&gold, &last_view, &view, 8);
         println!(
             "{:>6} {:>10.2} {:>10.2} {:>6} {:>8} {:>8.3}",
