@@ -102,15 +102,15 @@ body {
 header {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1000;
   height: var(--header-h);
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border-muted);
-  background: rgba(13, 17, 23, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: #0d1117;
   box-shadow: 0 1px 0 rgba(63, 185, 80, 0.06);
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .header-inner {
@@ -230,6 +230,9 @@ nav a:hover { color: var(--fg-default); background: var(--canvas-overlay); }
 main { padding-bottom: 80px; }
 section {
   padding: 96px 24px;
+}
+
+section:not(.hero) {
   content-visibility: auto;
   contain-intrinsic-size: auto 500px;
 }
@@ -299,12 +302,6 @@ body.is-scrolling .phase-connector::after {
   animation-play-state: paused !important;
 }
 
-body.is-scrolling header {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  background: rgba(13, 17, 23, 0.98);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .reveal {
     opacity: 1;
@@ -331,6 +328,8 @@ body.is-scrolling header {
   min-height: calc(100dvh - var(--header-h));
   text-align: center;
   overflow: hidden;
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
 }
 
 .hero-slime-wrap {
@@ -1643,6 +1642,19 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 .client-chip:hover { border-color: var(--accent-fg); color: var(--fg-default); }
 .client-chip code { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-subtle); }
+
+.connect-note {
+  margin-top: 20px;
+  font-size: 0.875rem;
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+.connect-note code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--accent-fg);
+}
 
 /* ── Docs links ── */
 .docs-grid {

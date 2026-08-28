@@ -155,7 +155,7 @@
 
         <p class="hero-clients reveal">
           <span data-i18n="hero.clients">Local-first MCP ·</span>
-          <span>Cursor · Codex · Antigravity · VS Code · Claude · Kilo · Trae</span>
+          <span data-i18n="hero.clientsList">Cursor · Codex · OpenCode · MiMo CLI · Antigravity · VS Code · Claude · Kilo · Trae · Windsurf · Zed</span>
         </p>
 
         <div class="fold-demo reveal" style="margin-top: 48px;" id="fold-demo">
@@ -743,13 +743,13 @@ neuromesh connect    # write MCP configs for this repo</pre>
         <div class="code-block reveal">
           <div class="code-block-header">
             <span data-i18n="connect.snippet">MCP config snippet</span>
-            <button class="copy-btn" data-copy='{"mcpServers":{"neuromesh":{"command":"neuromesh","args":["mcp","/absolute/path/to/your/project"]}}}' data-i18n="ui.copy">Copy</button>
+            <button class="copy-btn" data-copy='{"mcpServers":{"neuromesh":{"command":"neuromesh","args":["mcp"]}}}' data-i18n="ui.copy">Copy</button>
           </div>
           <pre>{
   "mcpServers": {
     "neuromesh": {
       "command": "neuromesh",
-      "args": ["mcp", "/absolute/path/to/your/project"]
+      "args": ["mcp"]
     }
   }
 }</pre>
@@ -758,15 +758,21 @@ neuromesh connect    # write MCP configs for this repo</pre>
         <div class="clients-grid reveal">
           <div class="client-chip">Cursor <code>.cursor/mcp.json</code></div>
           <div class="client-chip">VS Code <code>.vscode/mcp.json</code></div>
+          <div class="client-chip">OpenCode <code>opencode.json</code></div>
+          <div class="client-chip">MiMo CLI <code>.mimo-code.json</code></div>
           <div class="client-chip">Codex <code>.codex/config.toml</code></div>
           <div class="client-chip">Antigravity <code>.agents/mcp_config.json</code></div>
           <div class="client-chip">Kilo Code <code>.kilo/kilo.jsonc</code></div>
           <div class="client-chip">Trae <code>.trae/mcp.json</code></div>
+          <div class="client-chip">MiniMax Code <code>.minimax/mcp.json</code></div>
+          <div class="client-chip">Claude Code <code>.mcp.json</code></div>
           <div class="client-chip">Claude Desktop</div>
+          <div class="client-chip">Gemini CLI <code>~/.gemini/settings.json</code></div>
           <div class="client-chip">Windsurf</div>
           <div class="client-chip">Cline / Roo</div>
           <div class="client-chip">Zed</div>
         </div>
+        <p class="reveal connect-note" data-i18n-html="connect.note">Run <code>neuromesh connect</code> to write configs for installed apps, or <code>neuromesh connect --print</code> for snippets.</p>
       </div>
     </section>
 
@@ -970,6 +976,11 @@ neuromesh connect    # write MCP configs for this repo</pre>
       });
     }, { threshold: 0.06, rootMargin: '0px 0px 60px 0px' });
     revealEls.forEach(el => revealObs.observe(el));
+
+    // Hero stays visible when scrolling back to top (no fade re-trigger)
+    document.querySelectorAll('.hero .reveal').forEach(el => {
+      el.classList.add('visible', 'revealed');
+    });
 
     // Pipeline — interactive 3-phase tour
     (function initPipeline() {

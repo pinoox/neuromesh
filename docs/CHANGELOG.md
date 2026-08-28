@@ -4,6 +4,8 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+- **Docs & landing.** MCP client lists now include OpenCode, MiMo CLI, and Gemini CLI in [README](../README.md), [mcp.md](mcp.md), [agent-guide.md](agent-guide.md), and the GitHub Pages site. OpenCode and MiMo CLI setup sections added to the agent guide.
+
 ## 0.7.10 — 2026-08-28
 
 Honest bounded coverage, physarum sidecar cap, and clearer learning feedback fields.

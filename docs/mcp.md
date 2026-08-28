@@ -1,6 +1,6 @@
 # MCP tools
 
-Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). That is what Cursor, Claude, Codex, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
+Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). That is what Cursor, Claude, Codex, OpenCode, MiMo CLI, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
 
 **Warning:** Never run `neuromesh mcp` without a workspace path (or `NEUROMESH_WORKSPACE`). Without it the server may bind to your home directory and index unrelated projects. Prefer `neuromesh connect`, which pins an absolute binary path and workspace in MCP config.
 
@@ -34,7 +34,7 @@ When `neuromesh` is on **PATH** and the IDE runs MCP from your project root (or 
 }
 ```
 
-Same `mcpServers` shape works for Claude Desktop (`claude_desktop_config.json`), Trae (`.trae/mcp.json`), MiniMax (`.minimax/mcp.json`), and other clients that use that key. VS Code / Copilot uses `.vscode/mcp.json` with a top-level `servers` object instead — run `neuromesh connect --print` for that shape.
+Same `mcpServers` shape works for Claude Desktop (`claude_desktop_config.json`), Trae (`.trae/mcp.json`), MiniMax (`.minimax/mcp.json`), and other clients that use that key. [OpenCode](https://opencode.ai/) uses an `mcp` object with `type: "local"` and a `command` array — run `neuromesh connect --print` and map the binary + args. MiMo CLI uses `.mimo-code.json` / `~/.mimo-code/config.json` with an `mcpServers` list. VS Code / Copilot uses `.vscode/mcp.json` with a top-level `servers` object instead — run `neuromesh connect --print` for that shape.
 
 `neuromesh connect` is still preferred when PATH is unreliable: it writes an absolute `command` and pins the workspace via `args: ["mcp", "<path>"]` plus `NEUROMESH_WORKSPACE`.
 
@@ -43,7 +43,10 @@ Same `mcpServers` shape works for Claude Desktop (`claude_desktop_config.json`),
 | Cursor | `.cursor/mcp.json` | `~/.cursor/mcp.json` |
 | VS Code / Copilot | `.vscode/mcp.json` (`servers`) | — |
 | Codex | `.codex/config.toml` | `~/.codex/config.toml` |
+| [OpenCode](https://opencode.ai/) | `opencode.json` / `.opencode/opencode.jsonc` | `~/.config/opencode/opencode.jsonc` |
+| MiMo CLI | `.mimo-code.json` | `~/.mimo-code/config.json` |
 | [Antigravity](https://antigravity.google/) | `.agents/mcp_config.json` | `~/.gemini/config/mcp_config.json` |
+| Gemini CLI | — | `~/.gemini/settings.json` |
 | Kilo Code | `.kilo/kilo.jsonc` (`mcp` + command array) | `kilo.jsonc` in the user config dir |
 | Trae | `.trae/mcp.json` | `Trae/User/mcp.json` |
 | MiniMax Code | `.minimax/mcp.json` | same `mcpServers` snippet as Cursor |
@@ -68,7 +71,7 @@ Start with `get_context`. The default packet is **minimal**: `packet_id`, covera
 
 `neuromesh connect` only registers the MCP server. It does **not** tell the IDE agent to call those tools. Without project instructions, many agents still `Read` / Grep whole files and skip NeuroMesh.
 
-**Full tutorial (every client):** [agent-guide.md](agent-guide.md) — Cursor, VS Code/Copilot, Claude, Codex, Antigravity, Kilo, Trae, MiniMax, Windsurf, Cline/Roo, Zed, plus a one-shot prompt and smoke test.
+**Full tutorial (every client):** [agent-guide.md](agent-guide.md) — Cursor, VS Code/Copilot, Claude, Codex, OpenCode, MiMo CLI, Antigravity, Kilo, Trae, MiniMax, Gemini CLI, Windsurf, Cline/Roo, Zed, plus a one-shot prompt and smoke test.
 
 Quick Cursor install:
 
