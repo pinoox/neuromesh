@@ -310,7 +310,7 @@ Re-run gold tasks: `cargo run --release -p neuromesh-cli -- eval` (or `neuromesh
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
-Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects (including `mini-shop` SCSS/dead-code/checkout). Packet activation **&lt; 200 ms** in the debug gold test.
+Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects (including `mini-shop` SCSS/dead-code/checkout). Packet activation **&lt; 250 ms** in the debug gold test (non-Windows CI).
 
 Index snapshot from that eval run: **340 files · 3,132 nodes · 6,591 edges · 600 ms** index (release; debug ~2.3 s).
 

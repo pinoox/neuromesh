@@ -12,7 +12,7 @@ Thresholds locked in tests:
 - precision ≥ **0.4** (a `forbidden_files` hit forces precision to 0)
 - missed seeds reported as `partial`, or `no_seed_resolved` when **every** identifier missed (empty packet, Grep immediately)
 - `expand_fold` restores a registered body without reading the disk
-- activation under **200 ms** in the debug gold test on this repo (cargo test is parallel; isolated runs sit nearer 60 ms)
+- activation under **250 ms** in the debug gold test on this repo (non-Windows CI; cargo test is parallel; isolated release runs sit nearer 50 ms)
 - skeletonizer folds **bodies** from graph/tree-sitter spans; seed callees stay exons; fill caps stay 0 / 5k / 16k extra tokens
 - after skeletonization, the packet itself is capped (6k / 12k / 24k) by dropping optional files then reducing per-file exons; gold still measures **file-path** recall
 - each seed file keeps at most **4** open bodies (optional files **1**); the skeleton is a window (imports + enclosing type + top spans), not the whole file
