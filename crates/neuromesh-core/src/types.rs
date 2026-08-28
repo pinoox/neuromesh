@@ -454,6 +454,52 @@ pub struct ContextView {
     pub structural_evidence: Vec<StructuralEvidence>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EmissionDropStage {
+    #[default]
+    None,
+    StyleFilter,
+    FocusTighten,
+    HmvcFilter,
+    SchemaFilter,
+    PenalizedSuppress,
+    LearningRerank,
+    FillCap,
+    PacketCap,
+    NoiseFilter,
+    NotSelected,
+}
+
+impl EmissionDropStage {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::StyleFilter => "style_filter",
+            Self::FocusTighten => "focus_tighten",
+            Self::HmvcFilter => "hmvc_filter",
+            Self::SchemaFilter => "schema_filter",
+            Self::PenalizedSuppress => "penalized_suppress",
+            Self::LearningRerank => "learning_rerank",
+            Self::FillCap => "fill_cap",
+            Self::PacketCap => "packet_cap",
+            Self::NoiseFilter => "noise_filter",
+            Self::NotSelected => "not_selected",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ContextScoreBreakdown {
+    pub utility_score: f32,
+    pub semantic_score: f32,
+    pub graph_score: f32,
+    pub learned_score: f32,
+    pub pheromone_score: f32,
+    pub negative_penalty: f32,
+    pub final_score: f32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RankCandidateView {
     pub path: String,
@@ -461,6 +507,12 @@ pub struct RankCandidateView {
     pub learning_bonus: f32,
     pub reason: String,
     pub selected: bool,
+    #[serde(default)]
+    pub emitted: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drop_stage: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score_breakdown: Option<ContextScoreBreakdown>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

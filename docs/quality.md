@@ -4,7 +4,7 @@ Claims in this project are supposed to come from commands you can run, not from 
 
 ## Gold
 
-`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store including `require()` CJS + `tokens.json` CSS import, Vue/JS auth+permission-guard compound task with a `directive/permission` ranking thief and forbidden clipboard/profile decoys, **mini-shop** Vue 3 + Pinia + SCSS price-card / dead-code / checkout stepper, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox Pinx `get()->action()` plus `MainController::index` → Twig, Vue/PrimeVue `Dashboard.vue` + React `StatCard`, multi-app `apps/com_shop` vs `com_blog`, Laravel Eloquent + `Schema::create` migration + seeder/factory + SQL + JSON config plus route-only `POST /sms` prompts, FastAPI, Rails, Astro, Express route-only `POST /sms`, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS/SCSS/CSS badge tokens + SVG `smsInbox` icon, Zod-like schema core vs `packages/bench` + `locales/` + `v3/` + json-schema decoys, plus a `z.infer` → `core.ts` type-alias task), including edit/refactor-style prompts — not only “where is this symbol”.
+`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store including `require()` CJS + `tokens.json` CSS import, Vue/JS auth+permission-guard compound task with a `directive/permission` ranking thief and forbidden clipboard/profile decoys, **mini-shop** Vue 3 + Pinia + SCSS price-card / dead-code / checkout stepper, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox Pinx `get()->action()` plus `MainController::index` → Twig, Vue/PrimeVue `Dashboard.vue` + React `StatCard`, multi-app `apps/com_shop` vs `com_blog`, Laravel Eloquent + `Schema::create` migration + seeder/factory + SQL + JSON config plus route-only `POST /sms` prompts, FastAPI, Rails, Astro, Express route-only `POST /sms`, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS/SCSS/CSS badge tokens + SVG `smsInbox` icon, Zod-like schema core vs `packages/bench` + `locales/` + `v3/` + `v4/mini/` + json-schema decoys, plus a `z.infer` → `core.ts` type-alias task), including edit/refactor-style prompts — not only “where is this symbol”.
 
 Thresholds locked in tests:
 
@@ -30,14 +30,34 @@ neuromesh eval
 
 ## Grep after get_context
 
-From `neuromesh eval` on this workspace (release, 2026-08-28, balanced):
+From `cargo run --release -p neuromesh-cli -- eval` on this workspace (2026-08-28 v0.7.15, balanced):
 
 | Task | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | 554554 | 63462 | 15900 | 97.1% | 74.9% | 1.00 | 0.75 | **0** | 33 |
-| `physarum_usage` | 554554 | 18631 | 3945 | 99.3% | 78.8% | 1.00 | 0.50 | **0** | 17 |
+| `handle_tool_call_intent` | 639040 | 68094 | 17251 | 97.3% | 74.7% | 1.00 | 0.75 | **0** | 47 |
+| `physarum_usage` | 639040 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | 43 |
+
+Debug `neuromesh eval` on the same repo: activation ~157 ms / ~104 ms; full index ~2.3 s.
 
 That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
+
+## Learning → emission (v0.7.15)
+
+Feedback changes **which files are emitted**, not only candidate scores. The activator runs an `EmissionPipeline` that records `emitted` and `drop_stage` (`penalized_suppress`, `fill_cap`, `packet_cap`, …) through selector → post-filters → materialize.
+
+Causal routing is gated in CI:
+
+```bash
+cargo test -p neuromesh-context learning_to_emission
+cargo test -p neuromesh-context deterministic_packet_same_state
+cargo test -p neuromesh-context catastrophic_learning
+```
+
+`neuromesh eval --learning` runs a dose-response sweep on `tests/fixtures/learning-causal/` and prints reinforcement → bonus → rank → emitted → MRR.
+
+`neuromesh_explain_packet` → `selection.candidates` includes `selected`, `emitted`, `drop_stage`, and `score_breakdown` (`utility_score`, `learned_score`, `negative_penalty`, `final_score`). Use these when `selected: true` but a file is missing from the packet.
+
+Configurable learning thresholds live in `Thresholds` (`penalized_suppression_threshold`, `learning_relevance_cap_unrelated`, `learning_decay_half_life_days`, `max_learned_influence`) — see `neuromesh-core` config defaults.
 
 ## Shop fixture (mini-shop)
 
@@ -51,15 +71,16 @@ From the same `neuromesh eval` run (balanced, Vue 3 + Pinia + SCSS):
 
 ## Index snapshot
 
-From `neuromesh eval` (release, 2026-08-28) on this repository:
+From `cargo run --release -p neuromesh-cli -- eval` (2026-08-28 v0.7.15) on this repository:
 
 | Metric | Value |
 | :--- | ---: |
-| Files | 323 (`target/` ignored) |
-| Nodes | 2,458 |
-| Edges | 5,594 |
-| Workspace tokens | 554,554 |
-| Index time (release) | ~490 ms |
+| Files | 340 (`target/` ignored) |
+| Nodes | 3,132 |
+| Edges | 6,591 |
+| Workspace tokens | 639,040 |
+| **Index time (release)** | **600 ms** |
+| Index time (debug) | ~2.3 s |
 
 Index file cap is **auto** by default (production sources first, tests last, ceiling 50,000). Override with `neuromesh index --max-files N`. See [cli.md](cli.md#index-file-cap).
 
@@ -67,16 +88,16 @@ Index file cap is **auto** by default (production sources first, tests last, cei
 
 The mesh keeps a structural skeleton in RAM. File bodies are not stored in nodes and not written to the snapshot; source is read on demand when a packet is spliced. The snapshot is `graph.bin` (bincode); `graph.json` is still read once for migration.
 
-From `snapshot_load_and_single_file_reindex_beat_full_index` (release, this repo):
+From `snapshot_load_and_single_file_reindex_beat_full_index` (release, 2026-08-28, this repo):
 
 | Metric | Value |
 | :--- | ---: |
-| Files scanned | 323 |
-| Nodes | 2,458 |
-| Full workspace index | 1,314 ms |
-| Snapshot size | 3.3 MB |
-| **Snapshot cold load** | **57 ms** |
-| **One-file reindex** (parse + local relink) | **111 ms** |
+| Files scanned | 340 |
+| Nodes | 3,132 |
+| Full workspace index | 672 ms |
+| Snapshot size | 3.8 MB |
+| **Snapshot cold load** | **94 ms** |
+| **One-file reindex** (parse + local relink) | **83 ms** |
 
 ```bash
 cargo test --release -p neuromesh-graph --lib snapshot_load_and_single_file_reindex -- --nocapture

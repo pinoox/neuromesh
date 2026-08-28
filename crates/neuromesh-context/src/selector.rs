@@ -76,6 +76,9 @@ pub struct RankCandidate {
     pub learning_bonus: f32,
     pub reason: String,
     pub selected: bool,
+    pub emitted: bool,
+    pub drop_stage: Option<neuromesh_core::EmissionDropStage>,
+    pub breakdown: Option<neuromesh_core::ContextScoreBreakdown>,
 }
 
 #[derive(Debug, Clone)]
@@ -517,7 +520,8 @@ pub fn select(
             .map(|n| crate_dir(&n.file_path))
             .unwrap_or_default();
         let count = per_crate.entry(crate_key.clone()).or_insert(0);
-        if *count >= per_crate_limit && !callee_files.contains(&id) {
+        let learned = learning_boost(&id);
+        if *count >= per_crate_limit && learned < 28.0 && !callee_files.contains(&id) {
             overflow.push((id, gain));
             continue;
         }
@@ -543,6 +547,19 @@ pub fn select(
         limited.push((id, gain));
     }
     optional_files = limited;
+    let thresholds = neuromesh_core::Thresholds::default();
+    optional_files.retain(|(id, _)| {
+        !graph
+            .file_min_base_relevance(id)
+            .is_some_and(|r| r < thresholds.penalized_suppression_threshold)
+    });
+    optional_files = promote_high_learning_into_emitted(
+        graph,
+        &learning_index,
+        &required,
+        optional_files,
+        max_extra_files,
+    );
 
     let mut optional_ids = Vec::new();
     for (id, gain) in optional_files {
@@ -573,7 +590,15 @@ pub fn select(
                 return None;
             }
             let learned = learning_index.get(id).copied().unwrap_or(0.0);
-            let reason = if learned >= 12.0 {
+            let penalized = graph.file_min_base_relevance(id).is_some_and(|r| r < 0.75);
+            let reason = if penalized {
+                format!(
+                    "penalized:{:.2}",
+                    graph
+                        .file_min_base_relevance(id)
+                        .unwrap_or(node.base_relevance)
+                )
+            } else if learned >= 12.0 {
                 format!("learned:{learned:.1}")
             } else {
                 format!("utility:{score:.2}")
@@ -584,6 +609,9 @@ pub fn select(
                 learning_bonus: learned,
                 reason,
                 selected: selected_set.contains(id),
+                emitted: false,
+                drop_stage: None,
+                breakdown: None,
             })
         })
         .collect();
@@ -725,9 +753,9 @@ fn demote_penalized_seed_files(
         .iter()
         .filter(|id| {
             seeds.contains(*id)
-                && graph.get_node(id).is_some_and(|n| {
-                    n.node_type == NodeType::File && n.base_relevance < LOW_RELEVANCE
-                })
+                && graph
+                    .file_min_base_relevance(id)
+                    .is_some_and(|r| r < LOW_RELEVANCE)
         })
         .cloned()
         .collect();
@@ -735,6 +763,69 @@ fn demote_penalized_seed_files(
         required.remove(&id);
         scores.remove(&id);
     }
+}
+
+fn promote_high_learning_into_emitted(
+    graph: &NeuralProjectGraph,
+    learning_index: &HashMap<NodeId, f32>,
+    required: &HashSet<NodeId>,
+    mut optional: Vec<(NodeId, f32)>,
+    cap: usize,
+) -> Vec<(NodeId, f32)> {
+    const LEARNED_SWAP_MIN: f32 = 18.0;
+    const DISPLACE_MAX: f32 = 20.0;
+
+    let mut promoted: Vec<(NodeId, f32)> = graph
+        .high_learning_files(LEARNED_SWAP_MIN, 16)
+        .into_iter()
+        .filter(|(id, _)| !required.contains(id) && !optional.iter().any(|(oid, _)| oid == id))
+        .map(|(id, bonus)| {
+            let score = (14.0 + bonus * 0.55).min(48.0);
+            (id, score)
+        })
+        .collect();
+    promoted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    for (learned_id, learned_score) in promoted {
+        if optional.len() < cap {
+            optional.push((learned_id, learned_score));
+            continue;
+        }
+        if let Some((min_idx, min_score)) = optional
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, s))| *s <= DISPLACE_MAX)
+            .min_by(|(_, a), (_, b)| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(idx, (_, s))| (idx, *s))
+        {
+            if learned_score > min_score + 2.0 {
+                optional[min_idx] = (learned_id, learned_score);
+            }
+        }
+    }
+
+    optional.sort_by(|a, b| {
+        let score = b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal);
+        if score != std::cmp::Ordering::Equal {
+            return score;
+        }
+        let pa = graph
+            .get_node(&a.0)
+            .map(|n| n.file_path.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let pb = graph
+            .get_node(&b.0)
+            .map(|n| n.file_path.to_string_lossy().to_string())
+            .unwrap_or_default();
+        pa.cmp(&pb)
+    });
+    optional.truncate(cap);
+    for (id, score) in &mut optional {
+        if let Some(bonus) = learning_index.get(id) {
+            *score = score.max(14.0 + bonus * 0.45).min(48.0);
+        }
+    }
+    optional
 }
 
 fn is_noise_node(graph: &NeuralProjectGraph, id: &NodeId) -> bool {
@@ -1337,14 +1428,54 @@ import PromoCodeInput from './PromoCodeInput.vue'
             OptimizationMode::Balanced,
         );
         assert!(
-            after.optional.contains(&routes_file)
-                || after
-                    .rank_candidates
-                    .iter()
-                    .any(|c| c.path.contains("routes.py") && c.learning_bonus > 28.0),
-            "saturated reinforcement should surface routes.py; optional={:?} candidates={:?}",
+            after.optional.contains(&routes_file),
+            "saturated reinforcement should emit routes.py in optional; optional={:?} candidates={:?}",
             after.optional,
             after.rank_candidates
+        );
+    }
+
+    #[test]
+    fn negative_feedback_lowers_learning_bonus_and_reason() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("learn-negative"));
+        let app = r#"<script setup></script><template><div /></template>"#;
+        graph.ingest_file(
+            &indexed("src/App.vue", 40),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("App.vue"), app, SourceLanguage::Vue),
+            Some(app),
+        );
+        graph.finalize_links();
+        let app_file = graph
+            .file_id_for_path(&PathBuf::from("src/App.vue"))
+            .expect("app file");
+        let before_bonus = graph
+            .file_learning_boost_index()
+            .get(&app_file)
+            .copied()
+            .unwrap_or(0.0);
+        let before_access = graph.get_node(&app_file).unwrap().access_count;
+        let before_rel = graph.get_node(&app_file).unwrap().base_relevance;
+        for _ in 0..6 {
+            graph.reinforce_node_access(&app_file, false);
+        }
+        let after_bonus = graph
+            .file_learning_boost_index()
+            .get(&app_file)
+            .copied()
+            .unwrap_or(0.0);
+        let after_access = graph.get_node(&app_file).unwrap().access_count;
+        let after_rel = graph.get_node(&app_file).unwrap().base_relevance;
+        assert_eq!(
+            after_access, before_access,
+            "failed feedback must not inflate access_count"
+        );
+        assert!(
+            after_rel < before_rel,
+            "penalty should lower base_relevance"
+        );
+        assert!(
+            after_bonus <= before_bonus,
+            "penalty should not raise learning bonus: before={before_bonus} after={after_bonus}"
         );
     }
 }

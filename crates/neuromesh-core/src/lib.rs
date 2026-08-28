@@ -18,17 +18,18 @@ pub use paths::{
     untrust_workspace_local, uses_local_dotdir, ProjectStore,
 };
 pub use source_path::{
-    decoy_allowed_for_prompt, hmvc_app_prefix, is_bench_path, is_core_source_path,
-    is_json_schema_path, is_legacy_path, is_locale_path, is_low_priority_source_path,
-    is_name_collision_decoy, is_schema_path, name_match_specificity, prompt_targets_bench,
-    prompt_targets_database, prompt_targets_json_schema, prompt_targets_legacy,
-    prompt_targets_locale, prompt_targets_types,
+    decoy_allowed_for_prompt, hmvc_app_prefix, is_alt_surface_path, is_bench_path,
+    is_core_source_path, is_json_schema_path, is_legacy_path, is_locale_path,
+    is_low_priority_source_path, is_name_collision_decoy, is_schema_path, name_match_specificity,
+    prompt_targets_alt_surface, prompt_targets_bench, prompt_targets_database,
+    prompt_targets_json_schema, prompt_targets_legacy, prompt_targets_locale, prompt_targets_types,
 };
 pub use task::{SubtaskNode, SubtaskStatus, TaskGraph, TaskIntent, TaskRisk, TaskSignature};
 pub use token::TokenCounter;
 pub use types::{
-    ActivatedNodeView, ContextDiff, ContextEdge, ContextNode, ContextStatus, ContextView,
-    CoverageReport, EdgeConfidence, EdgeId, EdgeType, InactiveContextDescriptor, IndexMeta,
-    NextAction, NodeId, NodeType, OptimizationMetadata, PacketGap, ProjectId, RankCandidateView,
-    SeedResolution, SkippedFile, StructuralEvidence, UnresolvedRef,
+    ActivatedNodeView, ContextDiff, ContextEdge, ContextNode, ContextScoreBreakdown, ContextStatus,
+    ContextView, CoverageReport, EdgeConfidence, EdgeId, EdgeType, EmissionDropStage,
+    InactiveContextDescriptor, IndexMeta, NextAction, NodeId, NodeType, OptimizationMetadata,
+    PacketGap, ProjectId, RankCandidateView, SeedResolution, SkippedFile, StructuralEvidence,
+    UnresolvedRef,
 };

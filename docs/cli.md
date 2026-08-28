@@ -13,6 +13,7 @@ neuromesh graph        # graph stats
 neuromesh memory       # project facts
 neuromesh optimize     # one prompt → print the packet
 neuromesh eval         # gold recall / precision / fill on cwd and tests/fixtures
+neuromesh eval --learning   # dose-response learning benchmark (learning-causal fixture)
 neuromesh benchmark    # same as eval
 neuromesh store        # managed home vs trusted local `.neuromesh`
 neuromesh connect      # write MCP configs (or `--print` snippets)
@@ -69,9 +70,12 @@ neuromesh doctor
 neuromesh index
 neuromesh optimize -- "How does handle_tool_call extract intent?"
 neuromesh eval
+neuromesh eval --learning
 ```
 
 `eval` scores `tests/gold_tasks.toml` if present, otherwise the builtin set. It also walks `tests/fixtures/*/gold_tasks.toml`.
+
+`eval --learning` indexes `tests/fixtures/learning-causal/`, sweeps reinforcement levels on `PromoCodeInput`, and prints bonus → rank → emitted → MRR. See [quality.md](quality.md#learning--emission-v0715).
 
 The process uses the **current working directory** as the project. `neuromesh connect` writes that path into each client's MCP config so the IDE does not have to guess.
 

@@ -1,16 +1,21 @@
 use neuromesh_context::gold::{
     evaluate_view, fixture_gold_cases, load_gold_tasks, packet_file_names, packet_paths,
 };
+use neuromesh_context::learning_eval::{
+    compute_ranking_metrics, dose_response_rank, emitted_paths_from_view,
+};
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{OptimizationMode, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
 use neuromesh_task::TaskSignatureExtractor;
 use std::env;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-pub fn execute() -> Result<()> {
+pub fn execute(args: &[String]) -> Result<()> {
+    let learning_mode = args.iter().any(|a| a == "--learning");
     let current_dir = neuromesh_index::assert_safe_workspace(&env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
@@ -50,6 +55,10 @@ pub fn execute() -> Result<()> {
 
     let registry = Arc::new(ReversibleContextRegistry::new());
     let activator = ContextActivator::new(registry);
+
+    if learning_mode {
+        return execute_learning_eval(&current_dir, &graph, &activator);
+    }
 
     println!("\nNeuroMesh evaluation — {}", project_name);
     println!("Workspace: {}", current_dir.display());
@@ -178,5 +187,72 @@ pub fn execute() -> Result<()> {
         }
     }
     println!();
+    Ok(())
+}
+
+fn execute_learning_eval(
+    current_dir: &Path,
+    graph: &NeuralProjectGraph,
+    activator: &ContextActivator,
+) -> Result<()> {
+    let fixture = current_dir
+        .join("tests")
+        .join("fixtures")
+        .join("learning-causal");
+    if !fixture.is_dir() {
+        println!("Learning eval requires tests/fixtures/learning-causal/");
+        return Ok(());
+    }
+    let walker = ProjectWalker::new(fixture.clone(), ProjectId::new("learning-causal"));
+    let scanned = walker.scan()?;
+    let eval_graph = NeuralProjectGraph::new(ProjectId::new("learning-causal"));
+    eval_graph.ingest_workspace(&scanned);
+    eval_graph.finalize_links();
+
+    let prompt = "how does promocodeinput component work in checkout";
+    let signature = TaskSignatureExtractor::extract(prompt);
+    let gold = vec!["src/components/PromoCodeInput.vue".into()];
+    let levels: [i32; 8] = [0, 1, 2, 5, 10, 25, 50, 100];
+
+    println!("\nNeuroMesh learning eval — dose-response\n");
+    println!(
+        "{:>6} {:>10} {:>10} {:>6} {:>8} {:>8}",
+        "dose", "bonus", "score", "rank", "emitted", "MRR"
+    );
+    println!("{}", "-".repeat(58));
+
+    let baseline = activator.activate(&eval_graph, &signature, OptimizationMode::Balanced);
+    let mut last_view = baseline.clone();
+
+    for &dose in &levels {
+        if dose > 0 {
+            if let Some(node) = eval_graph.resolve_feedback_node("PromoCodeInput") {
+                for _ in 0..dose {
+                    eval_graph.reinforce_node_access(&node.id, true);
+                }
+            }
+        }
+        let view = activator.activate(&eval_graph, &signature, OptimizationMode::Balanced);
+        let bonus = eval_graph
+            .node_learning_profile("PromoCodeInput")
+            .map(|p| p.learning_bonus)
+            .unwrap_or(0.0);
+        let (rank, score, emitted) =
+            dose_response_rank(&view.rank_candidates, "PromoCodeInput").unwrap_or((0, 0.0, false));
+        let metrics = compute_ranking_metrics(&gold, &last_view, &view, 8);
+        println!(
+            "{:>6} {:>10.2} {:>10.2} {:>6} {:>8} {:>8.3}",
+            dose, bonus, score, rank, emitted, metrics.mrr
+        );
+        last_view = view;
+    }
+
+    let emitted = emitted_paths_from_view(&last_view);
+    println!("\nFinal emitted: {:?}", emitted);
+    println!("Token efficiency (packet/workspace): {:.3}", {
+        let ws = eval_graph.total_tokens().max(1) as f32;
+        last_view.active_tokens as f32 / ws
+    });
+    let _ = graph;
     Ok(())
 }

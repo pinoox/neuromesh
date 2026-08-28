@@ -36,7 +36,7 @@ On `neuromesh_get_context`, after seeds resolve, **neighborhood Physarum** grows
 
 ### Synapses — STDP / Hebbian edges
 
-Edges carry pheromone weight. `neuromesh_record_feedback` is a **required** step after a successful edit: spike the nodes the agent touched so the next `get_context` can prefer co-edited files. Without feedback there is no synaptic learning. Mycelium records the same transitions and pre-warms predicted neighbors.
+Edges carry pheromone weight. `neuromesh_record_feedback` is a **required** step after a successful edit: spike the nodes the agent touched so the next `get_context` can prefer co-edited files and **emit** them into the packet (not only raise candidate scores). Without feedback there is no synaptic learning. Mycelium records the same transitions and pre-warms predicted neighbors.
 
 ### Exons / introns — genetic slicing
 
@@ -55,7 +55,7 @@ A cell does not dump its cytosol because someone knocked. `max_savings` / `balan
 | You like… | Open this |
 | :--- | :--- |
 | Graph algorithms, Steiner, flux | `crates/neuromesh-graph/src/physarum.rs` |
-| Plasticity, edge weights | `crates/neuromesh-graph/src/synapse.rs`, `neuromesh_record_feedback` |
+| Plasticity, edge weights, emission | `crates/neuromesh-graph/src/synapse.rs`, `crates/neuromesh-context/src/emission.rs`, `neuromesh_record_feedback` |
 | Parsers, tree-sitter, new languages | `crates/neuromesh-parser` |
 | Packet composition, folds | `crates/neuromesh-context` |
 | Budgets, critical-task policy | `crates/neuromesh-router` |

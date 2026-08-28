@@ -29,6 +29,7 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 3. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
 4. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
 5. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched. Use `neuromesh_get_node_weights` before/after to verify learning deltas when debugging routing.
+6. If feedback should have changed the packet but `files[]` looks the same, call `neuromesh_explain_packet` and inspect `selection.candidates` for `emitted`, `drop_stage`, and `score_breakdown`.
 
 Do not treat a utility fallback file as the answer when coverage says seeds missed or `packet_gaps` is non-empty.
 

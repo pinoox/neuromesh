@@ -63,6 +63,20 @@ pub fn is_legacy_path(path: &Path) -> bool {
             })
 }
 
+/// Trimmed parallel API surfaces (`v4/mini/`, `lite/`, bundle-size variants).
+pub fn is_alt_surface_path(path: &Path) -> bool {
+    has_dir_segment(path, &["mini", "lite", "slim", "light"])
+        || path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .is_some_and(|stem| {
+                matches!(
+                    stem.to_lowercase().as_str(),
+                    "mini" | "lite" | "slim" | "light"
+                )
+            })
+}
+
 /// Laravel `database/migrations`, `seeders`, `factories`, and raw `.sql` schema files.
 pub fn is_schema_path(path: &Path) -> bool {
     let lower = normalized_source_path(path);
@@ -103,11 +117,16 @@ pub fn is_core_source_path(path: &Path) -> bool {
         && !is_bench_path(path)
         && !is_locale_path(path)
         && !is_legacy_path(path)
+        && !is_alt_surface_path(path)
 }
 
 /// Parallel API surfaces that steal seeds via similar names.
 pub fn is_name_collision_decoy(path: &Path) -> bool {
-    is_bench_path(path) || is_locale_path(path) || is_legacy_path(path) || is_schema_path(path)
+    is_bench_path(path)
+        || is_locale_path(path)
+        || is_legacy_path(path)
+        || is_alt_surface_path(path)
+        || is_schema_path(path)
 }
 
 /// Test / bench / example / testdata / locale / legacy — indexed but not
@@ -117,6 +136,7 @@ pub fn is_low_priority_source_path(path: &Path) -> bool {
         || is_bench_path(path)
         || is_locale_path(path)
         || is_legacy_path(path)
+        || is_alt_surface_path(path)
         || is_example_path(path)
         || is_testdata_path(path)
 }
@@ -162,6 +182,17 @@ pub fn prompt_targets_legacy(prompt: &str) -> bool {
         || lower.contains("deprecated")
 }
 
+pub fn prompt_targets_alt_surface(prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    lower.contains("/mini/")
+        || lower.contains(" mini ")
+        || lower.contains("minified")
+        || lower.contains("lite api")
+        || lower.contains("/lite/")
+        || lower.contains("slim")
+        || lower.contains("lightweight")
+}
+
 pub fn prompt_targets_json_schema(prompt: &str) -> bool {
     let lower = prompt.to_lowercase();
     lower.contains("json-schema")
@@ -189,6 +220,9 @@ pub fn decoy_allowed_for_prompt(path: &Path, prompt: &str) -> bool {
     }
     if is_legacy_path(path) {
         return prompt_targets_legacy(prompt);
+    }
+    if is_alt_surface_path(path) {
+        return prompt_targets_alt_surface(prompt);
     }
     if is_schema_path(path) {
         return schema_path_allowed_for_prompt(path, prompt);
@@ -308,6 +342,13 @@ mod tests {
         assert!(decoy_allowed_for_prompt(
             Path::new("packages/bench/safeparse.ts"),
             "how does the benchmark in packages/bench/safeparse.ts work"
+        ));
+        assert!(is_alt_surface_path(Path::new(
+            "packages/schema/src/v4/mini/schemas.ts"
+        )));
+        assert!(!decoy_allowed_for_prompt(
+            Path::new("packages/schema/src/v4/mini/schemas.ts"),
+            "how does parsing work in zod"
         ));
     }
 

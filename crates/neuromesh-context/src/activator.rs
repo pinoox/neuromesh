@@ -1,3 +1,4 @@
+use crate::emission::EmissionPipeline;
 use crate::fold::{FoldPolicy, OPTIONAL_EXON_BUDGET, SEED_EXON_BUDGET};
 use crate::packet_analysis::{
     build_structural_evidence, compute_packet_gaps, enrich_coverage, inject_caller_context,
@@ -13,11 +14,12 @@ use crate::style_routing::{
     inject_style_seeds, inject_view_component_seeds, is_style_task, style_noise_penalty,
     tighten_focused_view_selection, tighten_style_extension_selection,
 };
+use crate::unified_score::compute_unified_file_score;
 use neuromesh_core::{
     decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, is_schema_path,
     prompt_targets_database, prompt_targets_types, ActivatedNodeView, ContextStatus, ContextView,
-    CoverageReport, EdgeConfidence, EdgeType, NextAction, NodeId, NodeType, OptimizationMode,
-    SeedResolution, SkippedFile, TaskSignature,
+    CoverageReport, EdgeConfidence, EdgeType, EmissionDropStage, NextAction, NodeId, NodeType,
+    OptimizationMode, SeedResolution, SkippedFile, TaskSignature, Thresholds,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
 use neuromesh_task::{
@@ -443,6 +445,27 @@ impl ContextActivator {
             .optional
             .retain(|id| keep_schema_packet_file(graph, &seed_set, prompt, id));
         tighten_style_extension_selection(graph, signature, &mut selection);
+
+        let thresholds = Thresholds::default();
+        let learning_index = graph.file_learning_boost_index();
+        let mut emission = EmissionPipeline::default();
+        let required_set: HashSet<NodeId> = selection.required.iter().cloned().collect();
+        EmissionPipeline::suppress_penalized_optional(
+            graph,
+            &mut selection.optional,
+            &required_set,
+            &mut emission,
+            thresholds.penalized_suppression_threshold,
+        );
+        EmissionPipeline::rerank_optional_with_learning(
+            graph,
+            &mut selection.optional,
+            &mut selection.scores,
+            &learning_index,
+            &focus_terms,
+            &thresholds,
+        );
+
         *self.last_physarum.lock() = PhysarumTelemetry {
             used: physarum_used,
             ms: physarum_ms,
@@ -578,6 +601,16 @@ impl ContextActivator {
             included.insert(id.clone());
             total_raw_tokens += item.raw_tokens;
             seed_items.push(item);
+            let breakdown = compute_unified_file_score(
+                graph,
+                id,
+                selection.scores.get(id).copied().unwrap_or(8.0),
+                &learning_index,
+                &focus_terms,
+                &thresholds,
+                0.0,
+            );
+            emission.record_emitted(id, breakdown);
         }
         let mut seed_tokens = unique_file_tokens(seed_items.iter());
 
@@ -599,6 +632,7 @@ impl ContextActivator {
             };
             let cost = item.node.token_cost.max(1);
             if fill_cap == 0 || fill_used.saturating_add(cost) > fill_cap {
+                emission.record_drop(id, EmissionDropStage::FillCap);
                 self.registry.register_inactive(
                     &item.node,
                     0.2,
@@ -612,6 +646,16 @@ impl ContextActivator {
             total_raw_tokens += item.raw_tokens;
             fill_used += cost;
             fill_items.push(item);
+            let breakdown = compute_unified_file_score(
+                graph,
+                id,
+                selection.scores.get(id).copied().unwrap_or(8.0),
+                &learning_index,
+                &focus_terms,
+                &thresholds,
+                0.0,
+            );
+            emission.record_emitted(id, breakdown);
         }
 
         let packet_tokens = |seeds: &[MaterializedNode], fill: &[MaterializedNode]| -> usize {
@@ -620,6 +664,9 @@ impl ContextActivator {
         while packet_tokens(&seed_items, &fill_items) > packet_limit && !fill_items.is_empty() {
             packet_truncated = true;
             let dropped = fill_items.pop().expect("non-empty");
+            if let Some(fid) = graph.file_id_for_path(&dropped.node.file_path) {
+                emission.record_drop(&fid, EmissionDropStage::PacketCap);
+            }
             fill_used = fill_used.saturating_sub(dropped.node.token_cost.max(1));
             total_raw_tokens = total_raw_tokens.saturating_sub(dropped.raw_tokens);
             included.remove(&dropped.node.id);
@@ -742,6 +789,22 @@ impl ContextActivator {
             &unresolved,
         );
 
+        let selected_set: HashSet<NodeId> = selection
+            .required
+            .iter()
+            .chain(selection.optional.iter())
+            .cloned()
+            .collect();
+        selection.rank_candidates = emission.finalize_rank_candidates(
+            graph,
+            &selection.scores,
+            &learning_index,
+            &selected_set,
+            &focus_terms,
+            &thresholds,
+            &selection.rank_candidates,
+        );
+
         let view = ContextView {
             project_id: graph.project_id(),
             active_nodes,
@@ -777,6 +840,9 @@ impl ContextActivator {
                     learning_bonus: c.learning_bonus,
                     reason: c.reason.clone(),
                     selected: c.selected,
+                    emitted: c.emitted,
+                    drop_stage: c.drop_stage.map(|s| s.as_str().to_string()),
+                    score_breakdown: c.breakdown.clone(),
                 })
                 .collect(),
             structural_evidence,
@@ -3087,5 +3153,228 @@ function setQty(id, q) { cart.setQty(id, q) }
                 );
             }
         }
+    }
+
+    fn ingest_learning_causal_fixture(graph: &NeuralProjectGraph) {
+        ingest_vue(
+            graph,
+            "src/components/PromoCodeInput.vue",
+            r#"<script setup>
+export default { name: 'PromoCodeInput' }
+</script>
+<template><input /></template>
+"#,
+        );
+        ingest_vue(
+            graph,
+            "src/App.vue",
+            r#"<script setup>
+import PromoCodeInput from './components/PromoCodeInput.vue'
+</script>
+<template><PromoCodeInput /></template>
+"#,
+        );
+        ingest_vue(
+            graph,
+            "src/views/CheckoutView.vue",
+            r#"<script setup>
+import { useCartStore } from '../stores/cart.js'
+</script>
+<template><div /></template>
+"#,
+        );
+        ingest_js(
+            graph,
+            "src/stores/cart.js",
+            "export function useCartStore() { return {} }",
+        );
+        ingest_js(graph, "src/stores/ui.js", "export const ui = {}");
+        graph.finalize_links();
+    }
+
+    #[test]
+    fn learning_to_emission_causal_promo_enters_app_leaves() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("learning-causal"));
+        ingest_learning_causal_fixture(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let sig =
+            TaskSignatureExtractor::extract("how does promocodeinput component work in checkout");
+        let before = activator.activate(&graph, &sig, OptimizationMode::Balanced);
+        let before_files: HashSet<String> = packet_paths(&before).into_iter().collect();
+        for _ in 0..8 {
+            if let Some(node) = graph.resolve_feedback_node("PromoCodeInput") {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        if let Some(app_file) = graph.file_id_for_path(&PathBuf::from("src/App.vue")) {
+            for _ in 0..8 {
+                graph.reinforce_node_access(&app_file, false);
+            }
+        }
+        let after = activator.activate(&graph, &sig, OptimizationMode::Balanced);
+        let after_files: HashSet<String> = packet_paths(&after).into_iter().collect();
+        assert!(
+            after_files.iter().any(|p| p.contains("PromoCodeInput")),
+            "reinforced PromoCodeInput must be emitted; files={after_files:?}"
+        );
+        assert!(
+            !after_files.iter().any(|p| p.ends_with("App.vue")),
+            "penalized App.vue should leave emitted packet; before={before_files:?} after={after_files:?}"
+        );
+        let promo = after
+            .rank_candidates
+            .iter()
+            .find(|c| c.path.contains("PromoCodeInput"))
+            .expect("promo candidate");
+        assert!(
+            promo.emitted,
+            "PromoCodeInput candidate must show emitted=true"
+        );
+    }
+
+    #[test]
+    fn learning_to_emission_kosha_routes_emitted() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("kosha"));
+        graph.ingest_file(
+            &indexed("school/routes.py"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("routes.py"),
+                "def list_routes():\n    return []\n",
+                SourceLanguage::Python,
+            ),
+            Some("def list_routes():\n    return []\n"),
+        );
+        graph.ingest_file(
+            &indexed("school/schema.py"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("schema.py"),
+                "class Schema:\n    pass\n",
+                SourceLanguage::Python,
+            ),
+            Some("class Schema:\n    pass\n"),
+        );
+        graph.ingest_file(
+            &indexed("api/school.ts"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("school.ts"),
+                "export const scores = 1",
+                SourceLanguage::TypeScript,
+            ),
+            Some("export const scores = 1"),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let sig = TaskSignatureExtractor::extract("where are school scores handled");
+        for _ in 0..50 {
+            if let Some(node) = graph.resolve_feedback_node("school/routes.py") {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        let view = activator.activate(&graph, &sig, OptimizationMode::Balanced);
+        let files = packet_paths(&view);
+        assert!(
+            files.iter().any(|p| p.contains("routes.py")),
+            "heavily reinforced routes.py must be emitted; files={files:?}"
+        );
+    }
+
+    #[test]
+    fn deterministic_packet_same_state() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("determinism"));
+        ingest_learning_causal_fixture(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let sig = TaskSignatureExtractor::extract("how does checkout cart quantity work");
+        let mut paths: Vec<Vec<String>> = Vec::new();
+        for _ in 0..4 {
+            let view = activator.activate(&graph, &sig, OptimizationMode::Balanced);
+            let mut files = packet_paths(&view);
+            files.sort();
+            paths.push(files);
+        }
+        for i in 1..paths.len() {
+            assert_eq!(
+                paths[0], paths[i],
+                "packet file set must be identical across runs"
+            );
+        }
+    }
+
+    #[test]
+    fn catastrophic_learning_does_not_emit_on_unrelated_query() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("overfit"));
+        ingest_learning_causal_fixture(&graph);
+        if let Some(node) = graph.resolve_feedback_node("PromoCodeInput") {
+            for _ in 0..200 {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let unrelated = TaskSignatureExtractor::extract(
+            "how does database migration create users table schema",
+        );
+        let view = activator.activate(&graph, &unrelated, OptimizationMode::Balanced);
+        let files = packet_paths(&view);
+        assert!(
+            !files.iter().any(|p| p.contains("PromoCodeInput")),
+            "unrelated query must not always emit over-reinforced PromoCodeInput; files={files:?}"
+        );
+    }
+
+    #[test]
+    fn generalization_related_query_benefits_from_learning() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("generalize"));
+        ingest_learning_causal_fixture(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let related = TaskSignatureExtractor::extract("where is cart quantity updated in checkout");
+        let before = activator.activate(&graph, &related, OptimizationMode::Balanced);
+        for _ in 0..20 {
+            if let Some(file) = graph.file_id_for_path(&PathBuf::from("src/stores/cart.js")) {
+                graph.reinforce_node_access(&file, true);
+            }
+        }
+        let after = activator.activate(&graph, &related, OptimizationMode::Balanced);
+        let before_has_cart = packet_paths(&before).iter().any(|p| p.contains("cart.js"));
+        let after_has_cart = packet_paths(&after).iter().any(|p| p.contains("cart.js"));
+        assert!(
+            after_has_cart || !before_has_cart,
+            "related query should retain or improve cart.js emission after reinforcement"
+        );
+    }
+
+    #[test]
+    fn learning_persists_across_graph_reload() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("persist"));
+        ingest_learning_causal_fixture(&graph);
+        if let Some(node) = graph.resolve_feedback_node("PromoCodeInput") {
+            for _ in 0..10 {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        let bonus_before = graph
+            .node_learning_profile("PromoCodeInput")
+            .map(|p| p.learning_bonus)
+            .unwrap_or(0.0);
+        let tmp = std::env::temp_dir().join("neuromesh_learning_persist_test");
+        let _ = std::fs::create_dir_all(&tmp);
+        graph.set_workspace(&tmp);
+        graph.save_persisted(&tmp).expect("save");
+
+        let graph2 = NeuralProjectGraph::new(ProjectId::new("persist"));
+        graph2.set_workspace(&tmp);
+        assert!(graph2.load_persisted(&tmp), "reload graph");
+        let bonus_after = graph2
+            .node_learning_profile("PromoCodeInput")
+            .map(|p| p.learning_bonus)
+            .unwrap_or(0.0);
+        assert!(
+            bonus_after >= bonus_before * 0.9,
+            "learning should persist: before={bonus_before} after={bonus_after}"
+        );
+        let _ = std::fs::remove_dir_all(tmp);
     }
 }

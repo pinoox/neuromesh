@@ -4,6 +4,26 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.15 — 2026-08-28
+
+Adaptive context routing: learning now drives emission with full observability and benchmark harness.
+
+- **Emission pipeline.** `EmissionPipeline` tracks `emitted` / `drop_stage` per file through filters, penalized suppression, learning rerank, fill cap, and packet cap. `rank_candidates` refreshed after materialization.
+- **Unified score.** `compute_unified_file_score` merges utility, semantic, graph, learned (focus-aware + decay), pheromone, and penalty into `ContextScoreBreakdown`.
+- **Explainability.** `RankCandidateView` adds `emitted`, `drop_stage`, `score_breakdown` for `explain_packet` diagnostics.
+- **Configurable thresholds.** `penalized_suppression_threshold`, `learning_relevance_cap_unrelated`, `learning_decay_half_life_days`, `max_learned_influence`.
+- **Learning eval.** `neuromesh eval --learning` dose-response sweep; `learning_eval` module with MRR, NDCG@K, Learning Gain, Emission Gain.
+- **CI tests.** `LearningToEmissionCausalTest` (T5 + Kosha), determinism (4-run identical), catastrophic learning on unrelated queries, generalization, persistence reload.
+- **Fixture.** `tests/fixtures/learning-causal/` for reinforcement benchmarks.
+
+Complete the learning→emission loop and close v4 mini decoy gaps from benchmark reports.
+
+- **Emission.** `promote_high_learning_into_emitted` swaps high-bonus learned files into the emitted optional set (displaces low-utility slots). Heavily reinforced files bypass per-crate caps (`learning_bonus ≥ 28`).
+- **Feedback semantics.** `access_count` increments only on successful reinforcement; `node_learning_bonus` applies a demerit when `base_relevance < 1.0`. Penalized files show `penalized:` reasons in `selection.candidates`.
+- **Seed demotion.** `file_min_base_relevance` demotes seeds when any symbol on the path is penalized (not only the file node).
+- **v4/mini decoy.** `is_alt_surface_path` penalizes `mini` / `lite` / `slim` / `light` paths in activation scoring and decoy filters; mini-schema gold tasks forbid `v4/mini/schemas.ts`.
+- **Tests.** Negative-feedback bonus regression, routes.py emission after saturation, alt-surface scoring.
+
 ## 0.7.11 — 2026-08-28
 
 Learning weights now change `get_context` packet selection, not just persisted graph state.
