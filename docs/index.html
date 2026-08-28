@@ -9,1299 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    /* ── GitHub Primer-inspired tokens ── */
-    :root {
-      --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
-      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-
-      --canvas-default: #0d1117;
-      --canvas-subtle: #010409;
-      --canvas-overlay: #161b22;
-      --canvas-inset: #010409;
-      --border-default: #30363d;
-      --border-muted: #21262d;
-      --fg-default: #f0f6fc;
-      --fg-muted: #8b949e;
-      --fg-subtle: #6e7681;
-      --accent-fg: #58a6ff;
-      --accent-emphasis: #1f6feb;
-      --success-fg: #3fb950;
-      --success-emphasis: #238636;
-      --success-muted: rgba(46, 160, 67, 0.15);
-      --purple-fg: #bc8cff;
-      --purple-muted: rgba(188, 140, 255, 0.12);
-      --danger-fg: #f85149;
-      --attention-fg: #d29922;
-      --shadow: 0 8px 24px rgba(1, 4, 9, 0.5);
-      --shadow-lg: 0 16px 48px rgba(1, 4, 9, 0.65);
-      --radius: 12px;
-      --radius-lg: 16px;
-      --header-h: 64px;
-      --max-w: 1200px;
-      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-      --slime-core: #56d364;
-      --slime-glow: #3fb950;
-      --slime-tube: rgba(86, 211, 100, 0.55);
-      --slime-pulse: rgba(63, 185, 80, 0.25);
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-h) + 24px); }
-
-    body {
-      font-family: var(--font-sans);
-      background: var(--canvas-default);
-      color: var(--fg-default);
-      line-height: 1.6;
-      overflow-x: hidden;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* ── Animated mesh background ── */
-    .bg-mesh {
-      position: fixed;
-      inset: 0;
-      z-index: -2;
-      background:
-        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(31, 111, 235, 0.18), transparent),
-        radial-gradient(ellipse 60% 40% at 100% 0%, rgba(46, 160, 67, 0.12), transparent),
-        radial-gradient(ellipse 50% 30% at 0% 100%, rgba(188, 140, 255, 0.08), transparent),
-        var(--canvas-default);
-    }
-
-    .bg-grid {
-      position: fixed;
-      inset: 0;
-      z-index: -1;
-      opacity: 0.35;
-      background-image:
-        linear-gradient(rgba(48, 54, 61, 0.4) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(48, 54, 61, 0.4) 1px, transparent 1px);
-      background-size: 64px 64px;
-      mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 20%, transparent 70%);
-      animation: gridDrift 40s linear infinite;
-    }
-
-    @keyframes gridDrift {
-      0% { transform: translate(0, 0); }
-      100% { transform: translate(64px, 64px); }
-    }
-
-    .orb {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(80px);
-      pointer-events: none;
-      z-index: -1;
-      animation: orbFloat 20s ease-in-out infinite;
-    }
-    .orb-1 { width: 400px; height: 400px; background: rgba(31, 111, 235, 0.15); top: -100px; right: -100px; }
-    .orb-2 { width: 300px; height: 300px; background: rgba(46, 160, 67, 0.12); bottom: 20%; left: -80px; animation-delay: -7s; }
-    .orb-3 { width: 250px; height: 250px; background: rgba(188, 140, 255, 0.1); top: 40%; right: 10%; animation-delay: -14s; }
-
-    @keyframes orbFloat {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      33% { transform: translate(30px, -20px) scale(1.05); }
-      66% { transform: translate(-20px, 30px) scale(0.95); }
-    }
-
-    /* ── Header ── */
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      height: var(--header-h);
-      display: flex;
-      align-items: center;
-      border-bottom: 1px solid var(--border-muted);
-      background: rgba(13, 17, 23, 0.85);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-
-    .header-inner {
-      width: min(var(--max-w), 100% - 48px);
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-      color: var(--fg-default);
-      font-weight: 700;
-      font-size: 1.05rem;
-    }
-
-    .logo-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: rgba(13, 17, 23, 0.9);
-      border: 1px solid rgba(63, 185, 80, 0.4);
-      display: grid;
-      place-items: center;
-      box-shadow: 0 0 16px rgba(63, 185, 80, 0.25);
-      overflow: hidden;
-      position: relative;
-    }
-
-    .logo-icon canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
-    nav ul {
-      display: flex;
-      gap: 4px;
-      list-style: none;
-    }
-
-    nav a {
-      color: var(--fg-muted);
-      text-decoration: none;
-      font-size: 0.875rem;
-      font-weight: 500;
-      padding: 8px 12px;
-      border-radius: 8px;
-      transition: color 0.2s, background 0.2s;
-    }
-
-    nav a:hover { color: var(--fg-default); background: var(--canvas-overlay); }
-
-    .header-actions { display: flex; gap: 8px; align-items: center; }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 0.875rem;
-      font-weight: 600;
-      text-decoration: none;
-      border: 1px solid transparent;
-      cursor: pointer;
-      transition: all 0.2s var(--ease-out);
-      font-family: inherit;
-      white-space: nowrap;
-    }
-
-    .btn-primary {
-      background: var(--success-emphasis);
-      color: #fff;
-      border-color: rgba(240, 246, 252, 0.1);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset;
-    }
-    .btn-primary:hover {
-      background: #2ea043;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(46, 160, 67, 0.35);
-    }
-
-    .btn-secondary {
-      background: var(--canvas-overlay);
-      color: var(--fg-default);
-      border-color: var(--border-default);
-    }
-    .btn-secondary:hover {
-      border-color: var(--fg-subtle);
-      background: #21262d;
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--fg-muted);
-      border-color: var(--border-default);
-    }
-    .btn-ghost:hover { color: var(--fg-default); border-color: var(--fg-subtle); }
-
-    /* ── Layout ── */
-    main { padding-bottom: 80px; }
-    section { padding: 96px 24px; }
-    .container { width: min(var(--max-w), 100%); margin: 0 auto; }
-
-    .section-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--success-fg);
-      margin-bottom: 16px;
-    }
-
-    .section-label::before {
-      content: '';
-      width: 24px;
-      height: 2px;
-      background: var(--success-fg);
-      border-radius: 1px;
-    }
-
-    h1, h2, h3 { line-height: 1.25; letter-spacing: -0.02em; }
-    h2 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 800; margin-bottom: 16px; }
-    h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 8px; }
-
-    .lead {
-      font-size: clamp(1rem, 2vw, 1.25rem);
-      color: var(--fg-muted);
-      max-width: 640px;
-    }
-
-    /* ── Reveal animations ── */
-    .reveal {
-      opacity: 0;
-      transform: translateY(32px);
-      transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
-    }
-    .reveal.visible { opacity: 1; transform: translateY(0); }
-    .reveal-delay-1 { transition-delay: 0.1s; }
-    .reveal-delay-2 { transition-delay: 0.2s; }
-    .reveal-delay-3 { transition-delay: 0.3s; }
-
-    /* ── Slime hero banner ── */
-    .hero {
-      padding: 0 0 80px;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-      min-height: 720px;
-    }
-
-    .hero-slime-wrap {
-      position: relative;
-      width: 100%;
-      height: clamp(340px, 52vw, 520px);
-      margin-bottom: -60px;
-    }
-
-    #slime-canvas {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
-    .hero-slime-overlay {
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(180deg, rgba(13, 17, 23, 0.15) 0%, rgba(13, 17, 23, 0.55) 55%, var(--canvas-default) 100%),
-        radial-gradient(ellipse 50% 40% at 50% 50%, transparent 0%, rgba(13, 17, 23, 0.4) 100%);
-      pointer-events: none;
-    }
-
-    .hero-slime-panels {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      grid-template-columns: 1fr 1.2fr 1fr;
-      align-items: center;
-      gap: 12px;
-      padding: 24px clamp(12px, 4vw, 48px);
-      pointer-events: none;
-      z-index: 2;
-    }
-
-    @media (max-width: 900px) {
-      .hero-slime-panels {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto auto auto;
-        align-content: center;
-        gap: 10px;
-        padding-top: 40px;
-      }
-      .hero-slime-wrap { height: clamp(480px, 70vw, 620px); margin-bottom: -40px; }
-    }
-
-    .slime-panel {
-      background: rgba(13, 17, 23, 0.72);
-      border: 1px solid rgba(63, 185, 80, 0.35);
-      border-radius: var(--radius);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      padding: 14px 16px;
-      text-align: left;
-      box-shadow: 0 0 30px rgba(63, 185, 80, 0.08), inset 0 1px 0 rgba(255,255,255,0.04);
-      animation: panelFloat 6s ease-in-out infinite;
-      pointer-events: auto;
-      max-width: 280px;
-      justify-self: center;
-    }
-
-    .slime-panel:nth-child(1) { animation-delay: 0s; justify-self: start; }
-    .slime-panel:nth-child(2) { animation-delay: -2s; justify-self: center; max-width: 300px; }
-    .slime-panel:nth-child(3) { animation-delay: -4s; justify-self: end; }
-
-    @media (max-width: 900px) {
-      .slime-panel, .slime-panel:nth-child(n) { justify-self: center; max-width: 92%; }
-    }
-
-    @keyframes panelFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-6px); }
-    }
-
-    .slime-panel-label {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.6875rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--slime-glow);
-      margin-bottom: 10px;
-    }
-
-    .slime-panel-label .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--slime-core);
-      box-shadow: 0 0 10px var(--slime-core);
-      animation: pulse 2s ease infinite;
-    }
-
-    /* Graph mini viz */
-    .mini-graph {
-      position: relative;
-      height: 88px;
-    }
-
-    .mini-graph svg { width: 100%; height: 100%; }
-
-    .graph-node {
-      fill: var(--canvas-overlay);
-      stroke: var(--slime-glow);
-      stroke-width: 1.5;
-      animation: nodePulse 3s ease-in-out infinite;
-    }
-
-    .graph-node.seed { fill: rgba(63, 185, 80, 0.2); stroke: var(--slime-core); stroke-width: 2; }
-
-    @keyframes nodePulse {
-      0%, 100% { filter: drop-shadow(0 0 2px rgba(63,185,80,0.3)); }
-      50% { filter: drop-shadow(0 0 8px rgba(86,211,100,0.7)); }
-    }
-
-    .graph-tube {
-      fill: none;
-      stroke: url(#tubeGrad);
-      stroke-width: 2.5;
-      stroke-linecap: round;
-      stroke-dasharray: 120;
-      stroke-dashoffset: 120;
-      animation: tubeGrow 4s ease-in-out infinite;
-    }
-
-    .graph-tube.t2 { animation-delay: 0.8s; }
-    .graph-tube.t3 { animation-delay: 1.6s; }
-
-    @keyframes tubeGrow {
-      0% { stroke-dashoffset: 120; opacity: 0.3; }
-      40%, 70% { stroke-dashoffset: 0; opacity: 1; }
-      100% { stroke-dashoffset: -40; opacity: 0.5; }
-    }
-
-    /* Code mini viz */
-    .mini-code {
-      font-family: var(--font-mono);
-      font-size: 0.6875rem;
-      line-height: 1.65;
-      color: var(--fg-muted);
-    }
-
-    .mini-code .expressed { color: #d2a8ff; }
-    .mini-code .folded {
-      display: block;
-      color: var(--attention-fg);
-      background: rgba(210, 153, 34, 0.12);
-      border-left: 2px solid var(--attention-fg);
-      padding: 2px 6px;
-      margin: 4px 0;
-      border-radius: 0 4px 4px 0;
-      animation: foldShrink 5s ease-in-out infinite;
-    }
-
-    @keyframes foldShrink {
-      0%, 30% { max-height: 60px; opacity: 1; }
-      50%, 80% { max-height: 18px; opacity: 0.85; overflow: hidden; }
-      100% { max-height: 60px; opacity: 1; }
-    }
-
-    /* Engine mini viz */
-    .mini-engine {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .engine-step {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.6875rem;
-      color: var(--fg-muted);
-      opacity: 0.45;
-      transition: opacity 0.4s, color 0.4s;
-    }
-
-    .engine-step.active {
-      opacity: 1;
-      color: var(--fg-default);
-    }
-
-    .engine-step.active .engine-bar {
-      background: linear-gradient(90deg, var(--slime-emphasis, var(--success-emphasis)), var(--slime-core));
-      box-shadow: 0 0 12px rgba(63, 185, 80, 0.4);
-    }
-
-    .engine-bar {
-      flex: 1;
-      height: 4px;
-      border-radius: 2px;
-      background: var(--border-default);
-      overflow: hidden;
-      position: relative;
-    }
-
-    .engine-bar::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-      transform: translateX(-100%);
-      animation: shimmer 2s ease infinite;
-    }
-
-    .engine-step.active .engine-bar::after { animation-play-state: running; }
-
-    @keyframes shimmer {
-      100% { transform: translateX(100%); }
-    }
-
-    .engine-tag {
-      font-family: var(--font-mono);
-      font-size: 0.625rem;
-      color: var(--slime-glow);
-      min-width: 72px;
-    }
-
-    .hero-content {
-      position: relative;
-      z-index: 3;
-      padding: 0 24px;
-    }
-
-    .hero-slime-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--slime-core);
-      background: rgba(63, 185, 80, 0.1);
-      border: 1px solid rgba(63, 185, 80, 0.3);
-      margin-bottom: 20px;
-    }
-
-    .hero-slime-tag svg { animation: wobble 4s ease-in-out infinite; }
-
-    @keyframes wobble {
-      0%, 100% { transform: rotate(0deg) scale(1); }
-      25% { transform: rotate(-8deg) scale(1.05); }
-      75% { transform: rotate(8deg) scale(0.95); }
-    }
-
-    .hero-badge-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
-      margin-bottom: 32px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 500;
-      border: 1px solid var(--border-default);
-      background: var(--canvas-overlay);
-      color: var(--fg-muted);
-      text-decoration: none;
-      transition: border-color 0.2s, transform 0.2s;
-    }
-    .badge:hover { border-color: var(--fg-subtle); transform: translateY(-1px); }
-    .badge-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .badge-dot.green { background: var(--success-fg); box-shadow: 0 0 8px var(--success-fg); animation: pulse 2s ease infinite; }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    .hero h1 {
-      font-size: clamp(2.5rem, 7vw, 4.5rem);
-      font-weight: 800;
-      margin-bottom: 8px;
-      background: linear-gradient(135deg, var(--fg-default) 0%, var(--fg-muted) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero-tagline {
-      font-size: clamp(1.125rem, 3vw, 1.5rem);
-      color: var(--accent-fg);
-      font-weight: 600;
-      margin-bottom: 24px;
-      min-height: 1.5em;
-    }
-
-    .hero-tagline .cursor {
-      display: inline-block;
-      width: 2px;
-      height: 1em;
-      background: var(--accent-fg);
-      margin-left: 2px;
-      vertical-align: text-bottom;
-      animation: blink 1s step-end infinite;
-    }
-
-    @keyframes blink { 50% { opacity: 0; } }
-
-    .hero-desc {
-      font-size: 1.125rem;
-      color: var(--fg-muted);
-      max-width: 720px;
-      margin: 0 auto 40px;
-      line-height: 1.7;
-    }
-
-    .hero-desc strong { color: var(--fg-default); font-weight: 600; }
-
-    .hero-cta {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 12px;
-      margin-bottom: 48px;
-    }
-
-    .hero-clients {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px 16px;
-      font-size: 0.8125rem;
-      color: var(--fg-subtle);
-    }
-
-    .hero-clients span { color: var(--fg-muted); }
-
-    /* ── DNA fold visual ── */
-    .fold-demo {
-      max-width: 720px;
-      margin: 0 auto;
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-lg);
-      background: var(--canvas-overlay);
-      overflow: hidden;
-      box-shadow: var(--shadow-lg);
-    }
-
-    .fold-demo-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 16px;
-      background: var(--canvas-inset);
-      border-bottom: 1px solid var(--border-muted);
-      font-size: 0.8125rem;
-      color: var(--fg-muted);
-    }
-
-    .window-dots { display: flex; gap: 6px; }
-    .window-dots span {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: var(--border-default);
-    }
-    .window-dots span:nth-child(1) { background: #f85149; }
-    .window-dots span:nth-child(2) { background: #d29922; }
-    .window-dots span:nth-child(3) { background: #3fb950; }
-
-    .fold-demo-body {
-      padding: 20px 24px;
-      font-family: var(--font-mono);
-      font-size: 0.8125rem;
-      line-height: 1.8;
-      text-align: left;
-    }
-
-    .code-line { display: block; opacity: 0; transform: translateX(-8px); }
-    .code-line.visible { animation: codeIn 0.4s var(--ease-out) forwards; }
-
-    @keyframes codeIn {
-      to { opacity: 1; transform: translateX(0); }
-    }
-
-    .kw { color: #ff7b72; }
-    .fn { color: #d2a8ff; }
-    .str { color: #a5d6ff; }
-    .cm { color: var(--fg-subtle); }
-    .fold-marker {
-      color: var(--attention-fg);
-      background: rgba(210, 153, 34, 0.1);
-      padding: 2px 6px;
-      border-radius: 4px;
-      border-left: 3px solid var(--attention-fg);
-      display: inline-block;
-      animation: foldPulse 3s ease-in-out infinite;
-    }
-
-    @keyframes foldPulse {
-      0%, 100% { box-shadow: 0 0 0 rgba(210, 153, 34, 0); }
-      50% { box-shadow: 0 0 16px rgba(210, 153, 34, 0.2); }
-    }
-
-    /* ── Cards grid ── */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-      margin-top: 40px;
-    }
-
-    .card {
-      background: var(--canvas-overlay);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-      padding: 24px;
-      transition: border-color 0.25s, transform 0.25s var(--ease-out), box-shadow 0.25s;
-    }
-
-    .card:hover {
-      border-color: var(--fg-subtle);
-      transform: translateY(-4px);
-      box-shadow: var(--shadow);
-    }
-
-    .card-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      display: grid;
-      place-items: center;
-      font-size: 1.25rem;
-      margin-bottom: 16px;
-    }
-
-    .card p { color: var(--fg-muted); font-size: 0.9375rem; }
-
-    .card-problem { border-left: 3px solid var(--danger-fg); }
-    .card-problem .card-icon { background: rgba(248, 81, 73, 0.12); }
-
-    /* ── Comparison table ── */
-    .table-wrap {
-      overflow-x: auto;
-      margin-top: 32px;
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-      background: var(--canvas-overlay);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.9375rem;
-    }
-
-    th, td {
-      padding: 14px 20px;
-      text-align: left;
-      border-bottom: 1px solid var(--border-muted);
-    }
-
-    th {
-      background: var(--canvas-inset);
-      color: var(--fg-muted);
-      font-weight: 600;
-      font-size: 0.8125rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: rgba(255,255,255,0.02); }
-
-    /* ── Nature mapping ── */
-    .nature-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 12px;
-      margin-top: 40px;
-    }
-
-    .nature-item {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 16px;
-      padding: 20px;
-      background: var(--canvas-overlay);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-      align-items: start;
-      transition: border-color 0.2s;
-    }
-
-    .nature-item:hover { border-color: var(--success-fg); }
-
-    .nature-emoji {
-      font-size: 1.75rem;
-      width: 48px;
-      height: 48px;
-      display: grid;
-      place-items: center;
-      background: var(--success-muted);
-      border-radius: 12px;
-    }
-
-    .nature-item h4 { font-size: 0.9375rem; font-weight: 600; margin-bottom: 4px; }
-    .nature-item .engine { color: var(--accent-fg); font-size: 0.8125rem; font-weight: 500; }
-    .nature-item p { color: var(--fg-muted); font-size: 0.875rem; margin-top: 6px; }
-
-    /* ── Gallery ── */
-    .gallery {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 20px;
-      margin-top: 40px;
-    }
-
-    .gallery-item {
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      border: 1px solid var(--border-default);
-      background: var(--canvas-overlay);
-      transition: transform 0.4s var(--ease-out), box-shadow 0.4s, border-color 0.3s;
-    }
-
-    .gallery-item:hover {
-      transform: scale(1.02);
-      box-shadow: var(--shadow-lg);
-      border-color: var(--slime-glow);
-    }
-
-    .gallery-thumb {
-      display: block;
-      width: 100%;
-      padding: 0;
-      border: none;
-      background: none;
-      cursor: zoom-in;
-      position: relative;
-      font: inherit;
-      color: inherit;
-    }
-
-    .gallery-thumb::after {
-      content: '⤢';
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: rgba(13, 17, 23, 0.75);
-      border: 1px solid var(--border-default);
-      color: var(--fg-muted);
-      display: grid;
-      place-items: center;
-      font-size: 1rem;
-      opacity: 0;
-      transform: scale(0.85);
-      transition: opacity 0.25s, transform 0.25s var(--ease-out), border-color 0.25s;
-      backdrop-filter: blur(6px);
-    }
-
-    .gallery-item:hover .gallery-thumb::after {
-      opacity: 1;
-      transform: scale(1);
-      border-color: var(--slime-glow);
-      color: var(--slime-core);
-    }
-
-    .gallery-item img {
-      width: 100%;
-      height: 220px;
-      object-fit: cover;
-      display: block;
-      transition: transform 0.6s var(--ease-out);
-    }
-
-    .gallery-item:hover img { transform: scale(1.05); }
-
-    .gallery-caption {
-      padding: 14px 16px;
-      font-size: 0.8125rem;
-      color: var(--fg-muted);
-      border-top: 1px solid var(--border-muted);
-    }
-
-    /* ── Lightbox ── */
-    .lightbox {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: rgba(1, 4, 9, 0.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.35s var(--ease-out), visibility 0.35s;
-    }
-
-    .lightbox.open {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .lightbox-inner {
-      position: relative;
-      max-width: min(1100px, 100%);
-      max-height: calc(100vh - 80px);
-      transform: scale(0.92);
-      transition: transform 0.4s var(--ease-out);
-    }
-
-    .lightbox.open .lightbox-inner { transform: scale(1); }
-
-    .lightbox-img {
-      display: block;
-      max-width: 100%;
-      max-height: calc(100vh - 120px);
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--shadow-lg);
-      object-fit: contain;
-    }
-
-    .lightbox-caption {
-      text-align: center;
-      margin-top: 16px;
-      color: var(--fg-muted);
-      font-size: 0.9375rem;
-    }
-
-    .lightbox-close,
-    .lightbox-nav {
-      position: absolute;
-      border: 1px solid var(--border-default);
-      background: rgba(22, 27, 34, 0.9);
-      color: var(--fg-default);
-      cursor: pointer;
-      border-radius: 10px;
-      display: grid;
-      place-items: center;
-      transition: border-color 0.2s, background 0.2s, transform 0.2s;
-      font-family: inherit;
-    }
-
-    .lightbox-close:hover,
-    .lightbox-nav:hover {
-      border-color: var(--slime-glow);
-      background: rgba(63, 185, 80, 0.15);
-    }
-
-    .lightbox-close {
-      top: -48px;
-      right: 0;
-      width: 40px;
-      height: 40px;
-      font-size: 1.5rem;
-      line-height: 1;
-    }
-
-    .lightbox-nav {
-      top: 50%;
-      transform: translateY(-50%);
-      width: 44px;
-      height: 44px;
-      font-size: 1.25rem;
-    }
-
-    .lightbox-nav.prev { left: -56px; }
-    .lightbox-nav.next { right: -56px; }
-
-    @media (max-width: 768px) {
-      .lightbox-nav.prev { left: 8px; }
-      .lightbox-nav.next { right: 8px; }
-      .lightbox-close { top: 8px; right: 8px; }
-    }
-
-    /* ── Flow pipeline ── */
-    .pipeline {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
-      margin-top: 48px;
-      position: relative;
-    }
-
-    .pipe-step {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      padding: 16px 20px;
-      background: var(--canvas-overlay);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-      min-width: 110px;
-      opacity: 0;
-      transform: scale(0.9);
-      transition: all 0.5s var(--ease-out);
-    }
-
-    .pipe-step.visible {
-      opacity: 1;
-      transform: scale(1);
-    }
-
-    .pipe-step.active {
-      border-color: var(--success-fg);
-      box-shadow: 0 0 24px rgba(63, 185, 80, 0.15);
-    }
-
-    .pipe-num {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--success-muted);
-      color: var(--success-fg);
-      font-size: 0.75rem;
-      font-weight: 700;
-      display: grid;
-      place-items: center;
-    }
-
-    .pipe-label { font-size: 0.8125rem; font-weight: 600; text-align: center; }
-
-    .pipe-arrow {
-      display: flex;
-      align-items: center;
-      color: var(--fg-subtle);
-      font-size: 1.25rem;
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .pipe-arrow.visible { opacity: 1; }
-
-    /* ── Modes ── */
-    .mode-cards {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-top: 32px;
-    }
-
-    @media (max-width: 768px) {
-      .mode-cards { grid-template-columns: 1fr; }
-      nav ul { display: none; }
-    }
-
-    .mode-card {
-      padding: 24px;
-      border-radius: var(--radius);
-      border: 1px solid var(--border-default);
-      background: var(--canvas-overlay);
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .mode-card.featured {
-      border-color: var(--success-fg);
-      background: linear-gradient(180deg, var(--success-muted) 0%, var(--canvas-overlay) 100%);
-    }
-
-    .mode-card .tag {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      font-size: 0.6875rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: var(--success-emphasis);
-      color: #fff;
-    }
-
-    .mode-card .tokens {
-      font-size: 2rem;
-      font-weight: 800;
-      color: var(--success-fg);
-      margin: 12px 0 4px;
-    }
-
-    .mode-card .tokens small { font-size: 0.875rem; font-weight: 500; color: var(--fg-muted); }
-
-    /* ── Install tabs ── */
-    .tabs {
-      display: flex;
-      gap: 4px;
-      margin-top: 32px;
-      border-bottom: 1px solid var(--border-muted);
-      padding-bottom: 0;
-    }
-
-    .tab-btn {
-      padding: 10px 20px;
-      background: none;
-      border: none;
-      color: var(--fg-muted);
-      font-family: inherit;
-      font-size: 0.875rem;
-      font-weight: 500;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      transition: color 0.2s, border-color 0.2s;
-    }
-
-    .tab-btn:hover { color: var(--fg-default); }
-    .tab-btn.active {
-      color: var(--fg-default);
-      border-bottom-color: var(--accent-fg);
-    }
-
-    .tab-panel { display: none; margin-top: 16px; }
-    .tab-panel.active { display: block; animation: fadeIn 0.3s ease; }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .code-block {
-      position: relative;
-      background: var(--canvas-inset);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-
-    .code-block-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 16px;
-      background: var(--canvas-overlay);
-      border-bottom: 1px solid var(--border-muted);
-      font-size: 0.75rem;
-      color: var(--fg-subtle);
-    }
-
-    .copy-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border-default);
-      background: var(--canvas-default);
-      color: var(--fg-muted);
-      font-size: 0.75rem;
-      font-family: inherit;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .copy-btn:hover { color: var(--fg-default); border-color: var(--fg-subtle); }
-    .copy-btn.copied { color: var(--success-fg); border-color: var(--success-fg); }
-
-    .code-block pre {
-      padding: 20px;
-      overflow-x: auto;
-      font-family: var(--font-mono);
-      font-size: 0.8125rem;
-      line-height: 1.7;
-      color: var(--fg-default);
-    }
-
-    /* ── Stats counter ── */
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 16px;
-      margin-top: 40px;
-    }
-
-    .stat-box {
-      text-align: center;
-      padding: 28px 16px;
-      background: var(--canvas-overlay);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-    }
-
-    .stat-value {
-      font-size: 2.25rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--success-fg), var(--accent-fg));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .stat-label {
-      font-size: 0.8125rem;
-      color: var(--fg-muted);
-      margin-top: 4px;
-    }
-
-    /* ── Tools grid ── */
-    .tools-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 12px;
-      margin-top: 32px;
-    }
-
-    .tool-item {
-      padding: 16px;
-      background: var(--canvas-overlay);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-      transition: border-color 0.2s, background 0.2s;
-    }
-
-    .tool-item:hover {
-      border-color: var(--purple-fg);
-      background: var(--purple-muted);
-    }
-
-    .tool-name {
-      font-family: var(--font-mono);
-      font-size: 0.8125rem;
-      color: var(--purple-fg);
-      font-weight: 500;
-      margin-bottom: 6px;
-    }
-
-    .tool-desc { font-size: 0.8125rem; color: var(--fg-muted); }
-
-    /* ── Clients grid ── */
-    .clients-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 8px;
-      margin-top: 24px;
-    }
-
-    .client-chip {
-      padding: 10px 14px;
-      background: var(--canvas-overlay);
-      border: 1px solid var(--border-default);
-      border-radius: 8px;
-      font-size: 0.8125rem;
-      color: var(--fg-muted);
-      transition: border-color 0.2s;
-    }
-
-    .client-chip:hover { border-color: var(--accent-fg); color: var(--fg-default); }
-    .client-chip code { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-subtle); }
-
-    /* ── Docs links ── */
-    .docs-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 12px;
-      margin-top: 32px;
-    }
-
-    .doc-link {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 16px 20px;
-      background: var(--canvas-overlay);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius);
-      text-decoration: none;
-      color: var(--fg-default);
-      transition: all 0.25s var(--ease-out);
-    }
-
-    .doc-link:hover {
-      border-color: var(--accent-fg);
-      transform: translateX(4px);
-      box-shadow: var(--shadow);
-    }
-
-    .doc-link span:first-child { font-size: 1.25rem; }
-    .doc-link .doc-title { font-weight: 600; font-size: 0.9375rem; }
-    .doc-link .doc-sub { font-size: 0.8125rem; color: var(--fg-muted); }
-
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border-muted);
-      padding: 48px 24px;
-      text-align: center;
-      color: var(--fg-subtle);
-      font-size: 0.875rem;
-    }
-
-    footer a { color: var(--accent-fg); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-
-    .footer-links {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 24px;
-      margin-bottom: 16px;
-    }
-
-    /* ── Quote block ── */
-    .quote {
-      margin-top: 32px;
-      padding: 24px 28px;
-      border-left: 4px solid var(--success-fg);
-      background: var(--success-muted);
-      border-radius: 0 var(--radius) var(--radius) 0;
-      font-size: 1.0625rem;
-      color: var(--fg-muted);
-      font-style: italic;
-    }
-
-    .quote strong { color: var(--fg-default); font-style: normal; }
-  </style>
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
   <div class="bg-mesh"></div>
@@ -1321,6 +29,7 @@
           <li><a href="#pain">The pain</a></li>
           <li><a href="#fold">Fold</a></li>
           <li><a href="#galaxy">Galaxy</a></li>
+          <li><a href="#learning">Learning</a></li>
           <li><a href="#install">Install</a></li>
           <li><a href="#connect">Connect</a></li>
           <li><a href="#tools">Tools</a></li>
@@ -1616,22 +325,135 @@
         <h2 class="reveal">How a turn actually goes</h2>
         <p class="lead reveal" style="margin: 0 auto;">Route first, then fold. Seeds are never truncated to fake a small packet.</p>
 
-        <div class="pipeline" id="pipeline">
-          <div class="pipe-step" data-step="0"><div class="pipe-num">1</div><div class="pipe-label">Prompt</div></div>
-          <div class="pipe-arrow">→</div>
-          <div class="pipe-step" data-step="1"><div class="pipe-num">2</div><div class="pipe-label">Identifiers</div></div>
-          <div class="pipe-arrow">→</div>
-          <div class="pipe-step" data-step="2"><div class="pipe-num">3</div><div class="pipe-label">Graph in RAM</div></div>
-          <div class="pipe-arrow">→</div>
-          <div class="pipe-step" data-step="3"><div class="pipe-num">4</div><div class="pipe-label">Seed files</div></div>
-          <div class="pipe-arrow">→</div>
-          <div class="pipe-step" data-step="4"><div class="pipe-num">5</div><div class="pipe-label">Physarum</div></div>
-          <div class="pipe-arrow">→</div>
-          <div class="pipe-step" data-step="5"><div class="pipe-num">6</div><div class="pipe-label">Fill + synapses</div></div>
-          <div class="pipe-arrow">→</div>
-          <div class="pipe-step" data-step="6"><div class="pipe-num">7</div><div class="pipe-label">Exon / intron</div></div>
-          <div class="pipe-arrow">→</div>
-          <div class="pipe-step" data-step="7"><div class="pipe-num">8</div><div class="pipe-label">Evidence packet</div></div>
+        <div class="pipeline-board reveal" id="pipeline">
+          <svg class="pipeline-tubes" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="pipeTubeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#238636"/>
+                <stop offset="100%" stop-color="#56d364"/>
+              </linearGradient>
+            </defs>
+            <path d="M310 60 Q500 20 690 60" opacity="0.45"/>
+            <path d="M310 60 Q500 100 690 60" opacity="0.25"/>
+          </svg>
+
+          <div class="pipeline-progress-bar">
+            <div class="pipeline-progress-fill" id="pipeline-progress"></div>
+          </div>
+
+          <div class="pipeline-phases">
+            <div class="phase-connector c1" aria-hidden="true"></div>
+            <div class="phase-connector c2" aria-hidden="true"></div>
+
+            <div class="pipeline-phase phase-read" data-phase="read">
+              <div class="phase-header">
+                <div class="phase-num">1</div>
+                <div>
+                  <div class="phase-title">Read</div>
+                  <div class="phase-sub">Task as written</div>
+                </div>
+              </div>
+              <div class="phase-steps">
+                <button type="button" class="pipe-node" data-step="0" data-phase="read">
+                  <div class="pipe-node-icon">💬</div>
+                  <div class="pipe-node-body">
+                    <div class="pipe-node-title">Prompt</div>
+                    <div class="pipe-node-key">handle_tool_call survives</div>
+                  </div>
+                </button>
+                <button type="button" class="pipe-node" data-step="1" data-phase="read">
+                  <div class="pipe-node-icon">🔍</div>
+                  <div class="pipe-node-body">
+                    <div class="pipe-node-title">Identifiers</div>
+                    <div class="pipe-node-key">symbols from task text</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div class="pipeline-phase phase-route" data-phase="route">
+              <div class="phase-header">
+                <div class="phase-num">2</div>
+                <div>
+                  <div class="phase-title">Route</div>
+                  <div class="phase-sub">Graph + Physarum</div>
+                </div>
+              </div>
+              <div class="phase-steps">
+                <button type="button" class="pipe-node" data-step="2" data-phase="route">
+                  <div class="pipe-node-icon">🕸️</div>
+                  <div class="pipe-node-body">
+                    <div class="pipe-node-title">Graph in RAM</div>
+                    <div class="pipe-node-key">Files · Calls · Imports</div>
+                  </div>
+                </button>
+                <button type="button" class="pipe-node" data-step="3" data-phase="route">
+                  <div class="pipe-node-icon">🌱</div>
+                  <div class="pipe-node-body">
+                    <div class="pipe-node-title">Seed files</div>
+                    <div class="pipe-node-key">owners of symbols</div>
+                  </div>
+                </button>
+                <button type="button" class="pipe-node" data-step="4" data-phase="route">
+                  <div class="pipe-node-icon">🦠</div>
+                  <div class="pipe-node-body">
+                    <div class="pipe-node-title">Physarum tubes</div>
+                    <div class="pipe-node-key">cheapest path &lt; 20ms</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div class="pipeline-phase phase-splice" data-phase="splice">
+              <div class="phase-header">
+                <div class="phase-num">3</div>
+                <div>
+                  <div class="phase-title">Splice</div>
+                  <div class="phase-sub">Fold + packet</div>
+                </div>
+              </div>
+              <div class="phase-steps">
+                <button type="button" class="pipe-node" data-step="5" data-phase="splice">
+                  <div class="pipe-node-icon">⚡</div>
+                  <div class="pipe-node-body">
+                    <div class="pipe-node-title">Fill + synapses</div>
+                    <div class="pipe-node-key">token budget · pheromones</div>
+                  </div>
+                </button>
+                <button type="button" class="pipe-node" data-step="6" data-phase="splice">
+                  <div class="pipe-node-icon">🧬</div>
+                  <div class="pipe-node-body">
+                    <div class="pipe-node-title">Exon / intron</div>
+                    <div class="pipe-node-key">bodies → fold markers</div>
+                  </div>
+                </button>
+                <button type="button" class="pipe-node" data-step="7" data-phase="splice">
+                  <div class="pipe-node-icon">📦</div>
+                  <div class="pipe-node-body">
+                    <div class="pipe-node-title">Evidence packet</div>
+                    <div class="pipe-node-key">expand_fold if needed</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pipeline-detail active-read" id="pipeline-detail">
+            <div class="detail-step-badge" id="detail-icon">💬</div>
+            <div class="detail-text">
+              <h4 id="detail-title">Prompt</h4>
+              <p id="detail-desc">Read the task exactly as written — intent is not lowercased into mush.</p>
+            </div>
+            <div class="detail-counter">
+              <strong id="detail-step-num">1</strong>
+              of 8 steps
+            </div>
+          </div>
+
+          <div class="pipeline-dots" id="pipeline-dots"></div>
+          <button type="button" class="pipeline-play-toggle" id="pipeline-play" aria-pressed="false">
+            ⏸ Pause tour
+          </button>
         </div>
 
         <div class="mode-cards reveal" style="margin-top: 64px;">
@@ -1651,6 +473,120 @@
             <div class="tokens">16,000<small> extra tokens</small></div>
             <p style="color:var(--fg-muted); font-size:0.875rem;">Refactors, auth, critical paths</p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Adaptive learning -->
+    <section id="learning" class="learning-section">
+      <div class="container">
+        <div class="section-label reveal">Synaptic STDP</div>
+        <h2 class="reveal">Smarter every turn</h2>
+        <p class="lead reveal">
+          NeuroMesh doesn't forget what worked. Every successful edit is experience —
+          <code>neuromesh_record_feedback</code> strengthens the synapses on the path you actually used.
+          Next packet, the mesh routes faster and closer to gold.
+        </p>
+
+        <div class="learning-stage reveal">
+          <div class="learning-viz-wrap">
+            <canvas id="learning-canvas" aria-hidden="true"></canvas>
+            <div class="learning-viz-overlay">
+              <div class="learning-turn-pill">
+                <span class="learning-turn-dot"></span>
+                Turn <strong id="learning-turn-num">1</strong> / 3
+              </div>
+              <p class="learning-turn-caption" id="learning-turn-caption">
+                First visit — the mesh explores weaker paths.
+              </p>
+            </div>
+          </div>
+
+          <div class="learning-panel">
+            <div class="learning-loop">
+              <div class="learning-loop-title">The learning loop</div>
+              <div class="learning-loop-steps">
+                <div class="loop-step" data-loop="0">
+                  <span class="loop-icon">📦</span>
+                  <div>
+                    <strong>get_context</strong>
+                    <span>Route on pheromone edges</span>
+                  </div>
+                </div>
+                <div class="loop-arrow">↓</div>
+                <div class="loop-step" data-loop="1">
+                  <span class="loop-icon">✏️</span>
+                  <div>
+                    <strong>Edit & succeed</strong>
+                    <span>Agent touches real files</span>
+                  </div>
+                </div>
+                <div class="loop-arrow">↓</div>
+                <div class="loop-step loop-step-highlight" data-loop="2">
+                  <span class="loop-icon">⚡</span>
+                  <div>
+                    <strong>record_feedback</strong>
+                    <span>Spike synapses — STDP learns</span>
+                  </div>
+                </div>
+                <div class="loop-arrow">↓</div>
+                <div class="loop-step" data-loop="3">
+                  <span class="loop-icon">🧠</span>
+                  <div>
+                    <strong>Next packet</strong>
+                    <span>Stronger path, fewer misses</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="learning-metrics">
+              <div class="learning-metric">
+                <div class="learning-metric-head">
+                  <span>Synaptic strength</span>
+                  <strong id="metric-strength">18%</strong>
+                </div>
+                <div class="learning-metric-bar"><div class="learning-metric-fill" id="bar-strength" style="width:18%"></div></div>
+              </div>
+              <div class="learning-metric">
+                <div class="learning-metric-head">
+                  <span>Recall</span>
+                  <strong id="metric-recall">0.75</strong>
+                </div>
+                <div class="learning-metric-bar"><div class="learning-metric-fill recall" id="bar-recall" style="width:75%"></div></div>
+              </div>
+              <div class="learning-metric">
+                <div class="learning-metric-head">
+                  <span>Grep fallbacks</span>
+                  <strong id="metric-grep">2</strong>
+                </div>
+                <div class="learning-metric-bar"><div class="learning-metric-fill grep" id="bar-grep" style="width:66%"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="learning-cards reveal">
+          <div class="learning-card">
+            <div class="learning-card-icon">🧪</div>
+            <h3>Experience from edits</h3>
+            <p>Only paths the agent <em>actually edited</em> get credit. No fake links from guessing — unique resolve keeps the graph honest.</p>
+          </div>
+          <div class="learning-card featured">
+            <div class="learning-card-icon">🔗</div>
+            <h3>Pheromone edges</h3>
+            <p>Co-edited files share stronger tubes. Physarum prefers reinforced routes — like slime mold remembering where food was.</p>
+          </div>
+          <div class="learning-card">
+            <div class="learning-card-icon">🍄</div>
+            <h3>Mycelial memory</h3>
+            <p>Hyphal prefetch warms the next hop in RAM. The mesh doesn't just learn routes — it pre-warms what you'll expand next.</p>
+          </div>
+        </div>
+
+        <div class="learning-quote reveal">
+          <strong>Fire together, wire together.</strong>
+          Skip <code>record_feedback</code> and the next packet starts from zero plasticity.
         </div>
       </div>
     </section>
@@ -1966,23 +902,113 @@ neuromesh connect    # write MCP configs for this repo</pre>
     }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
     revealEls.forEach(el => revealObs.observe(el));
 
-    // Pipeline animation
-    const pipeline = document.getElementById('pipeline');
-    const pipeObs = new IntersectionObserver((entries) => {
-      if (!entries[0].isIntersecting) return;
-      const steps = pipeline.querySelectorAll('.pipe-step');
-      const arrows = pipeline.querySelectorAll('.pipe-arrow');
-      steps.forEach((step, i) => {
-        setTimeout(() => {
-          step.classList.add('visible');
-          if (i > 0) arrows[i - 1]?.classList.add('visible');
-          step.classList.add('active');
-          setTimeout(() => step.classList.remove('active'), 600);
-        }, i * 180);
+    // Pipeline — interactive 3-phase tour
+    (function initPipeline() {
+      const board = document.getElementById('pipeline');
+      if (!board) return;
+
+      const steps = [
+        { icon: '💬', title: 'Prompt', phase: 'read',
+          desc: 'Read the task exactly as written — handle_tool_call intent survives; it is not lowercased into mush.' },
+        { icon: '🔍', title: 'Identifiers', phase: 'read',
+          desc: 'Extract symbol names and paths from the prompt. Ambiguous names stay sleepy — never a million fake links.' },
+        { icon: '🕸️', title: 'Graph in RAM', phase: 'route',
+          desc: 'Resolve on the neural mesh: files, functions, Imports, Calls. Edges exist only when the target is unique.' },
+        { icon: '🌱', title: 'Seed files', phase: 'route',
+          desc: 'The files that own those symbols always go in. Seeds are never truncated to fake a small packet.' },
+        { icon: '🦠', title: 'Physarum tubes', phase: 'route',
+          desc: 'With two or more seeds, slime mold grows the cheapest connecting tissue on a neighborhood subgraph — under 20ms.' },
+        { icon: '⚡', title: 'Fill + synapses', phase: 'splice',
+          desc: 'Callees and synaptic neighbors fill a real token budget. balanced = 5k extra; max_quality = 16k.' },
+        { icon: '🧬', title: 'Exon / intron splice', phase: 'splice',
+          desc: 'Untargeted bodies collapse to one-line fold markers. You still see signatures, imports, and the shape of the file.' },
+        { icon: '📦', title: 'Evidence packet', phase: 'splice',
+          desc: 'Ship the compact packet to the agent. Wake a fold with neuromesh_expand_fold — then record_feedback after a good edit.' },
+      ];
+
+      const nodes = board.querySelectorAll('.pipe-node');
+      const phases = board.querySelectorAll('.pipeline-phase');
+      const detail = document.getElementById('pipeline-detail');
+      const detailIcon = document.getElementById('detail-icon');
+      const detailTitle = document.getElementById('detail-title');
+      const detailDesc = document.getElementById('detail-desc');
+      const detailNum = document.getElementById('detail-step-num');
+      const progress = document.getElementById('pipeline-progress');
+      const dotsWrap = document.getElementById('pipeline-dots');
+      const playBtn = document.getElementById('pipeline-play');
+
+      let current = 0;
+      let playing = true;
+      let timer = null;
+
+      steps.forEach((_, i) => {
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'pipeline-dot';
+        dot.setAttribute('aria-label', `Step ${i + 1}`);
+        dot.addEventListener('click', () => { goTo(i); pauseTour(); });
+        dotsWrap.appendChild(dot);
       });
-      pipeObs.disconnect();
-    }, { threshold: 0.3 });
-    pipeObs.observe(pipeline);
+      const dots = dotsWrap.querySelectorAll('.pipeline-dot');
+
+      function goTo(idx) {
+        current = idx;
+        const s = steps[idx];
+
+        nodes.forEach((n, i) => {
+          n.classList.toggle('active', i === idx);
+          n.classList.toggle('done', i < idx);
+        });
+        phases.forEach(p => p.classList.toggle('active', p.dataset.phase === s.phase));
+        dots.forEach((d, i) => {
+          d.classList.toggle('active', i === idx);
+          d.classList.toggle('done', i < idx);
+        });
+
+        detail.className = 'pipeline-detail active-' + s.phase;
+        detailIcon.textContent = s.icon;
+        detailTitle.textContent = s.title;
+        detailDesc.textContent = s.desc;
+        detailNum.textContent = idx + 1;
+        progress.style.width = ((idx + 1) / steps.length * 100) + '%';
+      }
+
+      function nextStep() {
+        goTo((current + 1) % steps.length);
+      }
+
+      function startTour() {
+        if (timer) clearInterval(timer);
+        timer = setInterval(nextStep, 2800);
+        playing = true;
+        playBtn.textContent = '⏸ Pause tour';
+        playBtn.classList.remove('paused');
+        playBtn.setAttribute('aria-pressed', 'false');
+      }
+
+      function pauseTour() {
+        if (timer) clearInterval(timer);
+        timer = null;
+        playing = false;
+        playBtn.textContent = '▶ Play tour';
+        playBtn.classList.add('paused');
+        playBtn.setAttribute('aria-pressed', 'true');
+      }
+
+      playBtn.addEventListener('click', () => playing ? pauseTour() : startTour());
+      nodes.forEach(n => n.addEventListener('click', () => goTo(+n.dataset.step)));
+
+      const pipeObs = new IntersectionObserver((entries) => {
+        if (!entries[0].isIntersecting) return;
+        nodes.forEach((n, i) => {
+          setTimeout(() => n.classList.add('visible'), i * 80);
+        });
+        goTo(0);
+        startTour();
+        pipeObs.disconnect();
+      }, { threshold: 0.25 });
+      pipeObs.observe(board);
+    })();
 
     // Counter animation
     const statObs = new IntersectionObserver((entries) => {
@@ -2243,6 +1269,239 @@ neuromesh connect    # write MCP configs for this repo</pre>
       resize();
       window.addEventListener('resize', resize);
       requestAnimationFrame(frame);
+    })();
+
+    // ── Adaptive learning viz ──
+    (function initLearningViz() {
+      const canvas = document.getElementById('learning-canvas');
+      if (!canvas) return;
+
+      const turnNum = document.getElementById('learning-turn-num');
+      const turnCaption = document.getElementById('learning-turn-caption');
+      const barStrength = document.getElementById('bar-strength');
+      const barRecall = document.getElementById('bar-recall');
+      const barGrep = document.getElementById('bar-grep');
+      const loopSteps = document.querySelectorAll('.loop-step');
+
+      const nodes = [
+        { id: 'task', label: 'Task', nx: 0.12, ny: 0.5, seed: false },
+        { id: 'handler', label: 'handler.rs', nx: 0.32, ny: 0.28, seed: true },
+        { id: 'utils', label: 'utils.rs', nx: 0.52, ny: 0.72, seed: false },
+        { id: 'router', label: 'router.rs', nx: 0.52, ny: 0.28, seed: false },
+        { id: 'state', label: 'state.rs', nx: 0.72, ny: 0.55, seed: false },
+        { id: 'mcp', label: 'mcp.rs', nx: 0.88, ny: 0.42, seed: true },
+      ];
+
+      const edges = [
+        { a: 'task', b: 'handler', w: 0.9 },
+        { a: 'handler', b: 'utils', w: 0.15 },
+        { a: 'handler', b: 'router', w: 0.25 },
+        { a: 'handler', b: 'mcp', w: 0.1 },
+        { a: 'utils', b: 'state', w: 0.2 },
+        { a: 'router', b: 'mcp', w: 0.3 },
+        { a: 'state', b: 'mcp', w: 0.35 },
+      ];
+
+      const turns = [
+        {
+          path: ['task', 'handler', 'utils', 'state', 'mcp'],
+          strength: 18, recall: 0.75, grep: 2, grepBar: 66,
+          caption: 'First visit — the mesh explores weaker paths. Agent greps twice.',
+          boost: [['handler', 'utils'], ['utils', 'state'], ['state', 'mcp']],
+        },
+        {
+          path: ['task', 'handler', 'router', 'mcp'],
+          strength: 54, recall: 0.92, grep: 1, grepBar: 33,
+          caption: 'After record_feedback — co-edited route reinforced. One grep left.',
+          boost: [['handler', 'router'], ['router', 'mcp']],
+        },
+        {
+          path: ['task', 'handler', 'mcp'],
+          strength: 91, recall: 1.0, grep: 0, grepBar: 0,
+          caption: 'Third turn — direct synapse wins. Zero grep. Gold recall.',
+          boost: [['handler', 'mcp']],
+        },
+      ];
+
+      let w, h, dpr, turnIdx = 0, phase = 'travel', phaseT = 0, pulsePos = 0;
+      const edgeWeights = Object.fromEntries(edges.map(e => [`${e.a}-${e.b}`, e.w]));
+      let running = false;
+
+      const ctx = canvas.getContext('2d');
+
+      function nodeById(id) { return nodes.find(n => n.id === id); }
+      function pos(n) { return { x: n.nx * w, y: n.ny * h }; }
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const rect = canvas.parentElement.getBoundingClientRect();
+        w = rect.width;
+        h = rect.height;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function resetWeights() {
+        edges.forEach(e => { edgeWeights[`${e.a}-${e.b}`] = e.w; });
+      }
+
+      function applyTurn(idx) {
+        const t = turns[idx];
+        turnNum.textContent = idx + 1;
+        turnCaption.style.opacity = '0';
+        setTimeout(() => {
+          turnCaption.textContent = t.caption;
+          turnCaption.style.opacity = '1';
+        }, 200);
+        document.getElementById('metric-strength').textContent = t.strength + '%';
+        document.getElementById('metric-recall').textContent = t.recall.toFixed(2);
+        document.getElementById('metric-grep').textContent = t.grep;
+        barStrength.style.width = t.strength + '%';
+        barRecall.style.width = (t.recall * 100) + '%';
+        barGrep.style.width = t.grepBar + '%';
+      }
+
+      function setLoopActive(step) {
+        loopSteps.forEach((el, i) => el.classList.toggle('active', i === step));
+      }
+
+      function drawEdge(a, b, weight, highlight, pulse) {
+        const na = nodeById(a), nb = nodeById(b);
+        if (!na || !nb) return;
+        const pa = pos(na), pb = pos(nb);
+        const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
+        const curl = Math.sin(phaseT * 0.04) * 12;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(pa.x, pa.y);
+        ctx.quadraticCurveTo(mx, my + curl, pb.x, pb.y);
+        ctx.strokeStyle = highlight
+          ? `rgba(188, 140, 255, ${0.5 + weight * 0.5})`
+          : `rgba(86, 211, 100, ${0.15 + weight * 0.75})`;
+        ctx.lineWidth = highlight ? 3 + weight * 3 : 1 + weight * 4;
+        ctx.lineCap = 'round';
+        if (highlight) { ctx.shadowColor = '#bc8cff'; ctx.shadowBlur = 14; }
+        ctx.stroke();
+        ctx.restore();
+
+        if (pulse != null && pulse >= 0 && pulse <= 1) {
+          const u = 1 - pulse;
+          const px = u * u * pa.x + 2 * u * pulse * mx + pulse * pulse * pb.x;
+          const py = u * u * pa.y + 2 * u * pulse * (my + curl) + pulse * pulse * pb.y;
+          ctx.beginPath();
+          ctx.arc(px, py, 5, 0, Math.PI * 2);
+          ctx.fillStyle = highlight ? '#bc8cff' : '#56d364';
+          ctx.shadowColor = ctx.fillStyle;
+          ctx.shadowBlur = 16;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      function drawNode(n, onPath) {
+        const p = pos(n);
+        const r = n.seed ? 14 : 10;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + 6, 0, Math.PI * 2);
+        ctx.fillStyle = onPath ? 'rgba(188, 140, 255, 0.15)' : 'rgba(63, 185, 80, 0.08)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = onPath ? '#bc8cff' : (n.seed ? '#56d364' : '#238636');
+        ctx.fill();
+        if (n.seed) {
+          ctx.strokeStyle = '#3fb950';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#f0f6fc';
+        ctx.font = `600 ${Math.max(10, w * 0.028)}px Inter, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(n.label, p.x, p.y + r + 16);
+      }
+
+      function pathSegments(path) {
+        const segs = [];
+        for (let i = 0; i < path.length - 1; i++) segs.push([path[i], path[i + 1]]);
+        return segs;
+      }
+
+      function runTurnCycle() {
+        if (!running) return;
+        const t = turns[turnIdx];
+        const segs = pathSegments(t.path);
+        ctx.clearRect(0, 0, w, h);
+
+        if (phase === 'travel') {
+          setLoopActive(0);
+          pulsePos += 0.018;
+          const prog = pulsePos * segs.length;
+          const segIdx = Math.min(Math.floor(prog), segs.length - 1);
+          const local = prog - segIdx;
+
+          edges.forEach(e => {
+            const onPath = Math.abs(t.path.indexOf(e.a) - t.path.indexOf(e.b)) === 1;
+            drawEdge(e.a, e.b, edgeWeights[`${e.a}-${e.b}`], onPath && t.path.includes(e.a), null);
+          });
+          segs.forEach(([a, b], i) => {
+            if (i <= segIdx) drawEdge(a, b, edgeWeights[`${a}-${b}`], i === segIdx, i === segIdx ? local : null);
+          });
+          nodes.forEach(n => drawNode(n, t.path.includes(n.id)));
+
+          if (pulsePos >= 1.05) { phase = 'edit'; phaseT = 0; pulsePos = 0; setLoopActive(1); }
+        } else if (phase === 'edit') {
+          phaseT++;
+          edges.forEach(e => drawEdge(e.a, e.b, edgeWeights[`${e.a}-${e.b}`],
+            Math.abs(t.path.indexOf(e.a) - t.path.indexOf(e.b)) === 1, null));
+          nodes.forEach(n => drawNode(n, t.path.includes(n.id)));
+          if (phaseT > 40) { phase = 'feedback'; phaseT = 0; setLoopActive(2); }
+        } else if (phase === 'feedback') {
+          phaseT++;
+          t.boost.forEach(([a, b]) => {
+            edgeWeights[`${a}-${b}`] = Math.min(1, edgeWeights[`${a}-${b}`] + 0.08);
+          });
+          edges.forEach(e => {
+            const boosted = t.boost.some(([a, b]) => a === e.a && b === e.b);
+            drawEdge(e.a, e.b, edgeWeights[`${e.a}-${e.b}`], boosted, boosted ? (phaseT % 30) / 30 : null);
+          });
+          nodes.forEach(n => drawNode(n, t.path.includes(n.id)));
+          if (phaseT > 55) { phase = 'next'; phaseT = 0; setLoopActive(3); }
+        } else {
+          phaseT++;
+          edges.forEach(e => drawEdge(e.a, e.b, edgeWeights[`${e.a}-${e.b}`], edgeWeights[`${e.a}-${e.b}`] > 0.5, null));
+          nodes.forEach(n => drawNode(n, n.id === 'handler' || edgeWeights[`handler-${n.id}`] > 0.35));
+          if (phaseT > 35) {
+            turnIdx = (turnIdx + 1) % turns.length;
+            if (turnIdx === 0) resetWeights();
+            applyTurn(turnIdx);
+            phase = 'travel';
+            pulsePos = 0;
+            setLoopActive(0);
+          }
+        }
+
+        phaseT++;
+        requestAnimationFrame(runTurnCycle);
+      }
+
+      const obs = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !running) {
+          running = true;
+          resetWeights();
+          applyTurn(0);
+          runTurnCycle();
+        } else if (!entries[0].isIntersecting) {
+          running = false;
+        }
+      }, { threshold: 0.2 });
+      obs.observe(canvas.parentElement);
+
+      resize();
+      window.addEventListener('resize', resize);
     })();
 
     // ── Logo mini slime ──
