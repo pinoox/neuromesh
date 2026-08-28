@@ -17,7 +17,7 @@ NeuroMesh does the same thing to your repository: a neural graph in RAM, reversi
 
 Local-first [MCP](https://modelcontextprotocol.io/) · Cursor · Codex · Antigravity · VS Code · Claude · Kilo · Trae
 
-[The pain](#the-pain) · [The idea](#dont-delete-fold) · [Galaxy](#3d-neural-galaxy) · [Install](#install) · [Connect](#connect) · [Docs](docs/README.md)
+[The pain](#the-pain) · [The idea](#dont-delete-fold) · [Galaxy](#3d-neural-galaxy) · [Install](#install) · [Connect](#connect) · [Docs](docs/README.md) · [Site](https://pinoox.github.io/neuromesh/)
 
 </div>
 
