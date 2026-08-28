@@ -465,6 +465,16 @@ impl ContextActivator {
             &focus_terms,
             &thresholds,
         );
+        EmissionPipeline::ensure_learned_emission(
+            graph,
+            &mut selection.optional,
+            &mut selection.scores,
+            &required_set,
+            &learning_index,
+            &focus_terms,
+            &thresholds,
+            selection.optional_cap,
+        );
 
         *self.last_physarum.lock() = PhysarumTelemetry {
             used: physarum_used,
@@ -3277,6 +3287,59 @@ import { useCartStore } from '../stores/cart.js'
         assert!(
             files.iter().any(|p| p.contains("routes.py")),
             "heavily reinforced routes.py must be emitted; files={files:?}"
+        );
+        let routes = view
+            .rank_candidates
+            .iter()
+            .find(|c| c.path.contains("routes.py"))
+            .expect("routes candidate");
+        assert!(routes.emitted, "routes.py must show emitted=true");
+    }
+
+    #[test]
+    fn positive_learning_unrelated_high_bonus_enters_emission() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("kosha-gap"));
+        graph.ingest_file(
+            &indexed("api/school.ts"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("school.ts"),
+                "export const scores = 1",
+                SourceLanguage::TypeScript,
+            ),
+            Some("export const scores = 1"),
+        );
+        graph.ingest_file(
+            &indexed("school/routes.py"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("routes.py"),
+                "def list_routes():\n    return []\n",
+                SourceLanguage::Python,
+            ),
+            Some("def list_routes():\n    return []\n"),
+        );
+        graph.ingest_file(
+            &indexed("school/scores_repo.py"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("scores_repo.py"),
+                "def load_scores():\n    return []\n",
+                SourceLanguage::Python,
+            ),
+            Some("def load_scores():\n    return []\n"),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let sig = TaskSignatureExtractor::extract("where are school scores handled");
+        for _ in 0..80 {
+            if let Some(node) = graph.resolve_feedback_node("school/routes.py") {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        let view = activator.activate(&graph, &sig, OptimizationMode::Balanced);
+        let files = packet_paths(&view);
+        assert!(
+            files.iter().any(|p| p.contains("routes.py")),
+            "heavily learned routes.py must enter packet alongside seeds; files={files:?}"
         );
     }
 

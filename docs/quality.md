@@ -41,14 +41,15 @@ Debug `neuromesh eval` on the same repo: activation ~157 ms / ~104 ms; full inde
 
 That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
 
-## Learning → emission (v0.7.15)
+## Learning → emission (v0.7.16)
 
-Feedback changes **which files are emitted**, not only candidate scores. The activator runs an `EmissionPipeline` that records `emitted` and `drop_stage` (`penalized_suppress`, `fill_cap`, `packet_cap`, …) through selector → post-filters → materialize.
+Feedback changes **which files are emitted** in both directions: penalized hop-expanded files drop out; heavily reinforced files (focus match or `learning_bonus ≥ 28`) are prepended into optional emission via `ensure_learned_emission`. Default promotion floor: `learning_promotion_min_bonus` **14** (covers +8 strong reinforcement ≈ 17 bonus).
 
 Causal routing is gated in CI:
 
 ```bash
 cargo test -p neuromesh-context learning_to_emission
+cargo test -p neuromesh-context positive_learning
 cargo test -p neuromesh-context deterministic_packet_same_state
 cargo test -p neuromesh-context catastrophic_learning
 ```
@@ -57,7 +58,7 @@ cargo test -p neuromesh-context catastrophic_learning
 
 `neuromesh_explain_packet` → `selection.candidates` includes `selected`, `emitted`, `drop_stage`, and `score_breakdown` (`utility_score`, `learned_score`, `negative_penalty`, `final_score`). Use these when `selected: true` but a file is missing from the packet.
 
-Configurable learning thresholds live in `Thresholds` (`penalized_suppression_threshold`, `learning_relevance_cap_unrelated`, `learning_decay_half_life_days`, `max_learned_influence`) — see `neuromesh-core` config defaults.
+Configurable learning thresholds live in `Thresholds` (`penalized_suppression_threshold`, `learning_promotion_min_bonus`, `learning_relevance_cap_unrelated`, `learning_decay_half_life_days`, `max_learned_influence`) — see `neuromesh-core` config defaults.
 
 ## Shop fixture (mini-shop)
 
