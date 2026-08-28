@@ -768,6 +768,17 @@ impl ContextActivator {
             physarum_used,
             physarum_ms,
             selection_method: selection.method.to_string(),
+            rank_candidates: selection
+                .rank_candidates
+                .iter()
+                .map(|c| neuromesh_core::RankCandidateView {
+                    path: c.path.clone(),
+                    score: c.score,
+                    learning_bonus: c.learning_bonus,
+                    reason: c.reason.clone(),
+                    selected: c.selected,
+                })
+                .collect(),
             structural_evidence,
         };
         *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
