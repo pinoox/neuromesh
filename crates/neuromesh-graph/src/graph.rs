@@ -2181,6 +2181,60 @@ impl NeuralProjectGraph {
         self.resolve_best(trimmed)
     }
 
+    /// Max learning bonus for a file node and any symbols in the same path.
+    pub fn file_learning_boost(&self, file_id: &NodeId) -> f32 {
+        let Some(file_node) = self.get_node(file_id) else {
+            return 0.0;
+        };
+        let path = file_node.file_path.clone();
+        let data = self.inner.read();
+        let mut best = node_learning_bonus(&file_node);
+        if let Some(ids) = data.file_to_nodes.get(&path) {
+            for id in ids {
+                if let Some(node) = data.mesh.node(id) {
+                    best = best.max(node_learning_bonus(node));
+                }
+            }
+        }
+        best
+    }
+
+    /// One-pass index of file node id → max learning bonus (file + symbols on path).
+    pub fn file_learning_boost_index(&self) -> HashMap<NodeId, f32> {
+        let data = self.inner.read();
+        let mut out: HashMap<NodeId, f32> = HashMap::new();
+        for ids in data.file_to_nodes.values() {
+            let mut best = 0.0f32;
+            let mut file_id = None;
+            for id in ids {
+                let Some(node) = data.mesh.node(id) else {
+                    continue;
+                };
+                best = best.max(node_learning_bonus(node));
+                if node.node_type == NodeType::File {
+                    file_id = Some(id.clone());
+                }
+            }
+            if let Some(fid) = file_id {
+                let slot = out.entry(fid).or_insert(0.0f32);
+                *slot = slot.max(best);
+            }
+        }
+        out
+    }
+
+    /// File nodes whose reinforced symbols or file metadata exceed `min_bonus`.
+    pub fn high_learning_files(&self, min_bonus: f32, limit: usize) -> Vec<(NodeId, f32)> {
+        let mut out: Vec<(NodeId, f32)> = self
+            .file_learning_boost_index()
+            .into_iter()
+            .filter(|(_, bonus)| *bonus >= min_bonus)
+            .collect();
+        out.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        out.truncate(limit);
+        out
+    }
+
     /// Bump per-node learning signals so the next search/packet can prefer touched symbols.
     pub fn reinforce_node_access(&self, node_id: &NodeId, success: bool) -> f32 {
         let mut data = self.inner.write();
@@ -2201,7 +2255,7 @@ impl NeuralProjectGraph {
     /// Observable learning state for a symbol/path (falsifiable feedback checks).
     pub fn node_learning_profile(&self, query: &str) -> Option<NodeLearningProfile> {
         let node = self.resolve_feedback_node(query)?;
-        let bonus = learning_bonus(&node);
+        let bonus = node_learning_bonus(&node);
         let neighbors: Vec<NeighborLearningWeight> = self
             .get_connected_neighbors(&node.id)
             .into_iter()
@@ -2386,7 +2440,8 @@ fn type_search_rank(node_type: &NodeType) -> u8 {
     }
 }
 
-fn learning_bonus(node: &ContextNode) -> f32 {
+/// Observable learning signal from access history and reinforced relevance.
+pub fn node_learning_bonus(node: &ContextNode) -> f32 {
     let access = (node.access_count as f32).ln_1p() * 5.0;
     let relevance = (node.base_relevance - 1.0).max(0.0) * 10.0;
     access + relevance
@@ -2434,7 +2489,7 @@ fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
     if is_fixture_path(&node.file_path) {
         bonus -= if decoy { 40.0 } else { 24.0 };
     }
-    bonus += learning_bonus(node);
+    bonus += node_learning_bonus(node);
     bonus
 }
 

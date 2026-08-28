@@ -57,9 +57,15 @@ impl ActivationScorer {
         let rel_strength = relationship_strength.clamp(0.05, 1.0);
         let hist_success = historical_success.clamp(0.20, 1.0);
 
+        let learning_lift = {
+            let access = (node.access_count as f32).ln_1p() * 0.04;
+            let relevance = ((node.base_relevance - 1.0).max(0.0) / 2.0) * 0.10;
+            (access + relevance).min(0.40)
+        };
+
         let final_score =
             relevance * confidence * task_impact * recency * rel_strength * hist_success;
-        final_score.clamp(0.0, 1.0)
+        (final_score + learning_lift).clamp(0.0, 1.0)
     }
 
     fn compute_relevance(&self, node: &ContextNode, signature: &TaskSignature) -> f32 {

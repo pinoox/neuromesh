@@ -70,6 +70,15 @@ pub fn seed_callee_exon_names(
 }
 
 #[derive(Debug, Clone)]
+pub struct RankCandidate {
+    pub path: String,
+    pub score: f32,
+    pub learning_bonus: f32,
+    pub reason: String,
+    pub selected: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct Selection {
     pub node_ids: Vec<NodeId>,
     pub required: Vec<NodeId>,
@@ -79,6 +88,7 @@ pub struct Selection {
     pub budget_cap: usize,
     pub optional_cap: usize,
     pub method: &'static str,
+    pub rank_candidates: Vec<RankCandidate>,
 }
 
 /// Seed files/symbols are required. Connectors are ranked for the activator to
@@ -103,6 +113,7 @@ pub fn select(
             budget_cap: fill_cap,
             optional_cap: 0,
             method: "no_seed",
+            rank_candidates: Vec::new(),
         };
     }
     let mut required: HashSet<NodeId> = HashSet::new();
@@ -212,13 +223,8 @@ pub fn select(
 
     let mut file_scores: HashMap<NodeId, f32> = HashMap::new();
     let mut callee_files: HashSet<NodeId> = HashSet::new();
-    let learning_boost = |id: &NodeId| -> f32 {
-        graph.get_node(id).map_or(0.0, |n| {
-            let access = (n.access_count as f32).ln_1p() * 2.0;
-            let relevance = (n.base_relevance - 1.0).max(0.0) * 4.0;
-            access + relevance
-        })
-    };
+    let learning_index = graph.file_learning_boost_index();
+    let learning_boost = |id: &NodeId| learning_index.get(id).copied().unwrap_or(0.0);
     let bump_file = |scores: &mut HashMap<NodeId, f32>, id: &NodeId, amount: f32| {
         if required.contains(id) || is_noise_node(graph, id) {
             return;
@@ -380,9 +386,27 @@ pub fn select(
         }
     }
 
+    inject_learned_candidates(
+        graph,
+        &learning_index,
+        focus_terms,
+        &required,
+        &mut file_scores,
+    );
+    demote_penalized_seed_files(graph, seeds, &mut required, &mut scores);
+
     let mut optional_files: Vec<(NodeId, f32)> = file_scores
         .into_iter()
-        .map(|(id, gain)| (id, gain.min(24.0)))
+        .map(|(id, gain)| {
+            let learned = learning_boost(&id);
+            let base = gain.min(24.0);
+            let boosted = if learned >= 12.0 {
+                base.max(14.0 + learned * 0.45).min(48.0)
+            } else {
+                base
+            };
+            (id, boosted)
+        })
         .collect();
     if let Some(lock) = locked_hmvc_prefix(graph, &required) {
         optional_files.retain(|(id, _)| {
@@ -536,6 +560,41 @@ pub fn select(
     let mut node_ids = required_ids.clone();
     node_ids.extend(optional_ids.iter().cloned());
 
+    let selected_set: HashSet<NodeId> = required_ids
+        .iter()
+        .chain(optional_ids.iter())
+        .cloned()
+        .collect();
+    let mut rank_candidates: Vec<RankCandidate> = scores
+        .iter()
+        .filter_map(|(id, score)| {
+            let node = graph.get_node(id)?;
+            if node.node_type != NodeType::File {
+                return None;
+            }
+            let learned = learning_index.get(id).copied().unwrap_or(0.0);
+            let reason = if learned >= 12.0 {
+                format!("learned:{learned:.1}")
+            } else {
+                format!("utility:{score:.2}")
+            };
+            Some(RankCandidate {
+                path: node.file_path.to_string_lossy().replace('\\', "/"),
+                score: *score,
+                learning_bonus: learned,
+                reason,
+                selected: selected_set.contains(id),
+            })
+        })
+        .collect();
+    rank_candidates.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.path.cmp(&b.path))
+    });
+    rank_candidates.truncate(24);
+
     Selection {
         node_ids,
         required: required_ids,
@@ -545,6 +604,136 @@ pub fn select(
         budget_cap: fill_cap,
         optional_cap: max_extra_files,
         method: "seed_then_fill",
+        rank_candidates,
+    }
+}
+
+fn file_matches_focus(
+    graph: &NeuralProjectGraph,
+    file_id: &NodeId,
+    focus_terms: &HashSet<String>,
+) -> bool {
+    let Some(node) = graph.get_node(file_id) else {
+        return false;
+    };
+    let path_l = node
+        .file_path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_lowercase();
+    focus_terms.iter().any(|term| {
+        if term.len() < 4 {
+            return false;
+        }
+        file_stem_eq(&node.file_path, term) || path_l.contains(term)
+    })
+}
+
+fn push_learned_file(
+    learning_index: &HashMap<NodeId, f32>,
+    required: &HashSet<NodeId>,
+    graph: &NeuralProjectGraph,
+    file_scores: &mut HashMap<NodeId, f32>,
+    file_id: &NodeId,
+    base_amount: f32,
+) {
+    const MIN_LEARNED: f32 = 8.0;
+    if required.contains(file_id) || is_noise_node(graph, file_id) {
+        return;
+    }
+    let learned = learning_index.get(file_id).copied().unwrap_or(0.0);
+    if learned < MIN_LEARNED {
+        return;
+    }
+    let total = base_amount + learned;
+    let entry = file_scores.entry(file_id.clone()).or_insert(0.0);
+    if total > *entry {
+        *entry = total;
+    }
+}
+
+fn inject_learned_candidates(
+    graph: &NeuralProjectGraph,
+    learning_index: &HashMap<NodeId, f32>,
+    focus_terms: &HashSet<String>,
+    required: &HashSet<NodeId>,
+    file_scores: &mut HashMap<NodeId, f32>,
+) {
+    for term in focus_terms {
+        if term.len() < 4 {
+            continue;
+        }
+        if let Some((id, _)) = graph.resolve_ranked(term, None, None) {
+            if let Some(node) = graph.get_node(&id) {
+                if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                    push_learned_file(learning_index, required, graph, file_scores, &file_id, 14.0);
+                }
+            }
+        }
+        for hit in graph.search_symbols(term, 10) {
+            if let Some(file_id) = graph.file_id_for_path(&hit.file_path) {
+                push_learned_file(learning_index, required, graph, file_scores, &file_id, 16.0);
+            }
+        }
+    }
+    let mut focus_ranked: Vec<(NodeId, f32)> = learning_index
+        .iter()
+        .filter(|(_, bonus)| **bonus >= 8.0)
+        .map(|(id, bonus)| (id.clone(), *bonus))
+        .collect();
+    focus_ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    focus_ranked.truncate(32);
+    for (file_id, bonus) in focus_ranked {
+        if file_matches_focus(graph, &file_id, focus_terms) {
+            push_learned_file(
+                learning_index,
+                required,
+                graph,
+                file_scores,
+                &file_id,
+                12.0 + bonus * 0.55,
+            );
+        }
+    }
+    let mut saturated: Vec<(NodeId, f32)> = learning_index
+        .iter()
+        .filter(|(_, bonus)| **bonus >= 28.0)
+        .map(|(id, bonus)| (id.clone(), *bonus))
+        .collect();
+    saturated.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    saturated.truncate(12);
+    for (file_id, bonus) in saturated {
+        push_learned_file(
+            learning_index,
+            required,
+            graph,
+            file_scores,
+            &file_id,
+            10.0 + bonus * 0.45,
+        );
+    }
+}
+
+fn demote_penalized_seed_files(
+    graph: &NeuralProjectGraph,
+    seeds: &HashSet<NodeId>,
+    required: &mut HashSet<NodeId>,
+    scores: &mut HashMap<NodeId, f32>,
+) {
+    const LOW_RELEVANCE: f32 = 0.55;
+    let demoted: Vec<NodeId> = required
+        .iter()
+        .filter(|id| {
+            seeds.contains(*id)
+                && graph.get_node(id).is_some_and(|n| {
+                    n.node_type == NodeType::File && n.base_relevance < LOW_RELEVANCE
+                })
+        })
+        .cloned()
+        .collect();
+    for id in demoted {
+        required.remove(&id);
+        scores.remove(&id);
     }
 }
 
@@ -950,5 +1139,212 @@ pub fn target() {
             .join("signature.rs");
         assert_eq!(crate_dir(&nested), "neuromesh-task");
         assert_eq!(crate_dir(Path::new("seed.rs")), "pkg");
+    }
+
+    #[test]
+    fn reinforced_symbol_promotes_its_file_into_optional() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("learn-promote"));
+        let promo = r#"<script setup>
+export default { name: 'PromoCodeInput' }
+</script>
+<template><input /></template>
+"#;
+        let app = r#"<script setup>
+import PromoCodeInput from './PromoCodeInput.vue'
+</script>
+<template><PromoCodeInput /></template>
+"#;
+        graph.ingest_file(
+            &indexed("src/components/PromoCodeInput.vue", 60),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("PromoCodeInput.vue"),
+                promo,
+                SourceLanguage::Vue,
+            ),
+            Some(promo),
+        );
+        graph.ingest_file(
+            &indexed("src/App.vue", 60),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("App.vue"), app, SourceLanguage::Vue),
+            Some(app),
+        );
+        graph.finalize_links();
+        let start = graph
+            .resolve_unique("PromoCodeInput", Some("PromoCodeInput.vue"))
+            .expect("promo");
+        let app_file = graph
+            .file_id_for_path(&PathBuf::from("src/App.vue"))
+            .expect("app file");
+        let mut seeds = HashSet::new();
+        seeds.insert(start);
+        let neighborhood = graph.neighborhood(&seeds, 2);
+        let mut energies = HashMap::new();
+        energies.insert(
+            graph
+                .resolve_unique("PromoCodeInput", Some("PromoCodeInput.vue"))
+                .unwrap(),
+            1.0,
+        );
+        let focus: HashSet<String> = ["promocodeinput".into()].into_iter().collect();
+        let before = select(
+            &graph,
+            &neighborhood,
+            &seeds,
+            &energies,
+            &focus,
+            OptimizationMode::Balanced,
+        );
+        let promo_file = graph
+            .file_id_for_path(&PathBuf::from("src/components/PromoCodeInput.vue"))
+            .expect("promo file");
+        assert!(
+            !before.optional.contains(&promo_file),
+            "promo file should not be optional before reinforcement"
+        );
+        for _ in 0..8 {
+            if let Some(node) = graph.resolve_feedback_node("PromoCodeInput") {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        let after = select(
+            &graph,
+            &neighborhood,
+            &seeds,
+            &energies,
+            &focus,
+            OptimizationMode::Balanced,
+        );
+        assert!(
+            after.optional.contains(&promo_file) || after.required.contains(&promo_file),
+            "reinforced PromoCodeInput should enter packet; optional={:?} required={:?}",
+            after.optional,
+            after.required
+        );
+        assert!(
+            after
+                .rank_candidates
+                .iter()
+                .any(|c| c.path.contains("PromoCodeInput") && c.learning_bonus > 10.0),
+            "rank_candidates should expose learning_bonus for reinforced file"
+        );
+        let _ = app_file;
+    }
+
+    #[test]
+    fn penalized_seed_file_is_demoted_from_required() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("learn-demote"));
+        let app = r#"<script setup></script><template><div /></template>"#;
+        graph.ingest_file(
+            &indexed("src/App.vue", 40),
+            &CodeIntelligenceEngine::analyze(&PathBuf::from("App.vue"), app, SourceLanguage::Vue),
+            Some(app),
+        );
+        graph.finalize_links();
+        let app_file = graph
+            .file_id_for_path(&PathBuf::from("src/App.vue"))
+            .expect("app file");
+        let mut seeds = HashSet::new();
+        seeds.insert(app_file.clone());
+        let neighborhood = graph.neighborhood(&seeds, 1);
+        let mut energies = HashMap::new();
+        energies.insert(app_file.clone(), 1.0);
+        let focus: HashSet<String> = HashSet::new();
+        let baseline = select(
+            &graph,
+            &neighborhood,
+            &seeds,
+            &energies,
+            &focus,
+            OptimizationMode::Balanced,
+        );
+        assert!(baseline.required.contains(&app_file));
+        for _ in 0..8 {
+            graph.reinforce_node_access(&app_file, false);
+        }
+        let after = select(
+            &graph,
+            &neighborhood,
+            &seeds,
+            &energies,
+            &focus,
+            OptimizationMode::Balanced,
+        );
+        assert!(
+            !after.required.contains(&app_file),
+            "penalized App.vue seed should leave required set"
+        );
+    }
+
+    #[test]
+    fn heavily_reinforced_file_enters_without_focus_term_match() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("learn-saturate"));
+        let routes = "def list_routes():\n    return []\n";
+        let schema = "class Schema:\n    pass\n";
+        graph.ingest_file(
+            &indexed("school/routes.py", 40),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("routes.py"),
+                routes,
+                SourceLanguage::Python,
+            ),
+            Some(routes),
+        );
+        graph.ingest_file(
+            &indexed("school/schema.py", 40),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("schema.py"),
+                schema,
+                SourceLanguage::Python,
+            ),
+            Some(schema),
+        );
+        graph.ingest_file(
+            &indexed("api/school.ts", 40),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("school.ts"),
+                "export const scores = 1",
+                SourceLanguage::TypeScript,
+            ),
+            Some("export const scores = 1"),
+        );
+        graph.finalize_links();
+        let api_file = graph
+            .file_id_for_path(&PathBuf::from("api/school.ts"))
+            .expect("api file");
+        let mut seeds = HashSet::new();
+        seeds.insert(api_file.clone());
+        let neighborhood = graph.neighborhood(&seeds, 2);
+        let mut energies = HashMap::new();
+        energies.insert(api_file.clone(), 1.0);
+        let focus: HashSet<String> = ["scores".into()].into_iter().collect();
+        let routes_file = graph
+            .file_id_for_path(&PathBuf::from("school/routes.py"))
+            .expect("routes");
+        for _ in 0..50 {
+            if let Some(node) = graph.resolve_feedback_node("school/routes.py") {
+                graph.reinforce_node_access(&node.id, true);
+            }
+            if let Some(node) = graph.resolve_feedback_node("school/schema.py") {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        let after = select(
+            &graph,
+            &neighborhood,
+            &seeds,
+            &energies,
+            &focus,
+            OptimizationMode::Balanced,
+        );
+        assert!(
+            after.optional.contains(&routes_file)
+                || after
+                    .rank_candidates
+                    .iter()
+                    .any(|c| c.path.contains("routes.py") && c.learning_bonus > 28.0),
+            "saturated reinforcement should surface routes.py; optional={:?} candidates={:?}",
+            after.optional,
+            after.rank_candidates
+        );
     }
 }

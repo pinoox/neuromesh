@@ -446,9 +446,21 @@ pub struct ContextView {
     /// `seed_then_fill` or `physarum_seed_fill`.
     #[serde(default)]
     pub selection_method: String,
+    /// Ranked file candidates (selected + runners-up) for before/after feedback comparison.
+    #[serde(default)]
+    pub rank_candidates: Vec<RankCandidateView>,
     /// Caller counts / dead-code hints for seeded symbols.
     #[serde(default)]
     pub structural_evidence: Vec<StructuralEvidence>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RankCandidateView {
+    pub path: String,
+    pub score: f32,
+    pub learning_bonus: f32,
+    pub reason: String,
+    pub selected: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

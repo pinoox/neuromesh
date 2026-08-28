@@ -15,9 +15,9 @@ NeuroMesh does the same thing to your repository: a neural graph in RAM, reversi
 [![MCP](https://img.shields.io/badge/MCP-stdio-5b21b6.svg?style=flat-square)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
-Local-first [MCP](https://modelcontextprotocol.io/) · Cursor · Codex · Antigravity · VS Code · Claude · Kilo · Trae
+Local-first [MCP](https://modelcontextprotocol.io/) · Cursor · Codex · OpenCode · MiMo CLI · Antigravity · VS Code · Claude · Kilo · Trae · Windsurf · Zed
 
-[The pain](#the-pain) · [The idea](#dont-delete-fold) · [Galaxy](#3d-neural-galaxy) · [Install](#install) · [Connect](#connect) · [Docs](docs/README.md)
+[The pain](#the-pain) · [The idea](#dont-delete-fold) · [Galaxy](#3d-neural-galaxy) · [Install](#install) · [Connect](#connect) · [Docs](docs/README.md) · [Site](https://pinoox.github.io/neuromesh/)
 
 </div>
 
@@ -191,7 +191,7 @@ Two copies are common: installer vs Cargo.
 
 ## Connect
 
-Native **MCP stdio** — what Cursor, Claude, Codex, [Antigravity](https://antigravity.google/), VS Code, Kilo Code, Trae, MiniMax, Windsurf, Cline, and Zed launch.
+Native **MCP stdio** — what Cursor, Claude, Codex, [OpenCode](https://opencode.ai/), MiMo CLI, [Antigravity](https://antigravity.google/), VS Code, Kilo Code, Trae, MiniMax, Windsurf, Cline, and Zed launch.
 
 ```bash
 neuromesh connect           # merge NeuroMesh into project + installed-app configs
@@ -207,11 +207,13 @@ That writes an **absolute** `command` (this binary) plus `args: ["mcp", "<worksp
   "mcpServers": {
     "neuromesh": {
       "command": "neuromesh",
-      "args": ["mcp", "/absolute/path/to/your/project"]
+      "args": ["mcp"]
     }
   }
 }
 ```
+
+Run this from your **project root** (or use `neuromesh connect`, which also pins the absolute binary path and workspace).
 
 Details and other clients: [docs/mcp.md#manual](docs/mcp.md#manual).
 
@@ -220,7 +222,10 @@ Details and other clients: [docs/mcp.md#manual](docs/mcp.md#manual).
 | Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
 | VS Code / Copilot | `.vscode/mcp.json` (`servers`) |
 | [Codex](https://openai.com/codex/) | `.codex/config.toml` or `~/.codex/config.toml` |
+| [OpenCode](https://opencode.ai/) | `opencode.json` / `~/.config/opencode/opencode.jsonc` (`mcp` → local server) |
+| MiMo CLI | `.mimo-code.json` or `~/.mimo-code/config.json` (`mcpServers`) |
 | [Antigravity](https://antigravity.google/) | `.agents/mcp_config.json` or `~/.gemini/config/mcp_config.json` |
+| Gemini CLI | `~/.gemini/settings.json` |
 | Kilo Code | `.kilo/kilo.jsonc` (`mcp` + command array) |
 | Trae | `.trae/mcp.json` or `Trae/User/mcp.json` |
 | MiniMax Code | `.minimax/mcp.json` (same `mcpServers` shape) |
@@ -318,6 +323,6 @@ Index snapshot from that eval run: **323 files · 2,458 nodes · 5,594 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.7.10 |
+| [Changelog](docs/CHANGELOG.md) | 0.7.11 |
 
 MIT · [LICENSE](LICENSE)

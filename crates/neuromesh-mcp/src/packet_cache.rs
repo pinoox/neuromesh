@@ -45,6 +45,7 @@ pub struct PacketDetails {
     pub physarum_used: bool,
     pub physarum_ms: u64,
     pub selection_method: String,
+    pub rank_candidates: Vec<neuromesh_core::RankCandidateView>,
     pub unresolved: Vec<UnresolvedRef>,
     pub inactive_hints: Vec<InactiveContextDescriptor>,
     pub index: IndexMeta,

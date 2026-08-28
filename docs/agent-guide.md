@@ -107,11 +107,43 @@ Restart Claude after connect. Prefer `neuromesh_*` tool names if the client show
 2. Put the universal body in root **`AGENTS.md`** (Codex reads project agent docs) and/or Codex’s project instructions if you use them in the app.
 3. Restart Codex / reload the session so MCP tools refresh.
 
+### OpenCode
+
+1. Add NeuroMesh under `mcp` in project `opencode.json` / `.opencode/opencode.jsonc`, or globally in `~/.config/opencode/opencode.jsonc`. OpenCode expects a **local** server, for example:
+
+   ```json
+   {
+     "mcp": {
+       "neuromesh": {
+         "type": "local",
+         "command": ["neuromesh", "mcp"],
+         "enabled": true
+       }
+     }
+   }
+   ```
+
+   Prefer `neuromesh connect --print` and map the absolute binary + workspace args into that shape.
+2. Put the universal body in root **`AGENTS.md`** (and OpenCode project instructions if your build exposes them).
+3. Restart OpenCode / reload MCP.
+
+### MiMo CLI
+
+1. Merge into `.mimo-code.json` (project) or `~/.mimo-code/config.json` under **`mcpServers`**. Use `neuromesh connect --print` for the command and args, then add an entry with `"enabled": true`.
+2. Mirror the universal body into **`AGENTS.md`** (MiMo CLI also reads project agent docs when configured).
+3. Restart MiMo CLI or reload MCP from the TUI settings.
+
 ### Google Antigravity
 
 1. `neuromesh connect` → `.agents/mcp_config.json` (project) or `~/.gemini/config/mcp_config.json` (user).
 2. Add the universal body under the project’s agent instructions (Antigravity / Gemini agent docs for the workspace — often alongside `.agents/`). If the product offers a free-form “system instructions” field for the workspace, paste there.
 3. Also keep root **`AGENTS.md`** so other agents in the same tree stay aligned.
+
+### Gemini CLI
+
+1. `neuromesh connect --global` → `~/.gemini/settings.json` when Gemini CLI is installed (same `mcpServers` merge as other Google tools).
+2. Root **`AGENTS.md`** for agent behavior.
+3. Restart the Gemini CLI session after connect.
 
 ### Kilo Code
 
