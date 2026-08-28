@@ -4,6 +4,15 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### Fixed (benchmark regressions v0.7.16)
+
+- **Seed extraction.** Lowercase member access (`app.handle`, `app.listen`, `Loader.init`) is extracted again; English stopwords (`does`, etc.) are no longer fallback seeds.
+- **Dotted seed resolution.** `app.handle` resolves via owner hints (`application.js`) and member names become fold priority symbols so `handle`/`listen` stay open.
+- **Compound cluster coverage.** A cluster is covered only when every significant term resolves — resolving `next` alone no longer blocks `middleware`/`pipeline` cluster seeding.
+- **Call-graph tasks.** `callers and callees` prompts skip physarum, learning promotion, and wide neighborhood fill; optional files cap at direct trace neighbors (depth 1).
+- **Focus-scoped learning.** Reinforced files enter emission only when they match the current query's focus terms; removed `learning_bonus ≥ 28` unrelated bypass that leaked files across tasks (e.g. Zod `parse.ts` into optional-modifier queries).
+- **Technology detection.** `next()` in Express prompts no longer misclassifies as React/Next.js.
+
 ## 0.7.16 — 2026-08-28
 
 Close the positive learning→emission loop (audit v0.7.15 follow-up).
@@ -11,7 +20,7 @@ Close the positive learning→emission loop (audit v0.7.15 follow-up).
 - **Positive promotion.** `EmissionPipeline::ensure_learned_emission` prepends heavily reinforced files into the optional emission queue before materialize (focus match or `learning_bonus ≥ 28`).
 - **Selector swap.** `promote_high_learning_into_emitted` uses `learning_promotion_min_bonus` (default **14**, was hard-coded **18**) so +8 reinforcement (~17 bonus) can enter the packet; displacement no longer caps victims at utility ≤ 20.
 - **Threshold.** `Thresholds.learning_promotion_min_bonus` in config (serde default 14).
-- **CI.** `positive_learning_unrelated_high_bonus_enters_emission`, `ensure_learned_emission_prepends_focused_file`; kosha `routes.py` must show `emitted: true`.
+- **CI.** `positive_learning_unrelated_high_bonus_enters_emission`, `ensure_learned_emission_prepends_focused_file`; `routes.py` must show `emitted: true`.
 
 ## 0.7.15 — 2026-08-28
 

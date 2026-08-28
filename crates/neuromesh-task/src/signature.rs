@@ -56,7 +56,11 @@ impl TaskSignatureExtractor {
             || lower.contains("vue")
         {
             "Vue".to_string()
-        } else if lower.contains("react") || lower.contains("next") {
+        } else if lower.contains("react")
+            || lower.contains("next.js")
+            || lower.contains("nextjs")
+            || lower.contains("next/")
+        {
             "React".to_string()
         } else if lower.contains("rust") || lower.contains("cargo") || lower.contains("neuromesh") {
             "Rust".to_string()
@@ -251,5 +255,12 @@ mod tests {
             .any(|id| id == "neuromesh_get_context"));
         assert_eq!(sig.intent, TaskIntent::Explain);
         assert!(sig.file_hints.iter().any(|p| p.contains("tools.rs")));
+    }
+
+    #[test]
+    fn next_callback_is_not_react_technology() {
+        let sig =
+            TaskSignatureExtractor::extract("Explain the middleware pipeline and how next() works");
+        assert_ne!(sig.technology, "React");
     }
 }

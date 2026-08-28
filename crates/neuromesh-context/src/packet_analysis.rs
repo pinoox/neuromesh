@@ -1,29 +1,42 @@
 use crate::selector::Selection;
-use neuromesh_core::{PacketGap, SeedResolution, SkippedFile, StructuralEvidence, TaskSignature};
+use neuromesh_core::{
+    NodeType, PacketGap, SeedResolution, SkippedFile, StructuralEvidence, TaskSignature,
+};
 use neuromesh_graph::{NeuralProjectGraph, TraceDirection};
 use std::collections::HashSet;
 
 pub fn prompt_needs_callers(prompt: &str) -> bool {
+    prompt_is_call_graph_task(prompt) || {
+        let lower = prompt.to_lowercase();
+        [
+            "dead code",
+            "dead-code",
+            "unused",
+            "unreferenced",
+            "not used",
+            "never used",
+            "no caller",
+            "callers",
+            "who calls",
+            "all usages",
+            "all references",
+            "references across",
+            "list all references",
+            "find unused",
+        ]
+        .iter()
+        .any(|k| lower.contains(k))
+            || (lower.contains("reference") && lower.contains("across"))
+    }
+}
+
+/// Trace-style tasks: keep the packet to direct callers/callees, not the whole neighborhood.
+pub fn prompt_is_call_graph_task(prompt: &str) -> bool {
     let lower = prompt.to_lowercase();
-    [
-        "dead code",
-        "dead-code",
-        "unused",
-        "unreferenced",
-        "not used",
-        "never used",
-        "no caller",
-        "callers",
-        "who calls",
-        "all usages",
-        "all references",
-        "references across",
-        "list all references",
-        "find unused",
-    ]
-    .iter()
-    .any(|k| lower.contains(k))
-        || (lower.contains("reference") && lower.contains("across"))
+    (lower.contains("caller") || lower.contains("callee"))
+        && (lower.contains("call") || lower.contains("trace") || lower.contains("graph"))
+        || lower.contains("callers and callees")
+        || lower.contains("call graph")
 }
 
 pub fn prompt_needs_bug_hunt(prompt: &str) -> bool {
@@ -68,7 +81,34 @@ pub fn inject_caller_context(
     }
 }
 
-use neuromesh_core::NodeType;
+/// Cap call-graph packets to seed files plus direct trace neighbors (depth 1).
+pub fn restrict_selection_to_call_graph(
+    graph: &NeuralProjectGraph,
+    seeds: &HashSet<neuromesh_core::NodeId>,
+    selection: &mut Selection,
+) {
+    let mut trace_files: HashSet<neuromesh_core::NodeId> = HashSet::new();
+    for seed in seeds {
+        let Some(node) = graph.get_node(seed) else {
+            continue;
+        };
+        if node.node_type == NodeType::File {
+            trace_files.insert(seed.clone());
+            continue;
+        }
+        if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+            trace_files.insert(file_id);
+        }
+        let trace = graph.trace_symbol(&node.name, TraceDirection::Both, 1);
+        for hit in trace.callers.iter().chain(trace.callees.iter()) {
+            if let Some(file_id) = graph.file_id_for_path(&hit.file_path) {
+                trace_files.insert(file_id);
+            }
+        }
+    }
+    selection.optional.retain(|id| trace_files.contains(id));
+    selection.optional.truncate(6);
+}
 
 pub fn who_reads_symbol(
     graph: &NeuralProjectGraph,

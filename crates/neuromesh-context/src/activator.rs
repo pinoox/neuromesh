@@ -2,7 +2,7 @@ use crate::emission::EmissionPipeline;
 use crate::fold::{FoldPolicy, OPTIONAL_EXON_BUDGET, SEED_EXON_BUDGET};
 use crate::packet_analysis::{
     build_structural_evidence, compute_packet_gaps, enrich_coverage, inject_caller_context,
-    semantic_style_coverage,
+    prompt_is_call_graph_task, restrict_selection_to_call_graph, semantic_style_coverage,
 };
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
@@ -23,7 +23,8 @@ use neuromesh_core::{
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
 use neuromesh_task::{
-    extract_cluster_nouns, is_route_query, split_task_clusters, stem_search_queries,
+    extract_cluster_nouns, extract_prompt_anchors, is_prompt_stopword, is_route_query,
+    split_task_clusters, stem_search_queries,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -152,12 +153,18 @@ impl ContextActivator {
             mode
         };
 
-        let hops = match effective_mode {
-            OptimizationMode::MaxQuality => 3,
-            OptimizationMode::Balanced => 2,
-            OptimizationMode::MaxSavings => 1,
-        };
+        let prompt = signature.raw_prompt.as_str();
+        let call_graph_task = prompt_is_call_graph_task(prompt);
 
+        let hops = if call_graph_task {
+            1
+        } else {
+            match effective_mode {
+                OptimizationMode::MaxQuality => 3,
+                OptimizationMode::Balanced => 2,
+                OptimizationMode::MaxSavings => 1,
+            }
+        };
         let mut seed_resolutions = Vec::new();
         let mut seed_energies: HashMap<NodeId, f32> = HashMap::new();
         let mut seed_reasons: HashMap<NodeId, String> = HashMap::new();
@@ -192,14 +199,13 @@ impl ContextActivator {
         if queries.is_empty() {
             for token in signature.raw_prompt.split_whitespace().take(8) {
                 let clean = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
-                if clean.len() < 4 {
+                if clean.len() < 5 || is_prompt_stopword(clean) {
                     continue;
                 }
                 queries.push((clean.to_string(), 0.55, "token"));
             }
         }
 
-        let prompt = signature.raw_prompt.as_str();
         {
             let mut sink = SeedSink {
                 resolutions: &mut seed_resolutions,
@@ -208,16 +214,6 @@ impl ContextActivator {
             };
             for (query, energy, reason) in queries {
                 sink.push(graph, prompt, query, energy, reason);
-            }
-
-            if sink.energies.is_empty() && !is_style_task(signature) {
-                for token in signature.raw_prompt.split_whitespace().take(8) {
-                    let clean = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
-                    if clean.len() < 4 {
-                        continue;
-                    }
-                    sink.push(graph, prompt, clean.to_string(), 0.55, "token");
-                }
             }
         }
 
@@ -228,6 +224,20 @@ impl ContextActivator {
             &mut seed_energies,
             &mut seed_reasons,
         );
+        if seed_energies.is_empty() && !is_style_task(signature) {
+            let mut sink = SeedSink {
+                resolutions: &mut seed_resolutions,
+                energies: &mut seed_energies,
+                reasons: &mut seed_reasons,
+            };
+            for token in signature.raw_prompt.split_whitespace().take(8) {
+                let clean = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+                if clean.len() < 5 || is_prompt_stopword(clean) {
+                    continue;
+                }
+                sink.push(graph, prompt, clean.to_string(), 0.55, "token");
+            }
+        }
         {
             let mut sink = SeedSink {
                 resolutions: &mut seed_resolutions,
@@ -303,7 +313,11 @@ impl ContextActivator {
             &focus_terms,
             effective_mode,
         );
-        inject_caller_context(graph, &seed_set, prompt, &mut selection);
+        if !call_graph_task {
+            inject_caller_context(graph, &seed_set, prompt, &mut selection);
+        } else {
+            restrict_selection_to_call_graph(graph, &seed_set, &mut selection);
+        }
         tighten_focused_view_selection(graph, signature, &mut selection);
         let mut skipped_files: Vec<SkippedFile> = Vec::new();
         if is_style_task(signature) {
@@ -355,7 +369,7 @@ impl ContextActivator {
 
         let mut physarum_used = false;
         let mut physarum_ms = 0u64;
-        if seed_set.len() >= 2 {
+        if seed_set.len() >= 2 && !call_graph_task {
             let started = Instant::now();
             let tube = graph.solve_physarum_tube(&seed_set, hops.min(2));
             physarum_ms = started.elapsed().as_millis() as u64;
@@ -465,16 +479,18 @@ impl ContextActivator {
             &focus_terms,
             &thresholds,
         );
-        EmissionPipeline::ensure_learned_emission(
-            graph,
-            &mut selection.optional,
-            &mut selection.scores,
-            &required_set,
-            &learning_index,
-            &focus_terms,
-            &thresholds,
-            selection.optional_cap,
-        );
+        if !call_graph_task {
+            EmissionPipeline::ensure_learned_emission(
+                graph,
+                &mut selection.optional,
+                &mut selection.scores,
+                &required_set,
+                &learning_index,
+                &focus_terms,
+                &thresholds,
+                selection.optional_cap,
+            );
+        }
 
         *self.last_physarum.lock() = PhysarumTelemetry {
             used: physarum_used,
@@ -507,9 +523,7 @@ impl ContextActivator {
                     }
                 }
             }
-            if !seed.query.contains(['/', '\\', '.']) {
-                priority_symbols.insert(seed.query.to_lowercase());
-            }
+            push_seed_priority_symbol(&mut priority_symbols, &seed.query);
         }
 
         let fold_policy = FoldPolicy::from_task(&active_symbol_names, signature)
@@ -903,6 +917,96 @@ impl SeedSink<'_> {
     }
 }
 
+fn cluster_terms_covered(
+    cluster: &str,
+    seed_resolutions: &[SeedResolution],
+    file_hints: &[String],
+) -> bool {
+    let cluster_lower = cluster.to_lowercase();
+    if file_hints
+        .iter()
+        .any(|hint| cluster_lower.contains(&hint.to_lowercase()))
+    {
+        return true;
+    }
+    let anchors = extract_prompt_anchors(cluster);
+    let nouns = extract_cluster_nouns(cluster);
+    let mut terms = anchors.identifiers;
+    terms.extend(nouns);
+    terms.sort();
+    terms.dedup();
+    terms.retain(|t| !is_prompt_stopword(t));
+    let significant: Vec<String> = terms
+        .into_iter()
+        .filter(|t| {
+            let tl = t.to_lowercase();
+            tl.len() >= 5 || t.contains('.') || t.contains('_')
+        })
+        .collect();
+    if significant.is_empty() {
+        return seed_resolutions.iter().any(|s| s.resolved_id.is_some());
+    }
+    significant
+        .iter()
+        .all(|term| seed_term_resolved(term, seed_resolutions))
+}
+
+fn seed_term_resolved(term: &str, seeds: &[SeedResolution]) -> bool {
+    let tl = term.to_lowercase();
+    seeds.iter().any(|s| {
+        if s.resolved_id.is_none() {
+            return false;
+        }
+        let sq = s.query.to_lowercase();
+        sq == tl
+            || sq.ends_with(&format!(".{tl}"))
+            || sq.rsplit('.').next().is_some_and(|member| member == tl)
+    })
+}
+
+fn push_seed_priority_symbol(symbols: &mut HashSet<String>, query: &str) {
+    if query.contains(['/', '\\']) {
+        return;
+    }
+    if let Some((_, member)) = query.split_once('.') {
+        if !member.is_empty() {
+            symbols.insert(member.to_lowercase());
+            symbols.insert(query.to_lowercase());
+            return;
+        }
+    }
+    symbols.insert(query.to_lowercase());
+}
+
+fn resolve_dotted_member(
+    graph: &NeuralProjectGraph,
+    owner: &str,
+    member: &str,
+    prompt: &str,
+) -> Option<(NodeId, f32)> {
+    let owner_l = owner.to_lowercase();
+    let hints: Vec<&str> = match owner_l.as_str() {
+        "app" => vec!["application", "app"],
+        _ => vec![owner],
+    };
+    for hint in hints {
+        if let Some((ranked_id, confidence)) = graph.resolve_ranked(member, Some(hint), None) {
+            let id = prefer_search_seed(graph, member, ranked_id, confidence, prompt);
+            if seed_path_allowed(graph, &id, prompt) {
+                let conf = match confidence {
+                    EdgeConfidence::Proven => 1.0,
+                    EdgeConfidence::Likely => 0.72,
+                    EdgeConfidence::Unresolved => 0.0,
+                };
+                if conf > 0.0 {
+                    return Some((id, conf));
+                }
+            }
+        }
+    }
+    None
+}
+
 fn resolve_seed_query(
     graph: &NeuralProjectGraph,
     query: &str,
@@ -924,6 +1028,21 @@ fn resolve_seed_query_once(
     query: &str,
     prompt: &str,
 ) -> Option<(NodeId, f32)> {
+    if query.starts_with("__") {
+        if let Some(node) = graph.resolve_best(query) {
+            if node.name == query && seed_path_allowed(graph, &node.id, prompt) {
+                return Some((node.id, 1.0));
+            }
+        }
+        return None;
+    }
+    if !query.contains(['/', '\\']) && !is_route_query(query) {
+        if let Some((owner, member)) = query.split_once('.') {
+            if let Some(hit) = resolve_dotted_member(graph, owner, member, prompt) {
+                return Some(hit);
+            }
+        }
+    }
     if query.contains("::") {
         if let Some(node) = graph.resolve_best(query) {
             if seed_path_allowed(graph, &node.id, prompt) {
@@ -1163,25 +1282,29 @@ fn seed_uncovered_clusters(
     seed_reasons: &mut HashMap<NodeId, String>,
 ) {
     for cluster in split_task_clusters(&signature.raw_prompt) {
-        let cluster_lower = cluster.to_lowercase();
-        let covered = seed_resolutions
-            .iter()
-            .any(|s| s.resolved_id.is_some() && cluster_lower.contains(&s.query.to_lowercase()))
-            || signature
-                .file_hints
-                .iter()
-                .any(|hint| cluster_lower.contains(&hint.to_lowercase()));
-        if covered {
+        if cluster_terms_covered(&cluster, seed_resolutions, &signature.file_hints) {
             continue;
         }
         let nouns = extract_cluster_nouns(&cluster);
         let mut cluster_hit = false;
         for noun in &nouns {
-            if seed_resolutions.iter().any(|s| s.query == *noun) {
-                if seed_resolutions
-                    .iter()
-                    .any(|s| s.query == *noun && s.resolved_id.is_some())
-                {
+            if let Some(idx) = seed_resolutions.iter().position(|s| s.query == *noun) {
+                if seed_resolutions[idx].resolved_id.is_some() {
+                    cluster_hit = true;
+                    continue;
+                }
+                let hits = resolve_cluster_noun_seeds(graph, noun, &nouns);
+                if let Some((id, conf)) = hits.into_iter().next() {
+                    let energy = 0.85;
+                    seed_energies
+                        .entry(id.clone())
+                        .and_modify(|e| *e = (*e).max(energy))
+                        .or_insert(energy);
+                    seed_reasons
+                        .entry(id.clone())
+                        .or_insert_with(|| format!("cluster:{noun}"));
+                    seed_resolutions[idx].resolved_id = Some(id);
+                    seed_resolutions[idx].confidence = conf;
                     cluster_hit = true;
                 }
                 continue;
@@ -1237,6 +1360,9 @@ fn resolve_cluster_noun_seeds(
     noun: &str,
     sibling_nouns: &[String],
 ) -> Vec<(NodeId, f32)> {
+    if let Some(hit) = resolve_file_path_noun(graph, noun) {
+        return vec![hit];
+    }
     let noun_l = noun.to_lowercase();
     let cluster_l = sibling_nouns
         .iter()
@@ -1269,6 +1395,12 @@ fn resolve_cluster_noun_seeds(
             score -= 36.0;
         }
         let hay = format!("{} {path_l}", node.name.to_lowercase());
+        if path_l
+            .split('/')
+            .any(|seg| path_segment_matches_noun(seg, &noun_l))
+        {
+            score += 44.0;
+        }
         for sib in sibling_nouns {
             let sib_l = sib.to_lowercase();
             if sib_l != noun_l && hay.contains(&sib_l) {
@@ -1296,6 +1428,12 @@ fn resolve_cluster_noun_seeds(
     }
     let mut ranked: Vec<(f32, NodeId)> = by_file.into_values().collect();
     ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    if ranked.is_empty() {
+        if let Some(hit) = resolve_file_path_noun(graph, noun) {
+            return vec![hit];
+        }
+        return Vec::new();
+    }
     let Some(&(best, _)) = ranked.first() else {
         return Vec::new();
     };
@@ -1308,6 +1446,35 @@ fn resolve_cluster_noun_seeds(
         .take(3)
         .map(|(score, id)| (id, (score / 200.0).clamp(0.55, 0.95)))
         .collect()
+}
+
+fn resolve_file_path_noun(graph: &NeuralProjectGraph, noun: &str) -> Option<(NodeId, f32)> {
+    let noun_l = noun.to_lowercase();
+    for node in graph.get_all_nodes() {
+        if node.node_type != NodeType::File {
+            continue;
+        }
+        let path_l = node
+            .file_path
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_lowercase();
+        if !path_l
+            .split('/')
+            .any(|seg| path_segment_matches_noun(seg, &noun_l))
+        {
+            continue;
+        }
+        if is_noise_path(&node.file_path) {
+            continue;
+        }
+        return Some((node.id, 0.88));
+    }
+    None
+}
+
+fn path_segment_matches_noun(segment: &str, noun_l: &str) -> bool {
+    segment == noun_l && !segment.contains('.')
 }
 
 fn is_template_path(path_l: &str) -> bool {
@@ -3297,7 +3464,7 @@ import { useCartStore } from '../stores/cart.js'
     }
 
     #[test]
-    fn positive_learning_unrelated_high_bonus_enters_emission() {
+    fn reinforced_file_promotes_only_on_focus_matched_query() {
         let graph = NeuralProjectGraph::new(ProjectId::new("kosha-gap"));
         graph.ingest_file(
             &indexed("api/school.ts"),
@@ -3329,17 +3496,77 @@ import { useCartStore } from '../stores/cart.js'
         graph.finalize_links();
         let registry = Arc::new(ReversibleContextRegistry::new());
         let activator = ContextActivator::new(registry);
-        let sig = TaskSignatureExtractor::extract("where are school scores handled");
+        let related = TaskSignatureExtractor::extract("where are school scores handled");
         for _ in 0..80 {
             if let Some(node) = graph.resolve_feedback_node("school/routes.py") {
                 graph.reinforce_node_access(&node.id, true);
             }
         }
-        let view = activator.activate(&graph, &sig, OptimizationMode::Balanced);
-        let files = packet_paths(&view);
+        let related_view = activator.activate(&graph, &related, OptimizationMode::Balanced);
+        let related_files = packet_paths(&related_view);
         assert!(
-            files.iter().any(|p| p.contains("routes.py")),
-            "heavily learned routes.py must enter packet alongside seeds; files={files:?}"
+            related_files.iter().any(|p| p.contains("routes.py")),
+            "focus-matched query should emit reinforced routes.py; files={related_files:?}"
+        );
+        let unrelated = TaskSignatureExtractor::extract(
+            "how does database migration create users table schema",
+        );
+        let unrelated_view = activator.activate(&graph, &unrelated, OptimizationMode::Balanced);
+        let unrelated_files = packet_paths(&unrelated_view);
+        assert!(
+            !unrelated_files.iter().any(|p| p.contains("routes.py")),
+            "reinforced routes.py must not leak into unrelated query; files={unrelated_files:?}"
+        );
+    }
+
+    #[test]
+    fn learning_does_not_leak_parse_into_unrelated_zod_query() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("zod-learn"));
+        ingest_ts(
+            &graph,
+            "packages/zod/src/v4/core/parse.ts",
+            r#"
+export function safeParse(schema: unknown, input: unknown) {
+  return { success: true, data: input };
+}
+"#,
+        );
+        ingest_ts(
+            &graph,
+            "packages/zod/src/v4/core/schemas.ts",
+            r#"
+export function optionalModifier<T>(inner: T) {
+  return { type: "optional", inner };
+}
+"#,
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        for _ in 0..12 {
+            if let Some(node) = graph.resolve_feedback_node("safeParse") {
+                graph.reinforce_node_access(&node.id, true);
+            }
+        }
+        let related = TaskSignatureExtractor::extract("how does parsing work in zod");
+        let related_view = activator.activate(&graph, &related, OptimizationMode::Balanced);
+        let related_files = packet_paths(&related_view);
+        assert!(
+            related_files
+                .iter()
+                .any(|p| p.contains("core/parse.ts")),
+            "related parsing query should include parse.ts after reinforcement; files={related_files:?}"
+        );
+        let unrelated = TaskSignatureExtractor::extract("how does the optional modifier work");
+        let unrelated_view = activator.activate(&graph, &unrelated, OptimizationMode::Balanced);
+        let unrelated_files = packet_paths(&unrelated_view);
+        assert!(
+            !unrelated_files.iter().any(|p| p.contains("core/parse.ts")),
+            "parse.ts must not leak into optional-modifier query; files={unrelated_files:?}"
+        );
+        assert!(
+            unrelated_files.iter().any(|p| p.contains("schemas.ts")),
+            "optional-modifier query should still reach schemas.ts; files={unrelated_files:?}"
         );
     }
 
@@ -3439,5 +3666,152 @@ import { useCartStore } from '../stores/cart.js'
             "learning should persist: before={bonus_before} after={bonus_after}"
         );
         let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    fn ingest_mini_express_app(graph: &NeuralProjectGraph) {
+        ingest_js(
+            graph,
+            "lib/application.js",
+            r#"
+var app = module.exports = {};
+app.init = function init() { this.cache = {}; };
+app.handle = function handle(req, res, next) { return this.router.handle(req, res, next); };
+app.listen = function listen(port, cb) { return require('http').createServer(this).listen(port, cb); };
+function logerror(err) { console.error(err); }
+function tryRender(view, options, callback) { callback(null, view); }
+"#,
+        );
+        ingest_js(
+            graph,
+            "lib/middleware/init.js",
+            r#"
+module.exports = function middlewareInit(app) {
+  return function init(req, res, next) { next(); };
+};
+"#,
+        );
+        graph.finalize_links();
+    }
+
+    #[test]
+    fn express_app_handle_listen_resolves_application_js() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("express-app"));
+        ingest_mini_express_app(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "how does app.handle process middleware and how does app.listen start the server, including init",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        assert_ne!(
+            coverage.claim, "no_seed_resolved",
+            "must resolve express seeds, coverage={coverage:?}"
+        );
+        let files = packet_paths(&view);
+        assert!(
+            files.iter().any(|p| p.contains("application.js")),
+            "expected application.js, files={files:?}"
+        );
+        let app_node = view
+            .active_nodes
+            .iter()
+            .find(|n| {
+                n.node
+                    .file_path
+                    .to_string_lossy()
+                    .contains("application.js")
+            })
+            .expect("application.js node");
+        let skeleton = app_node.node.content.as_deref().unwrap_or("");
+        assert!(
+            skeleton.contains("function handle") || skeleton.contains("app.handle"),
+            "handle must stay open, skeleton={skeleton}"
+        );
+        assert!(
+            skeleton.contains("function listen") || skeleton.contains("app.listen"),
+            "listen must stay open, skeleton={skeleton}"
+        );
+    }
+
+    #[test]
+    fn express_middleware_next_prompt_resolves() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("express-mw"));
+        ingest_mini_express_app(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "Explain the middleware pipeline and how next() works",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        assert_ne!(
+            coverage.claim, "no_seed_resolved",
+            "middleware prompt must not fail completely, coverage={coverage:?}"
+        );
+        assert!(
+            !view.active_nodes.is_empty(),
+            "expected at least one file for middleware task"
+        );
+    }
+
+    #[test]
+    fn call_graph_task_caps_optional_files() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("loader-trace"));
+        ingest_js(
+            &graph,
+            "Component/Kernel/Loader.js",
+            r#"
+export class Loader {
+  init() { this.manageRegisters(); }
+  manageRegisters() { return true; }
+}
+"#,
+        );
+        ingest_js(
+            &graph,
+            "Component/Router/Router.js",
+            r#"
+import { Loader } from '../Kernel/Loader.js';
+export function boot() { const l = new Loader(); l.init(); }
+"#,
+        );
+        for i in 0..12 {
+            ingest_js(
+                &graph,
+                &format!("Terminal/Wizard/WizardListCommand{i}.js"),
+                &format!("export function run{i}() {{ return {i}; }}\n"),
+            );
+        }
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "callers and callees of Loader.init and manageRegisters",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let files = packet_paths(&view);
+        assert!(
+            files.len() <= 8,
+            "call-graph task must stay focused, got {} files: {files:?}",
+            files.len()
+        );
+        assert!(
+            files.iter().any(|p| p.contains("Loader")),
+            "Loader must be present, files={files:?}"
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("WizardListCommand")),
+            "unrelated wizard files must not leak, files={files:?}"
+        );
     }
 }

@@ -182,18 +182,16 @@ impl EmissionPipeline {
         optional_cap: usize,
     ) {
         let min_bonus = thresholds.learning_promotion_min_bonus;
-        const UNRELATED_FORCE: f32 = 28.0;
 
         let mut promoted: Vec<(NodeId, f32)> = graph
             .high_learning_files(min_bonus, 24)
             .into_iter()
-            .filter(|(id, bonus)| {
+            .filter(|(id, _)| {
                 !required.contains(id)
                     && !graph
                         .file_min_base_relevance(id)
                         .is_some_and(|r| r < thresholds.penalized_suppression_threshold)
-                    && (file_matches_focus_terms(graph, id, focus_terms)
-                        || *bonus >= UNRELATED_FORCE)
+                    && file_matches_focus_terms(graph, id, focus_terms)
             })
             .map(|(id, _)| {
                 let utility = scores.get(&id).copied().unwrap_or(12.0);

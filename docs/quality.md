@@ -43,13 +43,16 @@ That is “did the packet already hold the files a developer would open”, not 
 
 ## Learning → emission (v0.7.16)
 
-Feedback changes **which files are emitted** in both directions: penalized hop-expanded files drop out; heavily reinforced files (focus match or `learning_bonus ≥ 28`) are prepended into optional emission via `ensure_learned_emission`. Default promotion floor: `learning_promotion_min_bonus` **14** (covers +8 strong reinforcement ≈ 17 bonus).
+Feedback changes **which files are emitted** in both directions: penalized hop-expanded files drop out; reinforced files that **match the current query focus terms** are prepended into optional emission via `ensure_learned_emission`. Default promotion floor: `learning_promotion_min_bonus` **14** (covers +8 strong reinforcement ≈ 17 bonus). Unrelated queries still get at most `learning_relevance_cap_unrelated` (default **0.35**) of the learned score in ranking — they do not inject new files into the packet.
+
+Learning is **not passive**: repeated `get_context` alone does nothing; agents must call `neuromesh_record_feedback` after a successful edit (`task_success` + `touched_nodes`).
 
 Causal routing is gated in CI:
 
 ```bash
 cargo test -p neuromesh-context learning_to_emission
-cargo test -p neuromesh-context positive_learning
+cargo test -p neuromesh-context reinforced_file_promotes
+cargo test -p neuromesh-context learning_does_not_leak
 cargo test -p neuromesh-context deterministic_packet_same_state
 cargo test -p neuromesh-context catastrophic_learning
 ```
