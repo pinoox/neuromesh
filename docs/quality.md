@@ -119,11 +119,11 @@ From `snapshot_load_and_single_file_reindex_beat_full_index` (release, 2026-08-2
 | Metric | Value |
 | :--- | ---: |
 | Files scanned | 340 |
-| Nodes | 3,132 |
-| Full workspace index | 672 ms |
-| Snapshot size | 3.8 MB |
-| **Snapshot cold load** | **94 ms** |
-| **One-file reindex** (parse + local relink) | **83 ms** |
+| Nodes | 3,161 |
+| Full workspace index | 790 ms |
+| Snapshot size | 3.9 MB |
+| **Snapshot cold load** | **55 ms** |
+| **One-file reindex** (parse + local relink) | **80 ms** |
 
 ```bash
 cargo test --release -p neuromesh-graph --lib snapshot_load_and_single_file_reindex -- --nocapture

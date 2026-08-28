@@ -125,7 +125,7 @@ Markers look like:
 /* [neuromesh:fold:fold_unused_helper_1 | 12 lines folded | fn unused_helper()] */
 ```
 
-Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `query`. The full marker line also works. Folds persist for the **MCP session** (same process, same project). They are not cleared on every `get_context`. A new project id wipes the registry. Ids include a short path tag so two files that both fold `write` do not collide. Fold **bodies** are never in `get_context` or `get_file_skeleton`; only `expand_fold` restores them.
+Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `query`. The full marker line also works. Folds persist for the **MCP session** (same process, same project). Folds from the current activation stay resolvable; older activations are LRU-trimmed (cap 2000) so long sessions do not grow without bound. A new project id wipes the registry. Ids include a short path tag so two files that both fold `write` do not collide. Fold **bodies** are never in `get_context` or `get_file_skeleton`; only `expand_fold` restores them.
 
 ## Learning
 
