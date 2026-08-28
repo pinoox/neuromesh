@@ -223,19 +223,19 @@ pub fn select(
 
     let mut file_scores: HashMap<NodeId, f32> = HashMap::new();
     let mut callee_files: HashSet<NodeId> = HashSet::new();
-    let learning_boost =
-        |graph: &NeuralProjectGraph, id: &NodeId| -> f32 { graph.file_learning_boost(id) };
+    let learning_index = graph.file_learning_boost_index();
+    let learning_boost = |id: &NodeId| learning_index.get(id).copied().unwrap_or(0.0);
     let bump_file = |scores: &mut HashMap<NodeId, f32>, id: &NodeId, amount: f32| {
         if required.contains(id) || is_noise_node(graph, id) {
             return;
         }
-        *scores.entry(id.clone()).or_insert(0.0) += amount + learning_boost(graph, id);
+        *scores.entry(id.clone()).or_insert(0.0) += amount + learning_boost(id);
     };
     let bump_file_max = |scores: &mut HashMap<NodeId, f32>, id: &NodeId, amount: f32| {
         if required.contains(id) || is_noise_node(graph, id) {
             return;
         }
-        let total = amount + learning_boost(graph, id);
+        let total = amount + learning_boost(id);
         let entry = scores.entry(id.clone()).or_insert(0.0);
         if total > *entry {
             *entry = total;
@@ -386,13 +386,19 @@ pub fn select(
         }
     }
 
-    inject_learned_candidates(graph, focus_terms, &required, &mut file_scores);
+    inject_learned_candidates(
+        graph,
+        &learning_index,
+        focus_terms,
+        &required,
+        &mut file_scores,
+    );
     demote_penalized_seed_files(graph, seeds, &mut required, &mut scores);
 
     let mut optional_files: Vec<(NodeId, f32)> = file_scores
         .into_iter()
         .map(|(id, gain)| {
-            let learned = graph.file_learning_boost(&id);
+            let learned = learning_boost(&id);
             let base = gain.min(24.0);
             let boosted = if learned >= 12.0 {
                 base.max(14.0 + learned * 0.45).min(48.0)
@@ -566,7 +572,7 @@ pub fn select(
             if node.node_type != NodeType::File {
                 return None;
             }
-            let learned = graph.file_learning_boost(id);
+            let learned = learning_index.get(id).copied().unwrap_or(0.0);
             let reason = if learned >= 12.0 {
                 format!("learned:{learned:.1}")
             } else {
@@ -624,8 +630,9 @@ fn file_matches_focus(
 }
 
 fn push_learned_file(
-    graph: &NeuralProjectGraph,
+    learning_index: &HashMap<NodeId, f32>,
     required: &HashSet<NodeId>,
+    graph: &NeuralProjectGraph,
     file_scores: &mut HashMap<NodeId, f32>,
     file_id: &NodeId,
     base_amount: f32,
@@ -634,7 +641,7 @@ fn push_learned_file(
     if required.contains(file_id) || is_noise_node(graph, file_id) {
         return;
     }
-    let learned = graph.file_learning_boost(file_id);
+    let learned = learning_index.get(file_id).copied().unwrap_or(0.0);
     if learned < MIN_LEARNED {
         return;
     }
@@ -647,6 +654,7 @@ fn push_learned_file(
 
 fn inject_learned_candidates(
     graph: &NeuralProjectGraph,
+    learning_index: &HashMap<NodeId, f32>,
     focus_terms: &HashSet<String>,
     required: &HashSet<NodeId>,
     file_scores: &mut HashMap<NodeId, f32>,
@@ -658,23 +666,51 @@ fn inject_learned_candidates(
         if let Some((id, _)) = graph.resolve_ranked(term, None, None) {
             if let Some(node) = graph.get_node(&id) {
                 if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
-                    push_learned_file(graph, required, file_scores, &file_id, 14.0);
+                    push_learned_file(learning_index, required, graph, file_scores, &file_id, 14.0);
                 }
             }
         }
         for hit in graph.search_symbols(term, 10) {
             if let Some(file_id) = graph.file_id_for_path(&hit.file_path) {
-                push_learned_file(graph, required, file_scores, &file_id, 16.0);
+                push_learned_file(learning_index, required, graph, file_scores, &file_id, 16.0);
             }
         }
     }
-    for (file_id, bonus) in graph.high_learning_files(8.0, 32) {
+    let mut focus_ranked: Vec<(NodeId, f32)> = learning_index
+        .iter()
+        .filter(|(_, bonus)| **bonus >= 8.0)
+        .map(|(id, bonus)| (id.clone(), *bonus))
+        .collect();
+    focus_ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    focus_ranked.truncate(32);
+    for (file_id, bonus) in focus_ranked {
         if file_matches_focus(graph, &file_id, focus_terms) {
-            push_learned_file(graph, required, file_scores, &file_id, 12.0 + bonus * 0.55);
+            push_learned_file(
+                learning_index,
+                required,
+                graph,
+                file_scores,
+                &file_id,
+                12.0 + bonus * 0.55,
+            );
         }
     }
-    for (file_id, bonus) in graph.high_learning_files(28.0, 12) {
-        push_learned_file(graph, required, file_scores, &file_id, 10.0 + bonus * 0.45);
+    let mut saturated: Vec<(NodeId, f32)> = learning_index
+        .iter()
+        .filter(|(_, bonus)| **bonus >= 28.0)
+        .map(|(id, bonus)| (id.clone(), *bonus))
+        .collect();
+    saturated.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    saturated.truncate(12);
+    for (file_id, bonus) in saturated {
+        push_learned_file(
+            learning_index,
+            required,
+            graph,
+            file_scores,
+            &file_id,
+            10.0 + bonus * 0.45,
+        );
     }
 }
 

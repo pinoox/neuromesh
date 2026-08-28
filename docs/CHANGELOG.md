@@ -13,6 +13,7 @@ Learning weights now change `get_context` packet selection, not just persisted g
 - **Explain diagnostics.** `neuromesh_explain_packet` → `selection.candidates` lists `{path, score, learning_bonus, reason, selected}` for before/after feedback comparison.
 - **Tests.** Selector acceptance tests for promote (PromoCodeInput), demote (App.vue), and kosha-style saturation (+50 on `routes.py` / `schema.py`).
 - **Docs & landing.** MCP client lists now include OpenCode, MiMo CLI, and Gemini CLI in [README](../README.md), [mcp.md](mcp.md), [agent-guide.md](agent-guide.md), and the GitHub Pages site. OpenCode and MiMo CLI setup sections added to the agent guide.
+- **Perf.** `file_learning_boost_index` builds learning scores in one graph pass; fixes gold harness latency regression on Linux CI (>200ms) from per-candidate full-graph scans.
 
 ## 0.7.10 — 2026-08-28
 

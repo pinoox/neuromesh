@@ -2187,31 +2187,46 @@ impl NeuralProjectGraph {
             return 0.0;
         };
         let path = file_node.file_path.clone();
+        let data = self.inner.read();
         let mut best = node_learning_bonus(&file_node);
-        for node in self.get_all_nodes() {
-            if node.file_path == path {
-                best = best.max(node_learning_bonus(&node));
+        if let Some(ids) = data.file_to_nodes.get(&path) {
+            for id in ids {
+                if let Some(node) = data.mesh.node(id) {
+                    best = best.max(node_learning_bonus(node));
+                }
             }
         }
         best
     }
 
+    /// One-pass index of file node id → max learning bonus (file + symbols on path).
+    pub fn file_learning_boost_index(&self) -> HashMap<NodeId, f32> {
+        let data = self.inner.read();
+        let mut out: HashMap<NodeId, f32> = HashMap::new();
+        for ids in data.file_to_nodes.values() {
+            let mut best = 0.0f32;
+            let mut file_id = None;
+            for id in ids {
+                let Some(node) = data.mesh.node(id) else {
+                    continue;
+                };
+                best = best.max(node_learning_bonus(node));
+                if node.node_type == NodeType::File {
+                    file_id = Some(id.clone());
+                }
+            }
+            if let Some(fid) = file_id {
+                let slot = out.entry(fid).or_insert(0.0f32);
+                *slot = slot.max(best);
+            }
+        }
+        out
+    }
+
     /// File nodes whose reinforced symbols or file metadata exceed `min_bonus`.
     pub fn high_learning_files(&self, min_bonus: f32, limit: usize) -> Vec<(NodeId, f32)> {
-        let mut file_bonus: HashMap<NodeId, f32> = HashMap::new();
-        for node in self.get_all_nodes() {
-            let bonus = node_learning_bonus(&node);
-            let file_id = if node.node_type == NodeType::File {
-                node.id.clone()
-            } else if let Some(fid) = self.file_id_for_path(&node.file_path) {
-                fid
-            } else {
-                continue;
-            };
-            let slot = file_bonus.entry(file_id).or_insert(0.0);
-            *slot = slot.max(bonus);
-        }
-        let mut out: Vec<(NodeId, f32)> = file_bonus
+        let mut out: Vec<(NodeId, f32)> = self
+            .file_learning_boost_index()
             .into_iter()
             .filter(|(_, bonus)| *bonus >= min_bonus)
             .collect();
