@@ -299,18 +299,20 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release, 2026-08-28, 554,554 workspace tokens):
+On this repo (release, 2026-08-28 v0.7.15, 639,040 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | balanced | 554554 | 63462 | 15900 | 97.1% | 74.9% | 1.00 | 0.75 | **0** | 33 |
-| `physarum_usage` | balanced | 554554 | 18631 | 3945 | 99.3% | 78.8% | 1.00 | 0.50 | **0** | 17 |
+| `handle_tool_call_intent` | balanced | 639040 | 68094 | 17251 | 97.3% | 74.7% | 1.00 | 0.75 | **0** | 47 |
+| `physarum_usage` | balanced | 639040 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | 43 |
+
+Re-run gold tasks: `cargo run --release -p neuromesh-cli -- eval` (or `neuromesh eval` in debug). Dose-response learning benchmark: `neuromesh eval --learning`.
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
 Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects (including `mini-shop` SCSS/dead-code/checkout). Packet activation **&lt; 200 ms** in the debug gold test.
 
-Index snapshot from that eval run: **323 files · 2,458 nodes · 5,594 edges · ~490 ms** index (release).
+Index snapshot from that eval run: **340 files · 3,132 nodes · 6,591 edges · 600 ms** index (release; debug ~2.3 s).
 
 ---
 

@@ -10,7 +10,7 @@ Start with the [root README](../README.md) if you want install and the agent loo
 | [Agent guide](agent-guide.md) | Teach every IDE to prefer NeuroMesh (rules, AGENTS.md, smoke test) |
 | [Agent rule](agent-rule.mdc) | Cursor-ready `.mdc` template (same body as the guide) |
 | [CLI](cli.md) | Commands you run in a terminal |
-| [Quality](quality.md) | Gold harness, `neuromesh eval`, measured numbers |
+| [Quality](quality.md) | Gold harness, `neuromesh eval`, `eval --learning`, measured numbers |
 | [HTTP monitor](api.md) | Local UI, SSE, management endpoints |
 | [Contributing](contributing.md) | Tests, clippy, adding a language |
 | [Changelog](CHANGELOG.md) | Version history |

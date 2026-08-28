@@ -115,7 +115,7 @@ Aliases exist for older clients (`activate_context`, `expand_context`, `search_c
 
 `mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality. `mode` does not add metadata; `response_detail` does (`minimal` ≤ 256 metadata tokens, `standard` ≤ 750, `diagnostic` on demand).
 
-`neuromesh_explain_packet` returns seeds, selection, budget, physarum, and membrane for a `packet_id`. Pass `include: ["graph"]` for graph stats; otherwise use `neuromesh_get_stats`. The HTTP monitor (`/api/simulate`) still requests `diagnostic` so the VS Code inspector keeps the nested `evidence_packet`.
+`neuromesh_explain_packet` returns seeds, selection, budget, physarum, and membrane for a `packet_id`. `selection.candidates` lists ranked files with `selected`, `emitted`, `drop_stage`, `score_breakdown`, and `learning_bonus` — use this when debugging why feedback did or did not change the emitted packet. Pass `include: ["graph"]` for graph stats; otherwise use `neuromesh_get_stats`. The HTTP monitor (`/api/simulate`) still requests `diagnostic` so the VS Code inspector keeps the nested `evidence_packet`.
 
 ## Folds
 
@@ -129,4 +129,8 @@ Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `quer
 
 ## Learning
 
-`neuromesh_record_feedback` updates `base_relevance`, edge pheromones, and episodic memory. **Durable weights** persist in `graph.bin` (episode checkpoints in the snapshot); `neuromesh.json` holds episodic records for recall. The response includes `episode_saved_this_call`, `learning_episodes_in_store`, and `persisted_to: "graph.bin"` (`episodes_recorded` is a per-call 0/1 compat field). Effects apply on the **next** `get_context` in the same MCP process (search ranking, selector fill, episodic recall). Use `neuromesh_get_node_weights` before and after feedback to verify deltas. Learning does not change a packet mid-request; restart the MCP server to load persisted graph state from a prior session.
+`neuromesh_record_feedback` updates `base_relevance`, edge pheromones, and episodic memory. **Durable weights** persist in `graph.bin` (episode checkpoints in the snapshot); `neuromesh.json` holds episodic records for recall. The response includes `episode_saved_this_call`, `learning_episodes_in_store`, and `persisted_to: "graph.bin"` (`episodes_recorded` is a per-call 0/1 compat field).
+
+Effects apply on the **next** `get_context` in the same MCP process: search ranking, selector fill, unified scoring, and the **emission pipeline** (which files actually ship after fill/packet caps). Negative feedback lowers `base_relevance` and can suppress penalized files from the optional set. Use `neuromesh_get_node_weights` before and after feedback to verify deltas. When a file shows `selected: true` but is missing from `files[]`, call `neuromesh_explain_packet` and check `emitted` / `drop_stage` on `selection.candidates`.
+
+Learning does not change a packet mid-request; restart the MCP server to load persisted graph state from a prior session. Benchmark the learning loop locally with `neuromesh eval --learning`.
