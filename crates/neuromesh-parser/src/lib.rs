@@ -21,8 +21,8 @@ pub mod vue;
 pub use engine::CodeIntelligenceEngine;
 pub use html::HtmlParser;
 pub use identifiers::{
-    api_path_alias, extract_cluster_nouns, extract_prompt_anchors, is_route_query,
-    split_task_clusters, stem_search_queries, tokenize_ident, PromptAnchors,
+    api_path_alias, extract_cluster_nouns, extract_prompt_anchors, is_prompt_stopword,
+    is_route_query, split_task_clusters, stem_search_queries, tokenize_ident, PromptAnchors,
 };
 pub use semantic::{SemanticTypeExtractor, SemanticTypeMap, TypeDefinition};
 pub use types::{AstAnalysisResult, ParsedImport, ParsedRelationship, ParsedSymbol};

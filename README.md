@@ -299,12 +299,12 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release, 2026-08-28 v0.7.15, 639,040 workspace tokens):
+On this repo (release, 2026-08-28 v0.7.17, 650,859 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | balanced | 639040 | 68094 | 17251 | 97.3% | 74.7% | 1.00 | 0.75 | **0** | 47 |
-| `physarum_usage` | balanced | 639040 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | 43 |
+| `handle_tool_call_intent` | balanced | 650859 | 72428 | 17389 | 97.3% | 76.0% | 1.00 | 0.75 | **0** | 22 |
+| `physarum_usage` | balanced | 650859 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | 12 |
 
 Re-run gold tasks: `cargo run --release -p neuromesh-cli -- eval` (or `neuromesh eval` in debug). Dose-response learning benchmark: `neuromesh eval --learning`.
 
@@ -312,7 +312,7 @@ Re-run gold tasks: `cargo run --release -p neuromesh-cli -- eval` (or `neuromesh
 
 Recall ≥ 0.8 and precision ≥ 0.4 stay locked on this repo **and** the fixture projects (including `mini-shop` SCSS/dead-code/checkout). Packet activation **&lt; 250 ms** in the debug gold test (non-Windows CI).
 
-Index snapshot from that eval run: **340 files · 3,132 nodes · 6,591 edges · 600 ms** index (release; debug ~2.3 s).
+Index snapshot from that eval run: **340 files · 3,161 nodes · 6,795 edges · 552 ms** index (release; debug ~2.3 s).
 
 ---
 
@@ -325,6 +325,6 @@ Index snapshot from that eval run: **340 files · 3,132 nodes · 6,591 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.7.16 |
+| [Changelog](docs/CHANGELOG.md) | 0.7.17 |
 
 MIT · [LICENSE](LICENSE)

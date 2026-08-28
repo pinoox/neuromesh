@@ -4,6 +4,26 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.7.17 — 2026-08-28
+
+Hot-path optimization and stability hardening (activation + MCP stdio).
+
+- **Graph path index.** Normalized `path_index` beside `file_to_nodes`; `file_id_for_path` is a hash lookup instead of a full-map scan with per-entry string allocation.
+- **Per-file reads.** `nodes_in_file` / `file_node_paths` replace `get_all_nodes()` clones in `function_spans_for_file` and `resolve_file_path_noun`.
+- **Learning index memo.** `file_learning_boost_index` is rebuilt once per mesh revision and shared via `Arc`; `file_min_base_relevance` uses `path_index` under a single read lock.
+- **Sort keys.** Selector and activator precompute path tiebreak keys instead of allocating inside `sort_by` comparators.
+- **MCP panic isolation.** Each JSON-RPC request runs in `tokio::spawn`; a panicking tool returns `-32603` and the stdio loop keeps serving.
+- **Fold registry bounds.** Folds are LRU-trimmed per activation (`MAX_RETAINED_FOLDS` 2000); symbol/prefix lookups use indexes instead of scanning all folds.
+
+### Fixed (benchmark regressions v0.7.16)
+
+- **Seed extraction.** Lowercase member access (`app.handle`, `app.listen`, `Loader.init`) is extracted again; English stopwords (`does`, etc.) are no longer fallback seeds.
+- **Dotted seed resolution.** `app.handle` resolves via owner hints (`application.js`) and member names become fold priority symbols so `handle`/`listen` stay open.
+- **Compound cluster coverage.** A cluster is covered only when every significant term resolves — resolving `next` alone no longer blocks `middleware`/`pipeline` cluster seeding.
+- **Call-graph tasks.** `callers and callees` prompts skip physarum, learning promotion, and wide neighborhood fill; optional files cap at direct trace neighbors (depth 1).
+- **Focus-scoped learning.** Reinforced files enter emission only when they match the current query's focus terms; removed `learning_bonus ≥ 28` unrelated bypass that leaked files across tasks (e.g. Zod `parse.ts` into optional-modifier queries).
+- **Technology detection.** `next()` in Express prompts no longer misclassifies as React/Next.js.
+
 ## 0.7.16 — 2026-08-28
 
 Close the positive learning→emission loop (audit v0.7.15 follow-up).
@@ -11,7 +31,7 @@ Close the positive learning→emission loop (audit v0.7.15 follow-up).
 - **Positive promotion.** `EmissionPipeline::ensure_learned_emission` prepends heavily reinforced files into the optional emission queue before materialize (focus match or `learning_bonus ≥ 28`).
 - **Selector swap.** `promote_high_learning_into_emitted` uses `learning_promotion_min_bonus` (default **14**, was hard-coded **18**) so +8 reinforcement (~17 bonus) can enter the packet; displacement no longer caps victims at utility ≤ 20.
 - **Threshold.** `Thresholds.learning_promotion_min_bonus` in config (serde default 14).
-- **CI.** `positive_learning_unrelated_high_bonus_enters_emission`, `ensure_learned_emission_prepends_focused_file`; kosha `routes.py` must show `emitted: true`.
+- **CI.** `positive_learning_unrelated_high_bonus_enters_emission`, `ensure_learned_emission_prepends_focused_file`; `routes.py` must show `emitted: true`.
 
 ## 0.7.15 — 2026-08-28
 

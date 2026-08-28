@@ -2,8 +2,8 @@ use crate::activation::{SpreadingActivation, SpreadingActivationConfig};
 use crate::edge::{PheromoneConfig, PheromoneEngine};
 use crate::intern::{
     capture_inbound_pending, index_tokens, infer_workspace_root, insert_indexed_node,
-    rebuild_indexes, remove_file_nodes_locked, GraphData, GraphSnapshot, LegacyGraphData,
-    PendingRel,
+    normalize_path_key, rebuild_indexes, remove_file_nodes_locked, GraphData, GraphSnapshot,
+    LegacyGraphData, PendingRel,
 };
 use crate::node::NodeFactory;
 use crate::physarum::{PhysarumConfig, PhysarumResult, PhysarumSolver};
@@ -114,10 +114,18 @@ impl IndexGate {
     }
 }
 
+/// Whole-graph learning index memoized against `MeshStore::node_revision`.
+#[derive(Default)]
+struct DerivedIndexes {
+    learning_revision: Option<u64>,
+    learning_boost: Arc<HashMap<NodeId, f32>>,
+}
+
 #[derive(Clone)]
 pub struct NeuralProjectGraph {
     project_id: Arc<RwLock<ProjectId>>,
     inner: Arc<RwLock<GraphData>>,
+    derived: Arc<RwLock<DerivedIndexes>>,
     pheromone_engine: Arc<PheromoneEngine>,
     activation_engine: Arc<SpreadingActivation>,
     synaptic_engine: Arc<RwLock<SynapticPlasticityEngine>>,
@@ -130,6 +138,7 @@ impl NeuralProjectGraph {
         Self {
             project_id: Arc::new(RwLock::new(project_id)),
             inner: Arc::new(RwLock::new(GraphData::default())),
+            derived: Arc::new(RwLock::new(DerivedIndexes::default())),
             pheromone_engine: Arc::new(PheromoneEngine::new(PheromoneConfig::default())),
             activation_engine: Arc::new(SpreadingActivation::new(
                 SpreadingActivationConfig::default(),
@@ -187,6 +196,7 @@ impl NeuralProjectGraph {
         data.mesh.clear();
         data.name_to_nodes.clear();
         data.file_to_nodes.clear();
+        data.path_index.clear();
         data.token_to_nodes.clear();
         data.pending.clear();
         data.unresolved.clear();
@@ -658,26 +668,64 @@ impl NeuralProjectGraph {
     }
 
     pub fn file_id_for_path(&self, path: &Path) -> Option<NodeId> {
-        let normalized = path.to_string_lossy().replace('\\', "/");
         let data = self.inner.read();
-        for (stored, ids) in &data.file_to_nodes {
-            if stored.to_string_lossy().replace('\\', "/") != normalized {
-                continue;
-            }
-            if let Some(id) = ids.iter().find(|id| {
-                data.mesh
-                    .node(id)
-                    .is_some_and(|n| n.node_type == NodeType::File)
-            }) {
+        let entry = data.path_index.get(&normalize_path_key(path))?;
+        if let Some(id) = &entry.file_id {
+            if data
+                .mesh
+                .node(id)
+                .is_some_and(|n| n.node_type == NodeType::File)
+            {
                 return Some(id.clone());
             }
         }
-        None
+        entry
+            .keys
+            .iter()
+            .filter_map(|key| data.file_to_nodes.get(key))
+            .flat_map(|ids| ids.iter())
+            .find(|id| {
+                data.mesh
+                    .node(id)
+                    .is_some_and(|n| n.node_type == NodeType::File)
+            })
+            .cloned()
+    }
+
+    /// Every node recorded for `path`, read under a single lock.
+    pub fn nodes_in_file(&self, path: &Path) -> Vec<ContextNode> {
+        let data = self.inner.read();
+        let Some(entry) = data.path_index.get(&normalize_path_key(path)) else {
+            return Vec::new();
+        };
+        entry
+            .keys
+            .iter()
+            .filter_map(|key| data.file_to_nodes.get(key))
+            .flat_map(|ids| ids.iter())
+            .filter_map(|id| data.mesh.node(id).cloned())
+            .collect()
+    }
+
+    /// `(id, path)` for every file node, in node insertion order, without cloning nodes.
+    pub fn file_node_paths(&self) -> Vec<(NodeId, PathBuf)> {
+        let data = self.inner.read();
+        data.mesh
+            .nodes()
+            .filter(|n| n.node_type == NodeType::File)
+            .map(|n| (n.id.clone(), n.file_path.clone()))
+            .collect()
     }
 
     pub fn get_node(&self, id: &NodeId) -> Option<ContextNode> {
         let data = self.inner.read();
         data.mesh.node(id).cloned()
+    }
+
+    /// File path of a node without cloning the node itself.
+    pub fn node_file_path(&self, id: &NodeId) -> Option<PathBuf> {
+        let data = self.inner.read();
+        data.mesh.node(id).map(|n| n.file_path.clone())
     }
 
     pub fn get_all_nodes(&self) -> Vec<ContextNode> {
@@ -2200,9 +2248,22 @@ impl NeuralProjectGraph {
     }
 
     /// One-pass index of file node id → max learning bonus (file + symbols on path).
-    pub fn file_learning_boost_index(&self) -> HashMap<NodeId, f32> {
+    ///
+    /// Memoized against the mesh node revision: repeated calls inside one query
+    /// are hash lookups instead of full passes over `file_to_nodes`.
+    pub fn file_learning_boost_index(&self) -> Arc<HashMap<NodeId, f32>> {
+        // One `inner` read for the whole call: under a concurrent reindex every
+        // extra acquisition waits behind the indexer's write lock.
         let data = self.inner.read();
-        let mut out: HashMap<NodeId, f32> = HashMap::new();
+        let revision = data.mesh.node_revision();
+        {
+            let cached = self.derived.read();
+            if cached.learning_revision == Some(revision) {
+                return Arc::clone(&cached.learning_boost);
+            }
+        }
+
+        let mut learning_boost: HashMap<NodeId, f32> = HashMap::new();
         for ids in data.file_to_nodes.values() {
             let mut best = 0.0f32;
             let mut file_id = None;
@@ -2216,19 +2277,25 @@ impl NeuralProjectGraph {
                 }
             }
             if let Some(fid) = file_id {
-                let slot = out.entry(fid).or_insert(0.0f32);
+                let slot = learning_boost.entry(fid).or_insert(0.0f32);
                 *slot = slot.max(best);
             }
         }
-        out
+
+        let index = Arc::new(learning_boost);
+        let mut cached = self.derived.write();
+        cached.learning_revision = Some(revision);
+        cached.learning_boost = Arc::clone(&index);
+        index
     }
 
     /// File nodes whose reinforced symbols or file metadata exceed `min_bonus`.
     pub fn high_learning_files(&self, min_bonus: f32, limit: usize) -> Vec<(NodeId, f32)> {
         let mut out: Vec<(NodeId, f32)> = self
             .file_learning_boost_index()
-            .into_iter()
-            .filter(|(_, bonus)| *bonus >= min_bonus)
+            .iter()
+            .filter(|(_, bonus)| **bonus >= min_bonus)
+            .map(|(id, bonus)| (id.clone(), *bonus))
             .collect();
         out.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         out.truncate(limit);
@@ -2237,14 +2304,20 @@ impl NeuralProjectGraph {
 
     /// Minimum `base_relevance` across the file node and symbols on the same path.
     pub fn file_min_base_relevance(&self, file_id: &NodeId) -> Option<f32> {
-        let file = self.get_node(file_id)?;
-        let path = file.file_path.clone();
         let data = self.inner.read();
-        let mut min = file.base_relevance;
-        if let Some(ids) = data.file_to_nodes.get(&path) {
-            for id in ids {
-                if let Some(node) = data.mesh.node(id) {
-                    min = min.min(node.base_relevance);
+        let node = data.mesh.node(file_id)?;
+        let mut min = node.base_relevance;
+        let path = normalize_path_key(&node.file_path);
+        if let Some(entry) = data.path_index.get(&path) {
+            for ids in entry
+                .keys
+                .iter()
+                .filter_map(|key| data.file_to_nodes.get(key))
+            {
+                for id in ids {
+                    if let Some(node) = data.mesh.node(id) {
+                        min = min.min(node.base_relevance);
+                    }
                 }
             }
         }

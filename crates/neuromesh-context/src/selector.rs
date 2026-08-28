@@ -1,9 +1,33 @@
+use crate::unified_score::file_matches_focus_terms;
 use neuromesh_core::{
     hmvc_app_prefix, EdgeConfidence, EdgeType, NodeId, NodeType, OptimizationMode,
 };
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+
+/// Path tiebreakers for a set of node ids, resolved once instead of per comparison.
+pub(crate) fn path_sort_keys<'a, I>(graph: &NeuralProjectGraph, ids: I) -> HashMap<NodeId, String>
+where
+    I: Iterator<Item = &'a NodeId>,
+{
+    let mut keys: HashMap<NodeId, String> = HashMap::new();
+    for id in ids {
+        if keys.contains_key(id) {
+            continue;
+        }
+        let path = graph
+            .node_file_path(id)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        keys.insert(id.clone(), path);
+    }
+    keys
+}
+
+pub(crate) fn sort_key<'a>(keys: &'a HashMap<NodeId, String>, id: &NodeId) -> &'a str {
+    keys.get(id).map(String::as_str).unwrap_or("")
+}
 
 /// Extra tokens allowed *on top of* seed files. Seeds always ship.
 pub fn fill_budget(mode: OptimizationMode) -> usize {
@@ -474,6 +498,7 @@ pub fn select(
             }
         }
     }
+    let optional_path_keys = path_sort_keys(graph, optional_files.iter().map(|(id, _)| id));
     optional_files.sort_by(|a, b| {
         let score = b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal);
         if score != std::cmp::Ordering::Equal {
@@ -484,15 +509,7 @@ pub fn select(
             (false, true) => return std::cmp::Ordering::Greater,
             _ => {}
         }
-        let pa = graph
-            .get_node(&a.0)
-            .map(|n| n.file_path.to_string_lossy().to_string())
-            .unwrap_or_default();
-        let pb = graph
-            .get_node(&b.0)
-            .map(|n| n.file_path.to_string_lossy().to_string())
-            .unwrap_or_default();
-        pa.cmp(&pb)
+        sort_key(&optional_path_keys, &a.0).cmp(sort_key(&optional_path_keys, &b.0))
     });
 
     let per_crate_limit = match mode {
@@ -521,7 +538,11 @@ pub fn select(
             .unwrap_or_default();
         let count = per_crate.entry(crate_key.clone()).or_insert(0);
         let learned = learning_boost(&id);
-        if *count >= per_crate_limit && learned < 28.0 && !callee_files.contains(&id) {
+        let focus_match = file_matches_focus_terms(graph, &id, focus_terms);
+        if *count >= per_crate_limit
+            && !(focus_match && learned >= 14.0)
+            && !callee_files.contains(&id)
+        {
             overflow.push((id, gain));
             continue;
         }
@@ -556,6 +577,7 @@ pub fn select(
     optional_files = promote_high_learning_into_emitted(
         graph,
         &learning_index,
+        focus_terms,
         &required,
         optional_files,
         max_extra_files,
@@ -769,6 +791,7 @@ fn demote_penalized_seed_files(
 fn promote_high_learning_into_emitted(
     graph: &NeuralProjectGraph,
     learning_index: &HashMap<NodeId, f32>,
+    focus_terms: &HashSet<String>,
     required: &HashSet<NodeId>,
     mut optional: Vec<(NodeId, f32)>,
     cap: usize,
@@ -777,7 +800,11 @@ fn promote_high_learning_into_emitted(
     let mut promoted: Vec<(NodeId, f32)> = graph
         .high_learning_files(learned_swap_min, 16)
         .into_iter()
-        .filter(|(id, _)| !required.contains(id) && !optional.iter().any(|(oid, _)| oid == id))
+        .filter(|(id, _)| {
+            !required.contains(id)
+                && !optional.iter().any(|(oid, _)| oid == id)
+                && file_matches_focus_terms(graph, id, focus_terms)
+        })
         .map(|(id, bonus)| {
             let score = (14.0 + bonus * 0.55).min(48.0);
             (id, score)
@@ -802,20 +829,13 @@ fn promote_high_learning_into_emitted(
         }
     }
 
+    let promoted_path_keys = path_sort_keys(graph, optional.iter().map(|(id, _)| id));
     optional.sort_by(|a, b| {
         let score = b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal);
         if score != std::cmp::Ordering::Equal {
             return score;
         }
-        let pa = graph
-            .get_node(&a.0)
-            .map(|n| n.file_path.to_string_lossy().to_string())
-            .unwrap_or_default();
-        let pb = graph
-            .get_node(&b.0)
-            .map(|n| n.file_path.to_string_lossy().to_string())
-            .unwrap_or_default();
-        pa.cmp(&pb)
+        sort_key(&promoted_path_keys, &a.0).cmp(sort_key(&promoted_path_keys, &b.0))
     });
     optional.truncate(cap);
     for (id, score) in &mut optional {

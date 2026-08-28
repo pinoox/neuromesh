@@ -145,6 +145,13 @@ const CLUSTER_STOPWORDS: &[&str] = &[
     "route",
     "routes",
     "including",
+    "extract",
+    "intent",
+    "pipeline",
+    "works",
+    "server",
+    "start",
+    "process",
 ];
 
 /// Extract code-like identifiers, file paths, and qualified paths from a prompt.
@@ -162,6 +169,7 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     static DOTTED_RE: OnceLock<Regex> = OnceLock::new();
     static CALL_RE: OnceLock<Regex> = OnceLock::new();
     static NS_DOTTED_RE: OnceLock<Regex> = OnceLock::new();
+    static LC_MEMBER_RE: OnceLock<Regex> = OnceLock::new();
     static METHOD_ROUTE_RE: OnceLock<Regex> = OnceLock::new();
     static BARE_ROUTE_RE: OnceLock<Regex> = OnceLock::new();
     static URL_RE: OnceLock<Regex> = OnceLock::new();
@@ -196,6 +204,8 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     let call_re = CALL_RE.get_or_init(|| Regex::new(r"\b([A-Za-z_][A-Za-z0-9_]*)\(\)").unwrap());
     let ns_dotted_re =
         NS_DOTTED_RE.get_or_init(|| Regex::new(r"\b[a-z]\.([A-Za-z_][A-Za-z0-9_]{2,})\b").unwrap());
+    let lc_member_re = LC_MEMBER_RE
+        .get_or_init(|| Regex::new(r"\b([a-z][a-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b").unwrap());
     let method_route_re = METHOD_ROUTE_RE.get_or_init(|| {
         Regex::new(r"(?i)\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ANY|MATCH)\s+(/[^\s`'<>,]+)")
             .unwrap()
@@ -263,6 +273,16 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     for cap in ns_dotted_re.captures_iter(prompt) {
         let member = cap.get(1).unwrap().as_str();
         if is_code_ident(member) || is_how_does_ident(member) {
+            push_unique(&mut identifiers, member.to_string());
+        }
+    }
+
+    for cap in lc_member_re.captures_iter(prompt) {
+        let owner = cap.get(1).unwrap().as_str();
+        let member = cap.get(2).unwrap().as_str();
+        let qualified = format!("{owner}.{member}");
+        push_unique(&mut identifiers, qualified);
+        if is_how_does_ident(member) || is_code_ident(member) {
             push_unique(&mut identifiers, member.to_string());
         }
     }
@@ -575,6 +595,9 @@ fn push_route_identifiers(identifiers: &mut Vec<String>, raw: &str) {
 }
 
 fn is_cluster_noun(value: &str) -> bool {
+    if value.starts_with("__") || value.contains("__") {
+        return false;
+    }
     if value.len() < 5 || !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return false;
     }
@@ -590,6 +613,15 @@ fn is_seedable_call(value: &str) -> bool {
         return false;
     }
     !STOPWORDS.contains(&value.to_lowercase().as_str())
+}
+
+/// English / prompt noise — not a fallback seed token.
+pub fn is_prompt_stopword(value: &str) -> bool {
+    let lower = value.trim().to_lowercase();
+    if lower.len() < 3 {
+        return true;
+    }
+    STOPWORDS.contains(&lower.as_str()) || CLUSTER_STOPWORDS.contains(&lower.as_str())
 }
 
 fn is_code_ident(value: &str) -> bool {
@@ -800,6 +832,54 @@ mod tests {
                 .iter()
                 .any(|id| id.eq_ignore_ascii_case("user")),
             "English 'the user' is not a how-does seed: {:?}",
+            anchors.identifiers
+        );
+    }
+
+    #[test]
+    fn extracts_lowercase_member_access() {
+        let anchors = extract_prompt_anchors(
+            "how does app.handle process middleware and how does app.listen start the server, including init",
+        );
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "app.handle"),
+            "identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "app.listen"),
+            "identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "handle"),
+            "identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "listen"),
+            "identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            !anchors.identifiers.iter().any(|id| id == "does"),
+            "identifiers = {:?}",
+            anchors.identifiers
+        );
+    }
+
+    #[test]
+    fn middleware_prompt_extracts_next_and_nouns() {
+        let anchors =
+            extract_prompt_anchors("Explain the middleware pipeline and how next() works");
+        assert!(
+            anchors.identifiers.iter().any(|id| id == "next"),
+            "identifiers = {:?}",
+            anchors.identifiers
+        );
+        assert!(
+            !anchors.identifiers.iter().any(|id| id == "does"),
+            "identifiers = {:?}",
             anchors.identifiers
         );
     }
