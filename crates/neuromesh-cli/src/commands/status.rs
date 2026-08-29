@@ -1,8 +1,7 @@
 use neuromesh_core::{ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
-use neuromesh_memory::MemoryDatabase;
 
-use super::{configured_walker, FileCapArg};
+use super::{configured_walker, snapshot, FileCapArg};
 
 pub fn execute() -> Result<()> {
     let current_dir = std::env::current_dir()?;
@@ -24,33 +23,49 @@ pub fn execute() -> Result<()> {
     if !loaded {
         graph.ingest_workspace(&scanned);
     }
-    let stats = graph.stats();
 
-    let db_path = neuromesh_core::memory_db_path(&current_dir);
-    let memory_entries = if db_path.exists() {
-        MemoryDatabase::open(&db_path)
-            .ok()
-            .and_then(|db| db.get_project_facts(&project_id).ok())
-            .map(|f| f.len())
-            .unwrap_or(0)
-    } else {
-        0
-    };
+    let snap = snapshot::collect(&current_dir, &project_id, &graph, false);
 
     println!("\nNeuroMesh status");
-    println!("Project        : {}", project_name);
-    println!("Workspace      : {}", current_dir.display());
+    println!("Project        : {}", snap.project_id.0);
+    println!("Workspace      : {}", snap.workspace.display());
     println!(
         "Persisted graph: {}",
-        if loaded { "yes" } else { "rebuilt" }
+        if snap.persisted_graph || loaded {
+            "yes"
+        } else {
+            "rebuilt"
+        }
     );
     println!("Indexed files  : {}", scanned.len());
-    println!("Graph nodes    : {}", stats.total_nodes);
-    println!("Graph edges    : {}", stats.total_edges);
-    println!("Resolved calls : {}", stats.resolved_calls);
-    println!("Resolved imports: {}", stats.resolved_imports);
+    println!(
+        "Graph          : {} nodes / {} edges ({})",
+        snap.graph_nodes,
+        snap.graph_edges,
+        if snap.graph_ready {
+            "ready"
+        } else {
+            "indexing or empty"
+        }
+    );
+    println!("Resolved calls : {}", graph.stats().resolved_calls);
+    println!("Resolved imports: {}", graph.stats().resolved_imports);
     println!("Workspace tokens: {}", graph.total_tokens());
-    println!("Memory facts   : {}", memory_entries);
+    println!(
+        "Telemetry      : {} requests | {:.1}% mean | {:.1}% overall",
+        snap.telemetry_rows,
+        snap.telemetry.mean_reduction_pct,
+        snap.telemetry.overall_reduction_pct
+    );
+    if let Some(ts) = snap.telemetry_last {
+        println!("Last activity  : {ts}");
+    }
+    println!("Monitor        : {}", snap.monitor_status);
+    println!("Store          : {}", snap.store_mode);
+    if let Some(env_line) = &snap.mcp_workspace_env {
+        println!("MCP IDE env    : {env_line}");
+    }
+    println!("MCP predicted  : {}", snap.mcp_predicted_root.display());
     println!();
     Ok(())
 }

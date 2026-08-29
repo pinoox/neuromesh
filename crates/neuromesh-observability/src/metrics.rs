@@ -54,14 +54,10 @@ pub fn append_unique(history: &mut Vec<OptimizationMetadata>, meta: Optimization
 }
 
 pub fn record_global_telemetry(meta: OptimizationMetadata) {
-    let mut history = load_persisted_history();
-    if append_unique(&mut history, meta.clone()) {
-        save_persisted_history(&history);
-    }
-    notify_monitor(meta);
+    crate::record::record_metadata(meta);
 }
 
-fn notify_monitor(meta: OptimizationMetadata) {
+pub(crate) fn notify_monitor(meta: OptimizationMetadata) {
     let payload = serde_json::to_vec(&meta).unwrap_or_default();
     let cfg = neuromesh_core::Config::load();
     let host = cfg.host;
@@ -117,9 +113,16 @@ pub fn filter_history(
     }
     let pid_lower = project_id.0.to_lowercase();
     let ws_lower = workspace.replace('\\', "/").to_lowercase();
+    let ws_canon = canonical_path_key(workspace);
     history
         .iter()
         .filter(|h| {
+            if let Some(ref wp) = h.workspace_path {
+                let wp_key = canonical_path_key(wp);
+                if !wp_key.is_empty() && wp_key == ws_canon {
+                    return true;
+                }
+            }
             let h_pid = h.project_id.0.to_lowercase();
             h_pid == pid_lower
                 || h_pid.contains(&pid_lower)
@@ -132,6 +135,15 @@ pub fn filter_history(
         })
         .cloned()
         .collect()
+}
+
+fn canonical_path_key(raw: &str) -> String {
+    let path = std::path::PathBuf::from(raw);
+    path.canonicalize()
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_lowercase()
 }
 
 pub fn summarize_history(history: &[OptimizationMetadata]) -> AggregatedMetrics {
@@ -275,6 +287,10 @@ mod tests {
             latency_ms: 8,
             success: true,
             timestamp: Utc::now(),
+            workspace_path: None,
+            surface: "mcp".into(),
+            client_id: None,
+            command: None,
         }
     }
 

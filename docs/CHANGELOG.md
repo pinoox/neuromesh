@@ -4,7 +4,10 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-- **Global MCP connect.** `neuromesh connect` (default) writes portable `neuromesh mcp` config — no per-project workspace args. Auto-detects the active project from `WORKSPACE_FOLDER_PATHS`, `VSCODE_CWD`, MCP `initialize`, or cwd. Use `--pinned` for the legacy absolute-binary + workspace pin. MCP `initialize` can switch workspace mid-session when the IDE sends a different root.
+- **`nmx` CLI alias.** Same binary as `neuromesh` (`nmx monitor`, `nmx connect`, …). Shipped in release tarballs/zip and install scripts.
+- **Portable global MCP connect (default).** `neuromesh connect` writes `{ "command": "neuromesh", "args": ["mcp"] }`; workspace auto-detected from IDE env + MCP `initialize`. `--pinned` for legacy absolute-binary pin. Targets added: OpenCode, MiMo CLI, Zed, JetBrains `.idea/mcp.json`. `--agent-rules` copies `.cursor/rules/neuromesh.mdc`.
+- **Unified telemetry.** `ActivityRecord` / `record_activity` with `surface`, `workspace_path`, `client_id`, `command`. Coverage: MCP `expand_gap`, monitor `/api/expand`, CLI `index` / `optimize` / `smoke`. `/api/usage` and `/api/status` expose `mean_reduction_pct`; monitor UI drops hardcoded 94.2% fallback.
+- **Unified status.** `neuromesh status` and `neuromesh doctor --mcp` show graph + telemetry + monitor + MCP workspace prediction via shared snapshot helper. `neuromesh smoke` runs a quick activation check.
 
 ## 0.7.17 — 2026-08-28
 

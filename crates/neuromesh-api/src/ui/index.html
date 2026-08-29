@@ -4273,7 +4273,7 @@
                 const summary = data.summary || {};
                 const reqCount = summary.total_requests || usageHistory.length;
                 const totalSaved = summary.total_tokens_saved || 0;
-                const avgRed = summary.overall_reduction_pct || (reqCount > 0 ? 94.2 : 0);
+                const avgRed = summary.overall_reduction_pct ?? summary.mean_reduction_pct ?? 0;
                 const avgLat = summary.average_latency_ms || 0;
                 const cacheRate = summary.cache_hit_rate || 0;
 

@@ -4,6 +4,7 @@ Binary: `neuromesh` (`neuromesh-cli` crate).
 
 ```
 neuromesh mcp          # stdio MCP server (what the IDE launches)
+nmx mcp                # same binary, short alias
 neuromesh monitor      # Web UI + SSE (default http://127.0.0.1:8765)
 neuromesh port         # show or persist the monitor port
 neuromesh index        # build the graph and seed project memory
@@ -81,15 +82,19 @@ The process uses the **current working directory** as the project. `neuromesh co
 
 ## Connect MCP clients
 
+Default is **portable** — one global install works for every project (workspace auto-detected). Use `nmx` anywhere you use `neuromesh`.
+
 ```bash
-neuromesh connect              # project files + globals for apps already installed
-neuromesh connect --print      # snippets only
-neuromesh connect --dry-run    # list target files
-neuromesh connect --project    # this repo only
-neuromesh connect --global     # also create user-level configs
+neuromesh connect --global --agent-rules   # recommended once per machine
+neuromesh connect --print                  # snippets only
+neuromesh connect --dry-run                # list target files
+neuromesh connect --project                # this repo only
+neuromesh connect --pinned                 # legacy: absolute binary + workspace pin
+neuromesh smoke                            # quick graph + telemetry check
+neuromesh doctor --mcp                     # MCP workspace env diagnostics
 ```
 
-Uses the absolute path of this `neuromesh` binary and `NEUROMESH_WORKSPACE`. See [mcp.md](mcp.md#connect).
+See [mcp.md](mcp.md#connect).
 
 ## Monitor port
 

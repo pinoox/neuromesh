@@ -10,6 +10,7 @@ use neuromesh_graph::{IndexState, NeuralProjectGraph};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_router::QualityGate;
 use neuromesh_task::TaskSignatureExtractor;
+use parking_lot::RwLock;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::path::Path;
@@ -25,12 +26,14 @@ pub struct McpToolHandler {
     working_memory: Arc<parking_lot::RwLock<WorkingMemory>>,
     mycelium: Arc<MyceliumCache>,
     packet_cache: PacketDetailCache,
+    client_id: RwLock<Option<String>>,
 }
 
 struct ToolTelemetry {
     prefix: &'static str,
     task_id: String,
     mode: String,
+    command: Option<String>,
     tokens_before: usize,
     tokens_after: usize,
     token_reduction_pct: f32,
@@ -47,6 +50,7 @@ impl ToolTelemetry {
             prefix,
             task_id: task_id.into(),
             mode: mode.into(),
+            command: None,
             tokens_before: 0,
             tokens_after: 0,
             token_reduction_pct: 0.0,
@@ -75,7 +79,12 @@ impl McpToolHandler {
             working_memory,
             mycelium: Arc::new(MyceliumCache::new(MyceliumConfig::default())),
             packet_cache: PacketDetailCache::new(),
+            client_id: RwLock::new(None),
         }
+    }
+
+    pub fn set_client_id(&self, client: String) {
+        *self.client_id.write() = Some(client);
     }
 
     pub fn graph(&self) -> &Arc<NeuralProjectGraph> {
@@ -134,7 +143,7 @@ impl McpToolHandler {
     }
 
     fn emit_telemetry(&self, tel: ToolTelemetry) {
-        neuromesh_observability::record_global_telemetry(neuromesh_core::OptimizationMetadata {
+        neuromesh_observability::record_metadata(neuromesh_core::OptimizationMetadata {
             request_id: telemetry_request_id(tel.prefix),
             task_id: Some(tel.task_id),
             project_id: self.graph.project_id(),
@@ -151,6 +160,10 @@ impl McpToolHandler {
             latency_ms: tel.latency_ms,
             success: tel.success,
             timestamp: chrono::Utc::now(),
+            workspace_path: self.graph.workspace_root().map(|p| p.display().to_string()),
+            surface: "mcp".into(),
+            client_id: self.client_id.read().clone(),
+            command: tel.command,
         });
     }
 
@@ -329,12 +342,22 @@ impl McpToolHandler {
                     } else {
                         res.skeleton_code
                     };
+                    let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                    self.emit_telemetry(ToolTelemetry {
+                        tokens_before: res.original_tokens,
+                        tokens_after: res.skeleton_tokens.min(cap),
+                        token_reduction_pct: res.token_reduction_pct,
+                        nodes_after: 1,
+                        latency_ms: elapsed_ms,
+                        command: Some("expand_gap".into()),
+                        ..ToolTelemetry::new("mcp-gap", format!("Gap: {file_path}"), "expand_gap")
+                    });
                     Ok(json!({
                         "success": true,
                         "path": file_path,
                         "skeleton": skeleton,
                         "skeleton_tokens": res.skeleton_tokens.min(cap),
-                        "latency_ms": start_time.elapsed().as_millis(),
+                        "latency_ms": elapsed_ms,
                     }))
                 } else {
                     Ok(json!({ "success": false, "error": "file not found" }))

@@ -15,11 +15,13 @@
 | `GET` | `/sse` | MCP-over-SSE for remote / multi-agent setups |
 | `POST` | `/mcp` | JSON-RPC MCP messages |
 | `GET` | `/api/v1/status` | Health, project, cache-ish stats |
-| `GET` | `/api/usage` | Aggregated MCP telemetry + history (same source as `neuromesh usage`) |
+| `GET` | `/api/usage` | Aggregated telemetry + history (`mean_reduction_pct`, `overall_reduction_pct`; same source as `neuromesh usage`) |
 | `POST` | `/api/v1/projects/index` | Re-index |
 | `POST` | `/api/v1/context/activate` | Packet without an LLM in the middle |
 | `POST` | `/api/v1/context/expand` | Expand a fold or inactive node |
 
 Optional headers on proxy-style routes: `X-NeuroMesh-Mode: max_quality | balanced | max_savings`.
 
-For day-to-day coding in Cursor or Claude, prefer **stdio** (`neuromesh mcp`). See [mcp.md](mcp.md).
+For day-to-day coding in Cursor or Claude, prefer **stdio** (`neuromesh mcp` or `nmx mcp`). See [mcp.md](mcp.md).
+
+Telemetry rows (MCP, CLI, monitor) share `~/.neuromesh/telemetry_history.json` with fields `surface` (`mcp` | `cli` | `monitor`), optional `workspace_path`, `client_id`, and `command`.

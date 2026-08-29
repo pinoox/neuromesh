@@ -48,16 +48,17 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Build release binary
-        run: cargo build --release --bin neuromesh --target ${{ matrix.target }}
+      - name: Build release binaries
+        run: cargo build --release --bin neuromesh --bin nmx --target ${{ matrix.target }}
 
       - name: Package Artifact (Unix)
         if: matrix.os != 'windows-latest'
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/
+          ln -sf ${{ matrix.artifact_name }} dist/nmx
           cd dist
-          tar -czvf ../${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+          tar -czvf ../${{ matrix.asset_name }} ${{ matrix.artifact_name }} nmx
           cd ..
           shasum -a 256 ${{ matrix.asset_name }} > ${{ matrix.asset_name }}.sha256
 
@@ -67,7 +68,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path dist -Force
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/
-          Compress-Archive -Path dist/${{ matrix.artifact_name }} -DestinationPath ${{ matrix.asset_name }} -Force
+          Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/nmx.exe
+          Compress-Archive -Path dist/neuromesh.exe,dist/nmx.exe -DestinationPath ${{ matrix.asset_name }} -Force
           Get-FileHash -Path ${{ matrix.asset_name }} -Algorithm SHA256 | ForEach-Object { $_.Hash + "  " + $_.Path } | Out-File "${{ matrix.asset_name }}.sha256" -Encoding ascii
 
       - name: Upload Artifacts to Workflow

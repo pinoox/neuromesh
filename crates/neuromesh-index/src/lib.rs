@@ -11,8 +11,8 @@ pub use confine::{
 };
 pub use hasher::ContentHasher;
 pub use mcp_workspace::{
-    parse_workspace_folder_paths, resolve_mcp_startup_workspace, same_workspace_path,
-    workspace_from_ide_env,
+    mcp_workspace_env_summary, parse_workspace_folder_paths, resolve_mcp_startup_workspace,
+    same_workspace_path, workspace_from_ide_env,
 };
 pub use tracker::{FileFingerprint, IndexedFile, SourceLanguage};
 pub use walker::{ProjectWalker, ScanReport};

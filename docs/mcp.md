@@ -9,11 +9,14 @@ Remote / multi-agent: `neuromesh monitor` (optionally `--port 9000` / `neuromesh
 ## Connect
 
 ```bash
-neuromesh connect --global       # one global MCP config for Cursor (recommended)
+neuromesh connect --global --agent-rules   # recommended: MCP + Cursor agent rule
+neuromesh connect --global       # MCP only (one global config for Cursor)
 neuromesh connect --print        # snippets only
 neuromesh connect --project      # this repo only (usually unnecessary)
 neuromesh connect --pinned       # legacy: absolute binary + workspace in args
 ```
+
+`--agent-rules` copies [agent-rule.mdc](agent-rule.mdc) into `.cursor/rules/neuromesh.mdc` so the IDE agent prefers NeuroMesh tools over raw `Read` / Grep.
 
 Default `connect` writes a **portable** config: `command: "neuromesh"`, `args: ["mcp"]`. NeuroMesh detects the active project from IDE env vars (`WORKSPACE_FOLDER_PATHS`, `VSCODE_CWD`, …) and from MCP `initialize` (`rootUri`, `workspaceFolders`). No per-project workspace registration required.
 
@@ -50,6 +53,8 @@ Or run `neuromesh connect --global` once. Use `--pinned` only when PATH is unrel
 | Trae | `.trae/mcp.json` | `Trae/User/mcp.json` |
 | MiniMax Code | `.minimax/mcp.json` | same `mcpServers` snippet as Cursor |
 | Claude Desktop / Code | `.mcp.json` | `claude_desktop_config.json` |
+| Zed | — | `~/.config/zed/settings.json` (`context_servers.neuromesh`) |
+| JetBrains | `.idea/mcp.json` | — |
 | Windsurf / Cline / Roo | — | their existing MCP settings files |
 
 Stdout is JSON-RPC only (NDJSON). Handshake logs go to stderr so Antigravity and other strict hosts stay happy.
@@ -75,6 +80,8 @@ Start with `get_context`. The default packet is **minimal**: `packet_id`, covera
 Quick Cursor install:
 
 ```bash
+neuromesh connect --agent-rules    # from repo root (or use --global for MCP only)
+# or manually:
 mkdir -p .cursor/rules
 cp /path/to/neuromesh/docs/agent-rule.mdc .cursor/rules/neuromesh.mdc
 ```

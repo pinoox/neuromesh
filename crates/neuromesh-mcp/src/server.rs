@@ -189,6 +189,15 @@ impl McpServer {
     pub async fn process_request(&self, req: JsonRpcRequest) -> Value {
         match req.method.as_str() {
             "initialize" => {
+                if let Some(params) = req.params.as_ref() {
+                    if let Some(name) = params
+                        .get("clientInfo")
+                        .and_then(|c| c.get("name"))
+                        .and_then(Value::as_str)
+                    {
+                        self.handler.set_client_id(name.to_string());
+                    }
+                }
                 self.adopt_workspace_from_initialize(req.params.as_ref());
                 self.handler.record_session_telemetry();
                 let protocol_version = negotiate_protocol_version(

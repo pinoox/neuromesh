@@ -543,6 +543,22 @@ pub struct OptimizationMetadata {
     pub latency_ms: u64,
     pub success: bool,
     pub timestamp: DateTime<Utc>,
+    /// Canonical workspace root when known (MCP / CLI / monitor).
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+    /// Origin surface: `mcp`, `cli`, `monitor`, `openai`.
+    #[serde(default = "default_telemetry_surface")]
+    pub surface: String,
+    /// MCP client name from initialize (Cursor, VS Code, …).
+    #[serde(default)]
+    pub client_id: Option<String>,
+    /// Tool or CLI subcommand (`get_context`, `index`, `optimize`, …).
+    #[serde(default)]
+    pub command: Option<String>,
+}
+
+fn default_telemetry_surface() -> String {
+    "mcp".into()
 }
 
 #[cfg(test)]

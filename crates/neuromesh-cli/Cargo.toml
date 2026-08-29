@@ -9,6 +9,10 @@ repository.workspace = true
 name = "neuromesh"
 path = "src/main.rs"
 
+[[bin]]
+name = "nmx"
+path = "src/main.rs"
+
 [dependencies]
 neuromesh-core = { path = "../neuromesh-core" }
 neuromesh-index = { path = "../neuromesh-index" }

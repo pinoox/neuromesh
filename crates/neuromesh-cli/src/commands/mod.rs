@@ -10,7 +10,8 @@ pub mod models;
 pub mod monitor;
 pub mod optimize;
 pub mod port;
-pub mod start;
+pub mod smoke;
+pub mod snapshot;
 pub mod status;
 pub mod store;
 pub mod usage;
@@ -199,5 +200,12 @@ mod tests {
             FileCapArg::Unspecified
         );
         assert!(max_files_from_args(&args(&["index", "--max-files"])).is_err());
+    }
+
+    #[test]
+    fn nmx_binary_alias_declared() {
+        let manifest = include_str!("../../Cargo.toml");
+        assert!(manifest.contains("name = \"nmx\""));
+        assert!(manifest.contains("name = \"neuromesh\""));
     }
 }

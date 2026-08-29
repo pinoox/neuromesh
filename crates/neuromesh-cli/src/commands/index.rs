@@ -160,5 +160,27 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
     println!("  Graph Nodes    : {}", stats.total_nodes);
     println!("  Pheromone Edges: {}", stats.total_edges);
 
+    neuromesh_observability::record_activity(neuromesh_observability::ActivityRecord {
+        request_id: neuromesh_observability::cli_request_id("index"),
+        project_id: project_id.clone(),
+        mode: "index".into(),
+        command: Some("index".into()),
+        surface: neuromesh_observability::TelemetrySurface::Cli,
+        workspace_path: Some(current_dir.display().to_string()),
+        client_id: None,
+        tokens_before: total_tokens,
+        tokens_after: graph.total_tokens(),
+        token_reduction_pct: 0.0,
+        nodes_before: 0,
+        nodes_after: stats.total_nodes,
+        expansions_count: 0,
+        cache_hit: false,
+        provider: "neuromesh-cli".into(),
+        model: "index".into(),
+        latency_ms: 0,
+        success: true,
+        task_id: Some(format!("index {total_files} files")),
+    });
+
     Ok((graph, memory_db))
 }

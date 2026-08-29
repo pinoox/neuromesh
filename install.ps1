@@ -57,18 +57,22 @@ Get-Process neuromesh -ErrorAction SilentlyContinue | Stop-Process -Force -Error
 Start-Sleep -Milliseconds 400
 
 Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $BinPath -Force
+$NmxPath = Join-Path $InstallDir "nmx.exe"
+Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $NmxPath -Force
 
 # Also update .cargo/bin if user previously installed via cargo
 $CargoBin = Join-Path $env:USERPROFILE ".cargo\bin\neuromesh.exe"
+$CargoNmx = Join-Path $env:USERPROFILE ".cargo\bin\nmx.exe"
 if (Test-Path (Join-Path $env:USERPROFILE ".cargo\bin")) {
     Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $CargoBin -Force -ErrorAction SilentlyContinue
+    Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $CargoNmx -Force -ErrorAction SilentlyContinue
 }
 
 # Clean up temp
 Remove-Item -Path $TempZip -Force -ErrorAction SilentlyContinue
 Remove-Item -Path $TempExtract -Recurse -Force -ErrorAction SilentlyContinue
 
-Write-Host "`n[OK] NeuroMesh installed successfully to: $BinPath" -ForegroundColor Green
+Write-Host "`n[OK] NeuroMesh installed: $BinPath (alias: nmx.exe)" -ForegroundColor Green
 
 # 3. Add to User PATH if not present (Prepend so it takes priority)
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")

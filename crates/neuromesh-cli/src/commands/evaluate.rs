@@ -37,7 +37,7 @@ pub fn execute(args: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    let graph = Arc::new(NeuralProjectGraph::new(project_id));
+    let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let index_started = Instant::now();
     graph.ingest_workspace(&scanned);
     let index_ms = index_started.elapsed().as_millis();
@@ -187,6 +187,29 @@ pub fn execute(args: &[String]) -> Result<()> {
         }
     }
     println!();
+
+    neuromesh_observability::record_activity(neuromesh_observability::ActivityRecord {
+        request_id: neuromesh_observability::cli_request_id("eval"),
+        project_id: project_id.clone(),
+        mode: "eval".into(),
+        command: Some("eval".into()),
+        surface: neuromesh_observability::TelemetrySurface::Cli,
+        workspace_path: Some(current_dir.display().to_string()),
+        client_id: None,
+        tokens_before: workspace_tokens,
+        tokens_after: workspace_tokens,
+        token_reduction_pct: 0.0,
+        nodes_before: 0,
+        nodes_after: stats.total_nodes,
+        expansions_count: tasks.len(),
+        cache_hit: false,
+        provider: "neuromesh-cli".into(),
+        model: "eval".into(),
+        latency_ms: index_ms as u64,
+        success: true,
+        task_id: Some(format!("eval {} tasks", tasks.len())),
+    });
+
     Ok(())
 }
 

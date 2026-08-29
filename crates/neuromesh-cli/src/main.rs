@@ -6,6 +6,17 @@ use neuromesh_memory::MemoryDatabase;
 use std::env;
 use std::sync::Arc;
 
+fn program_name() -> String {
+    env::args()
+        .next()
+        .and_then(|a| {
+            std::path::Path::new(&a)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| "neuromesh".into())
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let command = args.get(1).map(|s| s.as_str()).unwrap_or("list");
@@ -14,7 +25,7 @@ fn main() -> Result<()> {
     match command {
         "-v" | "--version" | "version" | "-V" => {
             println!(
-                "NeuroMesh v{} — local MCP context engine",
+                "NeuroMesh v{} — local MCP context engine (alias: nmx)",
                 env!("CARGO_PKG_VERSION")
             );
             return Ok(());
@@ -49,7 +60,10 @@ fn main() -> Result<()> {
         }
         "doctor" => {
             let cap = commands::max_files_from_args(&args)?;
-            return commands::doctor::execute(cap);
+            return commands::doctor::execute(&args, cap);
+        }
+        "smoke" => {
+            return commands::smoke::execute();
         }
         "models" => {
             return commands::models::execute();
@@ -60,17 +74,23 @@ fn main() -> Result<()> {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "default".to_string());
-            println!("\n📁 Registered Projects:");
+            println!("\nRegistered projects (this cwd):");
             println!("  • {} ({})\n", name, current.display());
             return Ok(());
         }
         "logs" => {
-            println!("\nNo durable audit log is written.");
-            println!("Use `neuromesh usage` for MCP token telemetry, or `neuromesh status` after `neuromesh index`.\n");
-            return Ok(());
+            return commands::usage::execute(&args);
         }
         "stop" => {
-            println!("✓ NeuroMesh server stopped.");
+            let snap = commands::snapshot::collect_from_cwd(false)?;
+            if snap.monitor_reachable {
+                println!(
+                    "\nMonitor is still running at {} — stop the neuromesh monitor process in your terminal.\n",
+                    snap.monitor_url
+                );
+            } else {
+                println!("\nNo monitor listening on {}.\n", snap.monitor_url);
+            }
             return Ok(());
         }
         _ => {}
@@ -87,9 +107,13 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             let _ = commands::index::execute(cap)?;
         }
         "start" => {
+            eprintln!(
+                "Note: `start` is an alias for `monitor` (prefer `{} monitor`).",
+                program_name()
+            );
             let port = commands::port_from_args(args)?;
             let cap = commands::max_files_from_args(args)?;
-            commands::start::execute(port, cap).await?;
+            commands::monitor::execute(port, cap).await?;
         }
         "monitor" | "ui" | "dashboard" => {
             let port = commands::port_from_args(args)?;
@@ -187,39 +211,42 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
 }
 
 fn print_help() {
+    let bin = program_name();
     println!(
         "\nNeuroMesh v{} — local MCP context engine",
         env!("CARGO_PKG_VERSION")
     );
-    println!("Usage: neuromesh <COMMAND> [OPTIONS]\n");
+    println!("Usage: {bin} <COMMAND> [OPTIONS]  (alias: nmx)\n");
     println!("Commands:");
     println!("  mcp        MCP server over stdio (Cursor, Codex, Antigravity, …)");
-    println!("  monitor    Web UI + SSE (default http://127.0.0.1:8765)");
-    println!("  port       Show or set the monitor port (`neuromesh port 9000`)");
+    println!("  connect    Install MCP configs (`--global`, `--agent-rules`, `--print`)");
+    println!("  smoke      Quick get_context + graph/telemetry check");
+    println!("  monitor    Web UI + SSE (aliases: ui, dashboard; start is deprecated)");
+    println!("  port       Show or set the monitor port (`{bin} port 9000`)");
     println!("  index      Index the current workspace into the project graph");
-    println!("  status     Node/edge counts after index (or a fresh scan)");
-    println!("  usage      MCP token telemetry (`--all`, `--limit N`)");
+    println!("  status     Unified workspace + graph + telemetry snapshot");
+    println!("  usage      MCP/CLI token telemetry (`--all`, `--limit N`; alias: telemetry, logs)");
     println!("  store      Where project data lives (managed home vs trusted local)");
     println!("  graph      Print graph stats");
     println!("  memory     Print project memory facts");
     println!("  optimize   Activate one prompt and print the packet");
     println!(
-        "  eval       Gold-task recall / precision / fill budget on this repo and tests/fixtures"
+        "  eval       Gold-task recall / precision / fill budget (alias: evaluate, benchmark)"
     );
-    println!("  benchmark  Same as eval");
-    println!("  connect    Install MCP configs (or `--print` snippets)");
-    println!("  doctor     Workspace root, scan, persisted graph, monitor port");
+    println!("  doctor     Workspace root, scan, MCP env, monitor port (`--mcp`)");
+    println!("  init       Ensure NeuroMesh data directories exist");
+    println!("  models     List configured / local AI models");
     println!("  version    Print version (-v, --version)");
     println!("  help       Print this help (-h, --help)\n");
     println!("Quick start:");
-    println!("  neuromesh mcp                   # what IDEs launch");
-    println!("  neuromesh port 9000             # persist galaxy UI port");
-    println!("  neuromesh monitor --port 9000   # one run only");
-    println!("  neuromesh index --max-files auto");
-    println!("  neuromesh connect               # write MCP configs for this repo\n");
+    println!("  {bin} connect --global --agent-rules   # once per machine");
+    println!("  {bin} smoke                            # verify this repo");
+    println!("  {bin} monitor --port 9000              # galaxy UI");
+    println!("  {bin} index --max-files auto");
+    println!();
     println!("Index file cap:");
     println!("  Default is auto: every production source, then tests, up to 50,000.");
-    println!("  neuromesh index --max-files 20000   persist a limit");
-    println!("  neuromesh index --max-files auto    persist auto (or --max-files=auto)");
+    println!("  {bin} index --max-files 20000   persist a limit");
+    println!("  {bin} index --max-files auto    persist auto (or --max-files=auto)");
     println!("  NEUROMESH_MAX_FILES=20000           env override (auto / 0 = auto)");
 }

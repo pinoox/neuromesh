@@ -3,9 +3,10 @@ use neuromesh_index::ProjectWalker;
 use std::env;
 use std::net::TcpListener;
 
-use super::{configured_walker, print_file_cap, FileCapArg};
+use super::{configured_walker, print_file_cap, snapshot, FileCapArg};
 
-pub fn execute(cap: FileCapArg) -> Result<()> {
+pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
+    let mcp_diag = args.iter().any(|a| a == "--mcp");
     println!("\nNeuroMesh doctor");
     println!(
         "OS             : {} ({})",
@@ -13,12 +14,19 @@ pub fn execute(cap: FileCapArg) -> Result<()> {
         env::consts::ARCH
     );
     println!("Version        : {}", env!("CARGO_PKG_VERSION"));
+    println!(
+        "CLI            : {} (alias: nmx)",
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_else(|| "neuromesh".into())
+    );
 
     let cfg = Config::load();
     let addr = format!("{}:{}", cfg.host, cfg.port);
     match TcpListener::bind(&addr) {
         Ok(_) => println!("Monitor port   : {addr} available"),
-        Err(_) => println!("Monitor port   : {addr} in use"),
+        Err(_) => println!("Monitor port   : {addr} in use (monitor may be running)"),
     }
     println!("Change with    : neuromesh port <n>  |  --port <n>  |  NEUROMESH_PORT");
     match cfg.max_files {
@@ -36,6 +44,18 @@ pub fn execute(cap: FileCapArg) -> Result<()> {
     }
     println!("Safety         : ok");
 
+    if mcp_diag {
+        println!("\nMCP workspace detection");
+        if let Some(env_line) = neuromesh_index::mcp_workspace_env_summary() {
+            println!("  IDE env      : {env_line}");
+        } else {
+            println!("  IDE env      : (none — Cursor/VS Code may send root in initialize)");
+        }
+        let predicted = neuromesh_index::resolve_mcp_startup_workspace();
+        println!("  Predicted    : {}", predicted.display());
+        println!("  Portable MCP : {{ \"command\": \"neuromesh\", \"args\": [\"mcp\"] }}");
+    }
+
     let walker = configured_walker(root.clone(), neuromesh_core::ProjectId::new("doctor"), cap);
     match walker.scan_report() {
         Ok(report) => {
@@ -52,22 +72,30 @@ pub fn execute(cap: FileCapArg) -> Result<()> {
         Err(e) => println!("Scan           : failed ({e})"),
     }
 
-    let graph_path = neuromesh_core::graph_path(&root);
+    let snap = snapshot::collect_from_cwd(false)?;
+    println!(
+        "Graph          : {} nodes / {} edges ({})",
+        snap.graph_nodes,
+        snap.graph_edges,
+        if snap.graph_ready {
+            "ready"
+        } else {
+            "indexing or empty"
+        }
+    );
+    println!(
+        "Telemetry      : {} requests | {:.1}% mean reduction",
+        snap.telemetry_rows, snap.telemetry.mean_reduction_pct
+    );
+    println!("Monitor        : {}", snap.monitor_status);
     println!(
         "Data directory : {}",
         neuromesh_core::project_data_dir(&root).display()
     );
-    println!(
-        "Store          : {}",
-        if neuromesh_core::uses_local_dotdir(&root) {
-            "local (workspace .neuromesh is trusted)"
-        } else {
-            "managed (~/.neuromesh/projects/…)"
-        }
-    );
+    println!("Store          : {}", snap.store_mode);
     println!(
         "Persisted graph: {}",
-        if graph_path.exists() {
+        if snap.persisted_graph {
             "present"
         } else {
             "missing (run neuromesh index)"

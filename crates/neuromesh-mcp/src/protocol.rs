@@ -112,7 +112,7 @@ pub fn canonical_tool_name(name: &str) -> String {
 }
 
 pub fn initialize_instructions() -> &'static str {
-    "Start every coding task with neuromesh_get_context. Pass the user prompt as task_description, prompt, or task. Default response is minimal (packet_id, files, coverage, tokens). If coverage is partial or no_seed_resolved, call neuromesh_search_symbols — do not treat a utility fallback file as the answer. Fetch diagnostics with neuromesh_explain_packet(packet_id). Expand folds with neuromesh_expand_fold (fold_id, node_id, or query). After a successful edit, call neuromesh_record_feedback with the nodes you touched."
+    "NeuroMesh MCP — agent loop: (1) neuromesh_get_context with the user task; (2) if coverage is partial/no_seed_resolved, neuromesh_search_symbols or neuromesh_expand_gap; (3) neuromesh_expand_fold only when you need a folded body; (4) neuromesh_trace / neuromesh_get_dependencies for callers and blast radius; (5) after a successful edit, neuromesh_record_feedback with touched nodes. Prefer these tools over reading whole files."
 }
 
 pub fn tool_success(id: Option<Value>, val: &Value) -> Value {
