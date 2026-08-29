@@ -4,6 +4,8 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+- **Global MCP connect.** `neuromesh connect` (default) writes portable `neuromesh mcp` config — no per-project workspace args. Auto-detects the active project from `WORKSPACE_FOLDER_PATHS`, `VSCODE_CWD`, MCP `initialize`, or cwd. Use `--pinned` for the legacy absolute-binary + workspace pin. MCP `initialize` can switch workspace mid-session when the IDE sends a different root.
+
 ## 0.7.17 — 2026-08-28
 
 Hot-path optimization and stability hardening (activation + MCP stdio).

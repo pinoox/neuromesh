@@ -13,6 +13,7 @@ struct Flags {
     dry_run: bool,
     project_only: bool,
     force_global: bool,
+    pinned: bool,
     help: bool,
 }
 
@@ -37,7 +38,7 @@ pub fn execute(args: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    let spec = launch_spec()?;
+    let spec = launch_spec(flags.pinned)?;
     print_banner();
     if flags.print_only {
         print_snippets(&spec);
@@ -124,6 +125,7 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
         dry_run: false,
         project_only: false,
         force_global: false,
+        pinned: false,
         help: false,
     };
     for a in args {
@@ -132,6 +134,7 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
             "--dry-run" | "--dry" => flags.dry_run = true,
             "--project" => flags.project_only = true,
             "--global" | "--user" => flags.force_global = true,
+            "--pinned" => flags.pinned = true,
             "--help" | "-h" => flags.help = true,
             other if other.starts_with('-') => {
                 return Err(neuromesh_core::NeuroMeshError::Config(format!(
@@ -168,14 +171,16 @@ fn print_help() {
         "\
 Usage: neuromesh connect [OPTIONS]
 
-Install NeuroMesh as a local MCP stdio server. Uses the absolute path of this
-binary and the current workspace — no PATH setup, no extra packages.
+Install NeuroMesh as a local MCP stdio server. Default config is portable:
+`neuromesh mcp` on PATH with automatic workspace detection per IDE project.
+Use `--pinned` to write an absolute binary path and pin the current workspace.
 
   neuromesh connect              write project configs + globals for installed apps
   neuromesh connect --print      print snippets only (do not write)
   neuromesh connect --dry-run    show target files without writing
   neuromesh connect --project    project files only
   neuromesh connect --global     also create user-level configs (Cursor, Codex, …)
+  neuromesh connect --pinned     absolute binary + workspace args (legacy)
 
 Project files: .cursor .vscode .agents .codex .kilo .trae .mcp.json .minimax
 Globals (when the app is present, or with --global): Cursor, Claude Desktop,
@@ -184,7 +189,14 @@ Codex, Antigravity/Gemini, Windsurf, Trae, Kilo Code, Cline/Roo.
     );
 }
 
-fn launch_spec() -> Result<LaunchSpec> {
+fn launch_spec(pinned: bool) -> Result<LaunchSpec> {
+    if pinned {
+        return launch_spec_pinned();
+    }
+    Ok(LaunchSpec::simple())
+}
+
+fn launch_spec_pinned() -> Result<LaunchSpec> {
     let command = resolve_binary()?.to_string_lossy().into_owned();
     let workspace = neuromesh_index::assert_safe_workspace(
         &neuromesh_index::ProjectWalker::discover_workspace(
@@ -506,8 +518,13 @@ fn print_snippets(spec: &LaunchSpec) {
         spec.toml_block()
     );
     println!(
-        "claude mcp add neuromesh -- {} mcp {}\n",
-        spec.command, spec.cwd
+        "claude mcp add neuromesh -- {} mcp{}\n",
+        spec.command,
+        if spec.args.len() > 1 {
+            format!(" {}", spec.args[1..].join(" "))
+        } else {
+            String::new()
+        }
     );
 }
 
@@ -521,6 +538,8 @@ mod tests {
         assert!(f.print_only && f.project_only && !f.force_global);
         let f = parse_flags(&["--global".into(), "--dry-run".into()]).unwrap();
         assert!(f.force_global && f.dry_run);
+        let f = parse_flags(&["--pinned".into()]).unwrap();
+        assert!(f.pinned);
         assert!(parse_flags(&["--nope".into()]).is_err());
     }
 

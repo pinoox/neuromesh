@@ -11,23 +11,44 @@ pub struct LaunchSpec {
 }
 
 impl LaunchSpec {
-    pub fn mcp_servers_entry(&self) -> Value {
-        json!({
-            "command": self.command,
-            "args": self.args,
-            "cwd": self.cwd,
-            "env": self.env,
-        })
+    /// Portable MCP config: `neuromesh mcp` on PATH; workspace is auto-detected per IDE project.
+    pub fn simple() -> Self {
+        Self {
+            command: "neuromesh".into(),
+            args: vec!["mcp".into()],
+            cwd: String::new(),
+            env: BTreeMap::new(),
+        }
     }
 
-    pub fn vscode_entry(&self) -> Value {
-        json!({
+    pub fn mcp_servers_entry(&self) -> Value {
+        let mut entry = json!({
             "type": "stdio",
             "command": self.command,
             "args": self.args,
-            "cwd": self.cwd,
-            "env": self.env,
-        })
+        });
+        if !self.cwd.is_empty() {
+            entry["cwd"] = json!(self.cwd);
+        }
+        if !self.env.is_empty() {
+            entry["env"] = json!(self.env);
+        }
+        entry
+    }
+
+    pub fn vscode_entry(&self) -> Value {
+        let mut entry = json!({
+            "type": "stdio",
+            "command": self.command,
+            "args": self.args,
+        });
+        if !self.cwd.is_empty() {
+            entry["cwd"] = json!(self.cwd);
+        }
+        if !self.env.is_empty() {
+            entry["env"] = json!(self.env);
+        }
+        entry
     }
 
     pub fn kilo_entry(&self) -> Value {
@@ -45,7 +66,9 @@ impl LaunchSpec {
         let mut out = String::from("[mcp_servers.neuromesh]\n");
         out.push_str(&format!("command = {}\n", toml_string(&self.command)));
         out.push_str(&format!("args = [{}]\n", toml_string_array(&self.args)));
-        out.push_str(&format!("cwd = {}\n", toml_string(&self.cwd)));
+        if !self.cwd.is_empty() {
+            out.push_str(&format!("cwd = {}\n", toml_string(&self.cwd)));
+        }
         if !self.env.is_empty() {
             out.push_str("\n[mcp_servers.neuromesh.env]\n");
             for (k, v) in &self.env {
@@ -232,6 +255,16 @@ mod tests {
             cwd: "/tmp/proj".into(),
             env,
         }
+    }
+
+    #[test]
+    fn simple_spec_omits_cwd_and_env() {
+        let entry = LaunchSpec::simple().mcp_servers_entry();
+        assert_eq!(entry["type"], "stdio");
+        assert_eq!(entry["command"], "neuromesh");
+        assert_eq!(entry["args"], json!(["mcp"]));
+        assert!(entry.get("cwd").is_none());
+        assert!(entry.get("env").is_none());
     }
 
     #[test]

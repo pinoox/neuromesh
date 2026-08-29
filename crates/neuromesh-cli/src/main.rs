@@ -112,15 +112,12 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                     .map(std::path::PathBuf::from)
             });
             let explicit = target_dir.is_some();
-            let target_dir = target_dir.unwrap_or_else(|| {
-                env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
-            });
-
             let current_dir = if explicit {
-                neuromesh_index::ProjectWalker::explicit_workspace(&target_dir)
+                neuromesh_index::ProjectWalker::explicit_workspace(target_dir.as_ref().unwrap())
             } else {
-                neuromesh_index::ProjectWalker::discover_workspace(&target_dir)
+                neuromesh_index::resolve_mcp_startup_workspace()
             };
+            eprintln!("NeuroMesh MCP workspace: {}", current_dir.display());
             let project_name = current_dir
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -129,6 +126,7 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
 
             let project_id = ProjectId::new(&project_name);
             let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
+            graph.set_workspace(&current_dir);
 
             let db_path = neuromesh_core::memory_db_path(&current_dir);
             let memory_db = Arc::new(

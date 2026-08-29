@@ -132,7 +132,7 @@ impl McpServer {
         }
     }
 
-    fn maybe_reindex_from_initialize(&self, params: Option<&Value>) {
+    fn adopt_workspace_from_initialize(&self, params: Option<&Value>) {
         let Some(raw) = workspace_path_from_params(params) else {
             return;
         };
@@ -142,10 +142,13 @@ impl McpServer {
         } else {
             neuromesh_index::ProjectWalker::discover_workspace(&raw)
         };
-        if !p_buf.exists()
-            || !neuromesh_index::ProjectWalker::is_safe_workspace(&p_buf)
-            || self.handler.graph().stats().total_nodes != 0
-        {
+        if !p_buf.exists() || !neuromesh_index::ProjectWalker::is_safe_workspace(&p_buf) {
+            return;
+        }
+        if neuromesh_index::same_workspace_path(
+            self.handler.graph().workspace_root().as_deref(),
+            &p_buf,
+        ) {
             return;
         }
         let p_name = p_buf
@@ -154,6 +157,7 @@ impl McpServer {
             .unwrap_or_else(|| "project".to_string());
         let pid = neuromesh_core::ProjectId::new(&p_name);
         self.handler.graph().set_project_id(pid.clone());
+        self.handler.graph().set_workspace(&p_buf);
         let _ = self.handler.graph().load_persisted(&p_buf);
         self.handler.warmup_persisted_learning();
         if self.handler.graph().stats().total_nodes == 0 {
@@ -162,6 +166,10 @@ impl McpServer {
         let bg_graph = self.handler.graph().clone();
         let bg_dir = p_buf.clone();
         let bg_pid = pid.clone();
+        eprintln!(
+            "NeuroMesh MCP adopted workspace from initialize: {}",
+            bg_dir.display()
+        );
         tokio::task::spawn_blocking(move || {
             bg_graph.reindex_incremental(&bg_dir, bg_pid, neuromesh_core::Config::load().max_files);
         });
@@ -181,7 +189,7 @@ impl McpServer {
     pub async fn process_request(&self, req: JsonRpcRequest) -> Value {
         match req.method.as_str() {
             "initialize" => {
-                self.maybe_reindex_from_initialize(req.params.as_ref());
+                self.adopt_workspace_from_initialize(req.params.as_ref());
                 self.handler.record_session_telemetry();
                 let protocol_version = negotiate_protocol_version(
                     req.params

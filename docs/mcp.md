@@ -2,31 +2,32 @@
 
 Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). That is what Cursor, Claude, Codex, OpenCode, MiMo CLI, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
 
-**Warning:** Never run `neuromesh mcp` without a workspace path (or `NEUROMESH_WORKSPACE`). Without it the server may bind to your home directory and index unrelated projects. Prefer `neuromesh connect`, which pins an absolute binary path and workspace in MCP config.
+**Warning:** Never run `neuromesh mcp` without a workspace path (or `NEUROMESH_WORKSPACE`) **unless** the IDE sets `WORKSPACE_FOLDER_PATHS` / `VSCODE_CWD` or sends a workspace root in MCP `initialize`. Without any of those, the server may bind to your home directory and index unrelated projects. For a one-time global install, use the simple config below; `neuromesh connect --global` writes it to `~/.cursor/mcp.json`.
 
 Remote / multi-agent: `neuromesh monitor` (optionally `--port 9000` / `neuromesh port 9000`), then SSE and HTTP as in [api.md](api.md).
 
 ## Connect
 
 ```bash
-neuromesh connect           # write project MCP configs + globals for installed apps
-neuromesh connect --print   # snippets only
-neuromesh connect --project # this repo only
-neuromesh connect --global  # also create user-level files
+neuromesh connect --global       # one global MCP config for Cursor (recommended)
+neuromesh connect --print        # snippets only
+neuromesh connect --project      # this repo only (usually unnecessary)
+neuromesh connect --pinned       # legacy: absolute binary + workspace in args
 ```
 
-The command points each client at **this binary** (absolute path) and the current workspace (`args: ["mcp", "<workspace>"]` plus `NEUROMESH_WORKSPACE`). PATH is not required. It merges a `neuromesh` server into existing files and does not delete other MCP servers.
+Default `connect` writes a **portable** config: `command: "neuromesh"`, `args: ["mcp"]`. NeuroMesh detects the active project from IDE env vars (`WORKSPACE_FOLDER_PATHS`, `VSCODE_CWD`, …) and from MCP `initialize` (`rootUri`, `workspaceFolders`). No per-project workspace registration required.
+
+`--pinned` keeps the old behavior: absolute binary path, `args: ["mcp", "<workspace>"]`, and `NEUROMESH_WORKSPACE` for hosts where PATH or auto-detection is unreliable.
 
 ### Manual
 
-When `neuromesh` is on **PATH** and the IDE runs MCP from your project root (or you set `NEUROMESH_WORKSPACE`), paste this into MCP settings — no `neuromesh connect` required.
-
-**Cursor** — `.cursor/mcp.json`, or **Settings → MCP → Edit config**:
+When `neuromesh` is on **PATH**, paste this into **global** MCP settings (`~/.cursor/mcp.json`) — works for every project without registering a workspace:
 
 ```json
 {
   "mcpServers": {
     "neuromesh": {
+      "type": "stdio",
       "command": "neuromesh",
       "args": ["mcp"]
     }
@@ -34,9 +35,7 @@ When `neuromesh` is on **PATH** and the IDE runs MCP from your project root (or 
 }
 ```
 
-Same `mcpServers` shape works for Claude Desktop (`claude_desktop_config.json`), Trae (`.trae/mcp.json`), MiniMax (`.minimax/mcp.json`), and other clients that use that key. [OpenCode](https://opencode.ai/) uses an `mcp` object with `type: "local"` and a `command` array — run `neuromesh connect --print` and map the binary + args. MiMo CLI uses `.mimo-code.json` / `~/.mimo-code/config.json` with an `mcpServers` list. VS Code / Copilot uses `.vscode/mcp.json` with a top-level `servers` object instead — run `neuromesh connect --print` for that shape.
-
-`neuromesh connect` is still preferred when PATH is unreliable: it writes an absolute `command` and pins the workspace via `args: ["mcp", "<path>"]` plus `NEUROMESH_WORKSPACE`.
+Or run `neuromesh connect --global` once. Use `--pinned` only when PATH is unreliable or auto-detection fails in your IDE.
 
 | Client | Project file | User file (if the app is installed) |
 | :--- | :--- | :--- |
