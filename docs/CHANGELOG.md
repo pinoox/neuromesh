@@ -4,6 +4,8 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+- **CLI `packet`.** JSON output path mirroring MCP `get_context_packet` (`--json`, `--engine`, `--keywords`, `--expansion`) for benchmarks and CI.
+
 ## 0.8.0 — 2026-08-29
 
 Modular seed resolution and MCP tool rename.

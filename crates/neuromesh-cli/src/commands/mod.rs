@@ -10,6 +10,7 @@ pub mod memory;
 pub mod models;
 pub mod monitor;
 pub mod optimize;
+pub mod packet;
 pub mod port;
 pub mod smoke;
 pub mod snapshot;

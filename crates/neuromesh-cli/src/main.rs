@@ -68,6 +68,9 @@ fn main() -> Result<()> {
         "smoke" => {
             return commands::smoke::execute();
         }
+        "packet" | "get_context_packet" => {
+            return commands::packet::execute(&args[2..]);
+        }
         "models" => {
             return commands::models::execute();
         }
@@ -234,6 +237,7 @@ fn print_help() {
     println!("  graph      Print graph stats");
     println!("  memory     Print project memory facts");
     println!("  optimize   Activate one prompt and print the packet");
+    println!("  packet     JSON packet for benchmarks (`--json`, `--engine`, `--keywords`)");
     println!(
         "  eval       Gold-task recall / precision / fill budget (alias: evaluate, benchmark)"
     );

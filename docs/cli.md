@@ -13,6 +13,7 @@ neuromesh usage        # MCP token telemetry (`--all`, `--limit N`)
 neuromesh graph        # graph stats
 neuromesh memory       # project facts
 neuromesh optimize     # one prompt → print the packet
+neuromesh packet       # JSON packet for benchmarks (`--json`, `--engine`, `--keywords`)
 neuromesh eval         # gold recall / precision / fill on cwd and tests/fixtures
 neuromesh eval --learning   # dose-response learning benchmark (learning-causal fixture)
 neuromesh benchmark    # same as eval
@@ -83,6 +84,19 @@ neuromesh config seed-engine                  # show engine + override layers
 neuromesh config seed-engine semantic_lite     # write nm.config.json here
 neuromesh config seed-engine hybrid --global   # machine default
 ```
+
+## Packet (JSON benchmark path)
+
+Same activation path as MCP `get_context_packet`, for scripts and CI:
+
+```bash
+neuromesh packet --json --query "Where is HTTPAdapter.send?"
+neuromesh packet --json --engine hybrid \
+  --keywords "Session,redirect" --expansion "retry,models" \
+  --query "How does redirect work?"
+```
+
+Stdout is one JSON object: coverage, files, tokens, `seed_resolution`, client signals. Human-readable output when `--json` is omitted.
 
 Example `nm.config.json` (copy from `nm.config.example.json`):
 
