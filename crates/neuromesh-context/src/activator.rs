@@ -149,6 +149,37 @@ impl ContextActivator {
         signature: &TaskSignature,
         mode: OptimizationMode,
     ) -> ContextView {
+        self.activate_with_hops(graph, signature, mode, 0)
+    }
+
+    /// Tier orchestrator entry: `hops_override` of 0 uses mode-derived hops.
+    pub fn activate_with_hops(
+        &self,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+        hops_override: u8,
+    ) -> ContextView {
+        self.activate_inner(graph, signature, mode, hops_override)
+    }
+
+    /// L1→L2→L3 cost-aware retrieval with conservative sufficiency early exit.
+    pub fn activate_tiered(
+        &self,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+    ) -> ContextView {
+        crate::retrieval::RetrievalOrchestrator::default().run(self, graph, signature, mode)
+    }
+
+    fn activate_inner(
+        &self,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+        hops_override: u8,
+    ) -> ContextView {
         self.registry.begin_activate(&graph.project_id());
 
         let is_critical = signature.requires_conservative_mode();
@@ -161,7 +192,9 @@ impl ContextActivator {
         let prompt = signature.raw_prompt.as_str();
         let call_graph_task = prompt_is_call_graph_task(prompt);
 
-        let hops = if call_graph_task {
+        let hops: usize = if hops_override > 0 {
+            hops_override as usize
+        } else if call_graph_task {
             1
         } else {
             match effective_mode {
@@ -184,9 +217,15 @@ impl ContextActivator {
             reasons: &mut seed_reasons,
         };
 
+        let mut sig_for_seeds = signature.clone();
+        crate::retrieval::alias::inject_alias_expansion(
+            &mut sig_for_seeds.related_concepts,
+            prompt,
+        );
+
         let mut seed_result = run_seed_resolution(
             graph,
-            signature,
+            &sig_for_seeds,
             prompt,
             &seed_config,
             &mut buffers,
@@ -846,6 +885,7 @@ impl ContextActivator {
             },
             seed_resolution_telemetry: Some(seed_resolution_telemetry),
             packet_header,
+            retrieval: None,
         };
         *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
         view

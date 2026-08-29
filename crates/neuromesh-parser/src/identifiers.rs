@@ -384,6 +384,23 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
     }
 }
 
+/// Extract backtick-quoted, dotted, and snake_case code tokens embedded in NL prompts.
+pub fn extract_embedded_code_tokens(prompt: &str) -> Vec<String> {
+    let anchors = extract_prompt_anchors(prompt);
+    let mut out = anchors.identifiers;
+    static SNAKE_RE: OnceLock<Regex> = OnceLock::new();
+    let snake_re =
+        SNAKE_RE.get_or_init(|| Regex::new(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b").unwrap());
+    for cap in snake_re.captures_iter(prompt) {
+        let token = cap.get(0).unwrap().as_str();
+        if token.len() >= 4 && !is_prompt_stopword(token) {
+            push_unique(&mut out, token.to_string());
+        }
+    }
+    out.truncate(12);
+    out
+}
+
 /// Split a compound prompt so each topical clause can seed independently.
 ///
 /// Delimiters are the phrases people actually use to glue two questions

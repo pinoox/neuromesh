@@ -73,7 +73,7 @@ fn run_semantic_lite(
     graph: &NeuralProjectGraph,
     signature: &TaskSignature,
     prompt: &str,
-    _config: &SeedResolutionConfig,
+    config: &SeedResolutionConfig,
     sink: &mut SeedSink<'_, '_, '_>,
     is_style: bool,
 ) -> bool {
@@ -81,6 +81,12 @@ fn run_semantic_lite(
     seed_uncovered_clusters_inner(graph, signature, &mut sink.buffers_mut());
     if sink.resolved_count() == 0 && !is_style {
         token_fallback_seeds(graph, signature, prompt, sink);
+    }
+    // Brownfield tail: keywords_expanded signals before L3-only prune/scaffold.
+    if sink.resolved_count() == 0 && !is_style {
+        push_client_keywords(graph, signature, prompt, config, sink);
+        push_client_expansion(graph, signature, prompt, config, sink);
+        push_path_hint_seeds(graph, signature, prompt, config, sink);
     }
     prune_weak_greenfield_seeds(graph, signature, sink);
     if sink.resolved_count() == 0 {

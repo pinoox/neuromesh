@@ -35,6 +35,6 @@ pub use types::{
     ActivatedNodeView, ContextDiff, ContextEdge, ContextNode, ContextScoreBreakdown, ContextStatus,
     ContextView, CoverageReport, EdgeConfidence, EdgeId, EdgeType, EmissionDropStage,
     InactiveContextDescriptor, IndexMeta, NextAction, NodeId, NodeType, OptimizationMetadata,
-    PacketGap, ProjectId, RankCandidateView, SeedResolution, SkippedFile, StructuralEvidence,
-    UnresolvedRef,
+    PacketGap, ProjectId, RankCandidateView, RetrievalMetadata, SeedResolution, SkippedFile,
+    StructuralEvidence, UnresolvedRef,
 };

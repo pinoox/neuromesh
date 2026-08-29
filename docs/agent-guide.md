@@ -26,10 +26,11 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 
 1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). For natural-language or non-English prompts, pass `keywords`, `expansion`, and optional `path_hints` / `entity_types`.
 2. If `coverage.claim` is `partial` or `no_seed_resolved`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
-3. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
-4. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
-5. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched. Use `neuromesh_get_node_weights` before/after to verify learning deltas when debugging routing.
-6. If feedback should have changed the packet but `files[]` looks the same, call `neuromesh_explain_packet` and inspect `selection.candidates` for `emitted`, `drop_stage`, and `score_breakdown`.
+3. Check `retrieval.claim` (`insufficient` | `partial` | `likely_sufficient`) — this is a **decision signal**, not ground truth. Prefer acting on `partial` over assuming sufficiency. Use `retrieval.suggested_keywords` when present.
+4. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
+5. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
+6. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched. Use `neuromesh_get_node_weights` before/after to verify learning deltas when debugging routing.
+7. If feedback should have changed the packet but `files[]` looks the same, call `neuromesh_explain_packet` and inspect `selection.candidates` for `emitted`, `drop_stage`, and `score_breakdown`.
 
 Do not treat a utility fallback file as the answer when coverage says seeds missed or `packet_gaps` is non-empty.
 
@@ -45,6 +46,23 @@ Do not treat a utility fallback file as the answer when coverage says seeds miss
 - Opening large whole source files into context when a packet or skeleton is enough
 - Expanding every fold “just in case”
 - Skipping `neuromesh_record_feedback` after a good edit (no STDP learning for the next packet)
+
+## Multilingual prompts (keywords / expansion)
+
+For non-English or vague prompts, pass English **code terms** in `keywords` and related concepts in `expansion`:
+
+| Language | Example prompt fragment | Suggested keywords |
+| :--- | :--- | :--- |
+| Persian (FA) | مسیردهی و middleware | `router`, `route`, `middleware`, `app.use` |
+| Spanish (ES) | enrutamiento y redirect | `router`, `redirect`, `response` |
+| Arabic (AR) | المصادقة والجلسة | `auth`, `session`, `cookie` |
+| German (DE) | Routing und Middleware | `router`, `middleware`, `route` |
+| Chinese (ZH) | 路由和中间件 | `router`, `middleware`, `route` |
+| Japanese (JA) | ルーティング | `router`, `route`, `handler` |
+| Russian (RU) | маршрутизация | `router`, `route`, `middleware` |
+| Turkish (TR) | yönlendirme | `router`, `redirect`, `route` |
+
+NeuroMesh L1 expands aliases internally, but **assisted mode** (keywords) remains higher recall on holdout benchmarks.
 ```
 
 Keep one copy in the repo (for example `AGENTS.md`) and point each IDE at it, or duplicate into the client-specific paths below. Prefer **one** shared `AGENTS.md` when several tools share the same git root.

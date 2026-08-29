@@ -1,5 +1,6 @@
 pub mod activator;
 pub mod activator_seed;
+pub mod benchmark_suite;
 pub mod dedup;
 pub mod emission;
 pub mod expansion;
@@ -9,6 +10,7 @@ pub mod gold;
 pub mod learning_eval;
 pub mod packet_analysis;
 pub mod registry;
+pub mod retrieval;
 pub mod scaffold_routing;
 pub mod scoring;
 pub mod seed;
@@ -18,12 +20,20 @@ pub mod style_routing;
 pub mod unified_score;
 
 pub use activator::{ContextActivator, PacketSnapshot, PhysarumTelemetry};
+pub use benchmark_suite::{
+    aggregate_cell_results, split_for_cell, BenchmarkCellResult, BenchmarkId, DataSplit,
+    ParetoPoint, ReleaseGateReport,
+};
 pub use dedup::ContextDeduplicator;
 pub use expansion::{ExpansionAuditRecord, ExpansionEngine, FoldExpansion};
 pub use fold::{normalize_fold_query, FoldPolicy, OPTIONAL_EXON_BUDGET, SEED_EXON_BUDGET};
 pub use genetic_optimizer::{ContextChromosome, GeneticContextOptimizer};
 pub use learning_eval::{compute_ranking_metrics, mrr, ndcg_at_k, RankingMetrics};
 pub use registry::ReversibleContextRegistry;
+pub use retrieval::{
+    CalibrationReport, EvalSuiteMetrics, FailureClass, ImpactRetrievalResult,
+    RetrievalOrchestrator, RetrievalTier,
+};
 pub use scoring::{ActivationScorer, ScoringWeights};
 pub use selector::{fill_budget, packet_cap, select, token_budget, Selection};
 pub use skeleton::{CodeSkeletonizer, FoldDescriptor, FoldedIntron, FunctionSpan, SkeletonResult};

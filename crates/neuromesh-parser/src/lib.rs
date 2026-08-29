@@ -22,9 +22,9 @@ pub mod vue;
 pub use engine::CodeIntelligenceEngine;
 pub use html::HtmlParser;
 pub use identifiers::{
-    api_path_alias, extract_cluster_nouns, extract_prompt_anchors, is_imperative_verb,
-    is_prompt_stopword, is_route_query, split_task_clusters, stem_search_queries, tokenize_ident,
-    PromptAnchors,
+    api_path_alias, extract_cluster_nouns, extract_embedded_code_tokens, extract_prompt_anchors,
+    is_imperative_verb, is_prompt_stopword, is_route_query, split_task_clusters,
+    stem_search_queries, tokenize_ident, PromptAnchors,
 };
 pub use semantic::{SemanticTypeExtractor, SemanticTypeMap, TypeDefinition};
 pub use text_normalize::{normalize_keyword, normalize_prompt_tokens, normalize_unicode};

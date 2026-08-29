@@ -393,6 +393,32 @@ pub struct ActivatedNodeView {
     pub folded_symbols: Vec<String>,
 }
 
+/// Runtime retrieval estimate — a decision signal, not evaluation ground truth.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RetrievalMetadata {
+    pub retrieval_level: String,
+    pub sufficiency_score: f32,
+    pub confidence: f32,
+    pub claim: String,
+    #[serde(default)]
+    pub levels_attempted: Vec<String>,
+    #[serde(default)]
+    pub latency_ms: std::collections::HashMap<String, u64>,
+    /// Hard invariant: must always be false (no full-workspace fallback).
+    #[serde(default)]
+    pub full_workspace_fallback: bool,
+    #[serde(default)]
+    pub critical_gaps: Vec<String>,
+    #[serde(default)]
+    pub non_critical_gaps: Vec<String>,
+    #[serde(default)]
+    pub eligible_for_early_exit: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_action: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggested_keywords: Option<Vec<String>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextView {
     pub project_id: ProjectId,
@@ -459,6 +485,8 @@ pub struct ContextView {
     pub seed_resolution_telemetry: Option<crate::SeedResolutionTelemetry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub packet_header: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retrieval: Option<RetrievalMetadata>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

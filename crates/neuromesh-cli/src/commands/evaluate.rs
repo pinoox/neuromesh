@@ -1,9 +1,13 @@
+use neuromesh_context::benchmark_suite::{
+    aggregate_cell_results, BenchmarkCellResult, ReleaseGateReport,
+};
 use neuromesh_context::gold::{
     evaluate_view, fixture_gold_cases, load_gold_tasks, packet_file_names, packet_paths,
 };
 use neuromesh_context::learning_eval::{
     compute_ranking_metrics, dose_response_rank, emitted_paths_from_view,
 };
+use neuromesh_context::retrieval::failure::classify_retrieval_failure;
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{OptimizationMode, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
@@ -16,6 +20,7 @@ use std::time::Instant;
 
 pub fn execute(args: &[String]) -> Result<()> {
     let learning_mode = args.iter().any(|a| a == "--learning");
+    let release_gates = args.iter().any(|a| a == "--release-gates");
     let current_dir = neuromesh_index::assert_safe_workspace(&env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
@@ -94,7 +99,11 @@ pub fn execute(args: &[String]) -> Result<()> {
             OptimizationMode::MaxQuality,
         ] {
             let started = Instant::now();
-            let view = activator.activate(&graph, &signature, mode);
+            let view = if mode == OptimizationMode::Balanced {
+                activator.activate_tiered(&graph, &signature, mode)
+            } else {
+                activator.activate(&graph, &signature, mode)
+            };
             let ms = started.elapsed().as_millis();
             let metrics = evaluate_view(task, &view, ms as u64);
             let files = packet_file_names(&view);
@@ -128,6 +137,79 @@ pub fn execute(args: &[String]) -> Result<()> {
     println!("Seeds always ship (a large target function can exceed the fill cap).");
     println!("WS tok = indexed workspace. Selected = raw tokens of packet files before fold. Packet = after fold.");
     println!("Grep = 0 when gold files are already in the packet (recall 1.0); 1 otherwise.");
+
+    if release_gates {
+        let mut cells = Vec::new();
+        for (i, task) in tasks.iter().enumerate() {
+            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let started = Instant::now();
+            let view = activator.activate_tiered(&graph, &signature, OptimizationMode::Balanced);
+            let ms = started.elapsed().as_millis() as u64;
+            let metrics = evaluate_view(task, &view, ms);
+            let claim = view
+                .retrieval
+                .as_ref()
+                .map(|r| r.claim.as_str())
+                .unwrap_or("unknown");
+            let level = view
+                .retrieval
+                .as_ref()
+                .map(|r| r.retrieval_level.clone())
+                .unwrap_or_else(|| "L1".into());
+            let critical = view
+                .retrieval
+                .as_ref()
+                .map(|r| r.critical_gaps.len())
+                .unwrap_or(0);
+            let failure = classify_retrieval_failure(
+                claim,
+                view.coverage
+                    .as_ref()
+                    .map(|c| c.seeds_hit.len())
+                    .unwrap_or(0),
+                critical,
+                view.over_budget,
+                &level,
+                None,
+            );
+            cells.push(BenchmarkCellResult {
+                benchmark: "A_regression".into(),
+                cell_id: task.id.clone(),
+                split: format!(
+                    "{:?}",
+                    neuromesh_context::benchmark_suite::split_for_cell(i, tasks.len())
+                ),
+                recall: metrics.recall,
+                precision: metrics.precision,
+                task_success: None,
+                claimed_sufficient: claim == "likely_sufficient",
+                tokens: metrics.packet_tokens,
+                latency_ms: ms,
+                retrieval_level: level.clone(),
+                failure_class: failure.as_str().to_string(),
+                l1_ms: view
+                    .retrieval
+                    .as_ref()
+                    .and_then(|r| r.latency_ms.get("L1").copied())
+                    .unwrap_or(ms),
+                l2_ms: view
+                    .retrieval
+                    .as_ref()
+                    .and_then(|r| r.latency_ms.get("L2").copied()),
+                l3_ms: view
+                    .retrieval
+                    .as_ref()
+                    .and_then(|r| r.latency_ms.get("L3").copied()),
+            });
+        }
+        let suite = aggregate_cell_results(&cells);
+        let report = ReleaseGateReport::evaluate(&suite);
+        println!(
+            "\nRelease gates (Benchmark A): {}",
+            if report.passed { "PASS" } else { "FAIL" }
+        );
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    }
 
     let fixtures = current_dir.join("tests").join("fixtures");
     if fixtures.is_dir() {

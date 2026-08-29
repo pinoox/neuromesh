@@ -164,5 +164,12 @@ pub(crate) fn prune_weak_greenfield_seeds(
     signature: &TaskSignature,
     sink: &mut SeedSink<'_, '_, '_>,
 ) {
+    // Brownfield-safe: only prune fuzzy NL seeds on greenfield Create tasks.
+    if !matches!(signature.intent, TaskIntent::Create) {
+        return;
+    }
+    if !signature.client_keywords.is_empty() || !signature.client_expansion.is_empty() {
+        return;
+    }
     prune_weak_greenfield_seeds_inner(graph, signature, &mut sink.buffers_mut());
 }

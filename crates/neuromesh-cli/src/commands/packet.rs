@@ -1,6 +1,8 @@
 use neuromesh_context::gold::{packet_file_names, packet_paths};
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
-use neuromesh_core::{OptimizationMode, ProjectId, Result, SeedEngineId, TaskSignature};
+use neuromesh_core::{
+    OptimizationMode, ProjectId, Result, RetrievalMetadata, SeedEngineId, TaskSignature,
+};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_task::TaskSignatureExtractor;
 use serde::Serialize;
@@ -38,6 +40,7 @@ struct PacketJsonOut {
     identifiers: Vec<String>,
     seeds_missed: Vec<String>,
     seed_resolution: Option<neuromesh_core::SeedResolutionTelemetry>,
+    retrieval: Option<RetrievalMetadata>,
     task: TaskJsonOut,
 }
 
@@ -53,14 +56,11 @@ struct TaskJsonOut {
 
 pub fn execute(args: &[String]) -> Result<()> {
     let parsed = parse_args(args)?;
-    let prompt = parsed
-        .query
-        .clone()
-        .ok_or_else(|| {
-            neuromesh_core::NeuroMeshError::Config(
-                "packet requires a prompt (--query or positional)".into(),
-            )
-        })?;
+    let prompt = parsed.query.clone().ok_or_else(|| {
+        neuromesh_core::NeuroMeshError::Config(
+            "packet requires a prompt (--query or positional)".into(),
+        )
+    })?;
 
     let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
     let project_name = current_dir
@@ -88,7 +88,7 @@ pub fn execute(args: &[String]) -> Result<()> {
     let registry = Arc::new(ReversibleContextRegistry::new());
     let activator = ContextActivator::new(registry);
     let started = Instant::now();
-    let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+    let view = activator.activate_tiered(&graph, &signature, OptimizationMode::Balanced);
     let latency_ms = started.elapsed().as_millis() as u64;
 
     let mut files: Vec<String> = packet_file_names(&view).into_iter().collect();
@@ -122,6 +122,7 @@ pub fn execute(args: &[String]) -> Result<()> {
         identifiers: signature.identifiers.clone(),
         seeds_missed,
         seed_resolution: view.seed_resolution_telemetry.clone(),
+        retrieval: view.retrieval.clone(),
         task: TaskJsonOut {
             client_keywords: signature.client_keywords.clone(),
             client_expansion: signature.client_expansion.clone(),

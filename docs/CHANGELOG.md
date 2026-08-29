@@ -4,6 +4,12 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+- **Tiered retrieval (L1→L2→L3).** Cost-aware orchestrator with conservative sufficiency early exit; `activate_tiered` used by MCP and `packet --json`. Runtime metadata: `retrieval_level`, `sufficiency_score`, `confidence`, `claim`, `critical_gaps`, `suggested_keywords`. Hard ban on full-workspace fallback.
+- **Sufficiency model.** Production estimate separate from eval metrics; FSR (False Sufficiency Rate) tracking in `neuromesh eval --release-gates`. Benchmark suite A–F definitions in `benchmark_suite` + `scripts/benchmark-v080.ps1`.
+- **L1 multilingual pipeline.** Minimal alias clusters, Unicode normalize in signature extraction, `extract_embedded_code_tokens`, graph-aware lexical fallback. Brownfield-safe semantic_lite/hybrid (skip greenfield prune on non-Create tasks).
+- **Impact retrieval.** `retrieve_impact_context` via existing graph trace (callers/callees/tests/config).
+- **CLI `packet`.** JSON output includes `retrieval` block; tiered activation path.
+- **CLI `eval --release-gates`.** Multi-dimensional release gate report (recall, precision, FSR, L3 rate, checklist).
 - **CLI `packet`.** JSON output path mirroring MCP `get_context_packet` (`--json`, `--engine`, `--keywords`, `--expansion`) for benchmarks and CI.
 
 ## 0.8.0 — 2026-08-29

@@ -237,9 +237,9 @@ impl McpToolHandler {
                     }
                 }
                 let gate = QualityGate::evaluate(&signature, requested_mode);
-                let view = self
-                    .activator
-                    .activate(&self.graph, &signature, gate.effective_mode);
+                let view =
+                    self.activator
+                        .activate_tiered(&self.graph, &signature, gate.effective_mode);
                 self.prefetch_mycelium(&view);
 
                 for active in &view.active_nodes {

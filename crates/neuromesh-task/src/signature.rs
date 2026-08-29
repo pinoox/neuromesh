@@ -1,13 +1,17 @@
 use neuromesh_core::{TaskIntent, TaskRisk, TaskSignature};
-use neuromesh_parser::{extract_prompt_anchors, is_imperative_verb};
+use neuromesh_parser::{
+    extract_embedded_code_tokens, extract_prompt_anchors, is_imperative_verb, normalize_unicode,
+};
 use uuid::Uuid;
 
 pub struct TaskSignatureExtractor;
 
 impl TaskSignatureExtractor {
     pub fn extract(prompt: &str) -> TaskSignature {
+        let prompt = normalize_unicode(prompt);
         let lower = prompt.to_lowercase();
-        let anchors = extract_prompt_anchors(prompt);
+        let anchors = extract_prompt_anchors(&prompt);
+        let embedded = extract_embedded_code_tokens(&prompt);
 
         let intent = if lower.contains("build")
             || lower.contains("create")
@@ -195,6 +199,13 @@ impl TaskSignatureExtractor {
             0.62
         };
 
+        let mut identifiers = anchors.identifiers;
+        for token in embedded {
+            if !identifiers.iter().any(|id| id.eq_ignore_ascii_case(&token)) {
+                identifiers.push(token);
+            }
+        }
+
         TaskSignature {
             id: Uuid::new_v4().to_string(),
             intent,
@@ -205,7 +216,7 @@ impl TaskSignatureExtractor {
             goal,
             risk,
             related_concepts,
-            identifiers: anchors.identifiers,
+            identifiers,
             file_hints: anchors.file_hints,
             client_keywords: Vec::new(),
             client_expansion: Vec::new(),

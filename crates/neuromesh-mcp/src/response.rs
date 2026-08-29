@@ -231,6 +231,25 @@ impl ContextBuild<'_> {
         task
     }
 
+    fn retrieval_block(&self) -> Option<Value> {
+        self.view.retrieval.as_ref().map(|r| {
+            json!({
+                "retrieval_level": r.retrieval_level,
+                "sufficiency_score": r.sufficiency_score,
+                "confidence": r.confidence,
+                "claim": r.claim,
+                "levels_attempted": r.levels_attempted,
+                "latency_ms": r.latency_ms,
+                "full_workspace_fallback": r.full_workspace_fallback,
+                "critical_gaps": r.critical_gaps,
+                "non_critical_gaps": r.non_critical_gaps,
+                "eligible_for_early_exit": r.eligible_for_early_exit,
+                "next_action": r.next_action,
+                "suggested_keywords": r.suggested_keywords,
+            })
+        })
+    }
+
     fn client_keywords_used(&self) -> Vec<String> {
         if self.signature.client_keywords.is_empty() {
             return Vec::new();
@@ -334,7 +353,12 @@ impl ContextBuild<'_> {
         let missing = self.missing_seeds();
         let next = if self.needs_search() && !missing.is_empty() {
             Some(MinimalNext {
-                tool: "neuromesh_search_symbols".into(),
+                tool: self
+                    .view
+                    .retrieval
+                    .as_ref()
+                    .and_then(|r| r.next_action.clone())
+                    .unwrap_or_else(|| "neuromesh_search_symbols".into()),
                 queries: missing.clone(),
             })
         } else {
@@ -435,6 +459,9 @@ impl ContextBuild<'_> {
         }
         if let Some(header) = self.view.packet_header.as_ref() {
             packet["packet_header"] = json!(header);
+        }
+        if let Some(retrieval) = self.retrieval_block() {
+            packet["retrieval"] = retrieval;
         }
         json!({
             "packet_id": self.packet_id,
