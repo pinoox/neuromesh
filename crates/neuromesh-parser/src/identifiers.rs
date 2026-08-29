@@ -39,6 +39,18 @@ const STOPWORDS: &[&str] = &[
     "delete",
     "rewrite",
     "improve",
+    "design",
+    "define",
+    "plan",
+    "inspect",
+    "review",
+    "give",
+    "architect",
+    "deploy",
+    "configure",
+    "identify",
+    "scaffold",
+    "build",
     "show",
     "find",
     "get",
@@ -152,6 +164,51 @@ const CLUSTER_STOPWORDS: &[&str] = &[
     "server",
     "start",
     "process",
+];
+
+/// English planning/imperative verbs — not code identifiers even when PascalCase.
+const IMPERATIVE_VERBS: &[&str] = &[
+    "design",
+    "define",
+    "plan",
+    "inspect",
+    "review",
+    "give",
+    "create",
+    "implement",
+    "build",
+    "architect",
+    "deploy",
+    "configure",
+    "identify",
+    "scaffold",
+    "generate",
+    "develop",
+    "establish",
+    "outline",
+    "propose",
+    "prepare",
+    "analyze",
+    "analyse",
+    "evaluate",
+    "assess",
+    "document",
+    "describe",
+    "explain",
+    "modify",
+    "update",
+    "change",
+    "add",
+    "fix",
+    "make",
+    "show",
+    "find",
+    "get",
+    "set",
+    "run",
+    "use",
+    "need",
+    "want",
 ];
 
 /// Extract code-like identifiers, file paths, and qualified paths from a prompt.
@@ -289,6 +346,9 @@ pub fn extract_prompt_anchors(prompt: &str) -> PromptAnchors {
 
     for cap in ident_re.captures_iter(prompt) {
         let ident = cap.get(0).unwrap().as_str();
+        if is_imperative_verb(ident) && is_sentence_initial_word(prompt, ident) {
+            continue;
+        }
         if is_code_ident(ident) {
             push_unique(&mut identifiers, ident.to_string());
         }
@@ -615,6 +675,21 @@ fn is_seedable_call(value: &str) -> bool {
     !STOPWORDS.contains(&value.to_lowercase().as_str())
 }
 
+/// True for English planning/imperative verbs (any case).
+pub fn is_imperative_verb(value: &str) -> bool {
+    if value.len() < 3 {
+        return false;
+    }
+    IMPERATIVE_VERBS.contains(&value.to_lowercase().as_str())
+}
+
+fn is_sentence_initial_word(prompt: &str, word: &str) -> bool {
+    let trimmed = prompt.trim_start();
+    trimmed
+        .strip_prefix(word)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with(|c: char| !c.is_alphanumeric()))
+}
+
 /// English / prompt noise — not a fallback seed token.
 pub fn is_prompt_stopword(value: &str) -> bool {
     let lower = value.trim().to_lowercase();
@@ -626,6 +701,9 @@ pub fn is_prompt_stopword(value: &str) -> bool {
 
 fn is_code_ident(value: &str) -> bool {
     if value.len() < 3 {
+        return false;
+    }
+    if is_imperative_verb(value) {
         return false;
     }
     let lower = value.to_lowercase();
@@ -928,6 +1006,18 @@ mod tests {
         assert!(
             infer.iter().any(|s| s == "output"),
             "infer aliases = {infer:?}"
+        );
+    }
+
+    #[test]
+    fn design_imperative_not_an_identifier() {
+        let anchors = extract_prompt_anchors(
+            "Design the product catalog domain for products, categories, brands, and product status.",
+        );
+        assert!(
+            !anchors.identifiers.iter().any(|id| id == "Design"),
+            "identifiers = {:?}",
+            anchors.identifiers
         );
     }
 

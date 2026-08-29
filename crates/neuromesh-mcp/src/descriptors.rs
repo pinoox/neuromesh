@@ -35,7 +35,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "neuromesh_get_context",
             "Get evidence packet",
-            "Return a compact evidence packet by default: packet_id, coverage (claim: no_recorded_gap | bounded | partial | no_seed_resolved; covered, skipped, sidecar_files, unsure, packet_gaps), selected/packet tokens, skeletonized files with optional sidecar:true, fold ids without bodies, and missing seeds only when coverage is partial or no_seed_resolved. no_recorded_gap only when seeds resolve, gaps empty, no sidecars, and packet not budget-truncated. bounded means seeds resolved but connector/sidecar fill or budget cut applied. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as task_description, prompt, or task.",
+            "Return a compact evidence packet by default: packet_id, coverage (claim: no_recorded_gap | bounded | partial | no_seed_resolved; covered, skipped, sidecar_files, unsure, packet_gaps), selected/packet tokens, skeletonized files with optional sidecar:true, fold ids without bodies, and missing seeds only when coverage is partial or no_seed_resolved. no_recorded_gap only when seeds resolve, gaps empty, no sidecars, and packet not budget-truncated. bounded means seeds resolved but connector/sidecar fill or budget cut applied. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as task_description, prompt, or task. If the user prompt is in natural language or any non-English language (Persian, Arabic, Chinese, Japanese, Russian, Turkish, etc.), extract 3 to 8 short English code-related keywords or identifiers (function names, module names, domain concepts such as auth, sms, token, login, middleware, handler) and pass them in the optional keywords array. Prefer specific code-ish terms over generic words. Keywords are additional seed candidates only when the raw prompt yields few or zero graph hits.",
             json!({
                 "type": "object",
                 "properties": {
@@ -50,6 +50,11 @@ pub fn tools_list() -> Vec<Value> {
                     "task": {
                         "type": "string",
                         "description": "Alias for task_description"
+                    },
+                    "keywords": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional 3–8 English code-related keywords from natural-language or non-English prompts (any language). Used as extra seed candidates when anchors miss."
                     },
                     "mode": {
                         "type": "string",
@@ -311,6 +316,7 @@ mod tests {
         assert!(ctx["inputSchema"].get("required").is_none());
         assert!(ctx["inputSchema"]["properties"].get("prompt").is_some());
         assert!(ctx["inputSchema"]["properties"].get("task").is_some());
+        assert!(ctx["inputSchema"]["properties"].get("keywords").is_some());
         assert!(ctx["inputSchema"]["properties"]
             .get("response_detail")
             .is_some());

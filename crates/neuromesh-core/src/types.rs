@@ -446,6 +446,9 @@ pub struct ContextView {
     /// `seed_then_fill` or `physarum_seed_fill`.
     #[serde(default)]
     pub selection_method: String,
+    /// `brownfield` when symbol seeds resolved; `greenfield` when scaffold entry points were used.
+    #[serde(default = "default_task_scenario")]
+    pub task_scenario: String,
     /// Ranked file candidates (selected + runners-up) for before/after feedback comparison.
     #[serde(default)]
     pub rank_candidates: Vec<RankCandidateView>,
@@ -555,6 +558,10 @@ pub struct OptimizationMetadata {
     /// Tool or CLI subcommand (`get_context`, `index`, `optimize`, …).
     #[serde(default)]
     pub command: Option<String>,
+}
+
+fn default_task_scenario() -> String {
+    "brownfield".into()
 }
 
 fn default_telemetry_surface() -> String {

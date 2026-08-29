@@ -37,6 +37,9 @@ pub struct TaskSignature {
     pub related_concepts: Vec<String>,
     pub identifiers: Vec<String>,
     pub file_hints: Vec<String>,
+    /// Optional English code keywords from the client LLM (natural-language / non-English prompts).
+    #[serde(default)]
+    pub client_keywords: Vec<String>,
     pub confidence: f32,
     pub raw_prompt: String,
 }
@@ -56,6 +59,7 @@ impl TaskSignature {
             related_concepts: Vec::new(),
             identifiers: Vec::new(),
             file_hints: Vec::new(),
+            client_keywords: Vec::new(),
             confidence: 0.85,
             raw_prompt: prompt,
         }

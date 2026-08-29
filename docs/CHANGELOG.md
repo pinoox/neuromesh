@@ -4,6 +4,7 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+- **Multilingual NL keywords + greenfield scaffold.** Optional MCP `keywords` array (3–8 English code-related terms) for natural-language or any non-English prompt; empty/absent `keywords` preserves prior behavior. Server-side NL cleanup drops imperative verbs from seeds; Laravel scaffold entry points (`routes/web.php`, `composer.json`, …) activate when no seeds resolve after anchors + keywords. Response metadata: `client_keywords`, `client_keywords_used`, `task.scenario` (`greenfield` | `brownfield`). Bare root config filenames (`composer.json`, etc.) resolve via `resolve_file_hint` again.
 - **`nmx` CLI alias.** Same binary as `neuromesh` (`nmx monitor`, `nmx connect`, …). Shipped in release tarballs/zip and install scripts.
 - **Portable global MCP connect (default).** `neuromesh connect` writes `{ "command": "neuromesh", "args": ["mcp"] }`; workspace auto-detected from IDE env + MCP `initialize`. `--pinned` for legacy absolute-binary pin. Targets added: OpenCode, MiMo CLI, Zed, JetBrains `.idea/mcp.json`. `--agent-rules` copies `.cursor/rules/neuromesh.mdc`.
 - **Unified telemetry.** `ActivityRecord` / `record_activity` with `surface`, `workspace_path`, `client_id`, `command`. Coverage: MCP `expand_gap`, monitor `/api/expand`, CLI `index` / `optimize` / `smoke`. `/api/usage` and `/api/status` expose `mean_reduction_pct`; monitor UI drops hardcoded 94.2% fallback.

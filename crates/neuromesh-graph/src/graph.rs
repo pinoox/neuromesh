@@ -2596,12 +2596,16 @@ fn normalize_path_hint(value: &str) -> String {
 fn looks_like_file_path_hint(hint: &str) -> bool {
     let hint = hint.replace('\\', "/");
     let Some((_, ext)) = hint.rsplit_once('.') else {
-        return false;
+        return hint.contains('/');
     };
     !ext.is_empty()
         && ext.len() <= 8
         && ext.chars().all(|c| c.is_ascii_alphanumeric())
-        && (hint.contains('/') || ext.eq_ignore_ascii_case("twig"))
+        && (hint.contains('/')
+            || matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "twig" | "json" | "jsonc" | "php" | "xml" | "yaml" | "yml" | "toml"
+            ))
 }
 
 fn template_stem_hint(hint: &str, target_symbol: &str) -> bool {

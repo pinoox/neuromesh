@@ -9,7 +9,7 @@ use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result};
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_router::QualityGate;
-use neuromesh_task::TaskSignatureExtractor;
+use neuromesh_task::{normalize_keyword, TaskSignatureExtractor};
 use parking_lot::RwLock;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -218,6 +218,19 @@ impl McpToolHandler {
 
                 let signature = TaskSignatureExtractor::extract(&task_desc);
                 let mut signature = signature;
+                for kw in read_string_list(arguments, "keywords") {
+                    let normalized = normalize_keyword(&kw);
+                    if normalized.is_empty() {
+                        continue;
+                    }
+                    if !signature
+                        .client_keywords
+                        .iter()
+                        .any(|existing| existing.eq_ignore_ascii_case(&normalized))
+                    {
+                        signature.client_keywords.push(normalized);
+                    }
+                }
                 if let Ok(episodes) = self
                     .memory_db
                     .find_similar_episodes(&self.graph.project_id(), &task_desc)

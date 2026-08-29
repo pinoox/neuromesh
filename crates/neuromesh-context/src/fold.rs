@@ -472,6 +472,7 @@ mod tests {
                 "nullSafe".into(),
             ],
             file_hints: Vec::new(),
+            client_keywords: Vec::new(),
             confidence: 0.94,
             raw_prompt: "I registered a custom TypeAdapter for my Point class using builder.registerTypeAdapter(Point.class, new PointAdapter().nullSafe()) exactly like the Gson javadoc example, but now every non-null Point field in my objects is being serialized as if it were null and dropped entirely from the JSON output. This started after I added .nullSafe(). Where does nullSafe() wrapping live and what could cause non-null values to be treated as null during serialization?".into(),
         }

@@ -187,6 +187,25 @@ pub struct ContextBuild<'a> {
 }
 
 impl ContextBuild<'_> {
+    fn client_keywords_used(&self) -> Vec<String> {
+        if self.signature.client_keywords.is_empty() {
+            return Vec::new();
+        }
+        self.view
+            .seeds
+            .iter()
+            .filter(|s| {
+                s.resolved_id.is_some()
+                    && self
+                        .signature
+                        .client_keywords
+                        .iter()
+                        .any(|kw| kw.eq_ignore_ascii_case(&s.query))
+            })
+            .map(|s| s.query.clone())
+            .collect()
+    }
+
     pub fn to_details(&self) -> PacketDetails {
         PacketDetails {
             packet_id: self.packet_id.clone(),
@@ -377,6 +396,9 @@ impl ContextBuild<'_> {
                 "entity": self.signature.entity,
                 "identifiers": self.signature.identifiers,
                 "file_hints": self.signature.file_hints,
+                "client_keywords": self.signature.client_keywords,
+                "client_keywords_used": self.client_keywords_used(),
+                "scenario": self.view.task_scenario,
                 "confidence": self.signature.confidence,
             },
             "effective_mode": format!("{:?}", self.gate.effective_mode),
@@ -393,6 +415,9 @@ impl ContextBuild<'_> {
                 "entity": self.signature.entity,
                 "identifiers": self.signature.identifiers,
                 "file_hints": self.signature.file_hints,
+                "client_keywords": self.signature.client_keywords,
+                "client_keywords_used": self.client_keywords_used(),
+                "scenario": self.view.task_scenario,
                 "confidence": self.signature.confidence,
             },
             "membrane_state": self.gate.membrane_state,

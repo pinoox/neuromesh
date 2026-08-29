@@ -5,6 +5,7 @@ use crate::packet_analysis::{
     prompt_is_call_graph_task, restrict_selection_to_call_graph, semantic_style_coverage,
 };
 use crate::registry::ReversibleContextRegistry;
+use crate::scaffold_routing::inject_scaffold_seeds;
 use crate::scoring::{ActivationScorer, ScoringWeights};
 use crate::selector::{
     budget_mode_name, fill_budget, is_noise_path, packet_cap, path_sort_keys,
@@ -20,12 +21,12 @@ use neuromesh_core::{
     decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, is_schema_path,
     prompt_targets_database, prompt_targets_types, ActivatedNodeView, ContextStatus, ContextView,
     CoverageReport, EdgeConfidence, EdgeType, EmissionDropStage, NextAction, NodeId, NodeType,
-    OptimizationMode, SeedResolution, SkippedFile, TaskSignature, Thresholds,
+    OptimizationMode, SeedResolution, SkippedFile, TaskIntent, TaskSignature, Thresholds,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
 use neuromesh_task::{
     extract_cluster_nouns, extract_prompt_anchors, is_prompt_stopword, is_route_query,
-    split_task_clusters, stem_search_queries,
+    normalize_prompt_tokens, split_task_clusters, stem_search_queries,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -37,6 +38,8 @@ use std::time::Instant;
 const MAX_INACTIVE: usize = 12;
 const PHYSARUM_SLA_MS: u64 = 20;
 const MAX_PHYSARUM_SIDECAR_FILES: usize = 3;
+const MAX_CLIENT_KEYWORD_INPUT: usize = 8;
+const MAX_CLIENT_KEYWORD_RESOLVED: usize = 5;
 
 struct MaterializedNode {
     node: neuromesh_core::ContextNode,
@@ -172,6 +175,9 @@ impl ContextActivator {
 
         let mut queries: Vec<(String, f32, &str)> = Vec::new();
         for ident in &signature.identifiers {
+            if ident.eq_ignore_ascii_case(signature.technology.as_str()) {
+                continue;
+            }
             queries.push((ident.clone(), 1.0, "identifier"));
         }
         if !signature.entity.is_empty()
@@ -180,6 +186,7 @@ impl ContextActivator {
                 .identifiers
                 .iter()
                 .any(|id| id == &signature.entity)
+            && !matches!(signature.intent, TaskIntent::Create)
         {
             queries.push((signature.entity.clone(), 1.0, "entity"));
         }
@@ -192,6 +199,9 @@ impl ContextActivator {
             }
             let lower = concept.to_lowercase();
             if lower == "layout" || lower == "breakpoints" || lower == "state" {
+                continue;
+            }
+            if concept.eq_ignore_ascii_case(signature.technology.as_str()) {
                 continue;
             }
             queries.push((concept.clone(), 0.82, "concept"));
@@ -225,20 +235,71 @@ impl ContextActivator {
             &mut seed_energies,
             &mut seed_reasons,
         );
+
+        if !signature.client_keywords.is_empty() {
+            let mut sink = SeedSink {
+                resolutions: &mut seed_resolutions,
+                energies: &mut seed_energies,
+                reasons: &mut seed_reasons,
+            };
+            push_client_keywords(graph, prompt, signature, &mut sink);
+            cap_client_keyword_seeds(
+                &mut seed_energies,
+                &mut seed_reasons,
+                MAX_CLIENT_KEYWORD_RESOLVED,
+            );
+        }
+
+        let mut scaffold_used = false;
         if seed_energies.is_empty() && !is_style_task(signature) {
             let mut sink = SeedSink {
                 resolutions: &mut seed_resolutions,
                 energies: &mut seed_energies,
                 reasons: &mut seed_reasons,
             };
-            for token in signature.raw_prompt.split_whitespace().take(8) {
-                let clean = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
-                if clean.len() < 5 || is_prompt_stopword(clean) {
+            let tokens: Vec<String> = if signature.client_keywords.is_empty() {
+                signature
+                    .raw_prompt
+                    .split_whitespace()
+                    .take(8)
+                    .map(|t| {
+                        t.trim_matches(|c: char| !c.is_alphanumeric() && c != '_')
+                            .to_string()
+                    })
+                    .collect()
+            } else {
+                normalize_prompt_tokens(signature.raw_prompt.as_str())
+                    .into_iter()
+                    .take(8)
+                    .collect()
+            };
+            for token in tokens {
+                if token.len() < 5 || is_prompt_stopword(&token) {
                     continue;
                 }
-                sink.push(graph, prompt, clean.to_string(), 0.55, "token");
+                sink.push(graph, prompt, token, 0.55, "token");
             }
         }
+
+        if matches!(signature.intent, TaskIntent::Create) && signature.client_keywords.is_empty() {
+            prune_weak_greenfield_seeds(
+                graph,
+                signature,
+                &mut seed_resolutions,
+                &mut seed_energies,
+                &mut seed_reasons,
+            );
+        }
+
+        if seed_energies.is_empty() {
+            let mut sink = SeedSink {
+                resolutions: &mut seed_resolutions,
+                energies: &mut seed_energies,
+                reasons: &mut seed_reasons,
+            };
+            scaffold_used = inject_scaffold_seeds(graph, prompt, signature, &mut sink);
+        }
+
         {
             let mut sink = SeedSink {
                 resolutions: &mut seed_resolutions,
@@ -789,7 +850,7 @@ impl ContextActivator {
             .take(40)
             .collect();
 
-        let next_actions = build_next_actions(
+        let mut next_actions = build_next_actions(
             graph,
             &active_nodes,
             &included,
@@ -797,6 +858,13 @@ impl ContextActivator {
             &all_folds,
             &unresolved,
         );
+        if scaffold_used {
+            next_actions.push(NextAction {
+                tool: "neuromesh_get_architecture".into(),
+                query: String::new(),
+                why: "greenfield scaffold — review framework entry points and conventions".into(),
+            });
+        }
 
         let selected_set: HashSet<NodeId> = selection
             .required
@@ -855,6 +923,11 @@ impl ContextActivator {
                 })
                 .collect(),
             structural_evidence,
+            task_scenario: if scaffold_used {
+                "greenfield".to_string()
+            } else {
+                "brownfield".to_string()
+            },
         };
         *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
         view
@@ -868,6 +941,13 @@ pub(crate) struct SeedSink<'a> {
 }
 
 impl SeedSink<'_> {
+    pub(crate) fn resolved_count(&self) -> usize {
+        self.resolutions
+            .iter()
+            .filter(|s| s.resolved_id.is_some())
+            .count()
+    }
+
     pub(crate) fn push(
         &mut self,
         graph: &NeuralProjectGraph,
@@ -899,6 +979,119 @@ impl SeedSink<'_> {
                 confidence: 0.0,
             });
         }
+    }
+}
+
+fn push_client_keywords(
+    graph: &NeuralProjectGraph,
+    prompt: &str,
+    signature: &TaskSignature,
+    sink: &mut SeedSink<'_>,
+) {
+    let mut resolved = 0usize;
+    for kw in signature
+        .client_keywords
+        .iter()
+        .take(MAX_CLIENT_KEYWORD_INPUT)
+    {
+        if resolved >= MAX_CLIENT_KEYWORD_RESOLVED {
+            break;
+        }
+        if sink.resolutions.iter().any(|s| s.query == *kw) {
+            continue;
+        }
+        let before = sink.resolved_count();
+        sink.push(graph, prompt, kw.clone(), 0.95, "client_keyword");
+        if sink.resolved_count() > before {
+            resolved += 1;
+        }
+    }
+}
+
+/// Drop fuzzy NL seeds that block greenfield scaffold routing (Create intent, no keywords).
+/// Keeps proven file hints and exact symbol hits so brownfield Create tasks are unchanged.
+fn prune_weak_greenfield_seeds(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    seed_resolutions: &mut Vec<SeedResolution>,
+    seed_energies: &mut HashMap<NodeId, f32>,
+    seed_reasons: &mut HashMap<NodeId, String>,
+) {
+    let resolution_conf = |id: &NodeId| -> f32 {
+        seed_resolutions
+            .iter()
+            .find(|s| s.resolved_id.as_ref() == Some(id))
+            .map(|s| s.confidence)
+            .unwrap_or(0.0)
+    };
+    let query_for = |id: &NodeId| -> Option<&str> {
+        seed_resolutions
+            .iter()
+            .find(|s| s.resolved_id.as_ref() == Some(id))
+            .map(|s| s.query.as_str())
+    };
+    let keep: HashSet<NodeId> = seed_energies
+        .keys()
+        .filter(|id| {
+            let reason = seed_reasons.get(*id).map(String::as_str).unwrap_or("");
+            if reason.starts_with("file:") {
+                return true;
+            }
+            if !reason.starts_with("identifier:") || resolution_conf(id) < 1.0 {
+                return false;
+            }
+            let Some(query) = query_for(id) else {
+                return false;
+            };
+            if query.eq_ignore_ascii_case(signature.technology.as_str()) {
+                return false;
+            }
+            graph
+                .resolve_best(query)
+                .is_some_and(|node| node.name == query && node.id == **id)
+        })
+        .cloned()
+        .collect();
+    for id in seed_energies.keys().cloned().collect::<Vec<_>>() {
+        if !keep.contains(&id) {
+            seed_energies.remove(&id);
+            seed_reasons.remove(&id);
+        }
+    }
+    seed_resolutions.retain(|s| {
+        s.resolved_id
+            .as_ref()
+            .is_none_or(|id| seed_energies.contains_key(id))
+    });
+}
+
+fn cap_client_keyword_seeds(
+    seed_energies: &mut HashMap<NodeId, f32>,
+    seed_reasons: &mut HashMap<NodeId, String>,
+    max: usize,
+) {
+    let mut keyword_ids: Vec<(NodeId, f32)> = seed_reasons
+        .iter()
+        .filter(|(_, reason)| reason.starts_with("client_keyword"))
+        .filter_map(|(id, _)| {
+            seed_energies
+                .get(id)
+                .copied()
+                .map(|energy| (id.clone(), energy))
+        })
+        .collect();
+    if keyword_ids.len() <= max {
+        return;
+    }
+    keyword_ids.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    let drop: HashSet<NodeId> = keyword_ids
+        .iter()
+        .skip(max)
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in drop {
+        seed_energies.remove(&id);
+        seed_reasons.remove(&id);
     }
 }
 
@@ -3786,6 +3979,153 @@ export function boot() { const l = new Loader(); l.init(); }
         assert!(
             !files.iter().any(|p| p.contains("WizardListCommand")),
             "unrelated wizard files must not leak, files={files:?}"
+        );
+    }
+
+    fn ingest_php(graph: &NeuralProjectGraph, rel: &str, src: &str) {
+        ingest_lang(graph, rel, src, SourceLanguage::PHP);
+    }
+
+    fn ingest_laravel_skeleton(graph: &NeuralProjectGraph) {
+        ingest_php(
+            graph,
+            "routes/web.php",
+            "<?php\nuse Illuminate\\Support\\Facades\\Route;\nRoute::get('/', fn () => view('welcome'));\n",
+        );
+        ingest_php(
+            graph,
+            "bootstrap/app.php",
+            "<?php\nuse Illuminate\\Foundation\\Application;\nreturn Application::configure(basePath: dirname(__DIR__))->create();\n",
+        );
+        ingest_php(
+            graph,
+            "app/Models/User.php",
+            "<?php\nnamespace App\\Models;\nuse Illuminate\\Foundation\\Auth\\User as Authenticatable;\nclass User extends Authenticatable {}\n",
+        );
+        ingest_php(
+            graph,
+            "app/Http/Controllers/Controller.php",
+            "<?php\nnamespace App\\Http\\Controllers;\nabstract class Controller {}\n",
+        );
+        ingest_lang(
+            graph,
+            "composer.json",
+            r#"{"name":"laravel/laravel","keywords":["laravel","framework"]}"#,
+            SourceLanguage::JSON,
+        );
+        graph.finalize_links();
+    }
+
+    #[test]
+    fn no_keywords_identical_on_brownfield_prompt() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let tools = r#"
+use neuromesh_task::TaskSignatureExtractor;
+pub fn handle_tool_call() {
+    let signature = TaskSignatureExtractor::extract("demo");
+}
+"#;
+        let sig = r#"
+pub struct TaskSignatureExtractor;
+impl TaskSignatureExtractor {
+    pub fn extract(prompt: &str) -> String { prompt.into() }
+}
+"#;
+        graph.ingest_file(
+            &indexed("crates/neuromesh-mcp/src/tools.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("tools.rs"),
+                tools,
+                SourceLanguage::Rust,
+            ),
+            Some(tools),
+        );
+        graph.ingest_file(
+            &indexed("crates/neuromesh-task/src/signature.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("signature.rs"),
+                sig,
+                SourceLanguage::Rust,
+            ),
+            Some(sig),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let signature =
+            TaskSignatureExtractor::extract("How does handle_tool_call extract task intent?");
+        assert!(signature.client_keywords.is_empty());
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(view.active_tokens > 0);
+        assert_eq!(view.task_scenario, "brownfield");
+        assert_ne!(
+            view.coverage.as_ref().map(|c| c.claim.as_str()),
+            Some("no_seed_resolved")
+        );
+    }
+
+    #[test]
+    fn client_keywords_seed_non_english_prompt() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_laravel_skeleton(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let mut signature = TaskSignatureExtractor::extract("مدل کاربر را به migration وصل کن");
+        signature.client_keywords = vec!["User".into(), "migration".into()];
+        signature.technology = "Laravel".into();
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(view.active_tokens > 0);
+        assert!(
+            view.seeds
+                .iter()
+                .any(|s| s.query.eq_ignore_ascii_case("User") && s.resolved_id.is_some()),
+            "seeds = {:?}",
+            view.seeds
+        );
+        assert_eq!(view.task_scenario, "brownfield");
+    }
+
+    #[test]
+    fn scaffold_greenfield_laravel_design_without_keywords() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_laravel_skeleton(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let signature = TaskSignatureExtractor::extract(
+            "Design the product catalog domain for products, categories, and Laravel models.",
+        );
+        assert!(signature.client_keywords.is_empty());
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(view.active_tokens > 0);
+        assert_eq!(view.task_scenario, "greenfield");
+        let files = packet_paths(&view);
+        assert!(
+            files.iter().any(|p| p.contains("web.php")),
+            "scaffold should emit routes entry point, files={files:?}"
+        );
+        assert!(
+            files.iter().any(|p| p.contains("composer.json")),
+            "scaffold should emit stack manifest, files={files:?}"
+        );
+    }
+
+    #[test]
+    fn noisy_client_keywords_do_not_force_low_quality_seeds() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_laravel_skeleton(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let mut signature =
+            TaskSignatureExtractor::extract("Design something completely unrelated.");
+        signature.client_keywords = vec!["xyzzy_not_a_symbol".into(), "qwerty_not_a_symbol".into()];
+        signature.technology = "Laravel".into();
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(
+            view.seeds
+                .iter()
+                .all(|s| s.resolved_id.is_none() || !s.query.contains("xyzzy")),
+            "noise must not resolve, seeds={:?}",
+            view.seeds
         );
     }
 }

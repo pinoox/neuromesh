@@ -8,6 +8,7 @@ pub mod gold;
 pub mod learning_eval;
 pub mod packet_analysis;
 pub mod registry;
+pub mod scaffold_routing;
 pub mod scoring;
 pub mod selector;
 pub mod skeleton;

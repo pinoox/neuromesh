@@ -1,5 +1,5 @@
 use neuromesh_core::{TaskIntent, TaskRisk, TaskSignature};
-use neuromesh_parser::extract_prompt_anchors;
+use neuromesh_parser::{extract_prompt_anchors, is_imperative_verb};
 use uuid::Uuid;
 
 pub struct TaskSignatureExtractor;
@@ -14,6 +14,9 @@ impl TaskSignatureExtractor {
             || lower.contains("scaffold")
             || lower.contains("generate")
             || lower.contains("implement")
+            || lower.contains("design")
+            || lower.contains("plan")
+            || lower.contains("architect")
         {
             TaskIntent::Create
         } else if lower.contains("fix")
@@ -121,7 +124,8 @@ impl TaskSignatureExtractor {
 
         let entity = anchors
             .identifiers
-            .first()
+            .iter()
+            .find(|id| !is_imperative_verb(id))
             .cloned()
             .or_else(|| fallback_entity(&lower))
             .unwrap_or_else(|| "Workspace".to_string());
@@ -203,6 +207,7 @@ impl TaskSignatureExtractor {
             related_concepts,
             identifiers: anchors.identifiers,
             file_hints: anchors.file_hints,
+            client_keywords: Vec::new(),
             confidence,
             raw_prompt: prompt.to_string(),
         }
@@ -255,6 +260,19 @@ mod tests {
             .any(|id| id == "neuromesh_get_context"));
         assert_eq!(sig.intent, TaskIntent::Explain);
         assert!(sig.file_hints.iter().any(|p| p.contains("tools.rs")));
+    }
+
+    #[test]
+    fn design_prompt_is_create_intent() {
+        let sig = TaskSignatureExtractor::extract(
+            "Design the product catalog domain for products and categories.",
+        );
+        assert_eq!(sig.intent, TaskIntent::Create);
+        assert!(
+            !sig.identifiers.iter().any(|id| id == "Design"),
+            "identifiers = {:?}",
+            sig.identifiers
+        );
     }
 
     #[test]

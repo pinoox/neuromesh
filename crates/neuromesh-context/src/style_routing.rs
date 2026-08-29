@@ -305,6 +305,7 @@ mod tests {
             related_concepts: vec![],
             identifiers: vec!["ProductCard".into()],
             file_hints: vec![],
+            client_keywords: vec![],
             confidence: 0.9,
             raw_prompt: "Apply hover-lift using SCSS tokens and mixins on ProductCard".into(),
         };

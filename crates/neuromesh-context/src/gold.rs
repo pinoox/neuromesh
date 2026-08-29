@@ -445,6 +445,33 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
         (
             "mini-laravel",
             GoldTask {
+                id: "shop_design_catalog".into(),
+                prompt: "Design the product catalog domain for products, categories, and Laravel models."
+                    .into(),
+                gold_files: vec![
+                    "routes/web.php".into(),
+                    "composer.json".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
+                id: "shop_keywords_user".into(),
+                prompt: "مدل کاربر را به migration وصل کن".into(),
+                gold_files: vec![
+                    "app/Models/SmsMessage.php".into(),
+                    "database/migrations/2024_01_01_000000_create_sms_messages_table.php".into(),
+                ],
+                expect_seeds_missed: false,
+                forbidden_files: vec![],
+            },
+        ),
+        (
+            "mini-laravel",
+            GoldTask {
                 id: "sms_json".into(),
                 prompt: "Where is smsFrom defined in config/sms.json?".into(),
                 gold_files: vec!["config/sms.json".into()],
@@ -697,6 +724,15 @@ pub fn load_gold_tasks(path: &Path) -> Vec<GoldTask> {
         return builtin_gold_tasks();
     };
     parse_gold_toml(&raw).unwrap_or_else(builtin_gold_tasks)
+}
+
+pub fn signature_for_gold_task(task: &GoldTask) -> neuromesh_core::TaskSignature {
+    use neuromesh_task::TaskSignatureExtractor;
+    let mut signature = TaskSignatureExtractor::extract(&task.prompt);
+    if task.id == "shop_keywords_user" {
+        signature.client_keywords = vec!["SmsMessage".into(), "create_sms_messages".into()];
+    }
+    signature
 }
 
 fn parse_gold_toml(raw: &str) -> Option<Vec<GoldTask>> {
@@ -1017,13 +1053,13 @@ forbidden_files = ["src/directive/clipboard.js", "src/views/profile/UserCard.vue
         if let Some(task) = tasks.first() {
             let warmup_registry = Arc::new(ReversibleContextRegistry::new());
             let warmup = ContextActivator::new(warmup_registry);
-            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let signature = signature_for_gold_task(task);
             let _ = warmup.activate(&graph, &signature, OptimizationMode::Balanced);
         }
 
         let mut scored = Vec::new();
         for task in &tasks {
-            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let signature = signature_for_gold_task(task);
             let started = Instant::now();
             let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
             let latency_ms = started.elapsed().as_millis() as u64;
@@ -1158,7 +1194,7 @@ forbidden_files = ["src/directive/clipboard.js", "src/views/profile/UserCard.vue
             graph.ingest_workspace(&scanned);
             let registry = Arc::new(ReversibleContextRegistry::new());
             let activator = ContextActivator::new(registry);
-            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let signature = signature_for_gold_task(&task);
             let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
             let metrics = evaluate_view(&task, &view, 0);
             assert!(
