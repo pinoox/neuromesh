@@ -208,6 +208,11 @@ impl TaskSignatureExtractor {
             identifiers: anchors.identifiers,
             file_hints: anchors.file_hints,
             client_keywords: Vec::new(),
+            client_expansion: Vec::new(),
+            client_path_hints: Vec::new(),
+            client_entity_types: Vec::new(),
+            client_intent: None,
+            engine_override: None,
             confidence,
             raw_prompt: prompt.to_string(),
         }

@@ -727,10 +727,16 @@ pub fn load_gold_tasks(path: &Path) -> Vec<GoldTask> {
 }
 
 pub fn signature_for_gold_task(task: &GoldTask) -> neuromesh_core::TaskSignature {
+    use neuromesh_core::SeedEngineId;
     use neuromesh_task::TaskSignatureExtractor;
     let mut signature = TaskSignatureExtractor::extract(&task.prompt);
     if task.id == "shop_keywords_user" {
         signature.client_keywords = vec!["SmsMessage".into(), "create_sms_messages".into()];
+        signature.engine_override = Some(SeedEngineId::KeywordsExpanded);
+    } else if task.id == "shop_design_catalog" {
+        signature.engine_override = Some(SeedEngineId::SemanticLite);
+    } else {
+        signature.engine_override = Some(SeedEngineId::Off);
     }
     signature
 }

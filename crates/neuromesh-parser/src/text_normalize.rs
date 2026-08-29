@@ -18,9 +18,7 @@ pub fn normalize_keyword(raw: &str) -> String {
 /// Normalize full prompt text before token splitting (any language).
 pub fn normalize_unicode(raw: &str) -> String {
     let mut s: String = unicode_normalization::UnicodeNormalization::nfkc(raw.chars()).collect();
-    s = s
-        .replace(ZWNJ, " ")
-        .replace([ZWJ, LRM, RLM, BOM], "");
+    s = s.replace(ZWNJ, " ").replace([ZWJ, LRM, RLM, BOM], "");
     apply_optional_script_fixes(&mut s);
     s.trim().to_string()
 }

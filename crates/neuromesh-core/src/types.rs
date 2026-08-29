@@ -455,6 +455,10 @@ pub struct ContextView {
     /// Caller counts / dead-code hints for seeded symbols.
     #[serde(default)]
     pub structural_evidence: Vec<StructuralEvidence>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed_resolution_telemetry: Option<crate::SeedResolutionTelemetry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packet_header: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

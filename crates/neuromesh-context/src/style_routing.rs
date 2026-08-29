@@ -1,4 +1,4 @@
-use crate::activator::SeedSink;
+use crate::seed::sink::SeedSink;
 use neuromesh_core::TaskSignature;
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::HashSet;
@@ -54,7 +54,7 @@ pub(crate) fn inject_style_seeds(
     graph: &NeuralProjectGraph,
     prompt: &str,
     signature: &TaskSignature,
-    sink: &mut SeedSink<'_>,
+    sink: &mut SeedSink<'_, '_, '_>,
 ) {
     if !is_style_task(signature) {
         return;
@@ -146,7 +146,7 @@ pub(crate) fn inject_view_component_seeds(
     graph: &NeuralProjectGraph,
     prompt: &str,
     signature: &TaskSignature,
-    sink: &mut SeedSink<'_>,
+    sink: &mut SeedSink<'_, '_, '_>,
 ) {
     let lower = signature.raw_prompt.to_lowercase();
     let view_task = lower.contains("checkout")
@@ -306,6 +306,11 @@ mod tests {
             identifiers: vec!["ProductCard".into()],
             file_hints: vec![],
             client_keywords: vec![],
+            client_expansion: vec![],
+            client_path_hints: vec![],
+            client_entity_types: vec![],
+            client_intent: None,
+            engine_override: None,
             confidence: 0.9,
             raw_prompt: "Apply hover-lift using SCSS tokens and mixins on ProductCard".into(),
         };

@@ -1,3 +1,4 @@
+use crate::SeedEngineId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -40,6 +41,21 @@ pub struct TaskSignature {
     /// Optional English code keywords from the client LLM (natural-language / non-English prompts).
     #[serde(default)]
     pub client_keywords: Vec<String>,
+    /// Semantically related concepts from the client (synonyms, lifecycle hooks).
+    #[serde(default)]
+    pub client_expansion: Vec<String>,
+    /// Optional glob path patterns from the client.
+    #[serde(default)]
+    pub client_path_hints: Vec<String>,
+    /// Optional AST entity type hints (class, function, model, …).
+    #[serde(default)]
+    pub client_entity_types: Vec<String>,
+    /// Client fold-density hint (explain|debug|refactor|general); separate from server TaskIntent.
+    #[serde(default)]
+    pub client_intent: Option<String>,
+    /// Per-call seed engine override.
+    #[serde(default)]
+    pub engine_override: Option<SeedEngineId>,
     pub confidence: f32,
     pub raw_prompt: String,
 }
@@ -60,6 +76,11 @@ impl TaskSignature {
             identifiers: Vec::new(),
             file_hints: Vec::new(),
             client_keywords: Vec::new(),
+            client_expansion: Vec::new(),
+            client_path_hints: Vec::new(),
+            client_entity_types: Vec::new(),
+            client_intent: None,
+            engine_override: None,
             confidence: 0.85,
             raw_prompt: prompt,
         }

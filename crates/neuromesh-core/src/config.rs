@@ -1,4 +1,6 @@
-use crate::{NeuroMeshError, Result};
+use crate::{
+    NeuroMeshError, NmConfigOverlay, PacketHeaderConfig, Result, SeedEngineId, SeedResolutionConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -159,6 +161,10 @@ pub struct Config {
     /// while `project_store` stays `managed`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trust_local: Vec<String>,
+    #[serde(default)]
+    pub seed_resolution: SeedResolutionConfig,
+    #[serde(default)]
+    pub packet_header: PacketHeaderConfig,
 }
 
 impl Default for Config {
@@ -174,6 +180,8 @@ impl Default for Config {
             max_files: None,
             project_store: crate::paths::ProjectStore::Managed,
             trust_local: Vec::new(),
+            seed_resolution: SeedResolutionConfig::default(),
+            packet_header: PacketHeaderConfig::default(),
         }
     }
 }
@@ -211,8 +219,30 @@ impl Config {
                     cfg.overlay_project(over);
                 }
             }
+            if let Some(overlay) = Self::read_nm_config(&ws) {
+                cfg.overlay_nm(overlay);
+            }
         }
         cfg
+    }
+
+    /// Workspace-root `nm.config.json` — merges only seed_resolution and packet_header.
+    fn read_nm_config(workspace: &Path) -> Option<NmConfigOverlay> {
+        let path = workspace.join("nm.config.json");
+        if !path.exists() {
+            return None;
+        }
+        let raw = fs::read_to_string(&path).ok()?;
+        serde_json::from_str(&raw).ok()
+    }
+
+    fn overlay_nm(&mut self, overlay: NmConfigOverlay) {
+        if let Some(sr) = overlay.seed_resolution {
+            self.seed_resolution = sr;
+        }
+        if let Some(ph) = overlay.packet_header {
+            self.packet_header = ph;
+        }
     }
 
     fn overlay_project(&mut self, other: Self) {
@@ -223,6 +253,8 @@ impl Config {
         self.provider = other.provider;
         self.local_ai = other.local_ai;
         self.thresholds = other.thresholds;
+        self.seed_resolution = other.seed_resolution;
+        self.packet_header = other.packet_header;
     }
 
     fn read_file(path: &Path) -> Option<Self> {
@@ -241,6 +273,11 @@ impl Config {
                 Ok(None) => self.max_files = None,
                 Ok(Some(n)) => self.max_files = Some(n),
                 Err(_) => {}
+            }
+        }
+        if let Ok(raw) = std::env::var("NEUROMESH_SEED_ENGINE") {
+            if let Some(engine) = SeedEngineId::parse(&raw) {
+                self.seed_resolution.engine = engine;
             }
         }
         self

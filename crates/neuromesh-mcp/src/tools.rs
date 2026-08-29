@@ -5,7 +5,7 @@ use crate::response::{
 };
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
-use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result};
+use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId};
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_router::QualityGate;
@@ -209,28 +209,18 @@ impl McpToolHandler {
         }
         match name {
             // 1. Task-conditioned evidence packet (seed files + fill-budget connectors)
-            "neuromesh_get_context" | "activate_context" => {
+            "get_context_packet" | "neuromesh_get_context" | "activate_context" => {
+                if name != "get_context_packet" {
+                    warn_deprecated_get_context(name);
+                }
                 let start_time = std::time::Instant::now();
                 let task_desc = read_task_description(arguments)?;
                 let requested_mode = parse_optimization_mode(arguments.get("mode"))?;
                 self.wait_for_index()?;
                 let detail = ResponseDetail::parse(arguments["response_detail"].as_str());
 
-                let signature = TaskSignatureExtractor::extract(&task_desc);
-                let mut signature = signature;
-                for kw in read_string_list(arguments, "keywords") {
-                    let normalized = normalize_keyword(&kw);
-                    if normalized.is_empty() {
-                        continue;
-                    }
-                    if !signature
-                        .client_keywords
-                        .iter()
-                        .any(|existing| existing.eq_ignore_ascii_case(&normalized))
-                    {
-                        signature.client_keywords.push(normalized);
-                    }
-                }
+                let mut signature = TaskSignatureExtractor::extract(&task_desc);
+                apply_client_seed_signals(&mut signature, arguments);
                 if let Ok(episodes) = self
                     .memory_db
                     .find_similar_episodes(&self.graph.project_id(), &task_desc)
@@ -959,7 +949,8 @@ fn read_task_description(arguments: &Value) -> Result<String> {
     .trim();
     if raw.is_empty() {
         Err(NeuroMeshError::Config(
-            "neuromesh_get_context requires a prompt (task_description, prompt, or task)".into(),
+            "get_context_packet requires a prompt (query, task_description, prompt, or task)"
+                .into(),
         ))
     } else {
         Ok(raw.to_string())
@@ -991,6 +982,63 @@ fn read_string_list(arguments: &Value, key: &str) -> Vec<String> {
             .map(ToString::to_string)
             .collect(),
         _ => Vec::new(),
+    }
+}
+
+static DEPRECATED_GET_CONTEXT_WARNED: AtomicBool = AtomicBool::new(false);
+
+fn warn_deprecated_get_context(name: &str) {
+    if !DEPRECATED_GET_CONTEXT_WARNED.swap(true, Ordering::Relaxed) {
+        eprintln!("[neuromesh] tool {name} is deprecated; use get_context_packet");
+    }
+}
+
+fn push_unique_normalized(out: &mut Vec<String>, raw: &str) {
+    let normalized = normalize_keyword(raw);
+    if normalized.is_empty() {
+        return;
+    }
+    if !out
+        .iter()
+        .any(|existing| existing.eq_ignore_ascii_case(&normalized))
+    {
+        out.push(normalized);
+    }
+}
+
+fn apply_client_seed_signals(signature: &mut neuromesh_core::TaskSignature, arguments: &Value) {
+    for kw in read_string_list(arguments, "keywords") {
+        push_unique_normalized(&mut signature.client_keywords, &kw);
+    }
+    for term in read_string_list(arguments, "expansion") {
+        push_unique_normalized(&mut signature.client_expansion, &term);
+    }
+    for hint in read_string_list(arguments, "path_hints") {
+        let hint = hint.trim().replace('\\', "/");
+        if hint.is_empty() {
+            continue;
+        }
+        if !signature.client_path_hints.iter().any(|h| h == &hint) {
+            signature.client_path_hints.push(hint);
+        }
+    }
+    for et in read_string_list(arguments, "entity_types") {
+        let et = et.trim().to_lowercase();
+        if et.is_empty() {
+            continue;
+        }
+        if !signature.client_entity_types.iter().any(|e| e == &et) {
+            signature.client_entity_types.push(et);
+        }
+    }
+    if let Some(intent) = arguments.get("intent").and_then(Value::as_str) {
+        let intent = intent.trim();
+        if !intent.is_empty() {
+            signature.client_intent = Some(intent.to_string());
+        }
+    }
+    if let Some(engine) = arguments.get("engine").and_then(Value::as_str) {
+        signature.engine_override = SeedEngineId::parse(engine);
     }
 }
 

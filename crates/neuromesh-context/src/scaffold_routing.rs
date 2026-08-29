@@ -1,6 +1,6 @@
 //! Framework entry-point seeds when symbol resolution finds nothing (greenfield / NL tasks).
 
-use crate::activator::SeedSink;
+use crate::seed::sink::SeedSink;
 use neuromesh_core::TaskSignature;
 use neuromesh_graph::NeuralProjectGraph;
 
@@ -12,7 +12,7 @@ pub(crate) fn inject_scaffold_seeds(
     graph: &NeuralProjectGraph,
     prompt: &str,
     signature: &TaskSignature,
-    sink: &mut SeedSink<'_>,
+    sink: &mut SeedSink<'_, '_, '_>,
 ) -> bool {
     let tech = signature.technology.to_lowercase();
     if tech.contains("laravel") || prompt.to_lowercase().contains("laravel") {
@@ -25,7 +25,7 @@ fn inject_laravel_scaffold(
     graph: &NeuralProjectGraph,
     prompt: &str,
     signature: &TaskSignature,
-    sink: &mut SeedSink<'_>,
+    sink: &mut SeedSink<'_, '_, '_>,
 ) -> bool {
     let lower = format!(
         "{} {}",

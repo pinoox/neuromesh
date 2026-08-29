@@ -92,7 +92,8 @@ pub fn collect_file_entries(
     view: &ContextView,
     registry: &ReversibleContextRegistry,
 ) -> Vec<FileEntry> {
-    view.active_nodes
+    let mut entries: Vec<FileEntry> = view
+        .active_nodes
         .iter()
         .filter(|n| n.node.node_type == NodeType::File)
         .map(|n| {
@@ -109,7 +110,15 @@ pub fn collect_file_entries(
                 folds,
             }
         })
-        .collect()
+        .collect();
+    if let Some(header) = view.packet_header.as_ref() {
+        if let Some(first) = entries.first_mut() {
+            if !first.code.starts_with("@nm:") {
+                first.code = format!("{header}\n{}", first.code);
+            }
+        }
+    }
+    entries
 }
 
 fn folds_for_path(
@@ -187,6 +196,41 @@ pub struct ContextBuild<'a> {
 }
 
 impl ContextBuild<'_> {
+    fn seed_resolution_block(&self) -> Option<Value> {
+        self.view.seed_resolution_telemetry.as_ref().map(|t| {
+            json!({
+                "engine": t.engine,
+                "seeds_count": t.seeds_count,
+                "monorepo_packages": t.monorepo_packages,
+                "latency_ms": t.latency_ms,
+            })
+        })
+    }
+
+    fn task_metadata(&self) -> Value {
+        let mut task = json!({
+            "intent": self.signature.intent,
+            "entity": self.signature.entity,
+            "identifiers": self.signature.identifiers,
+            "file_hints": self.signature.file_hints,
+            "client_keywords": self.signature.client_keywords,
+            "client_keywords_used": self.client_keywords_used(),
+            "client_expansion": self.signature.client_expansion,
+            "client_path_hints": self.signature.client_path_hints,
+            "client_entity_types": self.signature.client_entity_types,
+            "client_intent": self.signature.client_intent,
+            "scenario": self.view.task_scenario,
+            "confidence": self.signature.confidence,
+        });
+        if let Some(seed_resolution) = self.seed_resolution_block() {
+            task["seed_resolution"] = seed_resolution;
+        }
+        if let Some(header) = self.view.packet_header.as_ref() {
+            task["packet_header"] = json!(header);
+        }
+        task
+    }
+
     fn client_keywords_used(&self) -> Vec<String> {
         if self.signature.client_keywords.is_empty() {
             return Vec::new();
@@ -389,18 +433,12 @@ impl ContextBuild<'_> {
         if !self.view.structural_evidence.is_empty() {
             packet["structural_evidence"] = json!(self.view.structural_evidence);
         }
+        if let Some(header) = self.view.packet_header.as_ref() {
+            packet["packet_header"] = json!(header);
+        }
         json!({
             "packet_id": self.packet_id,
-            "task": {
-                "intent": self.signature.intent,
-                "entity": self.signature.entity,
-                "identifiers": self.signature.identifiers,
-                "file_hints": self.signature.file_hints,
-                "client_keywords": self.signature.client_keywords,
-                "client_keywords_used": self.client_keywords_used(),
-                "scenario": self.view.task_scenario,
-                "confidence": self.signature.confidence,
-            },
+            "task": self.task_metadata(),
             "effective_mode": format!("{:?}", self.gate.effective_mode),
             "latency_ms": self.elapsed_ms,
             "evidence_packet": packet,
@@ -410,16 +448,7 @@ impl ContextBuild<'_> {
     fn diagnostic(&self) -> Value {
         json!({
             "packet_id": self.packet_id,
-            "task": {
-                "intent": self.signature.intent,
-                "entity": self.signature.entity,
-                "identifiers": self.signature.identifiers,
-                "file_hints": self.signature.file_hints,
-                "client_keywords": self.signature.client_keywords,
-                "client_keywords_used": self.client_keywords_used(),
-                "scenario": self.view.task_scenario,
-                "confidence": self.signature.confidence,
-            },
+            "task": self.task_metadata(),
             "membrane_state": self.gate.membrane_state,
             "effective_mode": format!("{:?}", self.gate.effective_mode),
             "latency_ms": self.elapsed_ms,

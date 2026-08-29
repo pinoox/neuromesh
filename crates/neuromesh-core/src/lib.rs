@@ -1,6 +1,7 @@
 pub mod config;
 pub mod error;
 pub mod paths;
+pub mod seed_config;
 pub mod source_path;
 pub mod task;
 pub mod token;
@@ -16,6 +17,10 @@ pub use paths::{
     leftover_workspace_dotdir, memory_db_path, neuromesh_home, normalize_workspace,
     project_config_path, project_data_dir, save_store_policy, trust_workspace_local,
     untrust_workspace_local, uses_local_dotdir, ProjectStore,
+};
+pub use seed_config::{
+    NmConfigOverlay, PacketHeaderConfig, SeedEngineId, SeedResolutionConfig,
+    SeedResolutionTelemetry, SeedSignalWeights,
 };
 pub use source_path::{
     decoy_allowed_for_prompt, hmvc_app_prefix, is_alt_surface_path, is_bench_path,

@@ -413,7 +413,7 @@ mod tests {
         let tools = resp["result"]["tools"].as_array().unwrap();
         let ctx = tools
             .iter()
-            .find(|t| t["name"] == "neuromesh_get_context")
+            .find(|t| t["name"] == "get_context_packet")
             .unwrap();
         assert!(ctx["inputSchema"].get("required").is_none());
     }

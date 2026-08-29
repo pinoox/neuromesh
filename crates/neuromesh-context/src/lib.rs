@@ -1,4 +1,5 @@
 pub mod activator;
+pub mod activator_seed;
 pub mod dedup;
 pub mod emission;
 pub mod expansion;
@@ -10,6 +11,7 @@ pub mod packet_analysis;
 pub mod registry;
 pub mod scaffold_routing;
 pub mod scoring;
+pub mod seed;
 pub mod selector;
 pub mod skeleton;
 pub mod style_routing;
