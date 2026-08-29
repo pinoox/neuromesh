@@ -1,6 +1,8 @@
 //! Benchmark A–F suite definitions, splits, release gates, and failure taxonomy reporting.
 
-use crate::retrieval::calibration::{false_sufficiency_rate, EvalSuiteMetrics};
+use crate::retrieval::calibration::{
+    false_sufficiency_proxy, false_sufficiency_rate, EvalSuiteMetrics,
+};
 use crate::retrieval::failure::FailureClass;
 use serde::{Deserialize, Serialize};
 
@@ -83,8 +85,8 @@ impl ReleaseGateReport {
             ("assisted_recall_min".into(), metrics.recall >= 0.55),
             ("precision_min".into(), metrics.precision >= 0.75),
             (
-                "fsr_below_10pct".into(),
-                metrics.false_sufficiency_rate < 0.10,
+                "fsr_proxy_below_10pct".into(),
+                metrics.false_sufficiency_proxy < 0.10,
             ),
             (
                 "task_success_competitive".into(),
@@ -138,12 +140,26 @@ pub fn aggregate_cell_results(cells: &[BenchmarkCellResult]) -> EvalSuiteMetrics
     } else {
         0.0
     };
-    let claimed: Vec<bool> = cells.iter().map(|c| c.claimed_sufficient).collect();
-    let succeeded: Vec<bool> = cells
+    let _claimed: Vec<bool> = cells.iter().map(|c| c.claimed_sufficient).collect();
+    let has_task_success = cells.iter().any(|c| c.task_success.is_some());
+    let succeeded: Vec<bool> = cells.iter().filter_map(|c| c.task_success).collect();
+    let claimed_for_fsr: Vec<bool> = cells
         .iter()
-        .map(|c| c.task_success.unwrap_or(false))
+        .filter(|c| c.task_success.is_some())
+        .map(|c| c.claimed_sufficient)
         .collect();
-    let fsr = false_sufficiency_rate(&claimed, &succeeded);
+    let fsr = if has_task_success {
+        false_sufficiency_rate(&claimed_for_fsr, &succeeded)
+    } else {
+        None
+    };
+    let fsr_proxy = false_sufficiency_proxy(
+        &cells
+            .iter()
+            .map(|c| c.claimed_sufficient)
+            .collect::<Vec<_>>(),
+        &cells.iter().map(|c| c.recall).collect::<Vec<_>>(),
+    );
     let l3_count = cells.iter().filter(|c| c.retrieval_level == "L3").count();
     let mut metrics = EvalSuiteMetrics {
         recall,
@@ -154,6 +170,7 @@ pub fn aggregate_cell_results(cells: &[BenchmarkCellResult]) -> EvalSuiteMetrics
         task_success_per_dollar: task_success_rate,
         task_success_per_100ms,
         false_sufficiency_rate: fsr,
+        false_sufficiency_proxy: fsr_proxy,
         impact_recall: 0.0,
         l1_p50_ms: percentile_latency(cells, 50),
         l1_p95_ms: percentile_latency(cells, 95),

@@ -36,6 +36,13 @@ pub(crate) fn push_anchor_queries(
         if concept.len() < 4 {
             continue;
         }
+        if signature
+            .identifiers
+            .iter()
+            .any(|id| id.eq_ignore_ascii_case(concept))
+        {
+            continue;
+        }
         let lower = concept.to_lowercase();
         if lower == "layout" || lower == "breakpoints" || lower == "state" {
             continue;

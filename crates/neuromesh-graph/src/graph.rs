@@ -1,4 +1,5 @@
 use crate::activation::{SpreadingActivation, SpreadingActivationConfig};
+use crate::concept_index::ConceptIndex;
 use crate::edge::{PheromoneConfig, PheromoneEngine};
 use crate::intern::{
     capture_inbound_pending, index_tokens, infer_workspace_root, insert_indexed_node,
@@ -756,6 +757,11 @@ impl NeuralProjectGraph {
             .into_iter()
             .filter_map(|hit| self.get_node(&hit.id))
             .collect()
+    }
+
+    /// Lookup symbol node ids for a code-derived concept id.
+    pub fn concept_nodes(&self, concept: &str) -> Vec<NodeId> {
+        self.inner.read().concept_index.lookup(concept).to_vec()
     }
 
     pub fn search_symbols(&self, query: &str, limit: usize) -> Vec<SearchHit> {
@@ -1647,6 +1653,7 @@ impl NeuralProjectGraph {
                 workspace_root: data.workspace_root.clone(),
                 parser_epoch: data.parser_epoch.max(GRAPH_PARSER_EPOCH),
                 applied_learning_episodes: data.applied_learning_episodes.clone(),
+                concept_index: data.concept_index.clone(),
             }
         };
         if snapshot_structurally_unchanged(path, &snapshot) {
@@ -1692,6 +1699,7 @@ impl NeuralProjectGraph {
                 workspace_root: None,
                 parser_epoch: 0,
                 applied_learning_episodes: HashSet::new(),
+                concept_index: ConceptIndex::default(),
             });
             return Ok(true);
         }

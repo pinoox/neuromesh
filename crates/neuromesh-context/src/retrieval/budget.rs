@@ -31,7 +31,7 @@ impl Default for RetrievalBudget {
         Self {
             l1: TierBudget {
                 latency_ms: 30,
-                selected_tokens: 4_000,
+                selected_tokens: 2_000,
                 max_gap_rounds: 0,
             },
             l2: TierBudget {

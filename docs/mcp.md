@@ -121,6 +121,27 @@ Aliases exist for older clients (`neuromesh_get_context`, `activate_context`, `e
 
 `mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality. `mode` does not add metadata; `response_detail` does (`minimal` ≤ 256 metadata tokens, `standard` ≤ 750, `diagnostic` on demand).
 
+### Retrieval metadata (v0.8.1)
+
+Present on **all** detail levels (`minimal`, `standard`, `diagnostic`) when tiered activation runs. `minimal` uses a compact block (level, claim, gaps, next action); `standard` and `diagnostic` include full latency and confidence fields.
+
+```json
+"retrieval": {
+  "retrieval_level": "L1",
+  "sufficiency_score": 0.72,
+  "confidence": 0.68,
+  "claim": "partial",
+  "levels_attempted": ["L1"],
+  "latency_ms": { "L1": 18 },
+  "critical_gaps": [],
+  "eligible_for_early_exit": false,
+  "next_action": "neuromesh_search_symbols",
+  "suggested_keywords": ["Router", "middleware"]
+}
+```
+
+Treat `claim` as a **decision signal**, not ground truth. Prefer acting on `partial` over assuming sufficiency. L3 is rare — only when critical gaps persist after L2.
+
 `neuromesh_explain_packet` returns seeds, selection, budget, physarum, and membrane for a `packet_id`. `selection.candidates` lists ranked files with `selected`, `emitted`, `drop_stage`, `score_breakdown`, and `learning_bonus` — use this when debugging why feedback did or did not change the emitted packet. Pass `include: ["graph"]` for graph stats; otherwise use `neuromesh_get_stats`. The HTTP monitor (`/api/simulate`) still requests `diagnostic` so the VS Code inspector keeps the nested `evidence_packet`.
 
 ## Folds

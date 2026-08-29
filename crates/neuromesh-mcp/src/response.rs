@@ -77,6 +77,20 @@ fn is_false(v: &bool) -> bool {
 }
 
 #[derive(Serialize)]
+struct MinimalRetrieval {
+    retrieval_level: String,
+    claim: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sufficiency_score: Option<f32>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    critical_gaps: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next_action: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    suggested_keywords: Vec<String>,
+}
+
+#[derive(Serialize)]
 struct MinimalContextResponse {
     packet_id: String,
     coverage: String,
@@ -86,6 +100,8 @@ struct MinimalContextResponse {
     missing: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     next: Option<MinimalNext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retrieval: Option<MinimalRetrieval>,
 }
 
 pub fn collect_file_entries(
@@ -250,6 +266,17 @@ impl ContextBuild<'_> {
         })
     }
 
+    fn compact_retrieval(&self) -> Option<MinimalRetrieval> {
+        self.view.retrieval.as_ref().map(|r| MinimalRetrieval {
+            retrieval_level: r.retrieval_level.clone(),
+            claim: r.claim.clone(),
+            sufficiency_score: Some(r.sufficiency_score),
+            critical_gaps: r.critical_gaps.clone(),
+            next_action: r.next_action.clone(),
+            suggested_keywords: r.suggested_keywords.clone().unwrap_or_default(),
+        })
+    }
+
     fn client_keywords_used(&self) -> Vec<String> {
         if self.signature.client_keywords.is_empty() {
             return Vec::new();
@@ -393,6 +420,7 @@ impl ContextBuild<'_> {
                 None
             },
             next,
+            retrieval: self.compact_retrieval(),
         })
         .unwrap_or(Value::Null)
     }
@@ -473,52 +501,56 @@ impl ContextBuild<'_> {
     }
 
     fn diagnostic(&self) -> Value {
+        let mut evidence = json!({
+            "index": self.index_meta,
+            "seeds": self.view.seeds,
+            "files": self.files.iter().map(|f| {
+                json!({
+                    "path": f.path,
+                    "skeleton": f.code,
+                    "tokens": f.tokens,
+                    "why": f.why,
+                    "sidecar": f.sidecar,
+                    "line_range": f.line_range,
+                    "folded_symbols": f.folded_symbols,
+                    "folds": f.folds.iter().map(|d| d.fold_id.clone()).collect::<Vec<_>>(),
+                })
+            }).collect::<Vec<_>>(),
+            "symbols": self.symbols,
+            "unresolved": self.view.unresolved,
+            "coverage": self.view.coverage,
+            "fold_ids": self.view.fold_ids,
+            "next_actions": self.view.next_actions,
+            "budget": {
+                "used": self.view.budget_used,
+                "cap": self.view.budget_cap,
+                "mode": self.view.budget_mode,
+                "seed_tokens": self.view.budget_seed_tokens,
+                "fill_used": self.view.budget_fill_used,
+                "fill_cap": self.view.budget_fill_cap,
+                "over_budget": self.view.over_budget,
+            },
+            "inactive_hints": self.view.inactive_descriptors,
+            "workspace_tokens": self.workspace_tokens,
+            "selected_raw_tokens": self.selected_raw,
+            "active_tokens": self.packet_tokens,
+            "reduction_vs_workspace_pct": format!("{:.1}%", self.vs_workspace),
+            "reduction_vs_selected_pct": format!("{:.1}%", self.vs_selected),
+            "seed_call_coverage": self.view.seed_call_coverage,
+            "physarum_used": self.view.physarum_used,
+            "physarum_ms": self.view.physarum_ms,
+            "selection_method": self.view.selection_method,
+        });
+        if let Some(retrieval) = self.retrieval_block() {
+            evidence["retrieval"] = retrieval;
+        }
         json!({
             "packet_id": self.packet_id,
             "task": self.task_metadata(),
             "membrane_state": self.gate.membrane_state,
             "effective_mode": format!("{:?}", self.gate.effective_mode),
             "latency_ms": self.elapsed_ms,
-            "evidence_packet": {
-                "index": self.index_meta,
-                "seeds": self.view.seeds,
-                "files": self.files.iter().map(|f| {
-                    json!({
-                        "path": f.path,
-                        "skeleton": f.code,
-                        "tokens": f.tokens,
-                        "why": f.why,
-                        "sidecar": f.sidecar,
-                        "line_range": f.line_range,
-                        "folded_symbols": f.folded_symbols,
-                        "folds": f.folds.iter().map(|d| d.fold_id.clone()).collect::<Vec<_>>(),
-                    })
-                }).collect::<Vec<_>>(),
-                "symbols": self.symbols,
-                "unresolved": self.view.unresolved,
-                "coverage": self.view.coverage,
-                "fold_ids": self.view.fold_ids,
-                "next_actions": self.view.next_actions,
-                "budget": {
-                    "used": self.view.budget_used,
-                    "cap": self.view.budget_cap,
-                    "mode": self.view.budget_mode,
-                    "seed_tokens": self.view.budget_seed_tokens,
-                    "fill_used": self.view.budget_fill_used,
-                    "fill_cap": self.view.budget_fill_cap,
-                    "over_budget": self.view.over_budget,
-                },
-                "inactive_hints": self.view.inactive_descriptors,
-                "workspace_tokens": self.workspace_tokens,
-                "selected_raw_tokens": self.selected_raw,
-                "active_tokens": self.packet_tokens,
-                "reduction_vs_workspace_pct": format!("{:.1}%", self.vs_workspace),
-                "reduction_vs_selected_pct": format!("{:.1}%", self.vs_selected),
-                "seed_call_coverage": self.view.seed_call_coverage,
-                "physarum_used": self.view.physarum_used,
-                "physarum_ms": self.view.physarum_ms,
-                "selection_method": self.view.selection_method,
-            }
+            "evidence_packet": evidence,
         })
     }
 }

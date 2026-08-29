@@ -21,6 +21,7 @@ use std::time::Instant;
 pub fn execute(args: &[String]) -> Result<()> {
     let learning_mode = args.iter().any(|a| a == "--learning");
     let release_gates = args.iter().any(|a| a == "--release-gates");
+    let calibrate = args.iter().any(|a| a == "--calibrate");
     let current_dir = neuromesh_index::assert_safe_workspace(&env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
@@ -209,6 +210,27 @@ pub fn execute(args: &[String]) -> Result<()> {
             if report.passed { "PASS" } else { "FAIL" }
         );
         println!("{}", serde_json::to_string_pretty(&report)?);
+
+        if calibrate {
+            use neuromesh_context::benchmark_suite::{split_for_cell, DataSplit};
+            use neuromesh_context::retrieval::calibration::calibrate_likely_threshold;
+
+            let dev_cells: Vec<_> = cells
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| split_for_cell(*i, cells.len()) == DataSplit::Dev)
+                .map(|(_, c)| c)
+                .collect();
+            let scores: Vec<f32> = dev_cells
+                .iter()
+                .map(|c| if c.claimed_sufficient { 0.75 } else { 0.5 })
+                .collect();
+            let recall: Vec<f32> = dev_cells.iter().map(|c| c.recall).collect();
+            let claimed: Vec<bool> = dev_cells.iter().map(|c| c.claimed_sufficient).collect();
+            let report = calibrate_likely_threshold(&scores, |_| true, &recall, &claimed);
+            println!("\nCalibration (dev split, n={}):", report.sample_count);
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
     }
 
     let fixtures = current_dir.join("tests").join("fixtures");

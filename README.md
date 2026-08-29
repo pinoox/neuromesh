@@ -108,25 +108,30 @@ Default URL: [http://127.0.0.1:8765](http://127.0.0.1:8765). Port: `neuromesh po
 
 ```mermaid
 flowchart LR
-  P[Prompt] --> I[Identifiers]
+  P[Prompt] --> I[Intent + concepts]
   I --> G[Graph in RAM]
-  G --> S[Seed files]
-  S --> T[Physarum tubes]
-  T --> F[Fill + synapses]
-  F --> X[Exon / intron splice]
-  X --> E[Evidence packet]
-  E --> W[expand_fold if needed]
+  G --> L1[L1 fast match]
+  L1 --> S{Sufficient?}
+  S -->|yes| X[Splice + packet]
+  S -->|critical gaps| L2[L2 patterns]
+  L2 --> X
+  S -->|still gaps| L3[L3 recovery]
+  L3 --> X
+  X --> W[expand_fold if needed]
 ```
 
+**Intent → Concept → Graph** (v0.8.1): the prompt is normalized to a `QueryPlan` (routing, middleware, auth, …), static alias clusters map NL terms to concepts, and a code-derived **concept index** turns concepts into symbol seeds — no embedding in L1/L2.
+
 1. **Read the task** as written. `handle_tool_call` survives; it is not lowercased into mush.  
-2. **Resolve on the mesh.** Edges exist when the target is unique. Ambiguous names stay sleepy — never a million fake links.  
-3. **Ship seeds, grow the tube, fill the rest.** The files that own those symbols always go in. With two or more seeds, Physarum traces the cheapest connecting tissue on a neighborhood subgraph. Callees and synaptic neighbors fill a **real** budget (`balanced` = 5k extra tokens).  
-4. **Splice.** Untargeted bodies become fold markers. Coverage tells you if a seed was missed — only then is Grep fair. Folds stay in the MCP session so the next tool can wake them.
+2. **Resolve on the mesh.** Single-pass L1→L2→L3 escalation only when **critical gaps** remain (not every query hits L3).  
+3. **Ship seeds, grow the tube, fill the rest.** Seeds always ship. Physarum connects two+ seeds under 20ms. Fill respects a real budget (`balanced` = 5k extra tokens; L1 selected cap **2k**).  
+4. **Splice + sufficiency.** Bodies fold to markers. Check `retrieval.claim` (`insufficient` | `partial` | `likely_sufficient`) — a decision signal, not ground truth.
 
 Tell the agent ([full install guide](docs/agent-guide.md)):
 
 ```
 get_context_packet(query / task_description / prompt / task)
+  → check retrieval.claim and coverage.claim
   → neuromesh_expand_fold if a body is still folded
   → neuromesh_trace for callers
   → neuromesh_record_feedback after a good edit
@@ -177,7 +182,7 @@ cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin 
 
 ```bash
 neuromesh doctor
-neuromesh connect    # write MCP configs for this repo (absolute binary, no PATH)
+neuromesh connect    # write MCP configs (portable `neuromesh` command when on PATH)
 ```
 
 ### Update / uninstall
@@ -306,14 +311,14 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release v0.8.0, 650,859 workspace tokens):
+On this repo (release v0.8.1, 650,859 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `handle_tool_call_intent` | balanced | 650859 | 72428 | 17389 | 97.3% | 76.0% | 1.00 | 0.75 | **0** | 22 |
 | `physarum_usage` | balanced | 650859 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | 12 |
 
-Re-run gold tasks: `cargo run --release -p neuromesh-cli -- eval` (or `neuromesh eval` in debug). Dose-response learning benchmark: `neuromesh eval --learning`.
+Re-run gold tasks: `cargo run --release -p neuromesh-cli -- eval` (or `neuromesh eval` in debug). Release gates: `neuromesh eval --release-gates`. Dose-response learning: `neuromesh eval --learning`.
 
 `Selected` is the raw token count of the packet files before fold. `Packet` is after fold. `Grep` is 0 when every gold file is already in the packet. `max_savings` can miss gold files (0 extra tokens); that is visible in the same command, not hidden.
 
@@ -332,6 +337,6 @@ Index snapshot from that eval run: **340 files · 3,161 nodes · 6,795 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.8.0 |
+| [Changelog](docs/CHANGELOG.md) | 0.8.1 |
 
 MIT · [LICENSE](LICENSE)

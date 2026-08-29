@@ -1,4 +1,5 @@
 use crate::retrieval::gap::{classify_gaps, GapSeverity};
+use crate::retrieval::query_intent::QueryPlan;
 use crate::retrieval::task_profile::{detect_task_profile, task_role_coverage};
 use neuromesh_core::{ContextView, TaskSignature};
 use std::collections::HashSet;
@@ -39,8 +40,8 @@ impl Default for SufficiencyWeights {
             gap_penalty: 0.15,
             unresolved_penalty: 0.10,
             redundancy_penalty: 0.05,
-            likely_sufficient_threshold: 0.70,
-            partial_threshold: 0.40,
+            likely_sufficient_threshold: 0.72,
+            partial_threshold: 0.45,
         }
     }
 }
@@ -57,6 +58,7 @@ impl SufficiencyEstimator {
 
     pub fn estimate(&self, view: &ContextView, signature: &TaskSignature) -> SufficiencyEstimate {
         let profile = detect_task_profile(signature);
+        let plan = QueryPlan::from_signature(signature);
         let coverage = view.coverage.as_ref();
         let seeds_hit = coverage.map(|c| c.seeds_hit.len()).unwrap_or(0);
         let seeds_missed = coverage.map(|c| c.seeds_missed.len()).unwrap_or(0);
@@ -90,6 +92,7 @@ impl SufficiencyEstimator {
         let gap_count = critical_gaps.len() as f32 + non_critical_gaps.len() as f32 * 0.25;
         let unresolved = view.unresolved.len() as f32;
         let redundancy = redundancy_ratio(view);
+        let unresolved_concepts = unresolved_task_concepts(&plan, view);
 
         let w = &self.weights;
         let raw = w.relevance * relevance
@@ -99,20 +102,31 @@ impl SufficiencyEstimator {
             + w.seed_conf * seed_conf
             - w.gap_penalty * gap_count
             - w.unresolved_penalty * unresolved.min(5.0) * 0.1
-            - w.redundancy_penalty * redundancy;
+            - w.redundancy_penalty * redundancy
+            - unresolved_concepts * 0.08;
 
         let score = raw.clamp(0.0, 1.0);
         let confidence = (seed_conf * 0.4 + relevance * 0.3 + task_role * 0.3).clamp(0.0, 1.0);
 
+        let seeds_missed_critical = coverage
+            .map(|c| !c.seeds_missed.is_empty() && task_role < 0.5)
+            .unwrap_or(false);
+
         // Conservative policy: prefer partial over false sufficient.
         let claim = if seeds_hit == 0 {
             "insufficient".to_string()
-        } else if !critical_gaps.is_empty() || score < w.partial_threshold {
+        } else if !critical_gaps.is_empty()
+            || unresolved_concepts > 0.0
+            || seeds_missed_critical
+            || score < w.partial_threshold
+        {
             "partial".to_string()
         } else if score >= w.likely_sufficient_threshold
             && critical_gaps.is_empty()
-            && task_role >= 0.5
-            && confidence >= 0.65
+            && unresolved_concepts <= 0.0
+            && task_role >= 0.67
+            && dependency >= 0.5
+            && confidence >= 0.70
         {
             "likely_sufficient".to_string()
         } else if score >= w.partial_threshold {
@@ -123,8 +137,10 @@ impl SufficiencyEstimator {
 
         let eligible_for_early_exit = claim == "likely_sufficient"
             && critical_gaps.is_empty()
-            && task_role >= 0.5
-            && confidence >= 0.65
+            && unresolved_concepts <= 0.0
+            && task_role >= 0.67
+            && dependency >= 0.5
+            && confidence >= 0.70
             && !view.over_budget;
 
         SufficiencyEstimate {
@@ -136,6 +152,27 @@ impl SufficiencyEstimator {
             non_critical_gaps,
         }
     }
+}
+
+fn unresolved_task_concepts(plan: &QueryPlan, view: &ContextView) -> f32 {
+    if plan.concepts.is_empty() {
+        return 0.0;
+    }
+    let paths: HashSet<String> = view
+        .active_nodes
+        .iter()
+        .map(|n| n.node.file_path.to_string_lossy().to_lowercase())
+        .collect();
+    let hit_count = plan
+        .concepts
+        .iter()
+        .filter(|c| {
+            let c = c.as_str();
+            paths.iter().any(|p| p.contains(c))
+        })
+        .count();
+    let missing = plan.concepts.len().saturating_sub(hit_count);
+    missing as f32
 }
 
 fn average_seed_confidence(view: &ContextView) -> f32 {

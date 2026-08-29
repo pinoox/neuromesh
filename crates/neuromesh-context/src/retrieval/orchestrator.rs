@@ -1,12 +1,9 @@
 use crate::activator::ContextActivator;
 use crate::retrieval::budget::RetrievalBudget;
-use crate::retrieval::sufficiency::{SufficiencyEstimate, SufficiencyEstimator};
-use crate::retrieval::tier::RetrievalTier;
+use crate::retrieval::escalate::{run_incremental, EscalationResult};
+use crate::retrieval::sufficiency::SufficiencyEstimator;
 use neuromesh_core::{ContextView, OptimizationMode, RetrievalMetadata, TaskSignature};
 use neuromesh_graph::NeuralProjectGraph;
-use neuromesh_task::normalize_unicode;
-use std::collections::HashMap;
-use std::time::Instant;
 
 #[derive(Default)]
 pub struct RetrievalOrchestrator {
@@ -22,7 +19,7 @@ impl RetrievalOrchestrator {
         }
     }
 
-    /// L1 → L2 → L3 tiered retrieval with conservative early exit.
+    /// Single-pass incremental L1→L2→L3 with critical-gap-only escalation.
     pub fn run(
         &self,
         activator: &ContextActivator,
@@ -30,46 +27,21 @@ impl RetrievalOrchestrator {
         signature: &TaskSignature,
         mode: OptimizationMode,
     ) -> ContextView {
-        let mut levels_attempted: Vec<String> = Vec::new();
-        let mut latency_ms: HashMap<String, u64> = HashMap::new();
-        let mut best_view: Option<ContextView> = None;
-        let mut best_est: Option<SufficiencyEstimate> = None;
-        let mut final_tier = RetrievalTier::L1;
+        let EscalationResult {
+            mut view,
+            final_tier,
+            levels_attempted,
+            latency_ms,
+            estimate: est,
+        } = run_incremental(
+            activator,
+            graph,
+            signature,
+            mode,
+            &self.budget,
+            &self.estimator,
+        );
 
-        for tier in RetrievalTier::all() {
-            let started = Instant::now();
-            let mut sig = signature.clone();
-            sig.engine_override = Some(tier.seed_engine());
-            sig.raw_prompt = normalize_unicode(&sig.raw_prompt);
-            let tier_mode = optimization_for_tier(*tier, mode);
-            let tier_budget = self.budget.for_tier(*tier);
-
-            let view = activator.activate_with_hops(graph, &sig, tier_mode, tier.graph_hops());
-            let elapsed = started.elapsed().as_millis() as u64;
-            levels_attempted.push(tier.as_str().to_string());
-            latency_ms.insert(tier.as_str().to_string(), elapsed);
-
-            let est = self.estimator.estimate(&view, signature);
-            final_tier = *tier;
-            best_view = Some(view);
-            best_est = Some(est.clone());
-
-            let within_budget = elapsed <= tier_budget.latency_ms.saturating_mul(3)
-                && best_view
-                    .as_ref()
-                    .map(|v| v.active_tokens <= tier_budget.selected_tokens)
-                    .unwrap_or(true);
-
-            if est.eligible_for_early_exit && within_budget {
-                break;
-            }
-            if *tier == RetrievalTier::L3 {
-                break;
-            }
-        }
-
-        let mut view = best_view.expect("orchestrator always produces a view");
-        let est = best_est.expect("orchestrator always estimates sufficiency");
         enforce_no_full_workspace(&mut view, graph);
 
         let next_action = suggest_next_action(&est, &view);
@@ -98,33 +70,14 @@ impl RetrievalOrchestrator {
     }
 }
 
-fn optimization_for_tier(tier: RetrievalTier, fallback: OptimizationMode) -> OptimizationMode {
-    match tier {
-        RetrievalTier::L1 => OptimizationMode::MaxSavings,
-        RetrievalTier::L2 => OptimizationMode::Balanced,
-        RetrievalTier::L3 => OptimizationMode::MaxQuality,
-    }
-    .max(fallback)
-}
-
-trait ModeMax {
-    fn max(self, other: OptimizationMode) -> OptimizationMode;
-}
-
-impl ModeMax for OptimizationMode {
-    fn max(self, other: OptimizationMode) -> OptimizationMode {
-        use OptimizationMode::*;
-        match (self, other) {
-            (MaxQuality, _) | (_, MaxQuality) => MaxQuality,
-            (Balanced, MaxSavings) | (MaxSavings, Balanced) => Balanced,
-            _ => self,
-        }
-    }
-}
-
 /// Hard ban: selected tokens must stay below workspace tokens.
 fn enforce_no_full_workspace(view: &mut ContextView, graph: &NeuralProjectGraph) {
     let workspace = graph.total_tokens().max(1);
+    const MIN_WORKSPACE_FOR_BAN: usize = 256;
+    if workspace < MIN_WORKSPACE_FOR_BAN {
+        return;
+    }
+
     if view.active_tokens >= workspace {
         view.active_nodes.retain(|n| {
             n.activation_score >= 0.8
@@ -134,13 +87,36 @@ fn enforce_no_full_workspace(view: &mut ContextView, graph: &NeuralProjectGraph)
         });
         view.active_tokens = view.active_nodes.iter().map(|n| n.node.token_cost).sum();
     }
+
+    if view.active_tokens >= workspace {
+        let mut nodes = std::mem::take(&mut view.active_nodes);
+        nodes.sort_by(|a, b| {
+            b.activation_score
+                .partial_cmp(&a.activation_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let mut kept = Vec::new();
+        let mut sum = 0usize;
+        for n in nodes {
+            if sum + n.node.token_cost < workspace {
+                sum += n.node.token_cost;
+                kept.push(n);
+            }
+        }
+        view.active_nodes = kept;
+        view.active_tokens = sum;
+    }
+
     debug_assert!(
         view.active_tokens < workspace,
         "full-workspace fallback forbidden"
     );
 }
 
-fn suggest_next_action(est: &SufficiencyEstimate, view: &ContextView) -> Option<String> {
+fn suggest_next_action(
+    est: &crate::retrieval::sufficiency::SufficiencyEstimate,
+    view: &ContextView,
+) -> Option<String> {
     if est.eligible_for_early_exit {
         return None;
     }

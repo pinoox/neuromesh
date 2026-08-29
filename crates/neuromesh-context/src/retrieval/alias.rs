@@ -111,6 +111,22 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
     },
 ];
 
+/// Canonical concept ids from static alias clusters (NL → concept).
+pub fn canonical_concepts() -> &'static [&'static str] {
+    &[
+        "routing",
+        "middleware",
+        "auth",
+        "database",
+        "render",
+        "static",
+        "test",
+        "config",
+        "refactor",
+        "error",
+    ]
+}
+
 /// Expand prompt tokens with English code terms from minimal alias clusters.
 pub fn expand_aliases(prompt: &str) -> Vec<String> {
     let lower = prompt.to_lowercase();

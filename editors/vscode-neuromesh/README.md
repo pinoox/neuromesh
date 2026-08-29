@@ -2,7 +2,7 @@
 
 Sidebar mesh stats, a packet inspector, fold CodeLens, and the galaxy UI — talking to a running `neuromesh monitor`.
 
-The agent loop in the editor matches 0.8.0: **get_context_packet → expand_fold** (or **expand_gap** for `packet_gaps`). Grep (`search_symbols`) when coverage is `partial` or `no_seed_resolved`. After a good edit, **record_feedback**; use **get_node_weights** to verify learning deltas.
+The agent loop in the editor matches **0.8.1**: **get_context_packet → expand_fold** (or **expand_gap** for `packet_gaps`). Check `retrieval.claim` and `coverage.claim`. Grep (`search_symbols`) when coverage is `partial` or `no_seed_resolved`. After a good edit, **record_feedback**; use **get_node_weights** to verify learning deltas.
 
 ## Install
 

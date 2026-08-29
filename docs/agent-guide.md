@@ -142,7 +142,7 @@ Restart Claude after connect. Prefer `neuromesh_*` tool names if the client show
    }
    ```
 
-   Prefer `neuromesh connect --print` and map the absolute binary + workspace args into that shape.
+   Prefer `neuromesh connect --print` and paste the portable `neuromesh` command into that shape.
 2. Put the universal body in root **`AGENTS.md`** (and OpenCode project instructions if your build exposes them).
 3. Restart OpenCode / reload MCP.
 

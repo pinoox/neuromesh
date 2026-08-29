@@ -173,6 +173,66 @@ impl ContextActivator {
         crate::retrieval::RetrievalOrchestrator::default().run(self, graph, signature, mode)
     }
 
+    /// Single-pass incremental escalation entry (see `retrieval::escalate`).
+    pub fn activate_incremental(
+        &self,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+        phase: crate::retrieval::escalate::IncrementalPhase,
+        plan: &crate::retrieval::query_intent::QueryPlan,
+        prior: Option<ContextView>,
+    ) -> ContextView {
+        use crate::retrieval::concept_seeds::resolve_concept_seeds;
+        use crate::retrieval::escalate::IncrementalPhase;
+        use neuromesh_core::SeedEngineId;
+
+        match phase {
+            IncrementalPhase::L1 => {
+                let mut sig = signature.clone();
+                for (id, _score, _reason) in resolve_concept_seeds(graph, &sig, plan) {
+                    if let Some(node) = graph.get_node(&id) {
+                        let name = node.name.clone();
+                        if !sig.identifiers.iter().any(|i| i == &name) {
+                            sig.identifiers.push(name);
+                        }
+                    }
+                }
+                self.activate_with_hops(graph, &sig, mode, 1)
+            }
+            IncrementalPhase::L2 { extra_files, hops } => {
+                let base =
+                    prior.unwrap_or_else(|| self.activate_with_hops(graph, signature, mode, hops));
+                let extended = self.activate_with_hops(graph, signature, mode, hops);
+                let mut merged = merge_context_views(base, extended);
+                for file_id in extra_files {
+                    include_file_hint(graph, &mut merged, &file_id);
+                }
+                merged
+            }
+            IncrementalPhase::L3 {
+                max_recovery_seeds,
+                hops,
+            } => {
+                let base = prior.expect("L3 incremental phase requires prior view");
+                let mut sig = signature.clone();
+                sig.engine_override = Some(SeedEngineId::SemanticLite);
+                let recovery = self.activate_with_hops(graph, &sig, mode, hops);
+                let mut merged = merge_context_views(base, recovery);
+                cap_semantic_recovery_seeds(&mut merged, max_recovery_seeds);
+                merged
+            }
+        }
+    }
+
+    /// Resolved seed node ids from a context view.
+    pub fn seed_node_ids(&self, view: &ContextView) -> HashSet<NodeId> {
+        view.seeds
+            .iter()
+            .filter_map(|s| s.resolved_id.clone())
+            .collect()
+    }
+
     fn activate_inner(
         &self,
         graph: &NeuralProjectGraph,
@@ -1053,6 +1113,80 @@ fn resolve_dotted_member(
     None
 }
 
+fn merge_context_views(base: ContextView, extension: ContextView) -> ContextView {
+    let mut merged = base;
+    for node in extension.active_nodes {
+        if !merged
+            .active_nodes
+            .iter()
+            .any(|n| n.node.id == node.node.id)
+        {
+            merged.active_nodes.push(node);
+        }
+    }
+    merged.active_tokens = merged.active_nodes.iter().map(|n| n.node.token_cost).sum();
+    for seed in extension.seeds {
+        if !merged.seeds.iter().any(|s| s.query == seed.query) {
+            merged.seeds.push(seed);
+        }
+    }
+    if extension.seed_call_coverage > merged.seed_call_coverage {
+        merged.seed_call_coverage = extension.seed_call_coverage;
+    }
+    if let Some(cov) = extension.coverage {
+        merged.coverage = Some(cov);
+    }
+    merged
+}
+
+fn include_file_hint(graph: &NeuralProjectGraph, view: &mut ContextView, file_id: &NodeId) {
+    if view.active_nodes.iter().any(|n| n.node.id == *file_id) {
+        return;
+    }
+    let Some(node) = graph.get_node(file_id) else {
+        return;
+    };
+    if node.node_type != NodeType::File {
+        return;
+    }
+    view.active_nodes.push(ActivatedNodeView {
+        node: node.clone(),
+        activation_score: 0.75,
+        status: ContextStatus::Active,
+        expansion_reason: Some("pattern_expand".into()),
+        sidecar: true,
+        folded_symbols: Vec::new(),
+    });
+    view.active_tokens = view.active_nodes.iter().map(|n| n.node.token_cost).sum();
+}
+
+fn cap_semantic_recovery_seeds(view: &mut ContextView, max: u8) {
+    let is_semantic = view
+        .seed_resolution_telemetry
+        .as_ref()
+        .is_some_and(|t| t.engine == "semantic_lite");
+    if !is_semantic {
+        return;
+    }
+    let mut ranked: Vec<(usize, f32)> = view
+        .seeds
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.resolved_id.is_some())
+        .map(|(i, s)| (i, s.confidence))
+        .collect();
+    if ranked.len() <= max as usize {
+        return;
+    }
+    ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    for (idx, _) in ranked.into_iter().skip(max as usize) {
+        if let Some(seed) = view.seeds.get_mut(idx) {
+            seed.resolved_id = None;
+            seed.confidence = 0.0;
+        }
+    }
+}
+
 pub(crate) fn resolve_seed_query(
     graph: &NeuralProjectGraph,
     query: &str,
@@ -1201,13 +1335,39 @@ fn cohere_ambiguous_seeds_to_app(
             prefixes.insert(prefix);
         }
     }
-    if prefixes.len() != 1 {
+    if prefixes.is_empty() {
         return;
     }
-    let prefix = prefixes.into_iter().next().expect("checked len");
+    let prefix = if prefixes.len() == 1 {
+        prefixes.into_iter().next().expect("checked len")
+    } else {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        for seed in seeds.iter() {
+            if seed.confidence < 0.9 {
+                continue;
+            }
+            let Some(id) = seed.resolved_id.as_ref() else {
+                continue;
+            };
+            if let Some(p) = graph
+                .get_node(id)
+                .and_then(|node| hmvc_app_prefix(&node.file_path))
+            {
+                *counts.entry(p).or_default() += 1;
+            }
+        }
+        counts
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(p, _)| p)
+            .unwrap_or_else(|| prefixes.into_iter().next().expect("non-empty"))
+    };
     let prefix_slash = format!("{prefix}/");
     for seed in seeds.iter_mut() {
-        if seed.confidence >= 0.9 {
+        let stem = seed.query.rsplit(':').next().unwrap_or(seed.query.as_str());
+        let short_ambiguous =
+            stem.len() <= 5 || stem.chars().all(|c| c.is_ascii_lowercase() || c == '_');
+        if seed.confidence >= 0.9 && !short_ambiguous {
             continue;
         }
         let Some(id) = seed.resolved_id.clone() else {
@@ -1220,7 +1380,7 @@ fn cohere_ambiguous_seeds_to_app(
         if path.contains(&prefix_slash) {
             continue;
         }
-        let hits = graph.search_symbols(&seed.query, 16);
+        let hits = graph.search_symbols(stem, 16);
         let Some(hit) = hits.into_iter().find(|hit| {
             if !seed_path_allowed(graph, &hit.id, prompt) {
                 return false;
@@ -1238,7 +1398,7 @@ fn cohere_ambiguous_seeds_to_app(
                 .rsplit(['.', ':'])
                 .next()
                 .unwrap_or(hit.name.as_str());
-            name.eq_ignore_ascii_case(&seed.query)
+            name.eq_ignore_ascii_case(stem)
         }) else {
             continue;
         };
@@ -1420,6 +1580,13 @@ fn resolve_cluster_noun_seeds(
     noun: &str,
     sibling_nouns: &[String],
 ) -> Vec<(NodeId, f32)> {
+    let hits = graph.search_symbols(noun, 8);
+    if let Some(hit) = hits
+        .iter()
+        .find(|hit| hit.name.eq_ignore_ascii_case(noun) && hit.node_type != NodeType::File)
+    {
+        return vec![(hit.id.clone(), (hit.score / 100.0).clamp(0.5, 1.0))];
+    }
     if let Some(hit) = resolve_file_path_noun(graph, noun) {
         return vec![hit];
     }
@@ -3958,9 +4125,11 @@ impl TaskSignatureExtractor {
         let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
         assert!(view.active_tokens > 0);
         assert!(
-            view.seeds
-                .iter()
-                .any(|s| s.query.eq_ignore_ascii_case("User") && s.resolved_id.is_some()),
+            view.seeds.iter().any(|s| {
+                (s.query.eq_ignore_ascii_case("User")
+                    || s.query.eq_ignore_ascii_case("client_keyword:User"))
+                    && s.resolved_id.is_some()
+            }),
             "seeds = {:?}",
             view.seeds
         );

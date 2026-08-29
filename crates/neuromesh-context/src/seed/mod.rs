@@ -1,3 +1,5 @@
+use crate::retrieval::concept_seeds::resolve_concept_seeds;
+use crate::retrieval::query_intent::QueryPlan;
 use neuromesh_core::{SeedEngineId, SeedResolutionConfig, SeedResolutionTelemetry, TaskSignature};
 use neuromesh_graph::NeuralProjectGraph;
 use std::time::Instant;
@@ -51,6 +53,13 @@ pub fn run_seed_resolution(
         let used = engines::dispatch(
             engine, graph, signature, prompt, config, &mut sink, is_style,
         );
+
+        if sink.resolved_count() == 0 {
+            let plan = QueryPlan::from_signature(signature);
+            for (node_id, score, reason) in resolve_concept_seeds(graph, signature, &plan) {
+                sink.insert(node_id, score, reason);
+            }
+        }
 
         if sink.resolved_count() == 0 {
             eprintln!(

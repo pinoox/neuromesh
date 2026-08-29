@@ -28,6 +28,25 @@ neuromesh eval
 
 `neuromesh eval` prints **workspace / selected / packet** tokens, reduction vs both, recall, precision, **Grep still needed**, and latency. README numbers must come from that table — not from a padded corpus or a global 99% claim.
 
+## Tiered retrieval & release gates (v0.8.1)
+
+MCP and `neuromesh packet --json` use **single-pass** L1→L2→L3 escalation (`activate_tiered`). L2 pattern expand and L3 semantic recovery run only when **critical gaps** remain after sufficiency check.
+
+```bash
+neuromesh eval --release-gates    # multi-metric gate report (recall, precision, FSR proxy, L3 rate)
+neuromesh eval --release-gates --calibrate   # dev-split threshold tuning
+scripts/benchmark-v080.ps1 -Compare test3   # external Express matrix vs test3 baseline
+```
+
+| Gate | Target |
+| :--- | :--- |
+| Assisted recall (holdout) | ≥ 55% |
+| L3 rate | ≤ 15% |
+| FSR proxy | &lt; 10% |
+| Full-workspace fallback | 0 |
+
+`false_sufficiency_rate` is **`null`** when no `task_success` labels exist (CLI eval without agent sim). FSR **proxy** uses `likely_sufficient` + gold recall &lt; 0.5.
+
 ## Grep after get_context
 
 From `cargo run --release -p neuromesh-cli -- eval` on this workspace (2026-08-28 v0.7.17, balanced):
