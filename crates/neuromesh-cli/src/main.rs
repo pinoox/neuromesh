@@ -43,6 +43,9 @@ fn main() -> Result<()> {
         "store" => {
             return commands::store::execute(args.get(2).map(|s| s.as_str()));
         }
+        "config" => {
+            return commands::config::execute(&args);
+        }
         "connect" => {
             return commands::connect::execute(&args);
         }
@@ -227,6 +230,7 @@ fn print_help() {
     println!("  status     Unified workspace + graph + telemetry snapshot");
     println!("  usage      MCP/CLI token telemetry (`--all`, `--limit N`; alias: telemetry, logs)");
     println!("  store      Where project data lives (managed home vs trusted local)");
+    println!("  config     Seed engine + settings (global or nm.config.json per project)");
     println!("  graph      Print graph stats");
     println!("  memory     Print project memory facts");
     println!("  optimize   Activate one prompt and print the packet");

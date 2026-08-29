@@ -24,7 +24,7 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 
 ## Default loop
 
-1. Start with `neuromesh_get_context` using the task as written (`task_description` / `prompt` / `task`).
+1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). For natural-language or non-English prompts, pass `keywords`, `expansion`, and optional `path_hints` / `entity_types`.
 2. If `coverage.claim` is `partial` or `no_seed_resolved`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
 3. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
 4. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
@@ -185,7 +185,7 @@ Restart the IDE after writing MCP + instructions.
 If you cannot edit rule files (locked CI image, guest machine), start the chat with:
 
 ```text
-Use NeuroMesh MCP for context: neuromesh_get_context first, expand folds only as needed,
+Use NeuroMesh MCP for context: get_context_packet first, expand folds only as needed,
 search_symbols if coverage is partial, record_feedback after a successful edit.
 Do not dump large whole files when a packet is enough.
 ```
@@ -199,7 +199,7 @@ That is weaker than a persistent rule but unblocks a single session.
 In a repo that is already indexed (`neuromesh doctor` / prior MCP session):
 
 1. Ask: *“How does X work in this codebase?”* (pick a real symbol).
-2. Expect a **`neuromesh_get_context`** (or alias) tool call before large file reads.
+2. Expect a **`get_context_packet`** (or deprecated alias) tool call before large file reads.
 3. Optionally: `neuromesh usage` — a row appears when the agent actually called a NeuroMesh tool (not when you only saved a file). See [cli.md](cli.md).
 
 If the agent only Opens/Reads multi-thousand-line files and never calls MCP:
@@ -213,6 +213,6 @@ If the agent only Opens/Reads multi-thousand-line files and never calls MCP:
 
 ## What the handshake already does
 
-On MCP `initialize`, NeuroMesh returns short **`instructions`** telling clients to start with `neuromesh_get_context`. Some hosts surface that string; many ignore it. Treat the project rule as the reliable channel; handshake text is a bonus, not a substitute.
+On MCP `initialize`, NeuroMesh returns short **`instructions`** telling clients to start with `get_context_packet`. Some hosts surface that string; many ignore it. Treat the project rule as the reliable channel; handshake text is a bonus, not a substitute.
 
 Tool details and packet shape: [mcp.md](mcp.md). Living-systems loop: [nature.md](nature.md).

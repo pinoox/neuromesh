@@ -126,10 +126,17 @@ flowchart LR
 Tell the agent ([full install guide](docs/agent-guide.md)):
 
 ```
-neuromesh_get_context(task_description)
+get_context_packet(query / task_description / prompt / task)
   → neuromesh_expand_fold if a body is still folded
   → neuromesh_trace for callers
   → neuromesh_record_feedback after a good edit
+```
+
+**Seed engine** (how symbols are resolved before folding): default `keywords_expanded`; use `semantic_lite` for NL-heavy repos without client keywords:
+
+```bash
+neuromesh config seed-engine semantic_lite          # this repo (nm.config.json)
+neuromesh config seed-engine keywords_expanded --global
 ```
 
 ### Modes (the membrane)
@@ -276,7 +283,7 @@ Priority: `--max-files` → `NEUROMESH_MAX_FILES` (`auto` / `0` = auto) → proj
 
 | Tool | Role |
 | :--- | :--- |
-| **`neuromesh_get_context`** | Compact packet by default: skeletons, why, fold ids, coverage |
+| **`get_context_packet`** | Compact packet: skeletons, `@nm:` header, fold ids, coverage, seed telemetry |
 | **`neuromesh_explain_packet`** | On-demand diagnostics for a `packet_id` |
 | **`neuromesh_expand_fold`** | Wake one intron by `fold_id` — no disk grep |
 | **`neuromesh_get_file_skeleton`** | Fold one file; fold metadata has no original body |
@@ -299,7 +306,7 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release, 2026-08-28 v0.7.17, 650,859 workspace tokens):
+On this repo (release v0.8.0, 650,859 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -325,6 +332,6 @@ Index snapshot from that eval run: **340 files · 3,161 nodes · 6,795 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.7.17 |
+| [Changelog](docs/CHANGELOG.md) | 0.8.0 |
 
 MIT · [LICENSE](LICENSE)

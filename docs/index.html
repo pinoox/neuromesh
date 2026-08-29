@@ -620,7 +620,7 @@
         <div class="section-label reveal" style="justify-content: center;" data-i18n="stats.label">Measured</div>
         <h2 class="reveal" data-i18n="stats.title">What we actually measured</h2>
         <p class="lead reveal" style="margin: 0 auto 8px;" data-i18n-html="stats.lead">Savings are per task, after folding. Re-run: <code>neuromesh eval</code></p>
-        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">Release 2026-08-28 v0.7.17 · 650,859 workspace tokens</p>
+        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">Release 2026-08-29 v0.8.0 · 650,859 workspace tokens</p>
 
         <div class="stats-row">
           <div class="stat-box reveal">
@@ -784,7 +784,7 @@ neuromesh connect    # write MCP configs for this repo</pre>
         <p class="lead reveal" data-i18n="tools.lead">Tell the agent: get context → expand fold if needed → trace → record feedback.</p>
 
         <div class="tools-grid">
-          <div class="tool-item reveal"><div class="tool-name">neuromesh_get_context</div><div class="tool-desc">Compact packet: skeletons, why, fold ids, coverage</div></div>
+          <div class="tool-item reveal"><div class="tool-name">get_context_packet</div><div class="tool-desc">Compact packet: skeletons, @nm header, fold ids, seed telemetry</div></div>
           <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_expand_fold</div><div class="tool-desc">Wake one intron by fold_id — no disk grep</div></div>
           <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_trace</div><div class="tool-desc">Call / import chains</div></div>
           <div class="tool-item reveal"><div class="tool-name">neuromesh_search_symbols</div><div class="tool-desc">Ranked symbol search</div></div>

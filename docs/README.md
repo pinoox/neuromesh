@@ -15,7 +15,7 @@ Start with the [root README](../README.md) if you want install and the agent loo
 | [Contributing](contributing.md) | Tests, clippy, adding a language |
 | [Changelog](CHANGELOG.md) | Version history |
 
-## Measured snapshot (v0.7.17)
+## Measured snapshot (v0.8.0)
 
 From `cargo run --release -p neuromesh-cli -- eval` (2026-08-28) on this repository. Full tables and gates: [quality.md](quality.md).
 
@@ -34,4 +34,4 @@ From `cargo run --release -p neuromesh-cli -- eval` (2026-08-28) on this reposit
 
 Learning dose-response: `neuromesh eval --learning`. Debug activation on the same repo: ~157 ms / ~104 ms.
 
-NeuroMesh is a **context engine**: one primary call (`neuromesh_get_context`) returns a task-conditioned evidence packet. The biology (slime mold, synapses, gene splice) is the design language — see [nature.md](nature.md).
+NeuroMesh is a **context engine**: one primary call (`get_context_packet`) returns a task-conditioned evidence packet. The biology (slime mold, synapses, gene splice) is the design language — see [nature.md](nature.md).

@@ -62,14 +62,14 @@ Stdout is JSON-RPC only (NDJSON). Handshake logs go to stderr so Antigravity and
 ## Agent loop
 
 ```
-neuromesh_get_context(task_description)
+get_context_packet(query / task_description / prompt / task)
   → if coverage is partial or no_seed_resolved: neuromesh_search_symbols
   → if you need diagnostics: neuromesh_explain_packet(packet_id)
   → if a folded body is required: neuromesh_expand_fold(fold_id)
   → after a successful edit: neuromesh_record_feedback
 ```
 
-Start with `get_context`. The default packet is **minimal**: `packet_id`, coverage string, selected/packet tokens, skeletonized files, fold descriptors without bodies. `missing` and `next` appear only when coverage is `partial` or `no_seed_resolved` (zero identifiers resolved — do not treat a utility fallback file as the answer). After a good edit, **always** call `neuromesh_record_feedback` — that is the synaptic learning step; without it the next packet does not change.
+Start with `get_context_packet`. For natural-language or non-English prompts, pass **`keywords`**, **`expansion`**, and optional **`path_hints`** / **`entity_types`**. The deprecated alias `neuromesh_get_context` still works for one release.
 
 ## Agent rule (recommended)
 
@@ -92,7 +92,7 @@ Cursor-ready template: [agent-rule.mdc](agent-rule.mdc). Same body without YAML 
 
 | Tool | Input | Returns |
 | :--- | :--- | :--- |
-| `neuromesh_get_context` | `task_description`, `prompt`, or `task`; optional `mode`; optional `response_detail` | Compact evidence packet (`minimal` by default) |
+| **`get_context_packet`** | `query`, `task_description`, `prompt`, or `task`; optional `keywords`, `expansion`, `path_hints`, `entity_types`, `intent`, `engine`; optional `mode`; optional `response_detail` | Compact evidence packet (`minimal` by default) + `task.seed_resolution` telemetry |
 | `neuromesh_explain_packet` | `packet_id`; optional `include` | On-demand diagnostics (no fold bodies) |
 | `neuromesh_expand_fold` | `fold_id`, `node_id`, or `query`; optional `reason` | Original folded body |
 | `neuromesh_get_file_skeleton` | `file_path`, optional `active_symbols` | One skeletonized file + fold descriptors (no bodies) |
@@ -107,11 +107,11 @@ Cursor-ready template: [agent-rule.mdc](agent-rule.mdc). Same body without YAML 
 | `neuromesh_expand_gap` | `path`, optional `token_cap` | Cheap skeleton for `packet_gaps` paths |
 | `neuromesh_get_stats` | — | Node/edge counts |
 
-Aliases exist for older clients (`activate_context`, `expand_context`, `search_context`, `explain_packet`, `get_context_details`). Prefer the `neuromesh_*` names.
+Aliases exist for older clients (`neuromesh_get_context`, `activate_context`, `expand_context`, `search_context`, `explain_packet`, `get_context_details`). Prefer **`get_context_packet`** and the `neuromesh_*` expansion tools.
 
 ## Evidence packet
 
-`neuromesh_get_context` is the product. Default (`response_detail=minimal`) shape:
+`get_context_packet` is the product. Default (`response_detail=minimal`) shape:
 
 - `packet_id` — session key for `neuromesh_explain_packet` (LRU, ~10 minutes, 32 packets)
 - `coverage` — `claim` (`no_recorded_gap`, `bounded`, `partial`, `no_seed_resolved`), plus `covered`, `skipped`, `sidecar_files`, `unsure`, `packet_gaps`, and optional `semantic_coverage` for style tasks. `no_recorded_gap` only when every attempted seed resolved, `packet_gaps` is empty, no sidecar connector files, and the packet was not budget-truncated. `bounded` means seeds resolved but optional connector/sidecar fill or budget cut was applied — do not Grep unless you need more context.
@@ -137,6 +137,6 @@ Pass that `fold_id` to `neuromesh_expand_fold` as `fold_id`, `node_id`, or `quer
 
 `neuromesh_record_feedback` updates `base_relevance`, edge pheromones, and episodic memory. **Durable weights** persist in `graph.bin` (episode checkpoints in the snapshot); `neuromesh.json` holds episodic records for recall. The response includes `episode_saved_this_call`, `learning_episodes_in_store`, and `persisted_to: "graph.bin"` (`episodes_recorded` is a per-call 0/1 compat field).
 
-Effects apply on the **next** `get_context` in the same MCP process: search ranking, selector fill, unified scoring, and the **emission pipeline** (which files actually ship after fill/packet caps). Negative feedback lowers `base_relevance` and can suppress penalized files from the optional set. Use `neuromesh_get_node_weights` before and after feedback to verify deltas. When a file shows `selected: true` but is missing from `files[]`, call `neuromesh_explain_packet` and check `emitted` / `drop_stage` on `selection.candidates`.
+Effects apply on the **next** `get_context_packet` in the same MCP process: search ranking, selector fill, unified scoring, and the **emission pipeline** (which files actually ship after fill/packet caps). Negative feedback lowers `base_relevance` and can suppress penalized files from the optional set. Use `neuromesh_get_node_weights` before and after feedback to verify deltas. When a file shows `selected: true` but is missing from `files[]`, call `neuromesh_explain_packet` and check `emitted` / `drop_stage` on `selection.candidates`.
 
 Learning does not change a packet mid-request; restart the MCP server to load persisted graph state from a prior session. Positive reinforcement (`learning_bonus ≥ learning_promotion_min_bonus`, default **14**) can **add** focus-matched files to the next packet; it does not inject heavily reinforced files into unrelated queries. Negative reinforcement drops penalized hop-expanded files. Benchmark locally with `neuromesh eval --learning`.

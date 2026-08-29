@@ -308,8 +308,65 @@ impl Config {
         merged.port = self.port;
         merged.host = self.host.clone();
         merged.max_files = self.max_files;
+        merged.seed_resolution = self.seed_resolution.clone();
+        merged.packet_header = self.packet_header.clone();
         fs::write(&path, serde_json::to_string_pretty(&merged)?)?;
         Ok(path)
+    }
+
+    pub fn home_config_path() -> PathBuf {
+        crate::paths::neuromesh_home().join("config.json")
+    }
+
+    pub fn workspace_nm_config_path(workspace: &Path) -> PathBuf {
+        workspace.join("nm.config.json")
+    }
+
+    /// Persist `seed_resolution.engine` in `~/.neuromesh/config.json` (creates file if missing).
+    pub fn set_global_seed_engine(engine: SeedEngineId) -> Result<PathBuf> {
+        let path = Self::home_config_path();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut cfg = if path.exists() {
+            Self::read_file(&path).unwrap_or_default()
+        } else {
+            Self::default()
+        };
+        cfg.seed_resolution.engine = engine;
+        fs::write(&path, serde_json::to_string_pretty(&cfg)?)?;
+        Ok(path)
+    }
+
+    /// Persist `seed_resolution.engine` in `<workspace>/nm.config.json` (version-control friendly).
+    pub fn set_workspace_seed_engine(workspace: &Path, engine: SeedEngineId) -> Result<PathBuf> {
+        let path = Self::workspace_nm_config_path(workspace);
+        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
+        let mut seed = overlay.seed_resolution.take().unwrap_or_default();
+        seed.engine = engine;
+        overlay.seed_resolution = Some(seed);
+        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
+        Ok(path)
+    }
+
+    pub fn global_seed_engine() -> Option<SeedEngineId> {
+        let path = Self::home_config_path();
+        Self::read_file(&path).map(|c| c.seed_resolution.engine)
+    }
+
+    pub fn workspace_seed_engine(workspace: &Path) -> Option<SeedEngineId> {
+        Self::read_nm_config(workspace)
+            .and_then(|o| o.seed_resolution)
+            .map(|sr| sr.engine)
+    }
+
+    pub fn project_slot_config(workspace: &Path) -> Option<Self> {
+        let path = crate::paths::project_config_path(workspace);
+        if path.exists() {
+            Self::read_file(&path)
+        } else {
+            None
+        }
     }
 }
 

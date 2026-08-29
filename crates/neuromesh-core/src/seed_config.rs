@@ -32,6 +32,20 @@ impl SeedEngineId {
             Self::Hybrid => "hybrid",
         }
     }
+
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Off,
+            Self::Keywords,
+            Self::KeywordsExpanded,
+            Self::SemanticLite,
+            Self::Hybrid,
+        ]
+    }
+
+    pub fn help_line() -> &'static str {
+        "off | keywords | keywords_expanded | semantic_lite | hybrid"
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

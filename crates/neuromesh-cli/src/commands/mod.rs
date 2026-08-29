@@ -1,4 +1,5 @@
 pub mod benchmark;
+pub mod config;
 pub mod connect;
 pub mod doctor;
 pub mod evaluate;

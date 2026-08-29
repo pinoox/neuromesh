@@ -4,11 +4,14 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-- **Modular seed resolution engine.** Pluggable strategies (`off`, `keywords`, `keywords_expanded`, `semantic_lite`, `hybrid`) with weighted multi-signal ranking (keywords, expansion, path hints, entity types). MCP primary tool renamed to `get_context_packet` (`neuromesh_get_context` deprecated alias). Config via `seed_resolution` / `packet_header` in `~/.neuromesh/config.json` and optional workspace `nm.config.json`; env `NEUROMESH_SEED_ENGINE`. Dense `@nm:stack` / `@nm:seeds` / `@nm:flow` micro-header prepended to the first file skeleton (excluded from packet token cap). Response telemetry: `task.seed_resolution` and `task.packet_header`.
-- **`nmx` CLI alias.** Same binary as `neuromesh` (`nmx monitor`, `nmx connect`, …). Shipped in release tarballs/zip and install scripts.
-- **Portable global MCP connect (default).** `neuromesh connect` writes `{ "command": "neuromesh", "args": ["mcp"] }`; workspace auto-detected from IDE env + MCP `initialize`. `--pinned` for legacy absolute-binary pin. Targets added: OpenCode, MiMo CLI, Zed, JetBrains `.idea/mcp.json`. `--agent-rules` copies `.cursor/rules/neuromesh.mdc`.
-- **Unified telemetry.** `ActivityRecord` / `record_activity` with `surface`, `workspace_path`, `client_id`, `command`. Coverage: MCP `expand_gap`, monitor `/api/expand`, CLI `index` / `optimize` / `smoke`. `/api/usage` and `/api/status` expose `mean_reduction_pct`; monitor UI drops hardcoded 94.2% fallback.
-- **Unified status.** `neuromesh status` and `neuromesh doctor --mcp` show graph + telemetry + monitor + MCP workspace prediction via shared snapshot helper. `neuromesh smoke` runs a quick activation check.
+## 0.8.0 — 2026-08-29
+
+Modular seed resolution and MCP tool rename.
+
+- **Seed engines.** Pluggable strategies (`off`, `keywords`, `keywords_expanded`, `semantic_lite`, `hybrid`) with weighted multi-signal ranking (keywords, expansion, path hints, entity types). MCP primary tool renamed to **`get_context_packet`** (`neuromesh_get_context` remains a deprecated alias). Dense `@nm:stack` / `@nm:seeds` / `@nm:flow` micro-header on the first file skeleton (excluded from packet token cap). Response telemetry: `task.seed_resolution` and `task.packet_header`.
+- **Config & CLI.** `seed_resolution` / `packet_header` in `~/.neuromesh/config.json`; per-repo overrides in **`nm.config.json`**. `neuromesh config` shows effective settings; `neuromesh config seed-engine <engine>` sets project or `--global` machine default. Env: `NEUROMESH_SEED_ENGINE`.
+- **Multilingual NL keywords + greenfield scaffold** (from prior unreleased work): optional MCP `keywords`; Laravel scaffold when `semantic_lite` / `hybrid` yields zero seeds.
+- **`nmx` CLI alias**, portable global MCP connect, unified telemetry/status (see 0.7.17 notes for details).
 
 ## 0.7.17 — 2026-08-28
 

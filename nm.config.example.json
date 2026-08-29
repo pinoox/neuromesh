@@ -1,0 +1,16 @@
+{
+  "seed_resolution": {
+    "engine": "semantic_lite",
+    "max_keywords": 8,
+    "max_expansion": 8,
+    "max_resolved_seeds": 5,
+    "min_seed_score_threshold": 0.3
+  },
+  "packet_header": {
+    "enabled": true,
+    "max_call_chain_depth": 4,
+    "include_stack": true,
+    "include_seeds": true,
+    "include_flow": true
+  }
+}

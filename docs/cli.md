@@ -17,6 +17,7 @@ neuromesh eval         # gold recall / precision / fill on cwd and tests/fixture
 neuromesh eval --learning   # dose-response learning benchmark (learning-causal fixture)
 neuromesh benchmark    # same as eval
 neuromesh store        # managed home vs trusted local `.neuromesh`
+neuromesh config       # seed engine + settings (global or nm.config.json)
 neuromesh connect      # write MCP configs (or `--print` snippets)
 neuromesh doctor       # workspace root, scan, skipped extensions, graph, port
 neuromesh version
@@ -24,7 +25,7 @@ neuromesh version
 
 ## Usage telemetry
 
-MCP tool calls (`neuromesh_get_context`, skeleton, search, expand, trace, stats, …) append to `~/.neuromesh/telemetry_history.json`. The MCP `initialize` handshake writes one `mcp_session` row per process. That file is the source of truth. The monitor UI reads the same file (and also accepts `POST /api/telemetry/record` when `neuromesh monitor` is running).
+MCP tool calls (`get_context_packet`, skeleton, search, expand, trace, stats, …) append to `~/.neuromesh/telemetry_history.json`. The MCP `initialize` handshake writes one `mcp_session` row per process. That file is the source of truth. The monitor UI reads the same file (and also accepts `POST /api/telemetry/record` when `neuromesh monitor` is running).
 
 ```bash
 neuromesh usage              # this project
@@ -63,6 +64,36 @@ Or in `~/.neuromesh/config.json`:
 ```
 
 `"project_store": "local"` is the old behavior for every workspace. `NEUROMESH_STORE=local` is a one-shot. Leftover in-repo `.neuromesh` folders are copied into the managed slot once, then ignored until you trust them.
+
+## Seed engine & config
+
+Seed resolution strategy controls how NeuroMesh picks symbol anchors before folding. Default engine: **`keywords_expanded`**. For natural-language prompts without client keywords, prefer **`semantic_lite`** or **`hybrid`**.
+
+| Layer | File | Scope |
+| :--- | :--- | :--- |
+| Global | `~/.neuromesh/config.json` | all workspaces |
+| Project | `nm.config.json` in repo root | commit-friendly per repo |
+| Managed slot | `~/.neuromesh/projects/…/config.json` | port / max-files / seed (via `neuromesh port`) |
+| Env | `NEUROMESH_SEED_ENGINE` | one-shot override |
+| MCP | `engine` param on `get_context_packet` | per call |
+
+```bash
+neuromesh config                              # effective settings for cwd
+neuromesh config seed-engine                  # show engine + override layers
+neuromesh config seed-engine semantic_lite     # write nm.config.json here
+neuromesh config seed-engine hybrid --global   # machine default
+```
+
+Example `nm.config.json` (copy from `nm.config.example.json`):
+
+```json
+{
+  "seed_resolution": { "engine": "semantic_lite" },
+  "packet_header": { "enabled": true }
+}
+```
+
+Engines: `off` · `keywords` · `keywords_expanded` · `semantic_lite` · `hybrid`
 
 ## Everyday
 
