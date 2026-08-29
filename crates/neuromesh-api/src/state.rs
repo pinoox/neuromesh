@@ -1,14 +1,15 @@
 use neuromesh_cache::{SemanticCache, ToolCache};
 use neuromesh_context::{ContextActivator, ExpansionEngine, ReversibleContextRegistry};
-use neuromesh_core::Config;
+use neuromesh_core::{Config, GraphBackendId, SeedEngineId};
 use neuromesh_graph::NeuralProjectGraph;
+use neuromesh_graph_proxy::{probe_graph_proxy, resolve_for_workspace, GraphProxySession};
 use neuromesh_local_ai::LocalAiEngine;
 use neuromesh_mcp::McpToolHandler;
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_observability::MetricsCollector;
 use neuromesh_provider::Provider;
 use parking_lot::RwLock;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -130,5 +131,110 @@ impl AppState {
         if logs.len() > 500 {
             logs.remove(0);
         }
+    }
+
+    pub fn workspace(&self) -> PathBuf {
+        self.workspace_path.read().clone()
+    }
+
+    /// Connect external graph MCP when configured (CBM/Graphify auto-detect).
+    pub async fn attach_graph_proxy_if_configured(&self) {
+        let (gb, ws) = {
+            let cfg = self.config.read();
+            (cfg.graph_backend.clone(), self.workspace())
+        };
+        self.apply_graph_backend(&gb, &ws).await;
+    }
+
+    /// Apply graph backend config: connect proxy or fall back to native.
+    pub async fn apply_graph_backend(
+        &self,
+        gb: &neuromesh_core::GraphProxyConfig,
+        workspace: &Path,
+    ) {
+        if gb.backend == GraphBackendId::Native {
+            self.mcp_handler.clear_graph_proxy();
+            self.log("INFO", "GRAPH", "Graph backend: native (built-in index)");
+            return;
+        }
+        if let Some(spec) = resolve_for_workspace(gb, workspace) {
+            match GraphProxySession::connect(spec.clone(), workspace).await {
+                Ok(session) => {
+                    self.mcp_handler
+                        .connect_graph_proxy(session, gb.fallback_native, gb.backend.as_str())
+                        .await;
+                    self.log(
+                        "SUCCESS",
+                        "GRAPH",
+                        &format!(
+                            "Graph proxy active: {} via {} ({})",
+                            spec.provider.as_str(),
+                            spec.command,
+                            gb.backend.as_str()
+                        ),
+                    );
+                }
+                Err(e) if gb.fallback_native => {
+                    self.mcp_handler.clear_graph_proxy();
+                    self.log(
+                        "WARN",
+                        "GRAPH",
+                        &format!("Graph proxy unavailable ({e}); using native graph"),
+                    );
+                }
+                Err(e) => {
+                    self.mcp_handler.clear_graph_proxy();
+                    self.log("ERROR", "GRAPH", &format!("Graph proxy failed: {e}"));
+                }
+            }
+        } else {
+            self.mcp_handler.clear_graph_proxy();
+            self.log(
+                "WARN",
+                "GRAPH",
+                &format!(
+                    "Graph backend {} configured but no MCP server found — native graph",
+                    gb.backend.as_str()
+                ),
+            );
+        }
+    }
+
+    pub async fn probe_graph_proxy(
+        &self,
+    ) -> neuromesh_core::Result<neuromesh_graph_proxy::ProbeReport> {
+        let (gb, ws) = {
+            let cfg = self.config.read();
+            (cfg.graph_backend.clone(), self.workspace())
+        };
+        probe_graph_proxy(&gb, &ws).await
+    }
+
+    /// Update in-memory config and optionally persist project overrides.
+    pub fn update_engine_settings(
+        &self,
+        graph_backend: Option<GraphBackendId>,
+        seed_engine: Option<SeedEngineId>,
+        persist: bool,
+    ) -> neuromesh_core::Result<()> {
+        {
+            let mut cfg = self.config.write();
+            if let Some(backend) = graph_backend {
+                cfg.graph_backend.backend = backend;
+            }
+            if let Some(engine) = seed_engine {
+                cfg.seed_resolution.engine = engine;
+            }
+        }
+        if persist {
+            let ws = self.workspace();
+            if let Some(backend) = graph_backend {
+                Config::set_workspace_graph_backend(&ws, backend)?;
+            }
+            if let Some(engine) = seed_engine {
+                Config::set_workspace_seed_engine(&ws, engine)?;
+            }
+        }
+        Ok(())
     }
 }

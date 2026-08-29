@@ -109,6 +109,16 @@ Example `nm.config.json` (copy from `nm.config.example.json`):
 
 Engines: `off` · `keywords` · `keywords_expanded` · `semantic_lite` · `hybrid`
 
+Graph backend (`graph_backend.backend`): `native` (default) · `auto` · `proxy_cbm` · `proxy_graphify`. See [graph-proxy.md](graph-proxy.md).
+
+```bash
+neuromesh config graph-backend auto
+neuromesh doctor --proxy
+neuromesh doctor --proxy --probe    # live CBM connect + sample packet
+```
+
+Monitor **Settings → Graph Backend / Seed Engine** saves `nm.config.json` and reconnects the proxy. See [engines.md](engines.md).
+
 ## Everyday
 
 ```bash

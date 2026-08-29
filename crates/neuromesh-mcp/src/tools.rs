@@ -1,3 +1,4 @@
+use crate::graph_proxy::proxy_evidence_response;
 use crate::packet_cache::PacketDetailCache;
 use crate::response::{
     cache_and_build, collect_file_entries, collect_symbols, explain_packet,
@@ -7,6 +8,7 @@ use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
 use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId};
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
+use neuromesh_graph_proxy::GraphProxySession;
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_router::QualityGate;
 use neuromesh_task::{normalize_keyword, TaskSignatureExtractor};
@@ -27,6 +29,10 @@ pub struct McpToolHandler {
     mycelium: Arc<MyceliumCache>,
     packet_cache: PacketDetailCache,
     client_id: RwLock<Option<String>>,
+    /// External graph MCP (CBM/Graphify). None = native only.
+    graph_proxy: RwLock<Option<Arc<tokio::sync::Mutex<GraphProxySession>>>>,
+    graph_proxy_fallback_native: RwLock<bool>,
+    graph_backend_label: RwLock<String>,
 }
 
 struct ToolTelemetry {
@@ -80,7 +86,48 @@ impl McpToolHandler {
             mycelium: Arc::new(MyceliumCache::new(MyceliumConfig::default())),
             packet_cache: PacketDetailCache::new(),
             client_id: RwLock::new(None),
+            graph_proxy: RwLock::new(None),
+            graph_proxy_fallback_native: RwLock::new(true),
+            graph_backend_label: RwLock::new("native".into()),
         }
+    }
+
+    /// Attach an external graph backend. Native graph remains loaded for fallback and other tools.
+    pub fn with_graph_proxy(
+        self,
+        session: GraphProxySession,
+        fallback_native: bool,
+        backend_label: impl Into<String>,
+    ) -> Self {
+        *self.graph_proxy.write() = Some(Arc::new(tokio::sync::Mutex::new(session)));
+        *self.graph_proxy_fallback_native.write() = fallback_native;
+        *self.graph_backend_label.write() = backend_label.into();
+        self
+    }
+
+    /// Hot-swap or attach graph proxy at runtime (monitor config changes).
+    pub async fn connect_graph_proxy(
+        &self,
+        session: GraphProxySession,
+        fallback_native: bool,
+        backend_label: impl Into<String>,
+    ) {
+        *self.graph_proxy.write() = Some(Arc::new(tokio::sync::Mutex::new(session)));
+        *self.graph_proxy_fallback_native.write() = fallback_native;
+        *self.graph_backend_label.write() = backend_label.into();
+    }
+
+    pub fn clear_graph_proxy(&self) {
+        *self.graph_proxy.write() = None;
+        *self.graph_backend_label.write() = "native".into();
+    }
+
+    pub fn graph_backend_label(&self) -> String {
+        self.graph_backend_label.read().clone()
+    }
+
+    pub fn graph_proxy_active(&self) -> bool {
+        self.graph_proxy.read().is_some()
     }
 
     pub fn set_client_id(&self, client: String) {
@@ -237,6 +284,45 @@ impl McpToolHandler {
                     }
                 }
                 let gate = QualityGate::evaluate(&signature, requested_mode);
+
+                let proxy = self.graph_proxy.read().clone();
+                let fallback_native = *self.graph_proxy_fallback_native.read();
+                let backend_label = self.graph_backend_label();
+                if let Some(proxy) = proxy {
+                    match proxy.lock().await.build_context_packet(&task_desc, 8).await {
+                        Ok(proxy_packet) => {
+                            let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                            let value = proxy_evidence_response(
+                                &proxy_packet,
+                                &signature,
+                                &gate,
+                                detail,
+                                elapsed_ms,
+                                &backend_label,
+                            );
+                            self.emit_telemetry(ToolTelemetry {
+                                tokens_before: 0,
+                                tokens_after: proxy_packet.packet_tokens,
+                                token_reduction_pct: 0.0,
+                                nodes_after: proxy_packet.files.len(),
+                                latency_ms: elapsed_ms,
+                                ..ToolTelemetry::new(
+                                    "mcp-proxy",
+                                    task_desc.chars().take(50).collect::<String>(),
+                                    gate.effective_mode.to_string(),
+                                )
+                            });
+                            return Ok(value);
+                        }
+                        Err(e) if fallback_native => {
+                            tracing::warn!("graph proxy failed, using native graph: {e}");
+                        }
+                        Err(e) => {
+                            return Err(NeuroMeshError::Config(format!("graph proxy failed: {e}")));
+                        }
+                    }
+                }
+
                 let view =
                     self.activator
                         .activate_tiered(&self.graph, &signature, gate.effective_mode);

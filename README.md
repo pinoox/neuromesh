@@ -144,6 +144,15 @@ neuromesh config seed-engine semantic_lite          # this repo (nm.config.json)
 neuromesh config seed-engine keywords_expanded --global
 ```
 
+**Graph backend** (optional external index via [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)): default `native`; `auto` detects CBM from Cursor MCP config:
+
+```bash
+neuromesh config graph-backend auto               # use CBM when installed
+neuromesh doctor --proxy --probe                    # verify CBM connection
+```
+
+Full guide: [docs/engines.md](docs/engines.md) · [docs/graph-proxy.md](docs/graph-proxy.md). Monitor **Settings** exposes both engines without editing JSON.
+
 ### Modes (the membrane)
 
 | Mode | Extra tokens on top of seeds | Feel |

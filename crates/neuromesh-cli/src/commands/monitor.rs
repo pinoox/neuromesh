@@ -49,6 +49,7 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
     super::spawn_live_sync(bg_graph, bg_dir, bg_pid, cap);
 
     let state = AppState::new(config, graph, memory_db, provider);
+    state.attach_graph_proxy_if_configured().await;
     let server = HttpServer::new(state);
 
     server.run().await?;

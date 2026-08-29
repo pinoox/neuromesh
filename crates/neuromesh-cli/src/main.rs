@@ -1,7 +1,8 @@
 mod commands;
 
-use neuromesh_core::{ProjectId, Result};
+use neuromesh_core::{Config, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
+use neuromesh_graph_proxy::{resolve_for_workspace, GraphProxySession};
 use neuromesh_memory::MemoryDatabase;
 use std::env;
 use std::sync::Arc;
@@ -187,13 +188,42 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 &project_id,
             );
 
-            let handler = Arc::new(neuromesh_mcp::McpToolHandler::new(
-                graph.clone(),
-                activator,
-                expansion_engine,
-                memory_db,
-                working_memory,
-            ));
+            let handler = Arc::new({
+                let mut h = neuromesh_mcp::McpToolHandler::new(
+                    graph.clone(),
+                    activator,
+                    expansion_engine,
+                    memory_db,
+                    working_memory,
+                );
+                let cfg = Config::load();
+                if let Some(spec) = resolve_for_workspace(&cfg.graph_backend, &current_dir) {
+                    match GraphProxySession::connect(spec.clone(), &current_dir).await {
+                        Ok(session) => {
+                            eprintln!(
+                                "NeuroMesh graph backend: {} ({} — {})",
+                                cfg.graph_backend.backend.as_str(),
+                                spec.provider.as_str(),
+                                spec.command
+                            );
+                            h = h.with_graph_proxy(
+                                session,
+                                cfg.graph_backend.fallback_native,
+                                cfg.graph_backend.backend.as_str(),
+                            );
+                        }
+                        Err(e) if cfg.graph_backend.fallback_native => {
+                            eprintln!(
+                                "NeuroMesh graph proxy unavailable ({e}); using native graph"
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("NeuroMesh graph proxy failed: {e}");
+                        }
+                    }
+                }
+                h
+            });
             if graph.stats().total_nodes == 0
                 && neuromesh_index::ProjectWalker::is_safe_workspace(&current_dir)
             {

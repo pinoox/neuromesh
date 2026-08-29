@@ -1,3 +1,4 @@
+use crate::routes::engines::{parse_graph_backend, parse_seed_engine};
 use crate::state::AppState;
 use neuromesh_core::{project_data_dir, NodeId, OptimizationMode, ProjectId, Result};
 use neuromesh_index::ProjectWalker;
@@ -665,6 +666,10 @@ impl HttpServer {
             }
 
             ("POST", "/api/config") => {
+                let persist = body_json["persist"].as_bool().unwrap_or(true);
+                let mut graph_backend = None;
+                let mut seed_engine = None;
+
                 if let Some(mode_str) = body_json["mode"].as_str() {
                     let new_mode = match mode_str {
                         "max_quality" => OptimizationMode::MaxQuality,
@@ -673,9 +678,89 @@ impl HttpServer {
                     };
                     state.config.write().mode = new_mode;
                 }
+                if let Some(raw) = body_json["graph_backend"].as_str() {
+                    if let Some(backend) = parse_graph_backend(raw) {
+                        graph_backend = Some(backend);
+                    }
+                }
+                if let Some(raw) = body_json["seed_engine"].as_str() {
+                    if let Some(engine) = parse_seed_engine(raw) {
+                        seed_engine = Some(engine);
+                    }
+                }
+                if graph_backend.is_some() || seed_engine.is_some() {
+                    if let Err(e) =
+                        state.update_engine_settings(graph_backend, seed_engine, persist)
+                    {
+                        Self::send_json(
+                            &mut stream,
+                            500,
+                            &json!({ "success": false, "error": e.to_string() }),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                }
+                if let Some(backend) = graph_backend {
+                    let gb = state.config.read().graph_backend.clone();
+                    let ws = state.workspace();
+                    state.apply_graph_backend(&gb, &ws).await;
+                    state.log(
+                        "INFO",
+                        "CONFIG",
+                        &format!(
+                            "Graph backend set to {} (persist={persist})",
+                            backend.as_str()
+                        ),
+                    );
+                }
+                if let Some(engine) = seed_engine {
+                    state.log(
+                        "INFO",
+                        "CONFIG",
+                        &format!("Seed engine set to {} (persist={persist})", engine.as_str()),
+                    );
+                }
                 let cfg = state.config.read().clone();
-                Self::send_json(&mut stream, 200, &json!({ "success": true, "config": cfg }))
-                    .await?;
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({
+                        "success": true,
+                        "config": cfg,
+                        "graph_backend_active": state.mcp_handler.graph_backend_label(),
+                        "graph_proxy_connected": state.mcp_handler.graph_proxy_active(),
+                    }),
+                )
+                .await?;
+            }
+
+            ("GET", "/api/engines") | ("GET", "/api/graph-proxy") => {
+                let resp = crate::routes::engines::engines_status(&state);
+                Self::send_json(&mut stream, 200, &resp).await?;
+            }
+
+            ("POST", "/api/graph-proxy/probe") | ("POST", "/api/engines/probe") => {
+                match state.probe_graph_proxy().await {
+                    Ok(report) => {
+                        state.log(
+                            if report.connected { "SUCCESS" } else { "WARN" },
+                            "GRAPH",
+                            &format!(
+                                "Graph proxy probe: connected={} files={} coverage={}",
+                                report.connected,
+                                report.sample_files,
+                                report.coverage.as_deref().unwrap_or("—")
+                            ),
+                        );
+                        Self::send_json(&mut stream, 200, &serde_json::to_value(report).unwrap())
+                            .await?;
+                    }
+                    Err(e) => {
+                        Self::send_json(&mut stream, 500, &json!({ "error": e.to_string() }))
+                            .await?;
+                    }
+                }
             }
 
             // Neural Project Graph Data (for 2D visualizer)

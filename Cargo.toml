@@ -5,6 +5,7 @@ members = [
     "crates/neuromesh-index",
     "crates/neuromesh-parser",
     "crates/neuromesh-graph",
+    "crates/neuromesh-graph-proxy",
     "crates/neuromesh-task",
     "crates/neuromesh-context",
     "crates/neuromesh-memory",

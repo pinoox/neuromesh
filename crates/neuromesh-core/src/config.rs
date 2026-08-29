@@ -1,5 +1,6 @@
 use crate::{
-    NeuroMeshError, NmConfigOverlay, PacketHeaderConfig, Result, SeedEngineId, SeedResolutionConfig,
+    GraphBackendId, GraphProxyConfig, NeuroMeshError, NmConfigOverlay, PacketHeaderConfig, Result,
+    SeedEngineId, SeedResolutionConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -165,6 +166,8 @@ pub struct Config {
     pub seed_resolution: SeedResolutionConfig,
     #[serde(default)]
     pub packet_header: PacketHeaderConfig,
+    #[serde(default)]
+    pub graph_backend: GraphProxyConfig,
 }
 
 impl Default for Config {
@@ -182,6 +185,7 @@ impl Default for Config {
             trust_local: Vec::new(),
             seed_resolution: SeedResolutionConfig::default(),
             packet_header: PacketHeaderConfig::default(),
+            graph_backend: GraphProxyConfig::default(),
         }
     }
 }
@@ -243,6 +247,9 @@ impl Config {
         if let Some(ph) = overlay.packet_header {
             self.packet_header = ph;
         }
+        if let Some(gb) = overlay.graph_backend {
+            self.graph_backend = gb;
+        }
     }
 
     fn overlay_project(&mut self, other: Self) {
@@ -255,6 +262,7 @@ impl Config {
         self.thresholds = other.thresholds;
         self.seed_resolution = other.seed_resolution;
         self.packet_header = other.packet_header;
+        self.graph_backend = other.graph_backend;
     }
 
     fn read_file(path: &Path) -> Option<Self> {
@@ -278,6 +286,11 @@ impl Config {
         if let Ok(raw) = std::env::var("NEUROMESH_SEED_ENGINE") {
             if let Some(engine) = SeedEngineId::parse(&raw) {
                 self.seed_resolution.engine = engine;
+            }
+        }
+        if let Ok(raw) = std::env::var("NEUROMESH_GRAPH_BACKEND") {
+            if let Some(backend) = GraphBackendId::parse(&raw) {
+                self.graph_backend.backend = backend;
             }
         }
         self
@@ -358,6 +371,34 @@ impl Config {
         Self::read_nm_config(workspace)
             .and_then(|o| o.seed_resolution)
             .map(|sr| sr.engine)
+    }
+
+    pub fn set_global_graph_backend(backend: GraphBackendId) -> Result<PathBuf> {
+        let path = Self::home_config_path();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut cfg = if path.exists() {
+            Self::read_file(&path).unwrap_or_default()
+        } else {
+            Self::default()
+        };
+        cfg.graph_backend.backend = backend;
+        fs::write(&path, serde_json::to_string_pretty(&cfg)?)?;
+        Ok(path)
+    }
+
+    pub fn set_workspace_graph_backend(
+        workspace: &Path,
+        backend: GraphBackendId,
+    ) -> Result<PathBuf> {
+        let path = Self::workspace_nm_config_path(workspace);
+        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
+        let mut gb = overlay.graph_backend.take().unwrap_or_default();
+        gb.backend = backend;
+        overlay.graph_backend = Some(gb);
+        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
+        Ok(path)
     }
 
     pub fn project_slot_config(workspace: &Path) -> Option<Self> {

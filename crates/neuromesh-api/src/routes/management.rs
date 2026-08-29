@@ -17,6 +17,10 @@ pub fn get_status(state: &AppState) -> Value {
         "project_id": state.graph.project_id().0,
         "mode": state.config.read().mode.to_string(),
         "fill_cap": neuromesh_context::fill_budget(state.config.read().mode),
+        "graph_backend": state.config.read().graph_backend.backend.as_str(),
+        "graph_backend_active": state.mcp_handler.graph_backend_label(),
+        "graph_proxy_connected": state.mcp_handler.graph_proxy_active(),
+        "seed_engine": state.config.read().seed_resolution.engine.as_str(),
         "session_folds": state.registry.fold_count(),
         "last_packet": state.activator.last_packet(),
         "local_model": {

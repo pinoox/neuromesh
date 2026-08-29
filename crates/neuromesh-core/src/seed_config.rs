@@ -1,3 +1,4 @@
+use crate::GraphProxyConfig;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -130,4 +131,6 @@ pub struct NmConfigOverlay {
     pub seed_resolution: Option<SeedResolutionConfig>,
     #[serde(default)]
     pub packet_header: Option<PacketHeaderConfig>,
+    #[serde(default)]
+    pub graph_backend: Option<GraphProxyConfig>,
 }

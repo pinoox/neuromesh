@@ -30,6 +30,7 @@
           <li><a href="#fold" data-i18n="nav.fold">Fold</a></li>
           <li><a href="#galaxy" data-i18n="nav.galaxy">Galaxy</a></li>
           <li><a href="#learning" data-i18n="nav.learning">Learning</a></li>
+          <li><a href="#engines" data-i18n="nav.engines">Engines</a></li>
           <li><a href="#install" data-i18n="nav.install">Install</a></li>
           <li><a href="#connect" data-i18n="nav.connect">Connect</a></li>
           <li><a href="#tools" data-i18n="nav.tools">Tools</a></li>
@@ -660,6 +661,39 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- Engines -->
+    <section id="engines">
+      <div class="container">
+        <div class="section-label reveal" data-i18n="engines.label">Configuration</div>
+        <h2 class="reveal" data-i18n="engines.title">Graph backend & seed engine</h2>
+        <p class="lead reveal" data-i18n="engines.lead">Native graph by default. Optionally delegate structure to codebase-memory-mcp (CBM) while NeuroMesh keeps folding and packets.</p>
+
+        <div class="feature-grid reveal" style="margin-top: 2rem;">
+          <div class="feature-card">
+            <div class="feature-icon">🌿</div>
+            <h3 data-i18n="engines.graphTitle">Graph backend</h3>
+            <p data-i18n="engines.graphDesc"><code>native</code> · <code>auto</code> · <code>proxy_cbm</code>. Auto-detect reads <code>~/.cursor/mcp.json</code>. Only <code>get_context_packet</code> uses the proxy.</p>
+            <div class="code-block" style="margin-top: 1rem;">
+              <pre>neuromesh config graph-backend auto
+neuromesh doctor --proxy --probe</pre>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🔑</div>
+            <h3 data-i18n="engines.seedTitle">Seed engine</h3>
+            <p data-i18n="engines.seedDesc"><code>keywords_expanded</code> (default), <code>hybrid</code>, <code>semantic_lite</code>. Controls keyword→symbol resolution before folding.</p>
+            <div class="code-block" style="margin-top: 1rem;">
+              <pre>neuromesh config seed-engine hybrid
+neuromesh monitor  # Settings UI</pre>
+            </div>
+          </div>
+        </div>
+        <p class="reveal" style="margin-top: 1.25rem; font-size: 0.9rem; color: var(--text-secondary);">
+          <a href="engines.md" data-i18n="engines.docsLink">Full engines guide →</a>
+        </p>
       </div>
     </section>
 

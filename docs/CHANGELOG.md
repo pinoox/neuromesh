@@ -4,7 +4,17 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-Nothing yet.
+### Graph proxy (CBM / Graphify)
+
+- **`graph_backend` config** — `native` (default), `auto`, `proxy_cbm`, `proxy_graphify` in `Config` / `nm.config.json`. Env: `NEUROMESH_GRAPH_BACKEND`.
+- **`neuromesh-graph-proxy` crate** — MCP stdio client, IDE config auto-detect, CBM adapter (`search_graph` + `get_code_snippet`).
+- **`get_context_packet`** uses proxy when configured; **`fallback_native: true`** (default) keeps native tiered activation on failure.
+- **CLI** — `neuromesh config graph-backend`, `neuromesh config seed-engine`, `neuromesh doctor --proxy`, `neuromesh doctor --proxy --probe` (live CBM connect).
+- **Monitor** — Settings cards for graph backend + seed engine; `/api/engines`, `/api/graph-proxy/probe`; hot reconnect on save.
+- **CBM project match** — `list_projects` + `root_path` → workspace (e.g. `neuromesh-repo` for `C:/projects/neuromesh`).
+- **Docs** — [graph-proxy.md](graph-proxy.md), [engines.md](engines.md).
+
+Nothing else yet.
 
 ## 0.8.1 — 2026-08-29
 
@@ -20,8 +30,6 @@ Concept graph retrieval: **Intent → Concept → Graph** without embedding in L
 - **Harness.** Removed invalid mini-express redirect gold; `retrieval` metadata on **all** MCP detail levels (`minimal` compact, `standard`/`diagnostic` full).
 - **Token budget.** L1 selected cap **2K** (was 4K); L3 max **2** semantic recovery seeds.
 - **Benchmark script.** `scripts/benchmark-v080.ps1` accepts `-Compare test3` for baseline diff.
-
-## 0.8.0 — 2026-08-29
 
 Modular seed resolution, tiered retrieval, and MCP tool rename.
 

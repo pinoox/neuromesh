@@ -1,5 +1,6 @@
 pub mod config;
 pub mod error;
+pub mod graph_backend;
 pub mod paths;
 pub mod seed_config;
 pub mod source_path;
@@ -12,6 +13,9 @@ pub use config::{
     ProviderType, Thresholds,
 };
 pub use error::{NeuroMeshError, Result};
+pub use graph_backend::{
+    GraphBackendId, GraphProxyConfig, GraphProxyLaunchSpec, GraphProxyProvider,
+};
 pub use paths::{
     current_project_store, current_trust_list, ensure_project_data_dir, graph_path,
     leftover_workspace_dotdir, memory_db_path, neuromesh_home, normalize_workspace,

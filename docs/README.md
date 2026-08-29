@@ -6,6 +6,8 @@ Start with the [root README](../README.md) if you want install and the agent loo
 | :--- | :--- |
 | [Living systems](nature.md) | Physarum, STDP, exons, osmosis — mapped to crates |
 | [Architecture](architecture.md) | Pipeline, tiered retrieval, crate map, runtime guarantees |
+| [Graph proxy](graph-proxy.md) | Optional CBM/Graphify backend via MCP stdio |
+| [Engines](engines.md) | Graph backend + seed engine — CLI, monitor, recipes |
 | [MCP tools](mcp.md) | What each tool returns and how the agent should call them |
 | [Agent guide](agent-guide.md) | Teach every IDE to prefer NeuroMesh (rules, AGENTS.md, smoke test) |
 | [Agent rule](agent-rule.mdc) | Cursor-ready `.mdc` template (same body as the guide) |

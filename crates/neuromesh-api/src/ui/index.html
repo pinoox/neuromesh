@@ -1968,6 +1968,14 @@
                                 </div>
                                 <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_membrane_help">max_savings 0 · balanced +5k · max_quality +16k extra tokens on top of seeds. Auth/payment tasks upgrade.</div>
                             </div>
+
+                            <div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
+                                    <span>🔗 <strong data-i18n="bio_engines">Graph & seed engines</strong></span>
+                                    <strong id="bioEnginesValue" style="color: var(--accent-cyan);">native · keywords_expanded</strong>
+                                </div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_engines_help">Graph backend for structural queries; seed engine for keyword→symbol resolution. Change in Settings or via CLI config.</div>
+                            </div>
                         </div>
                     </div>
 
@@ -2581,6 +2589,92 @@
                                 <input type="hidden" id="settingsModeSelect" value="Balanced">
                             </div>
 
+                            <!-- SETTING: GRAPH BACKEND -->
+                            <div class="modern-setting-group" style="margin-top: 1.25rem;">
+                                <div class="modern-setting-header">
+                                    <div class="modern-setting-title-wrap">
+                                        <span class="setting-title" data-i18n="lbl_graph_backend">Graph Backend:</span>
+                                        <button class="info-toggle-btn" onclick="window.toggleSettingInfo('infoGraphBackend')" title="Toggle Guide">ℹ️</button>
+                                    </div>
+                                    <span class="setting-badge" id="graphProxyStatus">native</span>
+                                </div>
+                                <div id="infoGraphBackend" class="collapsible-setting-guide">
+                                    <span data-i18n="guide_graph_backend">Native uses the built-in AST graph. Auto detects codebase-memory-mcp (CBM) from Cursor MCP config. proxy_cbm always routes get_context through CBM search_graph.</span>
+                                </div>
+                                <div class="preset-cards-row" id="presetGraphBackendCards">
+                                    <div class="preset-card active" onclick="window.selectGraphBackend('native', this)">
+                                        <div class="preset-card-icon">🌿</div>
+                                        <div class="preset-card-body">
+                                            <div class="preset-card-title" data-i18n="opt_graph_native_short">Native</div>
+                                            <div class="preset-card-desc" data-i18n="opt_graph_native_desc">Built-in index · default</div>
+                                        </div>
+                                        <div class="preset-check">✓</div>
+                                    </div>
+                                    <div class="preset-card" onclick="window.selectGraphBackend('auto', this)">
+                                        <div class="preset-card-icon">🔍</div>
+                                        <div class="preset-card-body">
+                                            <div class="preset-card-title" data-i18n="opt_graph_auto_short">Auto</div>
+                                            <div class="preset-card-desc" data-i18n="opt_graph_auto_desc">Detect CBM from MCP configs</div>
+                                        </div>
+                                        <div class="preset-check">✓</div>
+                                    </div>
+                                    <div class="preset-card" onclick="window.selectGraphBackend('proxy_cbm', this)">
+                                        <div class="preset-card-icon">🧠</div>
+                                        <div class="preset-card-body">
+                                            <div class="preset-card-title" data-i18n="opt_graph_cbm_short">CBM Proxy</div>
+                                            <div class="preset-card-desc" data-i18n="opt_graph_cbm_desc">codebase-memory-mcp</div>
+                                        </div>
+                                        <div class="preset-check">✓</div>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="settingsGraphBackend" value="native">
+                                <div style="margin-top:0.65rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                    <button class="btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.78rem;" onclick="window.probeGraphProxy()" data-i18n="btn_probe_cbm">🔬 Probe CBM connection</button>
+                                    <span id="graphProbeResult" style="font-size:0.75rem; color:var(--text-secondary); align-self:center;"></span>
+                                </div>
+                            </div>
+
+                            <!-- SETTING: SEED ENGINE -->
+                            <div class="modern-setting-group" style="margin-top: 1.25rem;">
+                                <div class="modern-setting-header">
+                                    <div class="modern-setting-title-wrap">
+                                        <span class="setting-title" data-i18n="lbl_seed_engine">Seed Resolution Engine:</span>
+                                        <button class="info-toggle-btn" onclick="window.toggleSettingInfo('infoSeedEngine')" title="Toggle Guide">ℹ️</button>
+                                    </div>
+                                    <span class="setting-badge">Seeds</span>
+                                </div>
+                                <div id="infoSeedEngine" class="collapsible-setting-guide">
+                                    <span data-i18n="guide_seed_engine">Controls how task keywords map to graph seeds before folding. hybrid adds semantic-lite pass; keywords_expanded is the default tier-1 engine.</span>
+                                </div>
+                                <div class="preset-cards-row" id="presetSeedEngineCards">
+                                    <div class="preset-card active" onclick="window.selectSeedEngine('keywords_expanded', this)">
+                                        <div class="preset-card-icon">🔑</div>
+                                        <div class="preset-card-body">
+                                            <div class="preset-card-title" data-i18n="opt_seed_kw_short">Keywords+</div>
+                                            <div class="preset-card-desc" data-i18n="opt_seed_kw_desc">Expanded keywords · default</div>
+                                        </div>
+                                        <div class="preset-check">✓</div>
+                                    </div>
+                                    <div class="preset-card" onclick="window.selectSeedEngine('hybrid', this)">
+                                        <div class="preset-card-icon">🧬</div>
+                                        <div class="preset-card-body">
+                                            <div class="preset-card-title" data-i18n="opt_seed_hybrid_short">Hybrid</div>
+                                            <div class="preset-card-desc" data-i18n="opt_seed_hybrid_desc">Keywords + semantic-lite</div>
+                                        </div>
+                                        <div class="preset-check">✓</div>
+                                    </div>
+                                    <div class="preset-card" onclick="window.selectSeedEngine('semantic_lite', this)">
+                                        <div class="preset-card-icon">✨</div>
+                                        <div class="preset-card-body">
+                                            <div class="preset-card-title" data-i18n="opt_seed_sem_short">Semantic Lite</div>
+                                            <div class="preset-card-desc" data-i18n="opt_seed_sem_desc">Embedding-style hints</div>
+                                        </div>
+                                        <div class="preset-check">✓</div>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="settingsSeedEngine" value="keywords_expanded">
+                            </div>
+
                             <!-- SETTING 2: CELLULAR OSMOTIC GATE -->
                             <div class="modern-setting-group" style="margin-top: 1.25rem;">
                                 <div class="modern-setting-header">
@@ -2914,6 +3008,25 @@
                 layer_impulses: 'Live Neural Sparks',
                 layer_stars: 'Cosmic Starfield',
                 btn_save_settings: 'Save Settings',
+                lbl_graph_backend: 'Graph Backend:',
+                guide_graph_backend: 'Native uses the built-in AST graph. Auto detects codebase-memory-mcp (CBM) from Cursor MCP config. proxy_cbm routes get_context through CBM search_graph.',
+                opt_graph_native_short: 'Native',
+                opt_graph_native_desc: 'Built-in index · default',
+                opt_graph_auto_short: 'Auto',
+                opt_graph_auto_desc: 'Detect CBM from MCP configs',
+                opt_graph_cbm_short: 'CBM Proxy',
+                opt_graph_cbm_desc: 'codebase-memory-mcp',
+                btn_probe_cbm: '🔬 Probe CBM connection',
+                lbl_seed_engine: 'Seed Resolution Engine:',
+                guide_seed_engine: 'How task keywords map to graph seeds before folding. hybrid adds semantic-lite; keywords_expanded is the default.',
+                opt_seed_kw_short: 'Keywords+',
+                opt_seed_kw_desc: 'Expanded keywords · default',
+                opt_seed_hybrid_short: 'Hybrid',
+                opt_seed_hybrid_desc: 'Keywords + semantic-lite',
+                opt_seed_sem_short: 'Semantic Lite',
+                opt_seed_sem_desc: 'Embedding-style hints',
+                bio_engines: 'Graph & seed engines',
+                bio_engines_help: 'Graph backend for structural queries; seed engine for keyword→symbol resolution. Change in Settings or CLI config.',
                 title_logs: 'Real-time System & MCP Audit Stream',
                 btn_refresh_logs: 'Refresh Logs',
                 btn_run_trace: 'Run Pipeline Trace',
@@ -3079,6 +3192,25 @@
                 layer_impulses: 'پالس‌های زنده عصبی',
                 layer_stars: 'ستارگان کهکشان',
                 btn_save_settings: 'ذخیره تغییرات',
+                lbl_graph_backend: 'بک‌اند گراف:',
+                guide_graph_backend: 'Native از گراف AST داخلی استفاده می‌کند. Auto، codebase-memory-mcp (CBM) را از کانفیگ MCP Cursor پیدا می‌کند. proxy_cbm، get_context را از CBM عبور می‌دهد.',
+                opt_graph_native_short: 'Native',
+                opt_graph_native_desc: 'ایندکس داخلی · پیش‌فرض',
+                opt_graph_auto_short: 'Auto',
+                opt_graph_auto_desc: 'تشخیص CBM از MCP',
+                opt_graph_cbm_short: 'پروکسی CBM',
+                opt_graph_cbm_desc: 'codebase-memory-mcp',
+                btn_probe_cbm: '🔬 آزمایش اتصال CBM',
+                lbl_seed_engine: 'موتور بذر (Seed Engine):',
+                guide_seed_engine: 'نحوه نگاشت کلمات کلیدی به بذرهای گراف قبل از folding. hybrid، semantic-lite اضافه می‌کند؛ keywords_expanded پیش‌فرض است.',
+                opt_seed_kw_short: 'Keywords+',
+                opt_seed_kw_desc: 'کلمات گسترده · پیش‌فرض',
+                opt_seed_hybrid_short: 'Hybrid',
+                opt_seed_hybrid_desc: 'Keywords + semantic-lite',
+                opt_seed_sem_short: 'Semantic Lite',
+                opt_seed_sem_desc: 'راهنمای embedding-style',
+                bio_engines: 'موتور گراف و بذر',
+                bio_engines_help: 'بک‌اند گراف برای پرس‌وجوی ساختاری؛ موتور بذر برای keyword→symbol. از Settings یا CLI تغییر دهید.',
                 title_logs: 'گزارش رویدادهای زنده سیستم و فراخوانی‌های MCP',
                 btn_refresh_logs: 'تازه‌سازی گزارش‌ها',
                 btn_run_trace: 'اجرای تست جریان',
@@ -3265,6 +3397,8 @@
                 window.fetchUsage();
             } else if (viewId === 'projects') {
                 window.loadFilesTable();
+            } else if (viewId === 'settings') {
+                window.loadEngineSettings();
             }
         };
 
@@ -3710,6 +3844,14 @@
                     elHitRate.innerText = reqCount > 0 && lat != null
                         ? `${Number(lat).toFixed(0)} ms`
                         : (currentLang === 'fa' ? 'آماده' : 'Ready');
+                }
+
+                const elEngines = document.getElementById('bioEnginesValue');
+                if (elEngines) {
+                    const gb = data.graph_backend_active || data.graph_backend || 'native';
+                    const se = data.seed_engine || 'keywords_expanded';
+                    const proxyTag = data.graph_proxy_connected ? ' · CBM live' : '';
+                    elEngines.innerText = `${gb} · ${se}${proxyTag}`;
                 }
 
                 const physActive = bio.physarum_solver === 'active';
@@ -4936,6 +5078,83 @@
             if (el) el.classList.add('active');
         };
 
+        window.selectGraphBackend = function(backend, el) {
+            const input = document.getElementById('settingsGraphBackend');
+            if (input) input.value = backend;
+            const container = document.getElementById('presetGraphBackendCards');
+            if (container) {
+                container.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+            }
+            if (el) el.classList.add('active');
+        };
+
+        window.selectSeedEngine = function(engine, el) {
+            const input = document.getElementById('settingsSeedEngine');
+            if (input) input.value = engine;
+            const container = document.getElementById('presetSeedEngineCards');
+            if (container) {
+                container.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+            }
+            if (el) el.classList.add('active');
+        };
+
+        window.loadEngineSettings = async function() {
+            try {
+                const res = await fetch('/api/engines');
+                const data = await res.json();
+                const backend = data.graph_backend || 'native';
+                const engine = data.seed_engine || 'keywords_expanded';
+                const backendCards = document.getElementById('presetGraphBackendCards');
+                const engineCards = document.getElementById('presetSeedEngineCards');
+                const backendMap = { native: 0, auto: 1, proxy_cbm: 2, proxy_graphify: 2 };
+                const engineMap = { keywords_expanded: 0, hybrid: 1, semantic_lite: 2, keywords: 0, off: 0 };
+                const bIdx = backendMap[backend] != null ? backendMap[backend] : 0;
+                const eIdx = engineMap[engine] != null ? engineMap[engine] : 0;
+                if (backendCards) {
+                    const card = backendCards.querySelectorAll('.preset-card')[bIdx];
+                    if (card) window.selectGraphBackend(backend, card);
+                }
+                if (engineCards) {
+                    const card = engineCards.querySelectorAll('.preset-card')[eIdx];
+                    if (card) window.selectSeedEngine(engine, card);
+                }
+                const statusEl = document.getElementById('graphProxyStatus');
+                if (statusEl) {
+                    const active = data.graph_backend_active || backend;
+                    statusEl.innerText = data.graph_proxy_connected
+                        ? `${active} · live`
+                        : active;
+                    statusEl.style.color = data.graph_proxy_connected ? 'var(--accent-green)' : 'var(--text-secondary)';
+                }
+            } catch (e) {}
+        };
+
+        window.probeGraphProxy = async function() {
+            const resultEl = document.getElementById('graphProbeResult');
+            if (resultEl) resultEl.innerText = currentLang === 'fa' ? 'در حال آزمایش…' : 'Probing…';
+            try {
+                const res = await fetch('/api/graph-proxy/probe', { method: 'POST' });
+                const data = await res.json();
+                if (data.connected) {
+                    const msg = `${data.sample_files || 0} files · ${data.packet_tokens || 0} tok · ${data.coverage || '—'}`;
+                    if (resultEl) {
+                        resultEl.innerText = msg;
+                        resultEl.style.color = 'var(--accent-green)';
+                    }
+                    window.showToast(currentLang === 'fa' ? 'CBM متصل است.' : 'CBM probe OK.', 'success');
+                } else {
+                    const err = data.error || 'failed';
+                    if (resultEl) {
+                        resultEl.innerText = err;
+                        resultEl.style.color = 'var(--accent-amber)';
+                    }
+                    window.showToast(currentLang === 'fa' ? 'CBM در دسترس نیست.' : 'CBM probe failed.', 'info');
+                }
+            } catch (e) {
+                if (resultEl) resultEl.innerText = String(e);
+            }
+        };
+
         window.selectPermMode = function(mode, el) {
             document.getElementById('settingMembranePerm').value = mode;
             const container = document.getElementById('presetPermCards');
@@ -4970,8 +5189,29 @@
             window.showToast(currentLang === 'fa' ? 'تنظیمات به حالت پیش‌فرض پیشنهادی بازنشانی شدند.' : 'Settings reset to recommended defaults.', 'info');
         };
 
-        window.saveSettings = function() {
-            window.showToast(currentLang === 'fa' ? 'تنظیمات بیومیمتیک با موفقیت ذخیره شدند.' : 'Biomimetic settings saved successfully.', 'success');
+        window.saveSettings = async function() {
+            const modeMap = { Balanced: 'balanced', MaxSavings: 'max_savings', MaxQuality: 'max_quality' };
+            const modeRaw = document.getElementById('settingsModeSelect').value;
+            const mode = modeMap[modeRaw] || 'balanced';
+            const graph_backend = document.getElementById('settingsGraphBackend').value;
+            const seed_engine = document.getElementById('settingsSeedEngine').value;
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode, graph_backend, seed_engine, persist: true })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.showToast(currentLang === 'fa' ? 'تنظیمات بیومیمتیک با موفقیت ذخیره شدند.' : 'Biomimetic settings saved successfully.', 'success');
+                    window.loadEngineSettings();
+                    window.fetchStatus();
+                } else {
+                    window.showToast(data.error || 'Save failed', 'info');
+                }
+            } catch (e) {
+                window.showToast(String(e), 'info');
+            }
         };
 
         // 📜 REAL-TIME AUDIT LOGS & EVENT STREAM ENGINE

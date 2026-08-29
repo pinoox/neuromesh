@@ -1,4 +1,5 @@
-use neuromesh_core::{Config, Result};
+use neuromesh_core::{Config, GraphBackendId, Result};
+use neuromesh_graph_proxy::{detect_proxy_launch_specs, probe_graph_proxy};
 use neuromesh_index::ProjectWalker;
 use std::env;
 use std::net::TcpListener;
@@ -7,6 +8,8 @@ use super::{configured_walker, print_file_cap, snapshot, FileCapArg};
 
 pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
     let mcp_diag = args.iter().any(|a| a == "--mcp");
+    let proxy_diag = args.iter().any(|a| a == "--proxy" || a == "--probe");
+    let probe_live = args.iter().any(|a| a == "--probe");
     println!("\nNeuroMesh doctor");
     println!(
         "OS             : {} ({})",
@@ -23,6 +26,12 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
     );
 
     let cfg = Config::load();
+    println!(
+        "Graph backend  : {} (fallback_native={})",
+        cfg.graph_backend.backend.as_str(),
+        cfg.graph_backend.fallback_native
+    );
+
     let addr = format!("{}:{}", cfg.host, cfg.port);
     match TcpListener::bind(&addr) {
         Ok(_) => println!("Monitor port   : {addr} available"),
@@ -43,6 +52,81 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
         return Ok(());
     }
     println!("Safety         : ok");
+
+    if proxy_diag {
+        println!("\nGraph proxy detection");
+        let report = detect_proxy_launch_specs(&root);
+        if report.candidates.is_empty() {
+            println!("  No CBM/Graphify MCP servers found in IDE configs.");
+            println!("  Install codebase-memory-mcp and add to ~/.cursor/mcp.json, then set:");
+            println!("    neuromesh config graph-backend auto");
+        } else {
+            for (i, c) in report.candidates.iter().take(5).enumerate() {
+                println!(
+                    "  [{}] {} — {} {:?} (score {})",
+                    i + 1,
+                    c.spec.provider.as_str(),
+                    c.spec.server_name,
+                    c.spec.command,
+                    c.score
+                );
+                if let Some(p) = &c.spec.config_path {
+                    println!("       {}", p.display());
+                }
+            }
+        }
+        if let Some(spec) = neuromesh_graph_proxy::resolve_for_workspace(&cfg.graph_backend, &root)
+        {
+            println!(
+                "\n  Effective for current config: {} via {}",
+                spec.provider.as_str(),
+                spec.command
+            );
+        } else if cfg.graph_backend.backend.uses_proxy() {
+            println!("\n  Config requests proxy but no launch spec resolved — native at runtime.");
+        }
+
+        if probe_live {
+            println!("\nGraph proxy live probe");
+            let mut probe_cfg = cfg.graph_backend.clone();
+            if probe_cfg.backend == GraphBackendId::Native {
+                probe_cfg.backend = GraphBackendId::Auto;
+                println!("  (backend is native — probing with auto-detect)");
+            }
+            let report = tokio::runtime::Runtime::new()
+                .map_err(|e| neuromesh_core::NeuroMeshError::Config(e.to_string()))?
+                .block_on(probe_graph_proxy(&probe_cfg, &root))?;
+            if report.connected {
+                println!("  Status         : connected");
+                if let Some(p) = &report.provider {
+                    println!("  Provider       : {p}");
+                }
+                if let Some(c) = &report.command {
+                    println!("  Command        : {c}");
+                }
+                if !report.tools.is_empty() {
+                    println!("  Tools          : {}", report.tools.join(", "));
+                }
+                if report.sample_files > 0 {
+                    println!(
+                        "  Sample packet  : {} files, {} tokens, coverage {}",
+                        report.sample_files,
+                        report.packet_tokens,
+                        report.coverage.as_deref().unwrap_or("—")
+                    );
+                } else if let Some(err) = &report.error {
+                    println!("  Sample packet  : (skipped — {err})");
+                } else {
+                    println!("  Sample packet  : 0 files");
+                }
+            } else {
+                println!("  Status         : failed");
+                if let Some(err) = &report.error {
+                    println!("  Error          : {err}");
+                }
+            }
+        }
+    }
 
     if mcp_diag {
         println!("\nMCP workspace detection");
