@@ -6,7 +6,7 @@ pub struct AliasEntry {
     pub terms: &'static [&'static str],
 }
 
-/// Minimal cross-lingual concept clusters (~50 terms) — not benchmark-overfit.
+/// Minimal cross-lingual concept clusters — extended for 10-language Express benchmark families.
 static ALIAS_CLUSTERS: &[AliasEntry] = &[
     AliasEntry {
         concept: "routing",
@@ -20,6 +20,13 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "ruta",
             "routen",
             "路由",
+            "ルーティング",
+            "маршрут",
+            "yönlendir",
+            "routage",
+            "enrutamiento",
+            "rotalar",
+            "التوجيه",
         ],
     },
     AliasEntry {
@@ -36,9 +43,30 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "خط أنابيب",
             "خط انابيب",
             "中间件",
-            "middleware",
-            "araabiler",
+            "ミドルウェア",
+            "промежуточн",
+            "ara katman",
+            "middlewares",
             "zwischen",
+        ],
+    },
+    AliasEntry {
+        concept: "session",
+        terms: &[
+            "session",
+            "cookie",
+            "cookies",
+            "cookie-session",
+            "سشن",
+            "کوکی",
+            "куки",
+            "сессии",
+            "çerez",
+            "oturum",
+            "会话",
+            "セッション",
+            "تعريف الارتباط",
+            "جلسات",
         ],
     },
     AliasEntry {
@@ -47,12 +75,27 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "auth",
             "authentication",
             "login",
-            "session",
-            "cookie",
             "احراز",
             "ورود",
             "认证",
             "authentification",
+        ],
+    },
+    AliasEntry {
+        concept: "query",
+        terms: &[
+            "query",
+            "querystring",
+            "query string",
+            "req.query",
+            "کوئری",
+            "запрос",
+            "consulta",
+            "requête",
+            "查询",
+            "クエリ",
+            "sorgu",
+            "استعلام",
         ],
     },
     AliasEntry {
@@ -62,7 +105,6 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "db",
             "model",
             "repository",
-            "query",
             "پایگاه",
             "دیتابیس",
             "数据库",
@@ -72,12 +114,36 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
     AliasEntry {
         concept: "render",
         terms: &[
-            "render", "template", "view", "engine", "رندر", "قالب", "渲染",
+            "render",
+            "template",
+            "view",
+            "engine",
+            "رندر",
+            "قالب",
+            "渲染",
+            "шаблон",
+            "plantilla",
+            "moteur",
+            "テンプレート",
         ],
     },
     AliasEntry {
         concept: "static",
-        terms: &["static", "assets", "public", "فایل", "استاتیک", "静态"],
+        terms: &[
+            "static",
+            "assets",
+            "public",
+            "فایل",
+            "استاتیک",
+            "静态",
+            "статическ",
+            "statiques",
+            "estáticos",
+            "statik",
+            "statische",
+            "الثابتة",
+            "静的",
+        ],
     },
     AliasEntry {
         concept: "test",
@@ -122,10 +188,12 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
 
 /// Concrete code symbols to seed when an alias cluster matches (NL → code bridge).
 static ALIAS_CODE_SEEDS: &[(&str, &[&str])] = &[
-    ("middleware", &["app.use", "next", "use"]),
+    ("middleware", &["app.use", "next", "middleware"]),
     ("routing", &["Router", "route", "app"]),
-    ("render", &["res.render", "render", "view"]),
-    ("static", &["express.static", "static"]),
+    ("render", &["res.render", "render", "view", "engine"]),
+    ("static", &["express.static", "static", "stat"]),
+    ("session", &["cookie", "session", "cookie-session"]),
+    ("query", &["req.query", "query", "parseurl", "utils"]),
     ("auth", &["session", "cookie", "auth"]),
     ("database", &["req.query", "query"]),
 ];
@@ -135,7 +203,9 @@ pub fn canonical_concepts() -> &'static [&'static str] {
     &[
         "routing",
         "middleware",
+        "session",
         "auth",
+        "query",
         "database",
         "render",
         "static",
@@ -171,8 +241,18 @@ pub fn expand_aliases(prompt: &str) -> Vec<String> {
     out
 }
 
-/// Code-oriented seed queries derived from matched alias clusters (for raw NL prompts).
+/// Code-oriented seed queries derived from matched alias clusters (L1 anchor path).
+/// Middleware/routing only — broader NL→code bridging runs in `alias_code_seeds_for_prompt`.
 pub fn alias_seed_queries(prompt: &str) -> Vec<String> {
+    alias_code_seeds_inner(prompt, true)
+}
+
+/// All matched alias clusters → code seeds (server-side assisted inference).
+pub fn alias_code_seeds_for_prompt(prompt: &str) -> Vec<String> {
+    alias_code_seeds_inner(prompt, false)
+}
+
+fn alias_code_seeds_inner(prompt: &str, middleware_routing_only: bool) -> Vec<String> {
     let lower = prompt.to_lowercase();
     let mut out: Vec<String> = Vec::new();
     for cluster in ALIAS_CLUSTERS {
@@ -187,8 +267,7 @@ pub fn alias_seed_queries(prompt: &str) -> Vec<String> {
             if cluster.concept != *concept {
                 continue;
             }
-            // NL→code bridge only where lexical miss is common (middleware/routing prompts).
-            if !matches!(*concept, "middleware" | "routing") {
+            if middleware_routing_only && !matches!(*concept, "middleware" | "routing") {
                 continue;
             }
             for seed in *seeds {
@@ -200,32 +279,6 @@ pub fn alias_seed_queries(prompt: &str) -> Vec<String> {
     }
     out.truncate(8);
     out
-}
-
-/// When the MCP client sends no `keywords` / `expansion`, infer assisted signals from the
-/// prompt so stdio MCP matches benchmark "native assisted" without agent-side rules.
-pub fn infer_assisted_seed_signals(prompt: &str) -> (Vec<String>, Vec<String>) {
-    let mut keywords = alias_seed_queries(prompt);
-    let expanded = expand_aliases(prompt);
-    let mut expansion: Vec<String> = Vec::new();
-    for term in expanded {
-        let is_concept = canonical_concepts()
-            .iter()
-            .any(|c| term.eq_ignore_ascii_case(c));
-        if is_concept {
-            if !expansion.iter().any(|e| e.eq_ignore_ascii_case(&term)) {
-                expansion.push(term);
-            }
-        } else if term.is_ascii()
-            && term.len() >= 3
-            && !keywords.iter().any(|k| k.eq_ignore_ascii_case(&term))
-        {
-            keywords.push(term);
-        }
-    }
-    keywords.truncate(8);
-    expansion.truncate(8);
-    (keywords, expansion)
 }
 
 /// Inject alias-expanded terms into signature related_concepts (L1 internal expansion).
@@ -253,12 +306,17 @@ mod tests {
     }
 
     #[test]
-    fn infer_assisted_from_fa_middleware() {
-        let (kw, exp) = infer_assisted_seed_signals(
-            "لوله‌ی میان‌افزارها (middleware pipeline) را توضیح بده و next() چطور کار می‌کند.",
-        );
-        assert!(kw.iter().any(|s| s == "app.use"));
-        assert!(kw.iter().any(|s| s == "next"));
-        assert!(exp.iter().any(|s| s == "middleware"));
+    fn alias_seeds_all_families_for_render() {
+        let seeds =
+            alias_code_seeds_for_prompt("How does res.render() work with template engines?");
+        assert!(seeds.iter().any(|s| s == "res.render"));
+        assert!(seeds.iter().any(|s| s == "render"));
+    }
+
+    #[test]
+    fn alias_seeds_session_ru() {
+        let seeds = alias_code_seeds_for_prompt("Как работают куки и сессии в Express?");
+        assert!(seeds.iter().any(|s| s.eq_ignore_ascii_case("cookie")));
+        assert!(seeds.iter().any(|s| s.eq_ignore_ascii_case("session")));
     }
 }

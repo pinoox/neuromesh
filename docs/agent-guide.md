@@ -24,7 +24,7 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 
 ## Default loop
 
-1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). For natural-language or non-English prompts, pass `keywords`, `expansion`, and optional `path_hints` / `entity_types`.
+1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). The server **auto-extracts** English `keywords` and `expansion` by default (v0.8.3+); pass them only to override. Optional: `path_hints` / `entity_types`. Set `auto_extract_keywords: false` for raw semantics.
 2. If `coverage.claim` is `partial` or `no_seed_resolved`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
 3. Check `retrieval.claim` (`insufficient` | `partial` | `likely_sufficient`) — this is a **decision signal**, not ground truth. Prefer acting on `partial` over assuming sufficiency. Use `retrieval.suggested_keywords` when present.
 4. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).

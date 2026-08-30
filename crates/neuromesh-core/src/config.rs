@@ -293,7 +293,18 @@ impl Config {
                 self.graph_backend.backend = backend;
             }
         }
+        if let Ok(raw) = std::env::var("NEUROMESH_AUTO_EXTRACT_KEYWORDS") {
+            self.seed_resolution.auto_extract_keywords = Self::parse_env_bool(&raw, true);
+        }
         self
+    }
+
+    fn parse_env_bool(raw: &str, default: bool) -> bool {
+        match raw.trim().to_lowercase().as_str() {
+            "0" | "false" | "no" | "off" => false,
+            "1" | "true" | "yes" | "on" => true,
+            _ => default,
+        }
     }
 
     pub fn with_port(mut self, port: u16) -> Self {

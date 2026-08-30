@@ -9,6 +9,7 @@ repository.workspace = true
 neuromesh-core = { path = "../neuromesh-core" }
 neuromesh-graph = { path = "../neuromesh-graph" }
 neuromesh-task = { path = "../neuromesh-task" }
+neuromesh-parser = { path = "../neuromesh-parser" }
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true

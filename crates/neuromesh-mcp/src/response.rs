@@ -209,6 +209,7 @@ pub struct ContextBuild<'a> {
     pub vs_selected: f32,
     pub elapsed_ms: u64,
     pub index_meta: neuromesh_core::IndexMeta,
+    pub server_inferred_keywords: bool,
 }
 
 impl ContextBuild<'_> {
@@ -243,6 +244,9 @@ impl ContextBuild<'_> {
         }
         if let Some(header) = self.view.packet_header.as_ref() {
             task["packet_header"] = json!(header);
+        }
+        if self.server_inferred_keywords {
+            task["server_inferred_keywords"] = json!(true);
         }
         task
     }

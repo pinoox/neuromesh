@@ -4,7 +4,13 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-Nothing yet.
+### Server-side assisted default (v0.8.3)
+
+- **`get_context_packet`** auto-extracts English code `keywords` and related `expansion` from every prompt server-side (`auto_extract_keywords=true` default). Rule-based pipeline: query-intent packs → alias code seeds → embedded symbols → alias concepts. No LLM required.
+- **FILL-ONLY-MISSING** — client-supplied keywords/expansion are never overwritten; only empty sides are populated.
+- **Opt-out** — `auto_extract_keywords` MCP arg, `seed_resolution.auto_extract_keywords` in config, or `NEUROMESH_AUTO_EXTRACT_KEYWORDS=0`.
+- **Tests** — 60-cell Express matrix inference gate (≥2 gold keyword hits), generic-repo regression, partial-fill precedence.
+- **Docs** — MCP descriptors/protocol, agent-guide, quality benchmark table updated after re-run.
 
 ## 0.8.2 — 2026-08-30
 

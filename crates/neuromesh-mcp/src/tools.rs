@@ -5,9 +5,11 @@ use crate::response::{
     fold_descriptors_from_skeleton, ContextBuild, ResponseDetail,
 };
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
-use neuromesh_context::retrieval::infer_assisted_seed_signals;
+use neuromesh_context::retrieval::apply_auto_extract_keywords;
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
-use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId, TaskSignature};
+use neuromesh_core::{
+    Config, NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId, TaskSignature,
+};
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
 use neuromesh_graph_proxy::{GraphProxySession, ProxySearchContext};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
@@ -269,7 +271,9 @@ impl McpToolHandler {
 
                 let mut signature = TaskSignatureExtractor::extract(&task_desc);
                 apply_client_seed_signals(&mut signature, arguments);
-                apply_server_assisted_defaults(&mut signature, &task_desc);
+                let auto_extract = read_auto_extract_keywords(arguments);
+                let server_inferred =
+                    apply_server_assisted_defaults(&mut signature, &task_desc, auto_extract);
                 if let Ok(episodes) = self
                     .memory_db
                     .find_similar_episodes(&self.graph.project_id(), &task_desc)
@@ -374,6 +378,7 @@ impl McpToolHandler {
                     vs_selected,
                     elapsed_ms,
                     index_meta: self.graph.index_meta(),
+                    server_inferred_keywords: server_inferred,
                 };
 
                 self.emit_telemetry(ToolTelemetry {
@@ -1131,25 +1136,37 @@ fn apply_client_seed_signals(signature: &mut neuromesh_core::TaskSignature, argu
     }
 }
 
-/// Native assisted by default: infer keywords/expansion when the client sends only the task text.
-fn apply_server_assisted_defaults(signature: &mut neuromesh_core::TaskSignature, prompt: &str) {
-    if !signature.client_keywords.is_empty() || !signature.client_expansion.is_empty() {
-        return;
-    }
-    let (keywords, expansion) = infer_assisted_seed_signals(prompt);
-    for kw in keywords {
-        push_unique_normalized(&mut signature.client_keywords, &kw);
-    }
-    for term in expansion {
-        push_unique_normalized(&mut signature.client_expansion, &term);
-    }
+/// Native assisted by default: infer keywords/expansion (FILL-ONLY-MISSING dedupe).
+fn apply_server_assisted_defaults(
+    signature: &mut neuromesh_core::TaskSignature,
+    prompt: &str,
+    enabled: bool,
+) -> bool {
+    apply_auto_extract_keywords(signature, prompt, enabled)
 }
 
-/// Proxy CBM search uses extracted terms — add substantive prompt tokens for NL questions.
+fn read_auto_extract_keywords(arguments: &Value) -> bool {
+    if let Some(v) = arguments.get("auto_extract_keywords") {
+        return read_bool(v, Config::load().seed_resolution.auto_extract_keywords);
+    }
+    Config::load().seed_resolution.auto_extract_keywords
+}
+
+/// Proxy CBM search uses extracted terms — reuse server infer when client fields are sparse.
 fn build_proxy_search_context(signature: &TaskSignature) -> ProxySearchContext {
+    use neuromesh_context::retrieval::infer_assisted_seed_signals;
     use neuromesh_task::{is_prompt_stopword, normalize_prompt_tokens};
 
     let mut ctx = ProxySearchContext::from_task_signature(signature);
+    if signature.client_keywords.is_empty() && signature.client_expansion.is_empty() {
+        let (kw, exp) = infer_assisted_seed_signals(&signature.raw_prompt);
+        for k in kw {
+            push_unique_normalized(&mut ctx.client_keywords, &k);
+        }
+        for e in exp {
+            push_unique_normalized(&mut ctx.client_expansion, &e);
+        }
+    }
     for token in normalize_prompt_tokens(&signature.raw_prompt) {
         if token.len() < 4 || is_prompt_stopword(&token.to_lowercase()) {
             continue;

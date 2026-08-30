@@ -34,7 +34,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "get_context_packet",
             "Get evidence packet",
-            "Return a compact evidence packet by default: packet_id, coverage (claim: no_recorded_gap | bounded | partial | no_seed_resolved; covered, skipped, sidecar_files, unsure, packet_gaps), selected/packet tokens, skeletonized files with optional sidecar:true, fold ids without bodies, and missing seeds only when coverage is partial or no_seed_resolved. no_recorded_gap only when seeds resolve, gaps empty, no sidecars, and packet not budget-truncated. bounded means seeds resolved but connector/sidecar fill or budget cut applied. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as query, task_description, prompt, or task. If the user prompt is in natural language or any non-English language, extract 3–5 core English code terms into keywords, 3–5 related concepts into expansion, and optional path/entity hints.",
+            "Return a compact evidence packet by default: packet_id, coverage (claim: no_recorded_gap | bounded | partial | no_seed_resolved; covered, skipped, sidecar_files, unsure, packet_gaps), selected/packet tokens, skeletonized files with optional sidecar:true, fold ids without bodies, and missing seeds only when coverage is partial or no_seed_resolved. no_recorded_gap only when seeds resolve, gaps empty, no sidecars, and packet not budget-truncated. bounded means seeds resolved but connector/sidecar fill or budget cut applied. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as query, task_description, prompt, or task. The server auto-extracts English code keywords and related expansion by default (auto_extract_keywords=true); client keywords/expansion are optional overrides for NL or multilingual prompts.",
             json!({
                 "type": "object",
                 "properties": {
@@ -57,12 +57,12 @@ pub fn tools_list() -> Vec<Value> {
                     "keywords": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "3–5 core English code terms from natural-language or non-English prompts"
+                        "description": "Optional override: 3–5 core English code terms (server auto-extracts when omitted)"
                     },
                     "expansion": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "3–5 related concepts, synonyms, or lifecycle hooks"
+                        "description": "Optional override: 3–5 related concepts (server auto-extracts when omitted)"
                     },
                     "path_hints": {
                         "type": "array",
@@ -93,6 +93,10 @@ pub fn tools_list() -> Vec<Value> {
                         "type": "string",
                         "enum": ["minimal", "standard", "diagnostic"],
                         "description": "Metadata verbosity (default: minimal). max_quality does not imply more metadata."
+                    },
+                    "auto_extract_keywords": {
+                        "type": "boolean",
+                        "description": "When true (default), server infers keywords/expansion from the prompt for missing sides. Set false for raw semantics."
                     }
                 }
             }),

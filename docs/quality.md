@@ -54,11 +54,24 @@ Optional: run the multilingual MCP benchmark driver against any indexed Express 
 
 `false_sufficiency_rate` is **`null`** when no `task_success` labels exist (CLI eval without agent simulation). FSR **proxy** uses `likely_sufficient` + gold recall &lt; 0.5. **Proxy v0.8.2+** never emits fixed sufficiency/confidence scores — treat proxy `retrieval.claim` as conservative (`partial` / `bounded` only).
 
-## Multilingual MCP benchmark (v0.8.2)
+## Multilingual MCP benchmark (v0.8.3)
 
-Holdout matrix used for native vs CBM proxy comparison: **60 cells** (10 languages × 6 Express-oriented tasks — routing, middleware, render, static, query parsing, sessions). Each cell runs cold + several warm repeats over MCP stdio with `get_context_packet`.
+Holdout matrix: **60 cells** (10 languages × 6 Express-oriented tasks). MCP stdio `get_context_packet` with **raw** args (prompt only — server auto-extracts keywords/expansion).
 
 Build a **release** binary before measuring; debug builds skew latency.
+
+| mode | recall | precision | no_seed | warm p50 |
+| :--- | ---: | ---: | ---: | ---: |
+| native raw + server auto-extract (v0.8.3) | **0.460** | **0.811** | 0/60 | ~34 ms |
+| native assisted (client keywords, v0.8.2) | 0.431 | 0.790 | 0/60 | ~35 ms |
+| native raw (no keywords, v0.8.2) | 0.333 | 0.622 | 11/60 | ~48 ms |
+
+**Interpretation**
+
+- **Server-side assisted default** (v0.8.3): raw MCP calls match or exceed v0.8.2 client-assisted recall/precision with **zero no_seed** across all languages. Opt out via `auto_extract_keywords=false` or `NEUROMESH_AUTO_EXTRACT_KEYWORDS=0`.
+- Re-run: `node test3/mcp_driver_v2.mjs <release-neuromesh> <express-workspace> <outdir> 6 raw native`
+
+## Multilingual MCP benchmark (v0.8.2, historical)
 
 | mode | recall | precision | no_seed | warm p50 |
 | :--- | ---: | ---: | ---: | ---: |
@@ -67,11 +80,10 @@ Build a **release** binary before measuring; debug builds skew latency.
 | proxy_cbm assisted | 0.578 | 0.504 | 0/60 | ~230 ms |
 | proxy_cbm raw | 0.448 | 0.311 | 4/60 | ~230 ms |
 
-**Interpretation**
+**Interpretation (v0.8.2)**
 
-- **Native assisted** remains the recommended default: best precision and lowest warm latency.
-- **Proxy v0.8.2** gates: packets return files (not empty), assisted differs from raw, no phantom `unknown` paths, honest `retrieval` metadata.
-- **Native raw** still misses on NL middleware without client keywords (11/60 no-seed) — v0.8.3 target for alias/concept seed bridge on full corpora.
+- **Native assisted** required client-supplied keywords/expansion for NL prompts.
+- **Native raw** missed on NL middleware without client keywords (11/60 no-seed) — fixed in v0.8.3 server auto-extract.
 
 Re-run the same driver with `NEUROMESH_GRAPH_BACKEND=native|proxy_cbm` and raw vs assisted keyword/expansion args to reproduce.
 

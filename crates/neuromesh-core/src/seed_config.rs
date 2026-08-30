@@ -79,6 +79,8 @@ pub struct SeedResolutionConfig {
     pub max_resolved_seeds: usize,
     pub min_seed_score_threshold: f32,
     pub weights: SeedSignalWeights,
+    /// When true, MCP/CLI infer keywords/expansion from the prompt when the client omits them.
+    pub auto_extract_keywords: bool,
 }
 
 impl Default for SeedResolutionConfig {
@@ -90,6 +92,7 @@ impl Default for SeedResolutionConfig {
             max_resolved_seeds: 5,
             min_seed_score_threshold: 0.3,
             weights: SeedSignalWeights::default(),
+            auto_extract_keywords: true,
         }
     }
 }
