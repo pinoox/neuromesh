@@ -7,6 +7,7 @@ pub mod evaluate;
 pub mod graph;
 pub mod index;
 pub mod init;
+pub mod install;
 pub mod memory;
 pub mod models;
 pub mod monitor;

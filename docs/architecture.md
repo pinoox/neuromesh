@@ -47,7 +47,7 @@ Expect `retrieval.resolution_tier` **`lexical_primary`** on NL prompts unless th
 
 ## Hybrid / deep embed routing (opt-in)
 
-When `engine` is **`hybrid`**, release binaries include **MiniLM multilingual Q** weights (`models/minilm-multilingual-q/`):
+When `engine` is **`hybrid`**, install **MiniLM multilingual Q** first (`neuromesh install embed minilm`):
 
 1. **Index** — hierarchical sidecar v6: file tier at rebuild; symbol tier lazy on query.
 2. **Query** — embed prompt once (semantic LRU for near-duplicates).
@@ -91,7 +91,7 @@ See [graph-proxy.md](graph-proxy.md) and crate `neuromesh-graph-proxy`.
 4. **Safe workspace.** Indexing refuses `$HOME` and drive roots; auto file cap with production-first ordering.
 5. **Local.** MCP over stdio. No hosted service for indexing.
 6. **MCP resilience.** Panicking tools return `-32603` without killing stdio.
-7. **Bundled model.** Release tarballs ship MiniLM weights — no HuggingFace download at install.
+7. **On-demand embed model.** Release tarballs are binary-only; hybrid/deep require `neuromesh install embed minilm` (no HuggingFace auto-download at runtime).
 
 ## Crates
 

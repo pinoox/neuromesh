@@ -6,6 +6,10 @@ license.workspace = true
 repository.workspace = true
 build = "build.rs"
 
+[features]
+default = []
+download = ["dep:reqwest"]
+
 [dependencies]
 neuromesh-core = { path = "../neuromesh-core" }
 fastembed = "6"
@@ -15,6 +19,7 @@ once_cell = "1.21"
 serde.workspace = true
 serde_json.workspace = true
 dirs.workspace = true
+reqwest = { workspace = true, optional = true, features = ["blocking", "default-tls"] }
 
 [dev-dependencies]
 neuromesh-core = { path = "../neuromesh-core" }

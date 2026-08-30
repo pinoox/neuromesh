@@ -56,7 +56,7 @@ When `engine` is `hybrid` or `deep`:
 | :--- | :--- |
 | **Model** | `minilm_multilingual_q` — Paraphrase MiniLM L12 v2 Q |
 | **Dimensions** | hybrid: **256** (matryoshka sidecar); deep: **384** |
-| **Weights** | Bundled in release (`models/minilm-multilingual-q/`) |
+| **Weights** | On-demand: `neuromesh install embed minilm` → `~/.local/share/neuromesh/models/minilm-multilingual-q/` |
 
 ### Hybrid — hierarchical sidecar (v6)
 
@@ -108,12 +108,13 @@ Safety (hybrid lazy writes): concurrent MCP queries serialize sidecar writes; `e
 Sidecar v4/v5 requires `neuromesh embed rebuild` after upgrading to v0.9.0.
 
 ```bash
-neuromesh doctor --embed              # sidecar status + cold warm
-neuromesh doctor --embed --bench      # p50/p95 embed latency
-neuromesh embed prefetch              # warm bundled MiniLM (HF fallback if missing)
+neuromesh doctor --embed              # sidecar status + model install check
+neuromesh doctor --embed --bench      # p50/p95 embed latency (model required)
+neuromesh install embed minilm        # download MiniLM Q (hybrid/deep prerequisite)
+neuromesh embed prefetch              # warm installed MiniLM
 ```
 
-Release tarballs include MiniLM weights; `embed prefetch` only warms or fetches fallback weights.
+Release tarballs ship the binary only; install MiniLM before hybrid/deep.
 
 ---
 

@@ -11,7 +11,7 @@ on:
 
 jobs:
   benchmark:
-    name: Gold eval & MiniLM embed bench (v0.9.0)
+    name: Gold eval (v0.9.0 fast engine)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -23,19 +23,12 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Fetch bundled MiniLM model
-        run: bash scripts/fetch-minilm-model.sh
-
       - name: Build release binary (embeddings)
         run: cargo build --release --bin neuromesh --features embeddings
 
       - name: Gold-task evaluation
         run: |
           ./target/release/neuromesh eval | tee eval_output.txt
-
-      - name: Embed engine bench
-        run: |
-          ./target/release/neuromesh doctor --embed --bench | tee embed_bench_output.txt
 
       - name: Release gates (informational)
         continue-on-error: true
@@ -55,11 +48,6 @@ jobs:
           echo "### Gold eval (\`neuromesh eval\`)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           tail -n 40 eval_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Embed bench (\`doctor --embed --bench\`)" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat embed_bench_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           if [ -f release_gates_output.txt ]; then
             echo "" >> $GITHUB_STEP_SUMMARY

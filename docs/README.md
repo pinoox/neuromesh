@@ -20,4 +20,4 @@ Start with the [README](../README.md) for install and the agent loop.
 
 ## v0.9.0 in one line
 
-**`get_context_packet`** with default **`engine: fast`** — graph routing, prompt only, folded evidence packet. Opt in to **`hybrid`** / **`deep`** for bundled MiniLM. Details: [configuration.md](configuration.md) · [quality.md](quality.md).
+**`get_context_packet`** with default **`engine: fast`** — graph routing, prompt only, folded evidence packet. Opt in to **`hybrid`** / **`deep`** after `neuromesh install embed minilm`. Details: [configuration.md](configuration.md) · [quality.md](quality.md).

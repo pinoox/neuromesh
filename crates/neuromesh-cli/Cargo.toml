@@ -38,6 +38,7 @@ dirs.workspace = true
 default = ["embeddings"]
 embeddings = [
     "dep:neuromesh-embed",
+    "neuromesh-embed/download",
     "neuromesh-graph/embeddings",
     "neuromesh-context/embeddings",
     "neuromesh-mcp/embeddings",

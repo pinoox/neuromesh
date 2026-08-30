@@ -45,7 +45,15 @@ case "${OS}" in
     Darwin*)
         case "${ARCH}" in
             arm64|aarch64) TARGET="darwin-arm64" ;;
-            x86_64) TARGET="darwin-x86_64" ;;
+            x86_64)
+                printf "${YELLOW}Intel Mac (x86_64): no prebuilt release — ONNX Runtime dropped x86_64-apple-darwin prebuilts (ort-sys).${NC}\n"
+                printf "Build from source instead:\n"
+                printf "  ${CYAN}brew install onnxruntime${NC}\n"
+                printf "  ${CYAN}cargo install --path crates/neuromesh-cli --bin neuromesh --features embeddings${NC}\n"
+                printf "  ${CYAN}export ORT_DYLIB_PATH=\"\$(brew --prefix onnxruntime)/lib/libonnxruntime.dylib\"${NC}\n"
+                printf "Or use ${CYAN}engine=fast${NC} (zero-embed) without ONNX. See docs/cli.md#build-from-source\n"
+                exit 1
+                ;;
             *) printf "${RED}Unsupported architecture: ${ARCH}${NC}\n"; exit 1 ;;
         esac
         EXT="tar.gz"
@@ -86,12 +94,6 @@ chmod +x "${TEMP_DIR}/${BINARY_NAME}"
 mv "${TEMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
 ln -sf "${BINARY_NAME}" "${INSTALL_DIR}/nmx"
 
-if [ -d "${TEMP_DIR}/models/minilm-multilingual-q" ]; then
-    mkdir -p "${INSTALL_DIR}/models/minilm-multilingual-q"
-    cp -r "${TEMP_DIR}/models/minilm-multilingual-q/." "${INSTALL_DIR}/models/minilm-multilingual-q/"
-    printf "${GREEN}✓ MiniLM weights bundled next to binary${NC}\n"
-fi
-
 printf "\n${GREEN}${BOLD}✓ Installed: ${INSTALL_DIR}/${BINARY_NAME} (alias: nmx)${NC}\n"
 
 # PATH — append to shell rc when missing
@@ -119,5 +121,5 @@ printf "\n${GREEN}${BOLD}Quick start${NC}\n"
 printf "  1. ${CYAN}neuromesh doctor${NC}       verify install\n"
 printf "  2. ${CYAN}neuromesh connect${NC}     wire Cursor / VS Code / Claude MCP\n"
 printf "  3. ${CYAN}neuromesh index${NC}        index your repo (fast, graph-only)\n"
-printf "  4. ${CYAN}neuromesh config engine hybrid${NC} + ${CYAN}embed rebuild${NC}  optional NL vectors\n"
+printf "  4. ${CYAN}neuromesh install embed minilm${NC} + ${CYAN}config engine hybrid${NC}  optional NL vectors\n"
 printf "  5. ${CYAN}neuromesh monitor${NC}      3D galaxy UI → http://127.0.0.1:8765\n\n"

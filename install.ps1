@@ -77,14 +77,6 @@ Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $BinPath -
 $NmxPath = Join-Path $InstallDir "nmx.exe"
 Install-CliAlias -Source $BinPath -AliasPath $NmxPath
 
-$BundledModels = Join-Path $TempExtract "models\minilm-multilingual-q"
-if (Test-Path $BundledModels) {
-    $DestModels = Join-Path $InstallDir "models\minilm-multilingual-q"
-    New-Item -ItemType Directory -Path $DestModels -Force | Out-Null
-    Copy-Item -Path (Join-Path $BundledModels "*") -Destination $DestModels -Recurse -Force
-    Write-Host "[OK] MiniLM weights bundled next to binary" -ForegroundColor Green
-}
-
 $CargoBinDir = Join-Path $env:USERPROFILE ".cargo\bin"
 if (Test-Path $CargoBinDir) {
     $CargoNm = Join-Path $CargoBinDir "neuromesh.exe"
@@ -114,6 +106,6 @@ Write-Host "`nQuick start:" -ForegroundColor Green
 Write-Host "  1. neuromesh doctor       verify install" -ForegroundColor White
 Write-Host "  2. neuromesh connect      wire Cursor / VS Code / Claude MCP" -ForegroundColor White
 Write-Host "  3. neuromesh index        graph-only (fast engine)" -ForegroundColor White
-Write-Host "  4. neuromesh config engine hybrid + embed rebuild  optional vectors" -ForegroundColor White
+Write-Host "  4. neuromesh config engine hybrid + install embed minilm  optional NL vectors" -ForegroundColor White
 Write-Host "  5. neuromesh monitor      3D galaxy UI -> http://127.0.0.1:8765" -ForegroundColor White
 Write-Host "`nRestart your terminal/IDE for PATH changes.`n" -ForegroundColor Gray

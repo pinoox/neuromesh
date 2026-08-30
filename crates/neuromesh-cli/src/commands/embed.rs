@@ -35,17 +35,15 @@ fn prefetch(args: &[String]) -> Result<()> {
             }
             return Ok(());
         }
+        if !neuromesh_embed::bundled_minilm_available() {
+            return Err(NeuroMeshError::Config(format!(
+                "MiniLM not installed. {}",
+                neuromesh_embed::install_hint()
+            )));
+        }
         if !quiet {
-            if neuromesh_embed::bundled_minilm_available() {
-                if let Some(dir) = neuromesh_embed::resolve_bundled_minilm_dir() {
-                    println!("Bundled MiniLM found at {} — warming…", dir.display());
-                }
-            } else {
-                println!(
-                    "No bundled MiniLM — fetching {} via fastembed (~50–80 MB)…",
-                    cfg.model.as_str()
-                );
-                println!("Tip: run scripts/fetch-minilm-model.sh to bundle weights in-repo.");
+            if let Some(dir) = neuromesh_embed::resolve_bundled_minilm_dir() {
+                println!("MiniLM found at {} — warming…", dir.display());
             }
         }
         let started = Instant::now();
@@ -67,12 +65,19 @@ fn rebuild(args: &[String]) -> Result<()> {
     }
     #[cfg(feature = "embeddings")]
     {
+        if !neuromesh_embed::bundled_minilm_available() {
+            return Err(NeuroMeshError::Config(format!(
+                "MiniLM not installed. {}",
+                neuromesh_embed::install_hint()
+            )));
+        }
         let quiet = args.iter().any(|a| a == "--quiet" || a == "-q");
         let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
         let cfg = Config::load().embeddings;
         if !cfg.enabled {
             return Err(NeuroMeshError::Config(
-                "embeddings disabled — enable in nm.config.json".into(),
+                "embeddings disabled — set engine to hybrid or deep (neuromesh config engine hybrid)"
+                    .into(),
             ));
         }
         let project_name = current_dir
@@ -117,7 +122,8 @@ fn rebuild(args: &[String]) -> Result<()> {
 
 fn print_help() {
     println!("\nUsage:");
-    println!("  neuromesh embed prefetch [--quiet]   Warm MiniLM weights");
-    println!("  neuromesh embed rebuild [--quiet]    Build sidecar (hybrid: file tier + lazy symbols; deep: all symbols)");
-    println!("\n  Default index is graph-only; run embed rebuild after first index.\n");
+    println!("  neuromesh install embed minilm         Download MiniLM Q weights (once)");
+    println!("  neuromesh embed prefetch [--quiet]     Warm installed MiniLM");
+    println!("  neuromesh embed rebuild [--quiet]      Build sidecar (hybrid/deep)");
+    println!("\n  Default engine is fast (graph-only). Install MiniLM before hybrid/deep.\n");
 }

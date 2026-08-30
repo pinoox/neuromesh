@@ -25,10 +25,6 @@ jobs:
             target: aarch64-apple-darwin
             artifact_name: neuromesh
             asset_name: neuromesh-darwin-arm64.tar.gz
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact_name: neuromesh
-            asset_name: neuromesh-darwin-x86_64.tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: neuromesh.exe
@@ -48,17 +44,8 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Fetch bundled MiniLM model
-        run: bash scripts/fetch-minilm-model.sh
-
       - name: Build release binaries
         run: cargo build --release --bin neuromesh --target ${{ matrix.target }} --features embeddings
-
-      - name: Verify bundled model packaged
-        shell: bash
-        run: |
-          test -f crates/neuromesh-embed/models/minilm-multilingual-q/model_optimized.onnx
-          test -f crates/neuromesh-embed/models/minilm-multilingual-q/tokenizer.json
 
       - name: Embed crate tests (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -67,12 +54,11 @@ jobs:
       - name: Package Artifact (Unix)
         if: matrix.os != 'windows-latest'
         run: |
-          mkdir -p dist/models/minilm-multilingual-q
+          mkdir -p dist
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/
-          cp -r crates/neuromesh-embed/models/minilm-multilingual-q/* dist/models/minilm-multilingual-q/
           ln -sf ${{ matrix.artifact_name }} dist/nmx
           cd dist
-          tar -czvf ../${{ matrix.asset_name }} neuromesh nmx models
+          tar -czvf ../${{ matrix.asset_name }} neuromesh nmx
           cd ..
           shasum -a 256 ${{ matrix.asset_name }} > ${{ matrix.asset_name }}.sha256
 
@@ -80,11 +66,10 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path dist/models/minilm-multilingual-q -Force | Out-Null
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/nmx.exe
-          Copy-Item -Path crates/neuromesh-embed/models/minilm-multilingual-q/* -Destination dist/models/minilm-multilingual-q/ -Recurse -Force
-          Compress-Archive -Path dist/neuromesh.exe,dist/nmx.exe,dist/models -DestinationPath ${{ matrix.asset_name }} -Force
+          Compress-Archive -Path dist/neuromesh.exe,dist/nmx.exe -DestinationPath ${{ matrix.asset_name }} -Force
           Get-FileHash -Path ${{ matrix.asset_name }} -Algorithm SHA256 | ForEach-Object { $_.Hash + "  " + $_.Path } | Out-File "${{ matrix.asset_name }}.sha256" -Encoding ascii
 
       - name: Upload Artifacts to Workflow

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download MiniLM ONNX + tokenizer into the neuromesh-embed crate (one-time, ~50–80 MB).
+# Optional recovery: download MiniLM ONNX + tokenizer when missing from repo checkout (~50–80 MB).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

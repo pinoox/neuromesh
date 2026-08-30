@@ -161,6 +161,18 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
         println!("  Binary         : embeddings feature not compiled");
         #[cfg(feature = "embeddings")]
         {
+            if neuromesh_embed::bundled_minilm_available() {
+                if let Some(dir) = neuromesh_embed::resolve_bundled_minilm_dir() {
+                    println!("  Model install  : ok ({})", dir.display());
+                } else {
+                    println!("  Model install  : ok");
+                }
+            } else {
+                println!(
+                    "  Model install  : missing ({})",
+                    neuromesh_embed::install_hint()
+                );
+            }
             let sidecar = neuromesh_core::embeddings_path(&root);
             if sidecar.exists() {
                 println!("  Sidecar        : {} (present)", sidecar.display());
@@ -183,42 +195,49 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
                 println!("  Sidecar        : missing (run neuromesh index with embeddings on)");
             }
             if emb.enabled {
-                let cold_start = std::time::Instant::now();
-                match neuromesh_embed::Embedder::warm(emb.clone()) {
-                    Ok(()) => {
-                        println!(
-                            "  Warm load      : ok ({} ms, singleton)",
-                            cold_start.elapsed().as_millis()
-                        );
-                        let sample_start = std::time::Instant::now();
-                        match neuromesh_embed::embed_query_cached(&emb, "doctor probe middleware") {
-                            Ok(vec) => println!(
-                                "  Sample embed   : ok ({} dims, {} ms cached path)",
-                                vec.len(),
-                                sample_start.elapsed().as_millis()
-                            ),
-                            Err(e) => println!("  Sample embed   : failed ({e})"),
+                if !neuromesh_embed::bundled_minilm_available() {
+                    println!("  Warm load      : skipped (install model first)");
+                } else {
+                    let cold_start = std::time::Instant::now();
+                    match neuromesh_embed::Embedder::warm(emb.clone()) {
+                        Ok(()) => {
+                            println!(
+                                "  Warm load      : ok ({} ms, singleton)",
+                                cold_start.elapsed().as_millis()
+                            );
+                            let sample_start = std::time::Instant::now();
+                            match neuromesh_embed::embed_query_cached(
+                                &emb,
+                                "doctor probe middleware",
+                            ) {
+                                Ok(vec) => println!(
+                                    "  Sample embed   : ok ({} dims, {} ms cached path)",
+                                    vec.len(),
+                                    sample_start.elapsed().as_millis()
+                                ),
+                                Err(e) => println!("  Sample embed   : failed ({e})"),
+                            }
                         }
+                        Err(e) => println!("  Model load     : failed ({e})"),
                     }
-                    Err(e) => println!("  Model load     : failed ({e})"),
-                }
-                if embed_bench {
-                    const N: usize = 20;
-                    let mut samples = Vec::with_capacity(N);
-                    for i in 0..N {
-                        neuromesh_embed::packet_cache_begin();
-                        let t0 = std::time::Instant::now();
-                        let _ = neuromesh_embed::embed_query_cached(
-                            &emb,
-                            &format!("bench probe middleware route {i}"),
-                        );
-                        samples.push(t0.elapsed().as_millis() as u64);
-                        neuromesh_embed::packet_cache_end();
+                    if embed_bench {
+                        const N: usize = 20;
+                        let mut samples = Vec::with_capacity(N);
+                        for i in 0..N {
+                            neuromesh_embed::packet_cache_begin();
+                            let t0 = std::time::Instant::now();
+                            let _ = neuromesh_embed::embed_query_cached(
+                                &emb,
+                                &format!("bench probe middleware route {i}"),
+                            );
+                            samples.push(t0.elapsed().as_millis() as u64);
+                            neuromesh_embed::packet_cache_end();
+                        }
+                        samples.sort_unstable();
+                        let p50 = samples[samples.len() / 2];
+                        let p95 = samples[(samples.len() * 95) / 100];
+                        println!("  Bench ({N} queries) : p50 {p50} ms, p95 {p95} ms");
                     }
-                    samples.sort_unstable();
-                    let p50 = samples[samples.len() / 2];
-                    let p95 = samples[(samples.len() * 95) / 100];
-                    println!("  Bench ({N} queries) : p50 {p50} ms, p95 {p95} ms");
                 }
             }
         }

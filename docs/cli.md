@@ -4,7 +4,7 @@ Single Cargo binary: **`neuromesh`**. **`nmx`** is a packaging alias (symlink on
 
 ## Install (recommended)
 
-Pre-built release binaries — no Rust toolchain required. Default **`engine: fast`** needs no embed warm at startup; hybrid/deep use bundled MiniLM.
+Pre-built release binaries — no Rust toolchain required. Default **`engine: fast`** needs no embed model; hybrid/deep require **`neuromesh install embed minilm`** first.
 
 ```bash
 # macOS / Linux
@@ -121,6 +121,14 @@ Example `nm.config.json` (copy from `nm.config.example.json`):
 
 Engines: **`fast`** (default) · **`hybrid`** (MiniLM sidecar) · **`deep`** (max quality + dedup).
 
+```bash
+neuromesh install embed list          # catalog + installed models
+neuromesh install embed minilm        # download MiniLM Q (~250 MB, once)
+neuromesh config engine hybrid        # prompts to install if missing
+neuromesh config engine hybrid --install
+neuromesh embed rebuild               # after hybrid/deep + index
+```
+
 Graph backend (`graph_backend.backend`): `native` (default) · `auto` · `proxy_cbm` · `proxy_graphify`. See [graph-proxy.md](graph-proxy.md).
 
 ```bash
@@ -135,9 +143,10 @@ Monitor **Settings → Retrieval Engine / Graph Backend** saves `nm.config.json`
 
 ```bash
 neuromesh doctor
-neuromesh doctor --embed              # embedding sidecar + cold warm
-neuromesh doctor --embed --bench      # p50/p95 warm embed latency
-neuromesh embed prefetch              # warm bundled MiniLM (HF fallback if missing)
+neuromesh doctor --embed              # sidecar + model install status
+neuromesh doctor --embed --bench      # p50/p95 (requires installed model)
+neuromesh install embed minilm        # download MiniLM Q (hybrid/deep prerequisite)
+neuromesh embed prefetch              # warm installed MiniLM
 neuromesh index
 neuromesh optimize -- "How does handle_tool_call extract intent?"
 neuromesh eval
@@ -215,3 +224,5 @@ cargo build --release -p neuromesh-cli --features embeddings
 ```
 
 Release zips and `install.sh` / `install.ps1` ship both `neuromesh` and `nmx` as the same binary (symlink or hard link). `cargo install … --bin neuromesh` installs only `neuromesh`; add `nmx` with the link script or a shell alias.
+
+**macOS:** release artifacts are **Apple Silicon (`darwin-arm64`) only**. Intel Mac (`x86_64`) has no prebuilt embed bundle — [ONNX Runtime dropped x86_64 prebuilts](https://github.com/pykeio/ort/issues/556). Install via Homebrew `onnxruntime` + source build, or use `engine=fast` without ONNX.
