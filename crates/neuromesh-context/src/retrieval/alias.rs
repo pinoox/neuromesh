@@ -196,10 +196,69 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "bug",
             "fix",
             "exception",
+            "error handler",
+            "serializer",
             "خطا",
             "باگ",
             "错误",
             "fehler",
+            "错误处理",
+        ],
+    },
+    AliasEntry {
+        concept: "content_type",
+        terms: &[
+            "content-type",
+            "content type",
+            "contenttype",
+            "parser",
+            "mime",
+            "内容类型",
+            "解析器",
+            "Content-Typ",
+            "tipo de contenido",
+            "parseur",
+            "parsing",
+        ],
+    },
+    AliasEntry {
+        concept: "plugin",
+        terms: &[
+            "plugin",
+            "plugins",
+            "encapsulation",
+            "encapsulate",
+            "register plugin",
+            "插件",
+            "Plugin",
+            "complemento",
+            "plug-in",
+        ],
+    },
+    AliasEntry {
+        concept: "validation",
+        terms: &[
+            "validation",
+            "validate",
+            "schema",
+            "ajv",
+            "schemas",
+            "验证",
+            "Validierung",
+            "validación",
+            "валид",
+        ],
+    },
+    AliasEntry {
+        concept: "errors",
+        terms: &[
+            "error handler",
+            "error-handler",
+            "error serializer",
+            "errors",
+            "Fehlerbehandlung",
+            "gestion des erreurs",
+            "错误处理",
         ],
     },
 ];
@@ -227,6 +286,32 @@ static ALIAS_CODE_SEEDS: &[(&str, &[&str])] = &[
         ],
     ),
     ("database", &["req.query", "query"]),
+    (
+        "content_type",
+        &[
+            "addContentTypeParser",
+            "contentTypeParser",
+            "content-type-parser",
+            "contentType",
+        ],
+    ),
+    (
+        "plugin",
+        &["register", "plugin-utils", "encapsulate", "fastify-plugin"],
+    ),
+    (
+        "validation",
+        &["validation", "schemas", "schemaController", "Validator"],
+    ),
+    (
+        "errors",
+        &[
+            "error-handler",
+            "error-serializer",
+            "errors",
+            "setErrorHandler",
+        ],
+    ),
 ];
 
 /// Canonical concept ids from static alias clusters (NL → concept).
@@ -245,6 +330,10 @@ pub fn canonical_concepts() -> &'static [&'static str] {
         "config",
         "refactor",
         "error",
+        "content_type",
+        "plugin",
+        "validation",
+        "errors",
     ]
 }
 
@@ -350,5 +439,15 @@ mod tests {
         let seeds = alias_code_seeds_for_prompt("Как работают куки и сессии в Express?");
         assert!(seeds.iter().any(|s| s.eq_ignore_ascii_case("cookie")));
         assert!(seeds.iter().any(|s| s.eq_ignore_ascii_case("session")));
+    }
+
+    #[test]
+    fn zh_content_type_expands() {
+        let terms = expand_aliases("内容类型解析器如何工作？");
+        assert!(terms.iter().any(|t| t == "content_type" || t == "parser"));
+        let seeds = alias_code_seeds_for_prompt("内容类型解析器如何工作？");
+        assert!(seeds
+            .iter()
+            .any(|s| s.contains("contentType") || s.contains("Parser")));
     }
 }

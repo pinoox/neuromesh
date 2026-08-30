@@ -61,6 +61,33 @@ neuromesh eval --release-gates --calibrate        # dev-split threshold tuning
 
 Optional: run the multilingual MCP benchmark driver against any indexed Express (or similar) workspace and compare JSON summaries release-over-release.
 
+## Fastify external benchmark (test6, v0.9.0)
+
+Holdout matrix: **60 cells** (8 questions × 5 languages) on a Fastify clone. MCP stdio `get_context_packet` with **prompt only**.
+
+| Engine | MCP recall | RAM idle | MCP p50 |
+| :--- | ---: | ---: | ---: |
+| **fast** | **41.7%** | **19 MB** | **30 ms** |
+| hybrid (hierarchical v6) | 38.3% → target ≥ fast | ~644 MB → target ≤ 350 MB | ~88 ms |
+| deep (flat symbol) | re-benchmark after v0.9 flat preset | ~651 MB | ~94 ms |
+
+**Holdout gates** (`ReleaseGateReport::evaluate_fastify_holdout`):
+
+| Gate | `fast` | `hybrid` / `deep` |
+| :--- | :--- | :--- |
+| Recall | ≥ 41% | ≥ 45% |
+| no_seed | ≤ 1 | 0 |
+| embedding_primary rate | ≤ 10% | ≥ 40% |
+
+Fixture: `tests/fixtures/mini-fastify/` (validation, plugin-utils, content-type-parser smoke tasks).
+
+```bash
+neuromesh eval --release-gates --engine hybrid   # built-in + project gold
+cargo test -p neuromesh-context gold_harness_on_fixture_repos -- --nocapture
+```
+
+Re-run external driver: `C:\projects\benchmark\nm_vs_cbm\test6\` (release binary + `embed rebuild` per engine).
+
 ## Multilingual MCP benchmark (historical)
 
 Holdout matrix: **60 cells** (10 languages × 6 Express-oriented tasks). MCP stdio `get_context_packet` with **prompt only** (bundled MiniLM embed-primary — no client keywords).

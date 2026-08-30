@@ -66,7 +66,9 @@ impl RetrievalEngine {
                 emb.hierarchical_index = true;
                 emb.two_stage_enabled = true;
                 emb.coarse_pool_max = 400;
-                emb.optional_dedup_min_cosine = None;
+                emb.file_ann_top_k = 8;
+                emb.file_min_cosine = 0.30;
+                emb.optional_dedup_min_cosine = Some(0.90);
                 emb.module_cluster_enabled = false;
                 if emb.intra_threads.is_none() {
                     emb.intra_threads = Some(2);
@@ -139,7 +141,11 @@ mod tests {
         assert!(emb.enabled);
         assert!(emb.two_stage_enabled);
         assert!(emb.hierarchical_index);
+        assert_eq!(emb.file_ann_top_k, 8);
+        assert!((emb.file_min_cosine - 0.30).abs() < f32::EPSILON);
+        assert_eq!(emb.optional_dedup_min_cosine, Some(0.90));
         assert_eq!(seed.engine, SeedEngineId::SemanticLite);
+        assert!(!seed.auto_extract_keywords);
         assert_eq!(mode, OptimizationMode::Balanced);
     }
 

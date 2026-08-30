@@ -1,0 +1,17 @@
+[[task]]
+id = "validation_schema"
+prompt = "How does JSON schema validation work?"
+gold_files = ["lib/validation.js"]
+expect_seeds_missed = false
+
+[[task]]
+id = "plugin_encapsulation"
+prompt = "How does plugin encapsulation and register work?"
+gold_files = ["lib/plugin-utils.js"]
+expect_seeds_missed = false
+
+[[task]]
+id = "content_type_zh"
+prompt = "内容类型解析器如何工作？"
+gold_files = ["lib/content-type-parser.js"]
+expect_seeds_missed = false

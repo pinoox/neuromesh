@@ -536,6 +536,16 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
+            "mini-fastify",
+            GoldTask {
+                id: "validation_schema".into(),
+                prompt: "How does JSON schema validation work?".into(),
+                gold_files: vec!["lib/validation.js".into()],
+                expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
+            },
+        ),
+        (
             "mini-nest",
             GoldTask {
                 id: "sms_store".into(),

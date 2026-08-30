@@ -4,6 +4,15 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### Retrieval optimization (test6 follow-up)
+
+- **Hybrid preset** — `file_ann_top_k: 8`, `file_min_cosine: 0.30`, optional-file dedup 0.90; coarse-first lazy embed (32 symbols/file, 128 total).
+- **Prompt-only embed engines** — MCP/CLI ignore client `keywords` / `expansion` on `engine: hybrid|deep`; `auto_extract_keywords` applies to **`fast` only**.
+- **Fast lexical clusters** — content-type, plugin, validation, errors alias families (zero-embed `fast` path).
+- **File passage** — file stem in tier-0 passage; stem-matching symbols prioritized.
+- **Precision** — path-stem seed boost; hybrid optional cap 2; light dedup on connector files.
+- **Quality** — `mini-fastify` fixture; Fastify holdout release gates (`evaluate_fastify_holdout`).
+
 ## 0.9.0 — 2026-08-30
 
 ### Unified retrieval engines (Zero-Embed default)

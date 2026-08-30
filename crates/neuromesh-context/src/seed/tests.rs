@@ -5,7 +5,8 @@ mod seed_engine_tests {
     use crate::seed::sink::SeedBuffers;
     use crate::seed::{resolve_engine_id, run_seed_resolution};
     use neuromesh_core::{
-        EmbeddingConfig, ProjectId, SeedEngineId, SeedResolutionConfig, TaskSignature,
+        EmbeddingConfig, OptimizationMode, ProjectId, RetrievalEngine, SeedEngineId,
+        SeedResolutionConfig, TaskSignature,
     };
     use neuromesh_graph::NeuralProjectGraph;
     use neuromesh_task::TaskSignatureExtractor;
@@ -101,6 +102,18 @@ mod seed_engine_tests {
         sig.retrieval_engine_override = Some(neuromesh_core::RetrievalEngine::Fast);
         sig.engine_override = Some(SeedEngineId::Off);
         assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::Off);
+    }
+
+    #[test]
+    fn hybrid_preset_file_ann_and_no_auto_extract() {
+        let mut mode = OptimizationMode::Balanced;
+        let mut seed = SeedResolutionConfig::default();
+        let mut emb = EmbeddingConfig::default();
+        RetrievalEngine::Hybrid.apply_preset(&mut mode, &mut seed, &mut emb);
+        assert_eq!(emb.file_ann_top_k, 8);
+        assert!((emb.file_min_cosine - 0.30).abs() < f32::EPSILON);
+        assert!(!seed.auto_extract_keywords);
+        assert_eq!(seed.engine, SeedEngineId::SemanticLite);
     }
 
     #[test]

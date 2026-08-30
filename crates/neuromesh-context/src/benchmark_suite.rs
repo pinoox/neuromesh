@@ -95,6 +95,51 @@ impl ReleaseGateReport {
         }
     }
 
+    /// Release gates for external Fastify-style 60-cell holdout (test6).
+    pub fn evaluate_fastify_holdout(
+        engine: neuromesh_core::RetrievalEngine,
+        metrics: &EvalSuiteMetrics,
+    ) -> Self {
+        let (recall_min, no_seed_max) = match engine {
+            neuromesh_core::RetrievalEngine::Fast => (0.41_f32, 1usize),
+            neuromesh_core::RetrievalEngine::Hybrid | neuromesh_core::RetrievalEngine::Deep => {
+                (0.45_f32, 0usize)
+            }
+        };
+        let embed_primary_min = if engine == neuromesh_core::RetrievalEngine::Fast {
+            0.0_f32
+        } else {
+            0.40_f32
+        };
+        let embed_primary_max = if engine == neuromesh_core::RetrievalEngine::Fast {
+            0.10_f32
+        } else {
+            1.0_f32
+        };
+        let checklist = vec![
+            ("fastify_recall_min".into(), metrics.recall >= recall_min),
+            (
+                "fastify_no_seed_max".into(),
+                metrics.no_seed_count <= no_seed_max,
+            ),
+            (
+                "fastify_embed_primary_band".into(),
+                metrics.embedding_primary_rate >= embed_primary_min
+                    && metrics.embedding_primary_rate <= embed_primary_max,
+            ),
+            (
+                "no_full_workspace_fallback".into(),
+                metrics.full_workspace_fallback_count == 0,
+            ),
+        ];
+        let passed = checklist.iter().all(|(_, ok)| *ok);
+        Self {
+            passed,
+            metrics: metrics.clone(),
+            checklist,
+        }
+    }
+
     pub fn evaluate_hybrid(metrics: &EvalSuiteMetrics) -> Self {
         let checklist = vec![
             (
@@ -330,6 +375,38 @@ pub fn pareto_frontier(points: &[ParetoPoint]) -> Vec<ParetoPoint> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fastify_holdout_gate_thresholds() {
+        let metrics = EvalSuiteMetrics {
+            recall: 0.42,
+            no_seed_count: 1,
+            embedding_primary_rate: 0.08,
+            full_workspace_fallback_count: 0,
+            ..Default::default()
+        };
+        assert!(
+            ReleaseGateReport::evaluate_fastify_holdout(
+                neuromesh_core::RetrievalEngine::Fast,
+                &metrics
+            )
+            .passed
+        );
+        let hybrid_metrics = EvalSuiteMetrics {
+            recall: 0.46,
+            no_seed_count: 0,
+            embedding_primary_rate: 0.42,
+            full_workspace_fallback_count: 0,
+            ..Default::default()
+        };
+        assert!(
+            ReleaseGateReport::evaluate_fastify_holdout(
+                neuromesh_core::RetrievalEngine::Hybrid,
+                &hybrid_metrics
+            )
+            .passed
+        );
+    }
 
     #[test]
     fn split_distribution() {

@@ -56,7 +56,7 @@ Keep one copy in the repo (for example `AGENTS.md`) and point each IDE at it.
 
 **Default (fast engine):** pass the prompt in any language — server-assisted concept expansion and graph traversal recover symbol seeds. No keyword table.
 
-**Hybrid/deep engines:** same prompt-only workflow; MiniLM sidecar adds embedding-primary recall when needed.
+**Hybrid/deep engines:** same prompt-only workflow; MiniLM sidecar adds embedding-primary recall. Do **not** send `keywords`, `expansion`, or `auto_extract_keywords` — MCP ignores them on embed-primary engines.
 
 Keep one copy in the repo (for example `AGENTS.md`) and point each IDE at it, or duplicate into the client-specific paths below. Prefer **one** shared `AGENTS.md` when several tools share the same git root.
 

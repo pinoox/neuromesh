@@ -99,6 +99,26 @@ pub fn expand_concept_to_code_seeds(concept: &str) -> Vec<String> {
         "database" => vec!["model".into(), "repository".into(), "database".into()],
         "config" => vec!["config".into(), "settings".into(), "env".into()],
         "error" => vec!["error".into(), "exception".into(), "handler".into()],
+        "content_type" => vec![
+            "addContentTypeParser".into(),
+            "contentTypeParser".into(),
+            "content-type-parser".into(),
+        ],
+        "plugin" => vec![
+            "register".into(),
+            "plugin-utils".into(),
+            "encapsulate".into(),
+        ],
+        "validation" => vec![
+            "validation".into(),
+            "schemas".into(),
+            "schemaController".into(),
+        ],
+        "errors" => vec![
+            "error-handler".into(),
+            "error-serializer".into(),
+            "setErrorHandler".into(),
+        ],
         other => identifier_variants(other),
     }
 }

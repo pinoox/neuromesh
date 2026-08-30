@@ -57,12 +57,12 @@ pub fn tools_list() -> Vec<Value> {
                     "keywords": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Optional: English code terms — only for custom lexical/hybrid seed engines"
+                        "description": "Optional English code terms — ignored when retrieval.engine is hybrid or deep (prompt-only embed path)"
                     },
                     "expansion": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Optional: related concepts — only for custom lexical/hybrid seed engines"
+                        "description": "Optional related concepts — ignored when retrieval.engine is hybrid or deep (prompt-only embed path)"
                     },
                     "path_hints": {
                         "type": "array",
@@ -96,7 +96,7 @@ pub fn tools_list() -> Vec<Value> {
                     },
                     "auto_extract_keywords": {
                         "type": "boolean",
-                        "description": "Lexical assist only: infer keywords/expansion from prompt when seed engine is keywords/keywords_expanded/hybrid (ignored on default embed path)"
+                        "description": "Lexical assist for engine fast only: infer keywords/expansion from prompt (ignored on hybrid/deep embed-primary)"
                     }
                 }
             }),

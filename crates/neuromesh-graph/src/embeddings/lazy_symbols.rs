@@ -3,12 +3,13 @@ use crate::embeddings::{
     save_sidecar_atomic, sidecar_lock::with_sidecar_write, EmbeddingIndex, SIDECAR_VERSION,
 };
 use crate::NeuralProjectGraph;
-use neuromesh_core::{EmbeddingConfig, NodeId, NodeType};
+use neuromesh_core::{ContextNode, EmbeddingConfig, NodeId, NodeType};
 use neuromesh_embed::Embedder;
 use std::collections::HashSet;
 use std::path::Path;
 
-const LAZY_SYMBOL_CAP: usize = 64;
+const LAZY_SYMBOL_CAP_PER_FILE: usize = 32;
+const LAZY_SYMBOL_TOTAL_CAP: usize = 128;
 
 fn index_embed_batch_size() -> usize {
     std::env::var("NEUROMESH_EMBED_INDEX_BATCH")
@@ -24,14 +25,38 @@ pub fn lazy_embed_symbols_for_files(
     workspace: &Path,
     config: &EmbeddingConfig,
     file_ids: &[NodeId],
+    prompt: Option<&str>,
 ) -> neuromesh_core::Result<usize> {
     if !config.enabled || !config.hierarchical_index || file_ids.is_empty() {
         return Ok(0);
     }
 
     with_sidecar_write(workspace, || {
-        lazy_embed_symbols_for_files_locked(graph, workspace, config, file_ids)
+        lazy_embed_symbols_for_files_locked(graph, workspace, config, file_ids, prompt)
     })
+}
+
+fn symbol_overlap_score(node: &ContextNode, prompt: &str) -> u32 {
+    let lower = prompt.to_lowercase();
+    let name = node.name.to_lowercase();
+    let mut score = 0u32;
+    if name.len() >= 3 && lower.contains(&name) {
+        score += 3;
+    }
+    for part in name.split(|c: char| !c.is_ascii_alphanumeric()) {
+        if part.len() >= 4 && lower.contains(part) {
+            score += 1;
+        }
+    }
+    if let Some(sig) = node.signature.as_deref() {
+        let sig_l = sig.to_lowercase();
+        for token in lower.split(|c: char| !c.is_alphanumeric()) {
+            if token.len() >= 4 && sig_l.contains(token) {
+                score += 1;
+            }
+        }
+    }
+    score
 }
 
 fn lazy_embed_symbols_for_files_locked(
@@ -39,6 +64,7 @@ fn lazy_embed_symbols_for_files_locked(
     workspace: &Path,
     config: &EmbeddingConfig,
     file_ids: &[NodeId],
+    prompt: Option<&str>,
 ) -> neuromesh_core::Result<usize> {
     let path = neuromesh_core::embeddings_path(workspace);
     let Some(mut sidecar) = crate::embeddings::load_sidecar(&path)? else {
@@ -49,10 +75,13 @@ fn lazy_embed_symbols_for_files_locked(
     }
 
     let dim = config.matryoshka_dim;
-    let mut pending: Vec<(NodeId, u32, String, String)> = Vec::new();
+    let mut pending: Vec<(NodeId, u32, String, String, u32)> = Vec::new();
     let mut seen_files = HashSet::new();
 
     for file_id in file_ids {
+        if pending.len() >= LAZY_SYMBOL_TOTAL_CAP {
+            break;
+        }
         if !seen_files.insert(file_id.clone()) {
             continue;
         }
@@ -65,6 +94,7 @@ fn lazy_embed_symbols_for_files_locked(
         };
         let file_path = file_node.file_path.clone();
 
+        let mut file_pending: Vec<(NodeId, u32, String, String, u32)> = Vec::new();
         for node in graph.nodes_in_file(&file_path) {
             if matches!(
                 node.node_type,
@@ -78,14 +108,19 @@ fn lazy_embed_symbols_for_files_locked(
             let Some(text) = symbol_passage_for_node(&node, config.model) else {
                 continue;
             };
-            pending.push((node.id.clone(), file_row, passage_hash(&text), text));
-            if pending.len() >= LAZY_SYMBOL_CAP {
-                break;
-            }
+            let overlap = prompt.map(|p| symbol_overlap_score(&node, p)).unwrap_or(0);
+            file_pending.push((
+                node.id.clone(),
+                file_row,
+                passage_hash(&text),
+                text,
+                overlap,
+            ));
         }
-        if pending.len() >= LAZY_SYMBOL_CAP {
-            break;
-        }
+        file_pending.sort_by_key(|b| std::cmp::Reverse(b.4));
+        file_pending.truncate(LAZY_SYMBOL_CAP_PER_FILE);
+        pending.extend(file_pending);
+        pending.truncate(LAZY_SYMBOL_TOTAL_CAP);
     }
 
     if pending.is_empty() {
@@ -103,13 +138,13 @@ fn lazy_embed_symbols_for_files_locked(
         let end = (batch_out + batch_size).min(pending.len());
         let chunk: Vec<String> = pending[batch_out..end]
             .iter()
-            .map(|(_, _, _, t)| t.clone())
+            .map(|(_, _, _, t, _)| t.clone())
             .collect();
         let embedded = embedder
             .embed_documents(&chunk)
             .map_err(|e| neuromesh_core::NeuroMeshError::Internal(e.to_string()))?;
 
-        for (vec, (node_id, file_row, hash, _)) in
+        for (vec, (node_id, file_row, hash, _, _)) in
             embedded.into_iter().zip(pending[batch_out..end].iter())
         {
             if vec.len() != dim {
@@ -157,7 +192,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lazy_cap_is_bounded() {
-        assert_eq!(LAZY_SYMBOL_CAP, 64);
+    fn lazy_caps_are_bounded() {
+        assert_eq!(LAZY_SYMBOL_CAP_PER_FILE, 32);
+        assert_eq!(LAZY_SYMBOL_TOTAL_CAP, 128);
     }
 }

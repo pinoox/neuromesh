@@ -71,7 +71,7 @@ get_context_packet(query / task_description / prompt / task)
   → after a successful edit: neuromesh_record_feedback
 ```
 
-Start with `get_context_packet`. Pass the **prompt as written** — any language. Optional: `path_hints`, `entity_types`, `mode`. Do **not** send `keywords` / `expansion` on default **`engine: fast`**; the server expands concepts. Hybrid/deep: same prompt-only workflow. The deprecated alias `neuromesh_get_context` still works for one release.
+Start with `get_context_packet`. Pass the **prompt as written** — any language. Optional: `path_hints`, `entity_types`, `mode`. Do **not** send `keywords` / `expansion` on **`engine: fast`** (server auto-expands) or on **`engine: hybrid|deep`** (MCP ignores them; MiniLM handles NL). The deprecated alias `neuromesh_get_context` still works for one release.
 
 ## Agent rule (recommended)
 

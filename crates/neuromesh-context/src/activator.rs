@@ -353,6 +353,7 @@ impl ContextActivator {
             &mut seed_resolutions,
             8,
         );
+        boost_path_stem_seed_energies(graph, prompt, &mut seed_energies);
 
         if is_style_task(signature) {
             let noise_ids: Vec<NodeId> = seed_energies
@@ -408,6 +409,23 @@ impl ContextActivator {
                 focus_terms.insert(t);
             }
         }
+        let retrieval_engine = signature
+            .retrieval_engine_override
+            .unwrap_or_else(|| neuromesh_core::Config::load().retrieval.engine);
+        if retrieval_engine == neuromesh_core::RetrievalEngine::Fast {
+            use crate::retrieval::alias::expand_aliases;
+            for term in expand_aliases(prompt) {
+                focus_terms.insert(term.to_lowercase());
+            }
+        }
+        for token in prompt.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_') {
+            let t = token.to_lowercase();
+            for part in t.split(['-', '_']) {
+                if part.len() >= 4 {
+                    focus_terms.insert(part.to_string());
+                }
+            }
+        }
 
         let mut selection = select(
             graph,
@@ -421,6 +439,12 @@ impl ContextActivator {
             inject_caller_context(graph, &seed_set, prompt, &mut selection);
         } else {
             restrict_selection_to_call_graph(graph, &seed_set, &mut selection);
+        }
+        let app_cfg = neuromesh_core::Config::load();
+        if app_cfg.retrieval.engine == neuromesh_core::RetrievalEngine::Hybrid
+            && effective_mode == OptimizationMode::Balanced
+        {
+            selection.optional.truncate(2);
         }
         tighten_focused_view_selection(graph, signature, &mut selection);
         let mut skipped_files: Vec<SkippedFile> = Vec::new();
@@ -576,11 +600,9 @@ impl ContextActivator {
                     &mut selection.optional,
                     &mut selection.scores,
                 );
+            }
+            if let Some(threshold) = app_cfg.embeddings.optional_dedup_min_cosine {
                 if selection.optional.len() > 2 {
-                    let threshold = neuromesh_core::Config::load()
-                        .embeddings
-                        .optional_dedup_min_cosine
-                        .unwrap_or(0.93);
                     crate::optional_dedup::dedup_optional_files(
                         graph,
                         &mut selection.optional,
@@ -1949,6 +1971,33 @@ fn prefer_search_seed(
         return ranked_id;
     }
     hit.id
+}
+
+/// Boost seed energy when file path stem aligns with the natural-language prompt.
+fn boost_path_stem_seed_energies(
+    graph: &NeuralProjectGraph,
+    prompt: &str,
+    seed_energies: &mut HashMap<NodeId, f32>,
+) {
+    let prompt_l = prompt.to_lowercase();
+    for (id, energy) in seed_energies.iter_mut() {
+        let Some(node) = graph.get_node(id) else {
+            continue;
+        };
+        let stem = node
+            .file_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if stem.len() >= 4 && prompt_l.contains(&stem) {
+            *energy *= 1.15;
+            continue;
+        }
+        if path_echoes_symbol(&node.file_path, prompt) {
+            *energy *= 1.10;
+        }
+    }
 }
 
 fn unique_file_tokens<'a, I>(items: I) -> usize

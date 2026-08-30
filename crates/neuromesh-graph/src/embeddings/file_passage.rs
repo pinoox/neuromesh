@@ -32,7 +32,17 @@ pub fn file_passage(
         return None;
     }
     let path = file_node.file_path.to_string_lossy().replace('\\', "/");
-    let title = path.clone();
+    let stem = file_node
+        .file_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let title = if stem.is_empty() {
+        path.clone()
+    } else {
+        format!("{path} [{stem}]")
+    };
 
     let doc = file_node
         .doc_summary
@@ -42,7 +52,7 @@ pub fn file_passage(
         .trim();
     let doc_part = truncate_doc_preserving_words(doc, MAX_DOC_CHARS);
 
-    let mut lines = select_symbol_lines(graph, &file_node.file_path);
+    let mut lines = select_symbol_lines(graph, &file_node.file_path, &stem);
     lines.sort_by(|a, b| {
         b.score
             .partial_cmp(&a.score)
@@ -52,7 +62,13 @@ pub fn file_passage(
     lines.truncate(MAX_SYMBOL_LINES);
 
     let mut body = String::new();
+    if !stem.is_empty() {
+        body.push_str(&stem);
+    }
     if !doc_part.is_empty() {
+        if !body.is_empty() {
+            body.push('\n');
+        }
         body.push_str(&doc_part);
     }
     for entry in &lines {
@@ -117,7 +133,7 @@ fn truncate_signature_line(line: &str) -> String {
     }
 }
 
-fn symbol_score(graph: &NeuralProjectGraph, node: &ContextNode) -> f32 {
+fn symbol_score(graph: &NeuralProjectGraph, node: &ContextNode, file_stem: &str) -> f32 {
     let mut score = match node.node_type {
         NodeType::Function | NodeType::Class | NodeType::Component => 10.0,
         NodeType::Api => 9.0,
@@ -125,6 +141,15 @@ fn symbol_score(graph: &NeuralProjectGraph, node: &ContextNode) -> f32 {
         NodeType::Test => 2.0,
         _ => 4.0,
     };
+    if !file_stem.is_empty() {
+        let name_l = node.name.to_lowercase();
+        let stem_l = file_stem.to_lowercase();
+        if name_l == stem_l {
+            score += 8.0;
+        } else if stem_l.contains(&name_l) || name_l.contains(&stem_l) {
+            score += 4.0;
+        }
+    }
     if node
         .doc_summary
         .as_deref()
@@ -163,14 +188,18 @@ fn is_embeddable_symbol(node: &ContextNode) -> bool {
     )
 }
 
-fn select_symbol_lines(graph: &NeuralProjectGraph, file_path: &Path) -> Vec<SymbolLine> {
+fn select_symbol_lines(
+    graph: &NeuralProjectGraph,
+    file_path: &Path,
+    file_stem: &str,
+) -> Vec<SymbolLine> {
     graph
         .nodes_in_file(file_path)
         .into_iter()
         .enumerate()
         .filter(|(_, n)| is_embeddable_symbol(n))
         .map(|(order, node)| SymbolLine {
-            score: symbol_score(graph, &node),
+            score: symbol_score(graph, &node, file_stem),
             order,
             text: format_signature_line(&node),
         })

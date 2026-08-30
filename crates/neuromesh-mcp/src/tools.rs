@@ -280,8 +280,17 @@ impl McpToolHandler {
                 let detail = ResponseDetail::parse(arguments["response_detail"].as_str());
 
                 let mut signature = TaskSignatureExtractor::extract(&task_desc);
-                apply_client_seed_signals(&mut signature, arguments);
-                let auto_extract = read_auto_extract_keywords(arguments);
+                let retrieval_engine = effective_retrieval_engine(&signature);
+                if is_embed_primary_engine(retrieval_engine) {
+                    strip_embed_primary_client_signals(&mut signature);
+                } else {
+                    apply_client_seed_signals(&mut signature, arguments);
+                }
+                let auto_extract = if is_embed_primary_engine(retrieval_engine) {
+                    false
+                } else {
+                    read_auto_extract_keywords(arguments)
+                };
                 let server_inferred =
                     apply_server_assisted_defaults(&mut signature, &task_desc, auto_extract);
                 if requested_mode == neuromesh_core::OptimizationMode::MaxQuality {
@@ -1198,6 +1207,22 @@ fn push_unique_normalized(out: &mut Vec<String>, raw: &str) {
     {
         out.push(normalized);
     }
+}
+
+fn effective_retrieval_engine(signature: &TaskSignature) -> RetrievalEngine {
+    signature
+        .retrieval_engine_override
+        .unwrap_or_else(|| Config::load().retrieval.engine)
+}
+
+fn is_embed_primary_engine(engine: RetrievalEngine) -> bool {
+    matches!(engine, RetrievalEngine::Hybrid | RetrievalEngine::Deep)
+}
+
+/// hybrid/deep: prompt-only — ignore client keywords/expansion (MiniLM handles NL).
+fn strip_embed_primary_client_signals(signature: &mut TaskSignature) {
+    signature.client_keywords.clear();
+    signature.client_expansion.clear();
 }
 
 fn apply_client_seed_signals(signature: &mut neuromesh_core::TaskSignature, arguments: &Value) {

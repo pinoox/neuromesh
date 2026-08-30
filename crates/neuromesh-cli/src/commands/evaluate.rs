@@ -7,9 +7,10 @@ use neuromesh_context::gold::{
 use neuromesh_context::learning_eval::{
     compute_ranking_metrics, dose_response_rank, emitted_paths_from_view,
 };
+use neuromesh_context::retrieval::apply_auto_extract_keywords;
 use neuromesh_context::retrieval::failure::{classify_retrieval_failure, FailureClass};
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
-use neuromesh_core::{OptimizationMode, ProjectId, Result, RetrievalEngine};
+use neuromesh_core::{OptimizationMode, ProjectId, Result, RetrievalEngine, TaskSignature};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
 use neuromesh_task::TaskSignatureExtractor;
@@ -17,6 +18,17 @@ use std::env;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
+
+fn prepare_eval_signature(prompt: &str, engine: RetrievalEngine) -> TaskSignature {
+    let mut signature = TaskSignatureExtractor::extract(prompt);
+    if engine == RetrievalEngine::Fast {
+        let enabled = neuromesh_core::Config::load()
+            .seed_resolution
+            .effective_auto_extract();
+        apply_auto_extract_keywords(&mut signature, prompt, enabled);
+    }
+    signature
+}
 
 pub fn execute(args: &[String]) -> Result<()> {
     let learning_mode = args.iter().any(|a| a == "--learning");
@@ -107,7 +119,7 @@ pub fn execute(args: &[String]) -> Result<()> {
     println!("{}", "-".repeat(118));
 
     for task in &tasks {
-        let signature = TaskSignatureExtractor::extract(&task.prompt);
+        let signature = prepare_eval_signature(&task.prompt, eval_cfg.retrieval.engine);
         for mode in [
             OptimizationMode::MaxSavings,
             OptimizationMode::Balanced,
@@ -156,7 +168,7 @@ pub fn execute(args: &[String]) -> Result<()> {
     if release_gates {
         let mut cells = Vec::new();
         for (i, task) in tasks.iter().enumerate() {
-            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let signature = prepare_eval_signature(&task.prompt, eval_cfg.retrieval.engine);
             let started = Instant::now();
             let view = activator.activate_tiered(&graph, &signature, OptimizationMode::Balanced);
             let ms = started.elapsed().as_millis() as u64;
@@ -304,7 +316,7 @@ pub fn execute(args: &[String]) -> Result<()> {
                         .collect()
                 };
                 for task in tasks {
-                    let signature = TaskSignatureExtractor::extract(&task.prompt);
+                    let signature = prepare_eval_signature(&task.prompt, eval_cfg.retrieval.engine);
                     let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
                     let metrics = evaluate_view(&task, &view, 0);
                     println!(

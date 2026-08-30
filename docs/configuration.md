@@ -64,9 +64,11 @@ When `engine` is `hybrid` or `deep`:
 | :--- | :--- |
 | **Sidecar** | `embeddings.bin` — tier-0 file vectors + lazy tier-1 symbols |
 
-Cold `neuromesh embed rebuild` embeds **one passage per file** (~250 MiniLM passes). Symbol vectors are **lazy**: first query that hits a file batch-embeds up to 64 symbols and persists incrementally.
+Cold `neuromesh embed rebuild` embeds **one passage per file** (~250 MiniLM passes). Symbol vectors are **lazy**: first query that hits a file batch-embeds up to 32 symbols per file (128 total cap) and persists incrementally.
 
-Query flow: **file ANN** (top 4) → **lazy symbol embed** → **symbol subset ANN** + coarse lexical pool → full-ANN fallback.
+Query flow: **coarse pool file union** → **file ANN** (top **8**, min cosine 0.30) → **lazy symbol embed** → **symbol subset ANN** + coarse pool → full-ANN fallback.
+
+**Agent contract:** hybrid/deep are **prompt-only** — MCP ignores client `keywords` / `expansion` / `auto_extract_keywords`. MiniLM handles multilingual NL directly.
 
 ### Deep — full symbol sidecar
 
@@ -81,7 +83,7 @@ Cold `neuromesh embed rebuild` runs MiniLM on **all symbol passages** (slower re
 | Index shape | hierarchical v6 (file + lazy symbol) | flat (all symbols) |
 | Cold rebuild | ~250 file passes | all symbols (~8000+ typical) |
 | Two-stage ANN | on | on |
-| Optional-file dedup | off | on (0.93) |
+| Optional-file dedup | light (0.90) | on (0.93) |
 | Module centroids | off | on |
 | Optimization mode | balanced | max_quality |
 
