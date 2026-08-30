@@ -316,6 +316,19 @@ impl Config {
                 self.embeddings.intra_threads = if n == 0 { None } else { Some(n) };
             }
         }
+        if let Ok(raw) = std::env::var("NEUROMESH_SEMANTIC_CACHE") {
+            self.embeddings.semantic_cache_enabled = Self::parse_env_bool(&raw, true);
+        }
+        if let Ok(raw) = std::env::var("NEUROMESH_OPTIONAL_DEDUP") {
+            let t = raw.trim().to_lowercase();
+            self.embeddings.optional_dedup_min_cosine = if t == "0" || t == "off" || t == "false" {
+                None
+            } else if let Ok(f) = t.parse::<f32>() {
+                Some(f)
+            } else {
+                self.embeddings.optional_dedup_min_cosine
+            };
+        }
         self.embeddings = self.embeddings.clone().normalized();
         self
     }

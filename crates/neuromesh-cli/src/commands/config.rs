@@ -159,6 +159,39 @@ fn print_embeddings_status() -> Result<()> {
     println!("Embed seed cap         : {}", cfg.embeddings.embed_seed_cap);
     println!("Min cosine             : {}", cfg.embeddings.min_cosine);
     println!("Index on build         : {}", cfg.embeddings.index_on_build);
+    println!(
+        "Semantic cache         : {} ({} entries, min cosine {})",
+        if cfg.embeddings.semantic_cache_enabled {
+            "on"
+        } else {
+            "off"
+        },
+        cfg.embeddings.semantic_cache_entries,
+        cfg.embeddings.semantic_cache_min_cosine
+    );
+    println!(
+        "Optional dedup         : {}",
+        cfg.embeddings
+            .optional_dedup_min_cosine
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "off".into())
+    );
+    println!(
+        "Module centroids       : {}",
+        if cfg.embeddings.module_cluster_enabled {
+            "on"
+        } else {
+            "off"
+        }
+    );
+    println!(
+        "Embed intent (General) : {}",
+        if cfg.embeddings.embed_intent_for_general {
+            "on"
+        } else {
+            "off"
+        }
+    );
     if let Ok(raw) = std::env::var("NEUROMESH_EMBEDDINGS") {
         println!("Env NEUROMESH_EMBEDDINGS: {raw}");
     }
@@ -184,6 +217,7 @@ Usage: neuromesh config embeddings [on|off|MODEL] [--global]
 
 Models: minilm_multilingual_q (default), gemma300m_q4 (quality)
 Env    : NEUROMESH_EMBEDDINGS=1, NEUROMESH_EMBED_MODEL=minilm_multilingual_q, NEUROMESH_EMBED_THREADS=4
+         NEUROMESH_SEMANTIC_CACHE=0, NEUROMESH_OPTIONAL_DEDUP=0.93
 Doctor : neuromesh doctor --embed [--bench]
 Build  : cargo build -p neuromesh-cli (embeddings on by default)
 "

@@ -8,6 +8,8 @@ pub mod fold;
 pub mod genetic_optimizer;
 pub mod gold;
 pub mod learning_eval;
+#[cfg(feature = "embeddings")]
+pub mod optional_dedup;
 pub mod packet_analysis;
 pub mod registry;
 pub mod retrieval;

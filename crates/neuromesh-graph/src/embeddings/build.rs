@@ -1,10 +1,74 @@
 use crate::embeddings::{
-    node_type_label, save_sidecar, symbol_sketch, EmbeddingIndex, EmbeddingSidecar, SIDECAR_VERSION,
+    node_type_label, save_sidecar, symbol_sketch, EmbeddingIndex, EmbeddingSidecar, ModuleCentroid,
+    SIDECAR_VERSION,
 };
 use crate::NeuralProjectGraph;
-use neuromesh_core::{EmbeddingConfig, EmbeddingModelId};
+use neuromesh_core::{EmbeddingConfig, EmbeddingModelId, NodeType};
 use neuromesh_embed::{format_document_for_model, Embedder};
+use std::collections::HashMap;
 use std::path::Path;
+
+fn compute_module_centroids(
+    graph: &NeuralProjectGraph,
+    node_ids: &[neuromesh_core::NodeId],
+    vectors: &[f32],
+    dim: usize,
+    enabled: bool,
+) -> Vec<ModuleCentroid> {
+    if !enabled || dim == 0 || node_ids.is_empty() {
+        return Vec::new();
+    }
+    let mut groups: HashMap<String, Vec<Vec<f32>>> = HashMap::new();
+    for (i, node_id) in node_ids.iter().enumerate() {
+        let Some(node) = graph.get_node(node_id) else {
+            continue;
+        };
+        if node.node_type == NodeType::File {
+            continue;
+        }
+        let dir = node
+            .file_path
+            .parent()
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|| ".".into());
+        let start = i * dim;
+        let end = start + dim;
+        if end > vectors.len() {
+            continue;
+        }
+        groups
+            .entry(dir)
+            .or_default()
+            .push(vectors[start..end].to_vec());
+    }
+    groups
+        .into_iter()
+        .filter(|(_, vecs)| vecs.len() >= 2)
+        .map(|(dir, vecs)| {
+            let mut sum = vec![0.0f32; dim];
+            for v in &vecs {
+                for (j, x) in v.iter().enumerate() {
+                    sum[j] += x;
+                }
+            }
+            let n = vecs.len() as f32;
+            for x in &mut sum {
+                *x /= n;
+            }
+            let norm: f32 = sum.iter().map(|x| x * x).sum::<f32>().sqrt();
+            if norm > 0.0 {
+                for x in &mut sum {
+                    *x /= norm;
+                }
+            }
+            ModuleCentroid {
+                dir,
+                vector: sum,
+                symbol_count: vecs.len(),
+            }
+        })
+        .collect()
+}
 
 pub fn graph_digest(graph: &NeuralProjectGraph) -> String {
     use sha2::{Digest, Sha256};
@@ -71,6 +135,13 @@ pub fn rebuild_embeddings(
     };
 
     let digest = graph_digest(graph);
+    let module_centroids = compute_module_centroids(
+        graph,
+        &node_ids,
+        &vectors_flat,
+        config.matryoshka_dim,
+        config.module_cluster_enabled,
+    );
     let sidecar = EmbeddingSidecar {
         version: SIDECAR_VERSION,
         model_id: config.model.as_str().to_string(),
@@ -79,6 +150,7 @@ pub fn rebuild_embeddings(
         graph_digest: digest.clone(),
         node_ids: node_ids.clone(),
         vectors: vectors_flat.clone(),
+        module_centroids: module_centroids.clone(),
     };
     let path = neuromesh_core::embeddings_path(workspace);
     save_sidecar(&path, &sidecar)?;
@@ -90,6 +162,7 @@ pub fn rebuild_embeddings(
         graph_digest: digest,
         node_ids,
         vectors: vectors_flat,
+        module_centroids,
     })
 }
 

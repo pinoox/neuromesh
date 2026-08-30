@@ -1,15 +1,21 @@
 use crate::graph_proxy::proxy_evidence_response;
 use crate::packet_cache::PacketDetailCache;
 use crate::response::{
-    cache_and_build, collect_file_entries, collect_symbols, explain_packet,
-    fold_descriptors_from_skeleton, ContextBuild, ResponseDetail,
+    apply_semantic_cache_hit, cache_and_build, collect_file_entries, collect_symbols,
+    explain_packet, fold_descriptors_from_skeleton, ContextBuild, ResponseDetail,
 };
+#[cfg(feature = "embeddings")]
+use crate::semantic_cache::McpSemanticCache;
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::retrieval::apply_auto_extract_keywords;
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
 use neuromesh_core::{
     Config, NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId, TaskSignature,
 };
+#[cfg(feature = "embeddings")]
+use neuromesh_embed::{embed_query_cached, packet_cache_begin, packet_cache_end, SemanticCacheKey};
+#[cfg(feature = "embeddings")]
+use neuromesh_graph::graph_digest;
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
 use neuromesh_graph_proxy::{GraphProxySession, ProxySearchContext};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
@@ -31,6 +37,8 @@ pub struct McpToolHandler {
     working_memory: Arc<parking_lot::RwLock<WorkingMemory>>,
     mycelium: Arc<MyceliumCache>,
     packet_cache: PacketDetailCache,
+    #[cfg(feature = "embeddings")]
+    semantic_cache: McpSemanticCache,
     client_id: RwLock<Option<String>>,
     /// External graph MCP (CBM/Graphify). None = native only.
     graph_proxy: RwLock<Option<Arc<tokio::sync::Mutex<GraphProxySession>>>>,
@@ -88,6 +96,8 @@ impl McpToolHandler {
             working_memory,
             mycelium: Arc::new(MyceliumCache::new(MyceliumConfig::default())),
             packet_cache: PacketDetailCache::new(),
+            #[cfg(feature = "embeddings")]
+            semantic_cache: McpSemanticCache::default(),
             client_id: RwLock::new(None),
             graph_proxy: RwLock::new(None),
             graph_proxy_fallback_native: RwLock::new(true),
@@ -330,6 +340,56 @@ impl McpToolHandler {
                     }
                 }
 
+                #[cfg(feature = "embeddings")]
+                let mut semantic_query_vec: Option<Vec<f32>> = None;
+                #[cfg(feature = "embeddings")]
+                {
+                    let emb_cfg = Config::load().embeddings;
+                    if emb_cfg.enabled && emb_cfg.semantic_cache_enabled {
+                        packet_cache_begin();
+                        if let Ok(query_vec) = embed_query_cached(&emb_cfg, &task_desc) {
+                            semantic_query_vec = Some(query_vec.clone());
+                            let cache_key = SemanticCacheKey {
+                                graph_generation: self.graph.generation(),
+                                graph_digest: graph_digest(&self.graph),
+                                model: emb_cfg.model,
+                                dim: emb_cfg.matryoshka_dim,
+                                project_id: self.graph.project_id().0.clone(),
+                            };
+                            if let Some(hit) = self.semantic_cache.lookup(
+                                &cache_key,
+                                &query_vec,
+                                emb_cfg.semantic_cache_min_cosine,
+                            ) {
+                                packet_cache_end();
+                                let new_id = PacketDetailCache::new_packet_id();
+                                let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                                self.emit_telemetry(ToolTelemetry {
+                                    tokens_before: hit.details.workspace_tokens,
+                                    tokens_after: hit.details.tokens_packet,
+                                    token_reduction_pct: 0.0,
+                                    nodes_after: hit.details.files.len(),
+                                    latency_ms: elapsed_ms,
+                                    cache_hit: true,
+                                    ..ToolTelemetry::new(
+                                        "mcp",
+                                        task_desc.chars().take(50).collect::<String>(),
+                                        hit.details.effective_mode.clone(),
+                                    )
+                                });
+                                return Ok(apply_semantic_cache_hit(
+                                    &self.packet_cache,
+                                    &self.graph.project_id().0,
+                                    hit.response,
+                                    hit.details,
+                                    new_id,
+                                ));
+                            }
+                        }
+                        packet_cache_end();
+                    }
+                }
+
                 let view =
                     self.activator
                         .activate_tiered(&self.graph, &signature, gate.effective_mode);
@@ -394,12 +454,41 @@ impl McpToolHandler {
                     )
                 });
 
-                Ok(cache_and_build(
-                    &self.packet_cache,
-                    &self.graph.project_id().0,
-                    &build,
-                    detail,
-                ))
+                Ok({
+                    let value = cache_and_build(
+                        &self.packet_cache,
+                        &self.graph.project_id().0,
+                        &build,
+                        detail,
+                    );
+                    #[cfg(feature = "embeddings")]
+                    {
+                        let emb_cfg = Config::load().embeddings;
+                        if emb_cfg.enabled && emb_cfg.semantic_cache_enabled {
+                            if let Some(query_vec) = semantic_query_vec
+                                .or_else(|| embed_query_cached(&emb_cfg, &task_desc).ok())
+                            {
+                                let cache_key = SemanticCacheKey {
+                                    graph_generation: self.graph.generation(),
+                                    graph_digest: graph_digest(&self.graph),
+                                    model: emb_cfg.model,
+                                    dim: emb_cfg.matryoshka_dim,
+                                    project_id: self.graph.project_id().0.clone(),
+                                };
+                                let details = build.to_details();
+                                self.semantic_cache.insert(
+                                    emb_cfg.semantic_cache_entries,
+                                    cache_key,
+                                    query_vec,
+                                    value.clone(),
+                                    details,
+                                    detail,
+                                );
+                            }
+                        }
+                    }
+                    value
+                })
             }
 
             // 2b. Expand a packet gap file (cheap skeleton, no blind Grep)

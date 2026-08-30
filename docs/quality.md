@@ -73,7 +73,10 @@ Build a **release** binary before measuring; debug builds skew latency.
 
 ### Sketch enrichment (v0.8.5+)
 
-Index-time symbol sketches include signature + leading doc comment (`doc_summary`); sidecar **v2**. ANN pool `ann_top_k: 16`, seed insert cap `embed_seed_cap: 4` — no reranker on hot path. **Re-index required** after upgrade.
+Index-time symbol sketches include signature + leading doc comment (`doc_summary`); sidecar **v3** (directory centroids). ANN pool `ann_top_k: 16`, seed insert cap `embed_seed_cap: 4` — no reranker on hot path. **Re-index required** after upgrade.
+
+| Semantic cache hit (MCP) | ~0 ms activation (embed only on miss) |
+| Optional dedup token savings | ~5–15% optional tokens on large packets (when enabled) |
 
 | Gate | Target |
 | :--- | :--- |

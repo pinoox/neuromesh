@@ -149,11 +149,18 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
                 println!("  Sidecar        : {} (present)", sidecar.display());
                 if let Ok(Some(sc)) = neuromesh_graph::load_sidecar(&sidecar) {
                     println!(
-                        "  Vectors        : {} symbols × {} dims (gen {})",
+                        "  Vectors        : {} symbols × {} dims (gen {}, sidecar v{})",
                         sc.node_ids.len(),
                         sc.dim,
-                        sc.graph_generation
+                        sc.graph_generation,
+                        sc.version
                     );
+                    if !sc.module_centroids.is_empty() {
+                        println!(
+                            "  Module clusters: {} directory centroids",
+                            sc.module_centroids.len()
+                        );
+                    }
                 }
             } else {
                 println!("  Sidecar        : missing (run neuromesh index with embeddings on)");

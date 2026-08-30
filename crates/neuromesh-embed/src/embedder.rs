@@ -148,9 +148,11 @@ impl Embedder {
         if !config.enabled {
             return Ok(());
         }
-        let arc = Self::lazy_global(config)?;
+        let arc = Self::lazy_global(config.clone())?;
         let mut embedder = arc.lock();
         let _ = embedder.embed_query("neuromesh warmup")?;
+        drop(embedder);
+        crate::intent_prototypes::warm_intent_prototypes(&config)?;
         Ok(())
     }
 

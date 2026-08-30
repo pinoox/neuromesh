@@ -1734,6 +1734,8 @@ dependencies = [
  "neuromesh-core",
  "once_cell",
  "parking_lot",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -1805,6 +1807,7 @@ dependencies = [
  "neuromesh-cache",
  "neuromesh-context",
  "neuromesh-core",
+ "neuromesh-embed",
  "neuromesh-graph",
  "neuromesh-graph-proxy",
  "neuromesh-index",

@@ -4,7 +4,7 @@ use neuromesh_core::{
 };
 use neuromesh_router::OsmoticMembraneState;
 use parking_lot::Mutex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::ops::Range;
@@ -14,7 +14,7 @@ const MAX_PACKETS: usize = 32;
 const TTL: Duration = Duration::from_secs(600);
 const MAX_BYTES: usize = 1024 * 1024;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PacketBudgetSnapshot {
     pub used: usize,
     pub cap: usize,
@@ -25,7 +25,7 @@ pub struct PacketBudgetSnapshot {
     pub over_budget: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileSelectionMeta {
     pub path: String,
     pub why: Option<String>,
@@ -35,7 +35,7 @@ pub struct FileSelectionMeta {
     pub folds: Vec<FoldDescriptor>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PacketDetails {
     pub packet_id: String,
     pub seeds: Vec<SeedResolution>,

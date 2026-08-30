@@ -49,6 +49,16 @@ pub struct EmbeddingConfig {
     pub index_on_build: bool,
     /// ONNX Runtime intra-op threads (`None` = all cores). Default 4 for laptop hybrid CPUs.
     pub intra_threads: Option<usize>,
+    /// MCP semantic prompt LRU cache (near-duplicate prompts).
+    pub semantic_cache_enabled: bool,
+    pub semantic_cache_entries: usize,
+    pub semantic_cache_min_cosine: f32,
+    /// Drop optional files with cosine >= threshold to a kept file (`None` = off).
+    pub optional_dedup_min_cosine: Option<f32>,
+    /// Index-time directory centroids in sidecar.
+    pub module_cluster_enabled: bool,
+    /// Refine rule-based General intent via embedding prototypes (opt-in).
+    pub embed_intent_for_general: bool,
 }
 
 impl Default for EmbeddingConfig {
@@ -63,6 +73,12 @@ impl Default for EmbeddingConfig {
             min_cosine: 0.45,
             index_on_build: true,
             intra_threads: Some(4),
+            semantic_cache_enabled: true,
+            semantic_cache_entries: 16,
+            semantic_cache_min_cosine: 0.96,
+            optional_dedup_min_cosine: Some(0.93),
+            module_cluster_enabled: true,
+            embed_intent_for_general: false,
         }
     }
 }

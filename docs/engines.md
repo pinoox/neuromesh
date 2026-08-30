@@ -74,13 +74,22 @@ neuromesh doctor --embed --bench            # p50/p95 warm embed (20 queries)
 neuromesh index                             # writes embeddings.bin when enabled
 ```
 
-Index writes `embeddings.bin` beside `graph.bin` (**sidecar v2**). **Re-index after upgrade** — sketches now include signature + leading doc comment (Tree-sitter at index time). **Switching models also requires `neuromesh index`** (sidecar stores `model_id`).
+Index writes `embeddings.bin` beside `graph.bin` (**sidecar v3**). **Re-index after upgrade** — v3 adds directory **module centroids** (v2 added doc-enriched sketches). **Switching models also requires `neuromesh index`** (sidecar stores `model_id`).
 
 Query path: embed prompt once per packet → ANN pool (`ann_top_k: 16`) → insert top **`embed_seed_cap: 4`** seeds → **graph-resolve** hits (no reranker, no raw file dump). Lexical keyword fallback runs only when embeddings are disabled or the sidecar is missing.
 
-**Metadata:** `retrieval.resolution_tier` (`embedding_primary`, `L1_exact`, `L2_pattern`, `L3_semantic_recovery`), `retrieval.max_embedding_score`, `coverage: no_confident_match` when nothing clears `min_cosine`.
+### Supplementary MiniLM features (zero extra models)
 
-Env: `NEUROMESH_EMBEDDINGS=0` to disable, `NEUROMESH_EMBED_MODEL=minilm_multilingual_q|gemma300m_q4`, `NEUROMESH_EMBED_THREADS=4` (ONNX intra-op threads; useful on Intel hybrid CPUs).
+| Feature | Config | Default | Effect |
+| :--- | :--- | :--- | :--- |
+| **Semantic prompt cache** | `semantic_cache_enabled`, `semantic_cache_entries`, `semantic_cache_min_cosine` | on, 16, 0.96 | Near-duplicate MCP prompts skip full activation; `retrieval.cache_hit: true` |
+| **Optional-file dedup** | `optional_dedup_min_cosine` (`None` = off) | 0.93 | Drop redundant optional files by sidecar cosine; test/mock paths exempt |
+| **Module centroids** | `module_cluster_enabled` | on | Index-time directory clusters; small optional routing bonus |
+| **Embed intent (General)** | `embed_intent_for_general` | off | Refine rule-based `General` intent via prototype embeddings |
+
+**Metadata:** `retrieval.resolution_tier` (`embedding_primary`, `L1_exact`, `L2_pattern`, `L3_semantic_recovery`), `retrieval.max_embedding_score`, `retrieval.cache_hit`, `coverage: no_confident_match` when nothing clears `min_cosine`.
+
+Env: `NEUROMESH_EMBEDDINGS=0` to disable, `NEUROMESH_EMBED_MODEL=minilm_multilingual_q|gemma300m_q4`, `NEUROMESH_EMBED_THREADS=4` (ONNX intra-op threads; useful on Intel hybrid CPUs), `NEUROMESH_SEMANTIC_CACHE=0`, `NEUROMESH_OPTIONAL_DEDUP=0.93|off`.
 
 ---
 

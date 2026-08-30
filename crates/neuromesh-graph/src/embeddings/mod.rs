@@ -4,7 +4,9 @@ mod sketch;
 #[cfg(feature = "embeddings")]
 mod build;
 
-pub use sidecar::{load_sidecar, save_sidecar, EmbeddingIndex, EmbeddingSidecar, SIDECAR_VERSION};
+pub use sidecar::{
+    load_sidecar, save_sidecar, EmbeddingIndex, EmbeddingSidecar, ModuleCentroid, SIDECAR_VERSION,
+};
 pub use sketch::{node_type_label, symbol_sketch};
 
 #[cfg(feature = "embeddings")]

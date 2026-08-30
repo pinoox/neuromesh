@@ -85,6 +85,7 @@ impl RetrievalOrchestrator {
             ),
             max_embedding_score:
                 crate::retrieval::embedding_confidence::max_embedding_score_from_seeds(&view.seeds),
+            cache_hit: false,
         });
 
         view

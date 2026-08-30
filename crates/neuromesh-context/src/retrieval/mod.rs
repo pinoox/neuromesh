@@ -12,6 +12,8 @@ pub mod impact;
 pub mod orchestrator;
 pub mod patterns;
 pub mod query_intent;
+#[cfg(feature = "embeddings")]
+pub mod query_intent_embed;
 pub mod server_assisted;
 pub mod sufficiency;
 pub mod task_profile;

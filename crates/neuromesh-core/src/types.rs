@@ -434,6 +434,13 @@ pub struct RetrievalMetadata {
     /// Best embedding cosine among resolved seeds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_embedding_score: Option<f32>,
+    /// True when MCP returned a semantically cached packet (near-duplicate prompt).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub cache_hit: bool,
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -522,6 +529,7 @@ pub enum EmissionDropStage {
     FillCap,
     PacketCap,
     NoiseFilter,
+    SemanticDuplicate,
     NotSelected,
 }
 
@@ -538,6 +546,7 @@ impl EmissionDropStage {
             Self::FillCap => "fill_cap",
             Self::PacketCap => "packet_cap",
             Self::NoiseFilter => "noise_filter",
+            Self::SemanticDuplicate => "semantic_duplicate",
             Self::NotSelected => "not_selected",
         }
     }

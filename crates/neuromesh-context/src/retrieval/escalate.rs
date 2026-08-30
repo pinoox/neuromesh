@@ -4,6 +4,7 @@ use crate::activator::ContextActivator;
 use crate::retrieval::budget::RetrievalBudget;
 use crate::retrieval::embedding_confidence::{is_embedding_reason, low_embedding_confidence};
 use crate::retrieval::patterns::pattern_expand;
+#[cfg(not(feature = "embeddings"))]
 use crate::retrieval::query_intent::QueryPlan;
 use crate::retrieval::sufficiency::{SufficiencyEstimate, SufficiencyEstimator};
 use crate::retrieval::tier::RetrievalTier;
@@ -29,9 +30,15 @@ pub fn run_incremental(
     budget: &RetrievalBudget,
     estimator: &SufficiencyEstimator,
 ) -> EscalationResult {
+    let embedding_config = Config::load().embeddings.clone();
+    #[cfg(feature = "embeddings")]
+    let plan = crate::retrieval::query_intent_embed::from_signature_with_embeddings(
+        signature,
+        &embedding_config,
+    );
+    #[cfg(not(feature = "embeddings"))]
     let plan = QueryPlan::from_signature(signature);
     let configured_engine = Config::load().seed_resolution.engine;
-    let embedding_config = Config::load().embeddings.clone();
     let mut levels_attempted: Vec<String> = Vec::new();
     let mut latency_ms: HashMap<String, u64> = HashMap::new();
 

@@ -551,6 +551,29 @@ impl ContextActivator {
             &focus_terms,
             &thresholds,
         );
+        #[cfg(feature = "embeddings")]
+        {
+            let emb_cfg = neuromesh_core::Config::load().embeddings;
+            if emb_cfg.module_cluster_enabled {
+                crate::optional_dedup::apply_module_cluster_bonus(
+                    graph,
+                    &seed_set,
+                    &mut selection.optional,
+                    &mut selection.scores,
+                );
+            }
+            if let Some(threshold) = emb_cfg.optional_dedup_min_cosine {
+                if selection.optional.len() > 2 {
+                    crate::optional_dedup::dedup_optional_files(
+                        graph,
+                        &mut selection.optional,
+                        &selection.scores,
+                        &mut emission,
+                        threshold,
+                    );
+                }
+            }
+        }
         if !call_graph_task {
             EmissionPipeline::ensure_learned_emission(
                 graph,

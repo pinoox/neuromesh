@@ -4,6 +4,13 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### MiniLM supplementary features (v0.8.5+)
+
+- **Semantic prompt LRU cache** — MCP caches recent packet responses keyed by graph generation/digest + embedding model; near-duplicate prompts return instantly with fresh `packet_id` and `retrieval.cache_hit: true`.
+- **Optional-file cosine dedup** — drops redundant optional files when sidecar mean-vector cosine ≥ `optional_dedup_min_cosine` (default 0.93); skipped when ≤2 optionals; test/mock paths exempt.
+- **Module centroids (sidecar v3)** — index-time directory-level embedding clusters; small selector bonus; re-index required.
+- **Embed intent for General (opt-in)** — `embed_intent_for_general: false` by default; prototype phrases warmed at MCP startup when enabled.
+
 ### Sketch enrichment + embed trim (v0.8.5+)
 
 - **Index-time sketches** — Tree-sitter extracts leading doc comment / docstring (TS, Rust, Python, PHP) into `doc_summary` on graph nodes; embedding passages include signature + doc (sidecar **v2** — re-index required).
