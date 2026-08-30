@@ -4,14 +4,14 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.9.0 — 2026-08-30
+
 ### On-demand embed model install
 
 - **Release binaries** — no longer ship `models/minilm-multilingual-q/` (~250 MB lighter download).
 - **`neuromesh install embed minilm`** — download MiniLM Q to `~/.local/share/neuromesh/models/` (Windows: `%LOCALAPPDATA%\neuromesh\models\`).
 - **`neuromesh config engine hybrid|deep`** — prompts to install when model missing; `--install` / `--yes` downloads in one step.
 - **No runtime HF fallback** — hybrid/deep require an explicit install; `fast` unchanged (no ONNX).
-
-## 0.9.0 — 2026-08-30
 
 ### Retrieval phase 2.1 (TEAM_REVIEW fixes)
 
