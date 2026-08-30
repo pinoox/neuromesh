@@ -49,9 +49,19 @@ Multilingual vector seed resolution when `engine` is `hybrid` or `deep`.
 | **Model** | `minilm_multilingual_q` — Paraphrase MiniLM L12 v2 Q |
 | **Dimensions** | 384 (matryoshka) |
 | **Weights** | Bundled in release (`models/minilm-multilingual-q/`) |
-| **Sidecar** | v5 Int8 (`embeddings.bin`) |
+| **Sidecar** | **v6 hierarchical** — tier-0 file vectors + lazy tier-1 symbols (`embeddings.bin`) |
 
-Query path (hybrid/deep): embed prompt once → two-stage ANN → graph-resolve → fold packet.
+### Hierarchical index (v6, hybrid/deep)
+
+Cold `neuromesh embed rebuild` embeds **one passage per file** (~250 MiniLM passes) instead of every symbol (~8000). Symbol vectors are **lazy**: first query that hits a file batch-embeds up to 64 symbols and persists incrementally.
+
+Query flow: **file ANN** (top 4) → **lazy symbol embed** → **symbol subset ANN** + coarse lexical pool → full-ANN fallback. Physarum bridging is unchanged.
+
+Safety: concurrent MCP queries serialize sidecar writes via a per-workspace lock; `embeddings.bin` is replaced atomically (temp + rename).
+
+File passages preserve full docstrings (≤480 chars) and complete signatures (≤16 lines, no mid-signature chop). Rebuild required when upgrading from sidecar v4/v5.
+
+Query path (hybrid/deep): embed prompt once → hierarchical ANN → graph-resolve → fold packet.
 
 | Feature | `hybrid` | `deep` |
 | :--- | :--- | :--- |

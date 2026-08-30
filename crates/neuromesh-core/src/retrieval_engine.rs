@@ -63,6 +63,7 @@ impl RetrievalEngine {
             Self::Hybrid => {
                 emb.enabled = true;
                 emb.index_on_build = false;
+                emb.hierarchical_index = true;
                 emb.two_stage_enabled = true;
                 emb.coarse_pool_max = 400;
                 emb.optional_dedup_min_cosine = None;
@@ -77,6 +78,7 @@ impl RetrievalEngine {
             Self::Deep => {
                 emb.enabled = true;
                 emb.index_on_build = false;
+                emb.hierarchical_index = true;
                 emb.two_stage_enabled = true;
                 emb.coarse_pool_max = 400;
                 emb.optional_dedup_min_cosine = Some(0.93);
@@ -136,6 +138,7 @@ mod tests {
         RetrievalEngine::Hybrid.apply_preset(&mut mode, &mut seed, &mut emb);
         assert!(emb.enabled);
         assert!(emb.two_stage_enabled);
+        assert!(emb.hierarchical_index);
         assert_eq!(seed.engine, SeedEngineId::SemanticLite);
         assert_eq!(mode, OptimizationMode::Balanced);
     }

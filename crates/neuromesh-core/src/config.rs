@@ -1,7 +1,6 @@
 use crate::{
     EmbeddingConfig, GraphBackendId, GraphProxyConfig, NeuroMeshError, NmConfigOverlay,
-    PacketHeaderConfig, Result, RetrievalConfig, RetrievalEngine,
-    SeedResolutionConfig,
+    PacketHeaderConfig, Result, RetrievalConfig, RetrievalEngine, SeedResolutionConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;

@@ -65,6 +65,12 @@ pub struct EmbeddingConfig {
     pub two_stage_enabled: bool,
     /// Max coarse candidates before fine ANN (clamped 200–500).
     pub coarse_pool_max: usize,
+    /// File-first sidecar (v6): cold index embeds files; symbols lazy at query.
+    pub hierarchical_index: bool,
+    /// Top file hits before symbol subset ANN.
+    pub file_ann_top_k: usize,
+    /// Cosine floor for tier-0 file ANN.
+    pub file_min_cosine: f32,
 }
 
 impl Default for EmbeddingConfig {
@@ -88,6 +94,9 @@ impl Default for EmbeddingConfig {
             recovery_min_cosine: 0.38,
             two_stage_enabled: true,
             coarse_pool_max: 400,
+            hierarchical_index: false,
+            file_ann_top_k: 4,
+            file_min_cosine: 0.35,
         }
     }
 }

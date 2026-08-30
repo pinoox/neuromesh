@@ -117,6 +117,8 @@ mod seed_engine_tests {
         assert!((cfg.recovery_min_cosine - 0.38).abs() < f32::EPSILON);
         assert!(cfg.two_stage_enabled);
         assert_eq!(cfg.coarse_pool_max, 400);
+        assert!(!cfg.hierarchical_index);
+        assert_eq!(cfg.file_ann_top_k, 4);
     }
 
     #[test]

@@ -94,12 +94,22 @@ fn rebuild(args: &[String]) -> Result<()> {
         neuromesh_graph::rebuild_embeddings_for_workspace(&graph, &current_dir, &cfg)?;
         if !quiet {
             let idx = graph.embedding_index();
-            println!(
-                "Embeddings ready: {} symbols × {} dims ({} ms)",
-                idx.node_ids.len(),
-                idx.dim,
-                started.elapsed().as_millis()
-            );
+            if idx.is_hierarchical() {
+                println!(
+                    "Embeddings ready: sidecar v6 — {} files, {} symbols (lazy tier-1) × {} dims ({} ms)",
+                    idx.file_count(),
+                    idx.symbol_count(),
+                    idx.dim,
+                    started.elapsed().as_millis()
+                );
+            } else {
+                println!(
+                    "Embeddings ready: {} symbols × {} dims ({} ms)",
+                    idx.symbol_count(),
+                    idx.dim,
+                    started.elapsed().as_millis()
+                );
+            }
         }
         Ok(())
     }
@@ -108,6 +118,6 @@ fn rebuild(args: &[String]) -> Result<()> {
 fn print_help() {
     println!("\nUsage:");
     println!("  neuromesh embed prefetch [--quiet]   Warm MiniLM weights");
-    println!("  neuromesh embed rebuild [--quiet]    Build embeddings.bin (incremental v4)");
+    println!("  neuromesh embed rebuild [--quiet]    Build sidecar v6 (files first; symbols lazy)");
     println!("\n  Default index is graph-only; run embed rebuild after first index.\n");
 }

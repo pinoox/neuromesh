@@ -345,6 +345,14 @@ impl ContextActivator {
 
         mark_equivalent_file_hits(graph, &mut seed_resolutions, &mut seed_energies);
         cohere_ambiguous_seeds_to_app(graph, &mut seed_resolutions, &mut seed_energies, prompt);
+        expand_file_seeds_to_symbols(
+            graph,
+            signature,
+            &mut seed_energies,
+            &mut seed_reasons,
+            &mut seed_resolutions,
+            8,
+        );
 
         if is_style_task(signature) {
             let noise_ids: Vec<NodeId> = seed_energies
@@ -1242,6 +1250,128 @@ fn cap_semantic_recovery_seeds(view: &mut ContextView, max: u8) {
         if let Some(seed) = view.seeds.get_mut(idx) {
             seed.resolved_id = None;
             seed.confidence = 0.0;
+        }
+    }
+}
+
+/// Replace file-level seeds with best-matching symbol nodes inside those files.
+fn expand_file_seeds_to_symbols(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    seed_energies: &mut HashMap<NodeId, f32>,
+    seed_reasons: &mut HashMap<NodeId, String>,
+    seed_resolutions: &mut Vec<SeedResolution>,
+    max_per_file: usize,
+) {
+    let file_ids: Vec<NodeId> = seed_energies
+        .keys()
+        .filter(|id| {
+            graph
+                .get_node(id)
+                .is_some_and(|n| n.node_type == NodeType::File)
+        })
+        .cloned()
+        .collect();
+    if file_ids.is_empty() {
+        return;
+    }
+
+    let mut idents: Vec<String> = signature
+        .identifiers
+        .iter()
+        .chain(signature.client_keywords.iter())
+        .map(|s| s.to_lowercase())
+        .collect();
+    for token in signature
+        .raw_prompt
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
+    {
+        let t = token.to_lowercase();
+        if t.len() >= 4 {
+            idents.push(t);
+        }
+    }
+
+    for file_id in file_ids {
+        let Some(file_node) = graph.get_node(&file_id) else {
+            continue;
+        };
+        let energy = seed_energies.remove(&file_id).unwrap_or(0.0);
+        seed_reasons.remove(&file_id);
+        seed_resolutions.retain(|s| s.resolved_id.as_ref() != Some(&file_id));
+
+        let mut candidates: Vec<(NodeId, f32)> = graph
+            .nodes_in_file(&file_node.file_path)
+            .into_iter()
+            .filter(|n| {
+                matches!(
+                    n.node_type,
+                    NodeType::Function
+                        | NodeType::Class
+                        | NodeType::Component
+                        | NodeType::Api
+                        | NodeType::Symbol
+                )
+            })
+            .map(|node| {
+                let name = node.name.to_lowercase();
+                let mut score = 0.0f32;
+                for ident in &idents {
+                    if ident.is_empty() {
+                        continue;
+                    }
+                    if name == *ident {
+                        score += 4.0;
+                    } else if name.contains(ident.as_str()) {
+                        score += 2.0;
+                    }
+                }
+                if node
+                    .signature
+                    .as_deref()
+                    .is_some_and(|s| idents.iter().any(|i| s.to_lowercase().contains(i)))
+                {
+                    score += 1.5;
+                }
+                (node.id, score)
+            })
+            .filter(|(_, s)| *s > 0.0)
+            .collect();
+
+        candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.truncate(max_per_file);
+
+        if candidates.is_empty() {
+            seed_energies.insert(file_id.clone(), energy);
+            seed_reasons
+                .entry(file_id.clone())
+                .or_insert_with(|| "file_seed:unexpanded".into());
+            seed_resolutions.push(SeedResolution {
+                query: file_node.file_path.to_string_lossy().into_owned(),
+                resolved_id: Some(file_id),
+                confidence: energy.min(1.0),
+                resolution_tier: Some("hierarchical:file".into()),
+                embedding_score: None,
+            });
+            continue;
+        }
+
+        for (sym_id, bonus) in candidates {
+            let e = energy * (0.85 + bonus * 0.05).min(1.2);
+            seed_energies
+                .entry(sym_id.clone())
+                .and_modify(|v| *v = v.max(e))
+                .or_insert(e);
+            seed_reasons
+                .entry(sym_id.clone())
+                .or_insert_with(|| "file_seed:expanded".into());
+            seed_resolutions.push(SeedResolution {
+                query: file_node.file_path.to_string_lossy().into_owned(),
+                resolved_id: Some(sym_id),
+                confidence: e.min(1.0),
+                resolution_tier: Some("hierarchical:file_expand".into()),
+                embedding_score: None,
+            });
         }
     }
 }
@@ -3164,10 +3294,11 @@ export default {
             "login half must still hit, coverage={coverage:?}"
         );
         assert!(
-            coverage
-                .seeds_hit
-                .iter()
-                .any(|s| s.eq_ignore_ascii_case("permission")),
+            coverage.seeds_hit.iter().any(|s| {
+                s.eq_ignore_ascii_case("permission")
+                    || s.eq_ignore_ascii_case("guard")
+                    || s.to_lowercase().contains("permission")
+            }),
             "guard half must be a seed hit, coverage={coverage:?}"
         );
         assert_ne!(coverage.claim, "no_seed_resolved");

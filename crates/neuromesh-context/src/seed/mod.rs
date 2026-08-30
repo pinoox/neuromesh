@@ -1,8 +1,8 @@
 use crate::retrieval::concept_seeds::resolve_concept_seeds;
 use crate::retrieval::query_intent::QueryPlan;
 use neuromesh_core::{
-    EmbeddingConfig, OptimizationMode, SeedEngineId, SeedResolutionConfig,
-    SeedResolutionTelemetry, TaskSignature,
+    EmbeddingConfig, OptimizationMode, SeedEngineId, SeedResolutionConfig, SeedResolutionTelemetry,
+    TaskSignature,
 };
 use neuromesh_graph::NeuralProjectGraph;
 use std::time::Instant;
