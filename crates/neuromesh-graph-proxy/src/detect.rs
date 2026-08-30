@@ -132,30 +132,7 @@ fn entry_from_mcp_server(name: &str, entry: &Value, path: &Path) -> Option<Graph
 
 fn entry_from_opencode(name: &str, entry: &Value, path: &Path) -> Option<GraphProxyLaunchSpec> {
     let cmd = entry.get("command")?;
-    let (command, args) = if let Some(s) = cmd.as_str() {
-        let args = entry
-            .get("args")
-            .and_then(|a| a.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(str::to_string))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        (s.to_string(), args)
-    } else if let Some(arr) = cmd.as_array() {
-        let mut parts = arr
-            .iter()
-            .filter_map(|v| v.as_str().map(str::to_string))
-            .collect::<Vec<_>>();
-        if parts.is_empty() {
-            return None;
-        }
-        let command = parts.remove(0);
-        (command, parts)
-    } else {
-        return None;
-    };
+    let (command, args) = parse_command_value(cmd, entry.get("args"))?;
     let provider = classify_provider(name, &command, &args)?;
     Some(GraphProxyLaunchSpec {
         provider,
@@ -169,30 +146,7 @@ fn entry_from_opencode(name: &str, entry: &Value, path: &Path) -> Option<GraphPr
 
 fn launch_from_entry(entry: &Value) -> Option<(String, Vec<String>, HashMap<String, String>)> {
     let command = entry.get("command")?;
-    let (cmd, args) = if let Some(s) = command.as_str() {
-        let args = entry
-            .get("args")
-            .and_then(|a| a.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default();
-        (s.to_string(), args)
-    } else if let Some(arr) = command.as_array() {
-        let mut parts = arr
-            .iter()
-            .filter_map(|v| v.as_str().map(str::to_string))
-            .collect::<Vec<_>>();
-        if parts.is_empty() {
-            return None;
-        }
-        let cmd = parts.remove(0);
-        (cmd, parts)
-    } else {
-        return None;
-    };
+    let (cmd, args) = parse_command_value(command, entry.get("args"))?;
     let mut env = HashMap::new();
     if let Some(map) = entry.get("env").and_then(Value::as_object) {
         for (k, v) in map {
@@ -202,6 +156,30 @@ fn launch_from_entry(entry: &Value) -> Option<(String, Vec<String>, HashMap<Stri
         }
     }
     Some((cmd, args, env))
+}
+
+fn parse_command_value(cmd: &Value, entry_args: Option<&Value>) -> Option<(String, Vec<String>)> {
+    if let Some(s) = cmd.as_str() {
+        let args = entry_args
+            .and_then(|a| a.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        return Some((s.to_string(), args));
+    }
+    let arr = cmd.as_array()?;
+    let mut parts = arr
+        .iter()
+        .filter_map(|v| v.as_str().map(str::to_string))
+        .collect::<Vec<_>>();
+    if parts.is_empty() {
+        return None;
+    }
+    let command = parts.remove(0);
+    Some((command, parts))
 }
 
 fn classify_provider(name: &str, command: &str, args: &[String]) -> Option<GraphProxyProvider> {
