@@ -7,7 +7,7 @@ use crate::response::{
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::retrieval::infer_assisted_seed_signals;
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
-use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId};
+use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId, TaskSignature};
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
 use neuromesh_graph_proxy::{GraphProxySession, ProxySearchContext};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
@@ -291,7 +291,7 @@ impl McpToolHandler {
                 let fallback_native = *self.graph_proxy_fallback_native.read();
                 let backend_label = self.graph_backend_label();
                 if let Some(proxy) = proxy {
-                    let ctx = ProxySearchContext::from_task_signature(&signature);
+                    let ctx = build_proxy_search_context(&signature);
                     match proxy.lock().await.build_context_packet(&ctx, 8).await {
                         Ok(proxy_packet) => {
                             let elapsed_ms = start_time.elapsed().as_millis() as u64;
@@ -1143,6 +1143,21 @@ fn apply_server_assisted_defaults(signature: &mut neuromesh_core::TaskSignature,
     for term in expansion {
         push_unique_normalized(&mut signature.client_expansion, &term);
     }
+}
+
+/// Proxy CBM search uses extracted terms — add substantive prompt tokens for NL questions.
+fn build_proxy_search_context(signature: &TaskSignature) -> ProxySearchContext {
+    use neuromesh_task::{is_prompt_stopword, normalize_prompt_tokens};
+
+    let mut ctx = ProxySearchContext::from_task_signature(signature);
+    for token in normalize_prompt_tokens(&signature.raw_prompt) {
+        if token.len() < 4 || is_prompt_stopword(&token.to_lowercase()) {
+            continue;
+        }
+        push_unique_normalized(&mut ctx.client_keywords, &token);
+    }
+    ctx.client_keywords.truncate(12);
+    ctx
 }
 
 fn telemetry_request_id(prefix: &str) -> String {

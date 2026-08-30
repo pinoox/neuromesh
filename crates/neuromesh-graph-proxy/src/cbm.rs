@@ -1,6 +1,7 @@
 use crate::mcp_client::{tool_structured, tool_text, McpStdioClientHandle};
 use crate::packet::{
-    compute_retrieval_hints, ProxyContextFile, ProxyContextPacket, ProxySearchContext,
+    compute_retrieval_hints, ProxyContextFile, ProxyContextPacket, ProxyRetrievalHints,
+    ProxySearchContext,
 };
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -125,16 +126,9 @@ impl CbmGraphProxy {
             }
         }
 
-        let coverage = if files.is_empty() {
-            "no_seed_resolved"
-        } else if files.len() >= limit as usize {
-            "partial"
-        } else {
-            "bounded"
-        };
-
         let packet_tokens = files.iter().map(|f| f.tokens).sum();
         let retrieval = compute_retrieval_hints(ctx, &files);
+        let coverage = proxy_coverage_label(&files, limit, &retrieval, ctx);
         Ok(ProxyContextPacket {
             task: ctx.raw_prompt.clone(),
             provider: "cbm".into(),
@@ -163,10 +157,7 @@ impl CbmGraphProxy {
 }
 
 fn build_search_request(project: &str, ctx: &ProxySearchContext, limit: u32) -> Value {
-    let mut query_parts = vec![ctx.raw_prompt.clone()];
-    query_parts.extend(ctx.identifiers.iter().cloned());
-    query_parts.extend(ctx.client_keywords.iter().cloned());
-    let query = query_parts.join(" ");
+    let query = ctx.cbm_query_string();
 
     let mut args = json!({
         "project": project,
@@ -175,8 +166,9 @@ fn build_search_request(project: &str, ctx: &ProxySearchContext, limit: u32) -> 
         "format": "json"
     });
 
-    if !ctx.client_expansion.is_empty() {
-        args["semantic_query"] = json!(ctx.client_expansion);
+    let semantic = ctx.cbm_semantic_terms();
+    if !semantic.is_empty() {
+        args["semantic_query"] = json!(semantic);
     }
 
     if !ctx.path_hints.is_empty() {
@@ -186,6 +178,28 @@ fn build_search_request(project: &str, ctx: &ProxySearchContext, limit: u32) -> 
     }
 
     args
+}
+
+fn proxy_coverage_label(
+    files: &[ProxyContextFile],
+    limit: u32,
+    retrieval: &ProxyRetrievalHints,
+    ctx: &ProxySearchContext,
+) -> &'static str {
+    if files.is_empty() {
+        return "no_seed_resolved";
+    }
+    let expected = ctx.expected_terms();
+    if !expected.is_empty() && retrieval.matched_terms.is_empty() {
+        return "partial";
+    }
+    if !expected.is_empty() && retrieval.confidence < 0.25 {
+        return "partial";
+    }
+    if files.len() >= limit as usize {
+        return "partial";
+    }
+    "bounded"
 }
 
 /// Skip Route nodes and other hits with no resolvable file path (phantom `unknown` files).
@@ -509,11 +523,68 @@ mod tests {
     }
 
     #[test]
+    fn build_search_request_uses_extracted_terms_not_raw_prompt() {
+        let ctx = ProxySearchContext {
+            raw_prompt: "How does the system estimate how many tokens a file uses?".into(),
+            client_keywords: vec!["estimate".into(), "tokens".into()],
+            ..Default::default()
+        };
+        let args = build_search_request("neuromesh", &ctx, 8);
+        let query = args["query"].as_str().unwrap();
+        assert!(query.contains("estimate"));
+        assert!(query.contains("tokens"));
+        assert!(!query.to_lowercase().contains("how does"));
+    }
+
+    #[test]
+    fn build_search_request_differs_for_distinct_nl_tasks() {
+        let q1 = ProxySearchContext {
+            raw_prompt: "How does the system estimate how many tokens a file or prompt uses?"
+                .into(),
+            client_keywords: vec!["estimate".into(), "tokens".into()],
+            ..Default::default()
+        };
+        let q2 = ProxySearchContext {
+            raw_prompt:
+                "How does file importance get reinforced after being edited multiple times?".into(),
+            client_keywords: vec!["importance".into(), "reinforced".into(), "edited".into()],
+            ..Default::default()
+        };
+        let q3 = ProxySearchContext {
+            raw_prompt:
+                "How does the system decide the maximum number of files to index automatically?"
+                    .into(),
+            client_keywords: vec!["maximum".into(), "index".into(), "files".into()],
+            ..Default::default()
+        };
+        let a1 = build_search_request("neuromesh", &q1, 8)["query"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let a2 = build_search_request("neuromesh", &q2, 8)["query"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let a3 = build_search_request("neuromesh", &q3, 8)["query"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_ne!(a1, a2);
+        assert_ne!(a1, a3);
+        assert_ne!(a2, a3);
+        for query in [&a1, &a2, &a3] {
+            assert!(!query.contains("is_how_does_ident"));
+            assert!(!query.to_lowercase().contains("how does"));
+        }
+    }
+
+    #[test]
     fn build_search_request_includes_keywords_and_semantic() {
         let ctx = ProxySearchContext {
             raw_prompt: "Explain middleware".into(),
             client_keywords: vec!["app.use".into(), "next".into()],
             client_expansion: vec!["pipeline".into(), "middleware".into()],
+            related_concepts: vec!["middleware".into()],
             ..Default::default()
         };
         let args = build_search_request("express-corpus", &ctx, 8);
