@@ -1,4 +1,4 @@
-use neuromesh_core::{Config, GraphBackendId, Result};
+use neuromesh_core::{Config, GraphBackendId, Result, RetrievalEngine};
 use neuromesh_graph_proxy::{detect_proxy_launch_specs, probe_graph_proxy};
 use neuromesh_index::ProjectWalker;
 use std::env;
@@ -27,7 +27,24 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
             .unwrap_or_else(|| "neuromesh".into())
     );
 
+    let engine_diag = args.iter().any(|a| a == "--engine");
     let cfg = Config::load();
+    println!(
+        "Retrieval engine : {} (seed={}, embed={})",
+        cfg.retrieval.engine.as_str(),
+        cfg.seed_resolution.engine.as_str(),
+        if cfg.embeddings.enabled { "on" } else { "off" }
+    );
+    if engine_diag {
+        println!("  Mode preset    : {:?}", cfg.mode);
+        println!(
+            "  Auto keywords  : {}",
+            cfg.seed_resolution.auto_extract_keywords
+        );
+        if cfg.retrieval.engine == RetrievalEngine::Fast {
+            println!("  ONNX at MCP    : skipped (zero-embed fast engine)");
+        }
+    }
     println!(
         "Graph backend  : {} (fallback_native={})",
         cfg.graph_backend.backend.as_str(),
@@ -130,7 +147,7 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
         }
     }
 
-    if embed_diag {
+    if embed_diag && cfg.embeddings.enabled {
         let emb = cfg.embeddings.clone();
         println!("\nEmbedding engine");
         println!(
@@ -205,6 +222,8 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
                 }
             }
         }
+    } else if embed_diag {
+        println!("\nEmbedding engine : disabled (engine=fast — `neuromesh config engine hybrid`)");
     }
 
     if mcp_diag {

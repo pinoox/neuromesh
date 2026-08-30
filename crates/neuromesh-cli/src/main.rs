@@ -114,7 +114,7 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
     match command {
         "index" => {
             let cap = commands::max_files_from_args(args)?;
-            let _ = commands::index::execute(cap)?;
+            let _ = commands::index::execute(cap, args)?;
         }
         "start" => {
             eprintln!(
@@ -187,7 +187,9 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             let _ = graph.load_persisted(&current_dir);
             let cfg = Config::load();
             #[cfg(feature = "embeddings")]
-            if cfg.embeddings.enabled {
+            if cfg.retrieval.engine != neuromesh_core::RetrievalEngine::Fast
+                && cfg.embeddings.enabled
+            {
                 let emb = cfg.embeddings.clone();
                 let graph_bg = graph.clone();
                 let dir_bg = current_dir.clone();
@@ -287,7 +289,7 @@ fn print_help() {
     println!("  smoke      Quick get_context + graph/telemetry check");
     println!("  monitor    Web UI + SSE (aliases: ui, dashboard; start is deprecated)");
     println!("  port       Show or set the monitor port (`{bin} port 9000`)");
-    println!("  index      Index the current workspace into the project graph");
+    println!("  index      Index workspace (default engine=fast; --mode hybrid for embed)");
     println!("  status     Unified workspace + graph + telemetry snapshot");
     println!("  usage      MCP/CLI token telemetry (`--all`, `--limit N`; alias: telemetry, logs)");
     println!("  store      Where project data lives (managed home vs trusted local)");

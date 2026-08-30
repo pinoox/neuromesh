@@ -34,7 +34,30 @@ neuromesh eval
 
 `neuromesh eval` prints **workspace / selected / packet** tokens, reduction vs both, recall, precision, **Grep still needed**, and latency. Published numbers must come from that table — not from a padded corpus or a global 99% claim.
 
-## Tiered retrieval & release gates (v0.8.6)
+## Tiered retrieval & release gates (v0.9.0)
+
+MCP and `neuromesh packet --json` use **single-pass** L1→L2→L3 escalation. In **`engine=fast`**, L3 uses lexical recovery (no embed).
+
+```bash
+neuromesh eval --release-gates                    # gates for effective engine
+neuromesh eval --release-gates --engine fast      # zero-embed gate matrix
+neuromesh eval --release-gates --engine hybrid    # embed-primary gates
+neuromesh eval --release-gates --calibrate        # dev-split threshold tuning
+```
+
+### Gates by engine
+
+| Gate | `fast` | `hybrid` / `deep` |
+| :--- | :--- | :--- |
+| Assisted recall | ≥ 55% | ≥ 55% |
+| Precision | ≥ 73% | ≥ 73% |
+| no_seed cells | ≤ 2 | ≤ 2 |
+| embedding_primary rate | **≤ 10%** | **≥ 40%** |
+| L3 rate | ≤ 20% | ≤ 15% |
+| FSR proxy | &lt; 10% | &lt; 10% |
+| Full-workspace fallback | 0 | 0 |
+
+## Tiered retrieval & release gates (v0.8.6 — hybrid legacy)
 
 MCP and `neuromesh packet --json` use **single-pass** L1→L2→L3 escalation. L2 pattern expand and L3 semantic recovery run only when **critical gaps** remain after the sufficiency check.
 

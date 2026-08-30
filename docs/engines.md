@@ -1,52 +1,64 @@
-# Engines: graph backend & seed resolution
+# Engines: retrieval presets, graph backend & legacy seed resolution
 
-NeuroMesh separates **where structure comes from** (graph backend) from **how tasks pick starting symbols** (seed resolution). Both are configurable from CLI, monitor Settings, or `nm.config.json`.
+NeuroMesh v0.9.0 uses one **retrieval engine** preset instead of scattered embedding/seed flags.
 
-## v0.8.6 default (recommended)
+## v0.9.0 default (`engine: fast`)
 
 | Layer | Default | What you do |
 | :--- | :--- | :--- |
-| **Graph** | `native` | Nothing — built-in AST index |
-| **Embeddings** | **ON** + **bundled MiniLM** | Nothing — prompt-only; weights in release tarball |
-| **Seed assist** | Embed-primary | **Do not** pass client `keywords`/`expansion` |
-
-Install → `neuromesh index` → `neuromesh embed rebuild` → `get_context_packet(prompt)`. Graph index is fast; embedding sidecar builds once (incremental on later edits).
+| **Graph** | `native` | `neuromesh index` — AST graph only (<30s typical) |
+| **Retrieval** | **`fast`** | Prompt only — query-side lexical expansion + graph hops |
+| **Embeddings** | **off** at index and MCP | No ONNX until you opt in |
+| **RAM** | **<80 MB** MCP typical | Zero-embed runtime |
 
 ```bash
-neuromesh doctor --embed              # sidecar + bundled model path
-neuromesh doctor --embed --bench      # p50/p95 warm embed latency
-neuromesh embed rebuild               # build/refresh embeddings.bin after graph index
-neuromesh embed prefetch              # warm bundled weights (install does this)
+neuromesh index                         # fast (graph only)
+neuromesh config engine hybrid          # opt-in MiniLM sidecar
+neuromesh index --mode hybrid           # graph + embed rebuild
+neuromesh embed rebuild                 # refresh sidecar after hybrid switch
+neuromesh doctor --engine               # preset + ONNX skip status
+neuromesh eval --release-gates --engine fast
 ```
+
+### Retrieval engine presets
+
+| `engine` | Index | Query | RAM (typical) | Use when |
+| :--- | :--- | :--- | :--- | :--- |
+| **`fast`** (default) | graph + lexical | server-assisted keywords + graph | <80 MB | Most repos; instant index |
+| **`hybrid`** | graph + incremental sidecar | MiniLM ANN + graph (Phase A Int8/two-stage) | ~250 MB | Obfuscated naming, multilingual NL |
+| **`deep`** | graph + full sidecar | hybrid + dedup + module centroids + L3 embed | ~450 MB | Large refactors, max recall |
+
+```json
+{
+  "retrieval": { "engine": "fast" }
+}
+```
+
+Env: `NEUROMESH_ENGINE=fast|hybrid|deep`
+
+Legacy granular flags (`two_stage_enabled`, `optional_dedup_min_cosine`, `module_cluster_enabled`, `intra_threads`) are **derived from the preset**. Prefer `neuromesh config engine <preset>`.
 
 ---
 
-## Local embedding engine (MiniLM)
+## Hybrid / deep: MiniLM sidecar
 
-Multilingual vector seed resolution for natural-language prompts.
+Multilingual vector seed resolution when `engine` is `hybrid` or `deep`.
 
 | Item | Value |
 | :--- | :--- |
 | **Model** | `minilm_multilingual_q` — Paraphrase MiniLM L12 v2 Q |
 | **Dimensions** | 384 (matryoshka) |
-| **Weights** | **Bundled** in release (`models/minilm-multilingual-q/`); dev: `scripts/fetch-minilm-model.sh` |
-| **Runtime** | fastembed `UserDefinedEmbeddingModel` — no HuggingFace download when bundled |
+| **Weights** | Bundled in release (`models/minilm-multilingual-q/`) |
+| **Sidecar** | v5 Int8 (`embeddings.bin`) |
 
-Query path: embed prompt once → ANN on `embeddings.bin` → graph-resolve → fold packet.
+Query path (hybrid/deep): embed prompt once → two-stage ANN → graph-resolve → fold packet.
 
-### Supplementary features
-
-| Feature | Config | Default |
+| Feature | `hybrid` | `deep` |
 | :--- | :--- | :--- |
-| Semantic prompt cache | `semantic_cache_*` | on, 16 entries, 0.96 cosine |
-| Optional-file dedup | `optional_dedup_min_cosine` | off (`max_quality` uses 0.93) |
-| Module centroids | `module_cluster_enabled` | off at index (`max_quality` applies bonus when present) |
-| Graph-first index | `index_on_build` | **false** — run `neuromesh embed rebuild` |
-| Two-stage ANN | `two_stage_enabled` / `coarse_pool_max` | on / 400 (union coarse pool, full-scan fallback) |
-| Sidecar format | v5 Int8 | 4× smaller than v4 f32 |
-| L3 recovery floor | `recovery_min_cosine` | 0.38 (primary `min_cosine` 0.45) |
-
-Env: `NEUROMESH_EMBEDDINGS=0` disables vectors; `NEUROMESH_EMBED_THREADS=2`; `NEUROMESH_EMBED_INDEX_BATCH=128`; `NEUROMESH_SEMANTIC_CACHE=0`.
+| Two-stage ANN | on | on |
+| Optional-file dedup | off | on (0.93) |
+| Module centroids | off | on |
+| Optimization mode | balanced | max_quality |
 
 ---
 
@@ -59,60 +71,27 @@ Env: `NEUROMESH_EMBEDDINGS=0` disables vectors; `NEUROMESH_EMBED_THREADS=2`; `NE
 | `proxy_cbm` | Always spawn codebase-memory-mcp for `get_context_packet` |
 
 ```bash
-neuromesh config graph-backend native      # recommended
-neuromesh config graph-backend auto      # CBM when installed
+neuromesh config graph-backend native
 neuromesh doctor --proxy --probe
 ```
 
-Only **`get_context_packet`** uses an external graph when proxy is active. Trace, fold, and search stay native.
-
 ---
 
-## Custom seed engines (opt-in)
+## Legacy seed engines (deprecated)
 
-Use these only when you explicitly want lexical keyword assist instead of (or in addition to) embed-primary:
+Fine-grained seed engines still work via `neuromesh config seed-engine` but map to the nearest retrieval preset:
 
-| Value | Role |
+| Legacy seed | Maps to |
 | :--- | :--- |
-| *(default)* | **Embed-primary** — bundled MiniLM, prompt only |
-| `keywords` | Literal keyword match |
-| `keywords_expanded` | Expanded keywords + aliases + `auto_extract_keywords` |
-| `hybrid` | **MiniLM embed + lexical** (Arabic-heavy opt-in) |
-| `off` | Disable seed resolution |
+| `keywords` / `keywords_expanded` | `fast` |
+| `semantic_lite` / `hybrid` | `hybrid` |
 
-### When to pass client keywords
-
-| Setup | Pass `keywords`/`expansion`? |
-| :--- | :--- |
-| **Default (embed ON, no engine override)** | **No** |
-| `keywords` / `keywords_expanded` / `hybrid` | **Yes** (or enable `auto_extract_keywords`) |
-
-```bash
-neuromesh config seed-engine hybrid          # opt-in: embed + lexical
-neuromesh config seed-engine keywords_expanded # legacy lexical mode
-neuromesh config seed-engine get             # show effective layers
-```
-
-Environment: `NEUROMESH_SEED_ENGINE=hybrid` · `NEUROMESH_AUTO_EXTRACT_KEYWORDS=1` (lexical engines only)
-
-Monitor **Settings → Seed Resolution Engine** saves `nm.config.json`.
-
-### Example: lexical override
-
-```json
-{
-  "embeddings": { "enabled": true },
-  "seed_resolution": {
-    "engine": "keywords_expanded",
-    "auto_extract_keywords": true
-  }
-}
-```
+Old `nm.config.json` with `"embeddings": { "enabled": true }` and no `retrieval` block auto-upgrades to **`hybrid`** on load.
 
 ---
 
 ## Layering
 
-Effective config merges: global `~/.neuromesh/config.json` → project `nm.config.json` → env → MCP per-call overrides.
+Effective config merges: global `~/.neuromesh/config.json` → project `nm.config.json` → env (`NEUROMESH_ENGINE`) → MCP per-call overrides.
 
-See [graph-proxy.md](graph-proxy.md) · [cli.md](cli.md) · [agent-guide.md](agent-guide.md).
+See [graph-proxy.md](graph-proxy.md) · [cli.md](cli.md) · [agent-guide.md](agent-guide.md) · [quality.md](quality.md).

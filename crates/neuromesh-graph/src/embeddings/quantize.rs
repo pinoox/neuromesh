@@ -146,11 +146,7 @@ mod rank_tests {
             for (i, &scale) in matrix_scales.iter().enumerate() {
                 let start = i * DIM;
                 scores_f32.push(dot_f32_f32(&query, &matrix_f32[start..start + DIM]));
-                scores_i8.push(dot_f32_i8(
-                    &query,
-                    &matrix_i8[start..start + DIM],
-                    scale,
-                ));
+                scores_i8.push(dot_f32_i8(&query, &matrix_i8[start..start + DIM], scale));
             }
 
             let spearman = spearman_correlation(&scores_f32, &scores_i8);
@@ -191,15 +187,12 @@ mod rank_tests {
         let top_f32: std::collections::HashSet<usize> =
             scored_f32.iter().take(TOP_K).map(|(i, _)| *i).collect();
 
-        let scored_i8: Vec<(usize, f32)> = matrix_scales
+        let mut scored_i8: Vec<(usize, f32)> = matrix_scales
             .iter()
             .enumerate()
             .map(|(i, &scale)| {
                 let start = i * DIM;
-                (
-                    i,
-                    dot_f32_i8(&query, &matrix_i8[start..start + DIM], scale),
-                )
+                (i, dot_f32_i8(&query, &matrix_i8[start..start + DIM], scale))
             })
             .collect();
         scored_i8.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));

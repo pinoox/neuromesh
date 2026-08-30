@@ -1,4 +1,4 @@
-use crate::{EmbeddingConfig, GraphProxyConfig};
+use crate::{EmbeddingConfig, GraphProxyConfig, RetrievalConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -152,4 +152,6 @@ pub struct NmConfigOverlay {
     pub graph_backend: Option<GraphProxyConfig>,
     #[serde(default)]
     pub embeddings: Option<EmbeddingConfig>,
+    #[serde(default)]
+    pub retrieval: Option<RetrievalConfig>,
 }

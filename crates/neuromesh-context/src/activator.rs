@@ -193,7 +193,6 @@ impl ContextActivator {
     ) -> ContextView {
         use crate::retrieval::concept_seeds::resolve_concept_seeds;
         use crate::retrieval::escalate::IncrementalPhase;
-        use neuromesh_core::SeedEngineId;
 
         match phase {
             IncrementalPhase::L1 => {
@@ -228,7 +227,12 @@ impl ContextActivator {
             } => {
                 let base = prior.expect("L3 incremental phase requires prior view");
                 let mut sig = signature.clone();
-                sig.engine_override = Some(SeedEngineId::SemanticLite);
+                let cfg = neuromesh_core::Config::load();
+                sig.engine_override = Some(crate::retrieval::tier::RetrievalTier::L3.seed_engine(
+                    cfg.seed_resolution.engine,
+                    cfg.retrieval.engine,
+                    cfg.embeddings.effective_enabled(),
+                ));
                 let recovery = self.activate_with_hops(graph, &sig, mode, hops);
                 let mut merged = merge_context_views(base, recovery);
                 cap_semantic_recovery_seeds(&mut merged, max_recovery_seeds);

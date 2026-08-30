@@ -1,13 +1,14 @@
 //! Server-side keyword/expansion inference for MCP assisted-by-default behavior.
 
 use crate::retrieval::alias::{alias_code_seeds_for_prompt, canonical_concepts, expand_aliases};
+use crate::retrieval::concept_expand::{expand_concept_to_code_seeds, identifier_variants};
 use crate::retrieval::query_intent::{assisted_signals, classify_intent};
 use neuromesh_core::TaskSignature;
 use neuromesh_parser::extract_embedded_code_tokens;
 use neuromesh_task::TaskSignatureExtractor;
 
-const MAX_INFERRED_KEYWORDS: usize = 5;
-const MAX_INFERRED_EXPANSION: usize = 5;
+const MAX_INFERRED_KEYWORDS: usize = 8;
+const MAX_INFERRED_EXPANSION: usize = 8;
 
 fn push_unique_ci(out: &mut Vec<String>, raw: &str) {
     let trimmed = raw.trim();
@@ -88,15 +89,21 @@ pub fn infer_assisted_seed_signals(prompt: &str) -> (Vec<String>, Vec<String>) {
     // 3. Embedded code tokens (symbol-like only)
     merge_keywords(&mut keywords, filtered_embedded_tokens(prompt));
 
-    // 4. Alias expansion concepts + ASCII terms
+    // 4. Alias expansion concepts + ASCII terms + code identifier variants
     for term in expand_aliases(prompt) {
         let is_concept = canonical_concepts()
             .iter()
             .any(|c| term.eq_ignore_ascii_case(c));
         if is_concept {
             merge_expansion(&mut expansion, std::iter::once(term.as_str()));
+            for seed in expand_concept_to_code_seeds(&term) {
+                merge_keywords(&mut keywords, std::iter::once(seed.as_str()));
+            }
         } else if term.is_ascii() && term.len() >= 3 {
             merge_keywords(&mut keywords, std::iter::once(term.as_str()));
+            for variant in identifier_variants(&term) {
+                merge_expansion(&mut expansion, std::iter::once(variant.as_str()));
+            }
         }
     }
 
@@ -190,5 +197,19 @@ mod tests {
         let (kw, exp) = assisted_signals(QueryIntent::General);
         assert!(kw.is_empty());
         assert!(exp.is_empty());
+    }
+
+    #[test]
+    fn infer_jwt_from_fa_prompt() {
+        let (kw, exp) = infer_assisted_seed_signals("کد مربوط به اعتبارسنجی توکن jwt کجاست؟");
+        let gold = ["validateToken", "verifyJwt", "JwtPayload", "jwt", "auth"];
+        let hits = gold
+            .iter()
+            .filter(|g| {
+                kw.iter().any(|k| k.eq_ignore_ascii_case(g))
+                    || exp.iter().any(|e| e.eq_ignore_ascii_case(g))
+            })
+            .count();
+        assert!(hits >= 2, "keywords={kw:?} expansion={exp:?}");
     }
 }

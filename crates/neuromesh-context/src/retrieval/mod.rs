@@ -3,6 +3,7 @@
 pub mod alias;
 pub mod budget;
 pub mod calibration;
+pub mod concept_expand;
 pub mod concept_seeds;
 pub mod embedding_confidence;
 pub mod escalate;

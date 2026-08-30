@@ -1,4 +1,4 @@
-use neuromesh_core::{ProjectId, Result};
+use neuromesh_core::{Config, ProjectId, Result, RetrievalEngine};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_memory::{MemoryDatabase, ProjectFact};
 use std::fs;
@@ -6,7 +6,14 @@ use std::sync::Arc;
 
 use super::{configured_walker, persist_file_cap, print_file_cap, FileCapArg};
 
-pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
+pub fn execute(
+    cap: FileCapArg,
+    args: &[String],
+) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDatabase>)> {
+    if let Some(mode) = index_mode_from_args(args) {
+        std::env::set_var("NEUROMESH_ENGINE", mode.as_str());
+    }
+    let cfg = Config::load();
     let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
@@ -26,7 +33,10 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
     let project_id = ProjectId::new(&project_name);
     let walker = configured_walker(current_dir.clone(), project_id.clone(), cap);
 
-    println!("🔍 Indexing Project Workspace...");
+    println!(
+        "🔍 Indexing Project Workspace (engine={})…",
+        cfg.retrieval.engine.as_str()
+    );
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let _ = graph.load_persisted(&current_dir);
     let report = walker.scan_report_with(&graph.file_fingerprints())?;
@@ -88,17 +98,34 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
     graph.save_persisted(&current_dir)?;
     #[cfg(feature = "embeddings")]
     {
-        let emb = neuromesh_core::Config::load().embeddings;
+        let emb = cfg.embeddings.clone();
         if emb.enabled && emb.index_on_build {
             let _ = neuromesh_graph::maybe_rebuild_embeddings(&graph, &current_dir, &emb);
-        } else if emb.enabled && !emb.index_on_build {
+        } else if emb.enabled {
             let sidecar = neuromesh_core::embeddings_path(&current_dir);
             if sidecar.exists() {
                 let _ = graph.load_embedding_sidecar(&current_dir);
+                println!("Embeddings   : sidecar loaded ({})", sidecar.display());
+            } else if matches!(
+                cfg.retrieval.engine,
+                RetrievalEngine::Hybrid | RetrievalEngine::Deep
+            ) {
+                println!(
+                    "Embeddings   : building sidecar (engine={})…",
+                    cfg.retrieval.engine.as_str()
+                );
+                if let Err(e) =
+                    neuromesh_graph::rebuild_embeddings_for_workspace(&graph, &current_dir, &emb)
+                {
+                    eprintln!("Embeddings   : rebuild failed ({e})");
+                }
+            } else {
+                println!(
+                    "Embeddings   : off or deferred — run `neuromesh embed rebuild` or `neuromesh index --mode hybrid`"
+                );
             }
-            println!(
-                "Embeddings   : run `neuromesh embed rebuild` for NL routing (graph-first index)"
-            );
+        } else {
+            println!("Embeddings   : disabled (engine=fast, zero-embed index)");
         }
     }
 
@@ -198,4 +225,18 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
     });
 
     Ok((graph, memory_db))
+}
+
+fn index_mode_from_args(args: &[String]) -> Option<RetrievalEngine> {
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--mode" {
+            if let Some(raw) = args.get(i + 1) {
+                return RetrievalEngine::parse(raw);
+            }
+        }
+        if let Some(raw) = arg.strip_prefix("--mode=") {
+            return RetrievalEngine::parse(raw);
+        }
+    }
+    None
 }

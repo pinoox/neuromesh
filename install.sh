@@ -28,7 +28,7 @@ cat << 'EOF'
  |_| \_|\___|\__,_|_|  \___/|_|  |_|\___||___/_| |_|
 EOF
 printf "${NC}\n"
-printf "${BOLD}NeuroMesh v0.8.6 — bundled MiniLM embed · MCP context engine${NC}\n\n"
+printf "${BOLD}NeuroMesh v0.9.0 — zero-embed fast engine · MCP context engine${NC}\n\n"
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
@@ -118,6 +118,6 @@ printf "\n${BOLD}Version:${NC} ${VERSION}\n"
 printf "\n${GREEN}${BOLD}Quick start${NC}\n"
 printf "  1. ${CYAN}neuromesh doctor${NC}       verify install\n"
 printf "  2. ${CYAN}neuromesh connect${NC}     wire Cursor / VS Code / Claude MCP\n"
-printf "  3. ${CYAN}neuromesh index${NC}        index your repo (graph)\n"
-printf "  4. ${CYAN}neuromesh embed rebuild${NC}  NL routing sidecar (once)\n"
+printf "  3. ${CYAN}neuromesh index${NC}        index your repo (fast, graph-only)\n"
+printf "  4. ${CYAN}neuromesh config engine hybrid${NC} + ${CYAN}embed rebuild${NC}  optional NL vectors\n"
 printf "  5. ${CYAN}neuromesh monitor${NC}      3D galaxy UI → http://127.0.0.1:8765\n\n"

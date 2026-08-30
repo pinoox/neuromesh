@@ -3,6 +3,7 @@ pub mod embedding_config;
 pub mod error;
 pub mod graph_backend;
 pub mod paths;
+pub mod retrieval_engine;
 pub mod seed_config;
 pub mod source_path;
 pub mod task;
@@ -24,6 +25,7 @@ pub use paths::{
     project_config_path, project_data_dir, save_store_policy, trust_workspace_local,
     untrust_workspace_local, uses_local_dotdir, ProjectStore,
 };
+pub use retrieval_engine::{RetrievalConfig, RetrievalEngine};
 pub use seed_config::{
     NmConfigOverlay, PacketHeaderConfig, SeedEngineId, SeedResolutionConfig,
     SeedResolutionTelemetry, SeedSignalWeights,

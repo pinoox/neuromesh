@@ -31,6 +31,9 @@ pub fn run_incremental(
     estimator: &SufficiencyEstimator,
 ) -> EscalationResult {
     let embedding_config = Config::load().embeddings.clone();
+    let app_config = Config::load();
+    let retrieval_engine = app_config.retrieval.engine;
+    let embeddings_enabled = embedding_config.effective_enabled();
     #[cfg(feature = "embeddings")]
     let plan = crate::retrieval::query_intent_embed::from_signature_with_embeddings(
         signature,
@@ -46,7 +49,11 @@ pub fn run_incremental(
     let l1_start = Instant::now();
     let mut sig = signature.clone();
     sig.raw_prompt = normalize_unicode(&sig.raw_prompt);
-    sig.engine_override = Some(RetrievalTier::L1.seed_engine(configured_engine));
+    sig.engine_override = Some(RetrievalTier::L1.seed_engine(
+        configured_engine,
+        retrieval_engine,
+        embeddings_enabled,
+    ));
     let mut view = activator.activate_incremental(
         graph,
         &sig,
@@ -88,7 +95,11 @@ pub fn run_incremental(
         let l2_start = Instant::now();
         let seed_ids = activator.seed_node_ids(&view);
         let pattern_files = pattern_expand(graph, &seed_ids, plan.intent);
-        sig.engine_override = Some(RetrievalTier::L2.seed_engine(configured_engine));
+        sig.engine_override = Some(RetrievalTier::L2.seed_engine(
+            configured_engine,
+            retrieval_engine,
+            embeddings_enabled,
+        ));
         view = activator.activate_incremental(
             graph,
             &sig,
@@ -131,7 +142,11 @@ pub fn run_incremental(
     // L3: bounded semantic recovery (max 2 seeds)
     if should_escalate_to_l3(&est, &view, activator, graph, signature, &embedding_config) {
         let l3_start = Instant::now();
-        sig.engine_override = Some(RetrievalTier::L3.seed_engine(configured_engine));
+        sig.engine_override = Some(RetrievalTier::L3.seed_engine(
+            configured_engine,
+            retrieval_engine,
+            embeddings_enabled,
+        ));
         sig.embed_min_cosine_override = Some(embedding_config.recovery_min_cosine);
         view = activator.activate_incremental(
             graph,

@@ -75,10 +75,28 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "auth",
             "authentication",
             "login",
+            "jwt",
+            "token",
+            "bearer",
             "احراز",
             "ورود",
+            "توکن",
+            "اعتبارسنجی",
             "认证",
             "authentification",
+        ],
+    },
+    AliasEntry {
+        concept: "jwt",
+        terms: &[
+            "jwt",
+            "json web token",
+            "verify jwt",
+            "validate token",
+            "token expires",
+            "توکن",
+            "jwt",
+            "اعتبارسنجی",
         ],
     },
     AliasEntry {
@@ -194,7 +212,20 @@ static ALIAS_CODE_SEEDS: &[(&str, &[&str])] = &[
     ("static", &["express.static", "static", "stat"]),
     ("session", &["cookie", "session", "cookie-session"]),
     ("query", &["req.query", "query", "parseurl", "utils"]),
-    ("auth", &["session", "cookie", "auth"]),
+    (
+        "auth",
+        &["session", "cookie", "auth", "validateToken", "verifyJwt"],
+    ),
+    (
+        "jwt",
+        &[
+            "validateToken",
+            "verifyJwt",
+            "JwtPayload",
+            "authMiddleware",
+            "token_expires",
+        ],
+    ),
     ("database", &["req.query", "query"]),
 ];
 
@@ -205,6 +236,7 @@ pub fn canonical_concepts() -> &'static [&'static str] {
         "middleware",
         "session",
         "auth",
+        "jwt",
         "query",
         "database",
         "render",

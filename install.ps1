@@ -16,7 +16,7 @@ Write-Host @"
  |_| \_|\___|\__,_|_|  \___/|_|  |_|\___||___/_| |_|
 "@ -ForegroundColor Cyan
 
-Write-Host "NeuroMesh v0.8.6 — bundled MiniLM embed · MCP context engine`n" -ForegroundColor Green
+Write-Host "NeuroMesh v0.9.0 — zero-embed fast engine · MCP context engine`n" -ForegroundColor Green
 
 Write-Host "Fetching latest release…" -ForegroundColor Gray
 $DownloadUrl = "https://github.com/$Repo/releases/latest/download/neuromesh-windows-x86_64.zip"
@@ -97,7 +97,7 @@ try {
 Write-Host "`nQuick start:" -ForegroundColor Green
 Write-Host "  1. neuromesh doctor       verify install" -ForegroundColor White
 Write-Host "  2. neuromesh connect      wire Cursor / VS Code / Claude MCP" -ForegroundColor White
-Write-Host "  3. neuromesh index        index your repo (graph)" -ForegroundColor White
-Write-Host "  4. neuromesh embed rebuild  NL routing sidecar (once)" -ForegroundColor White
+Write-Host "  3. neuromesh index        graph-only (fast engine)" -ForegroundColor White
+Write-Host "  4. neuromesh config engine hybrid + embed rebuild  optional vectors" -ForegroundColor White
 Write-Host "  5. neuromesh monitor      3D galaxy UI -> http://127.0.0.1:8765" -ForegroundColor White
 Write-Host "`nRestart your terminal/IDE for PATH changes.`n" -ForegroundColor Gray

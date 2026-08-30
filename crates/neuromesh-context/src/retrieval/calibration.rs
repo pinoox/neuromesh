@@ -52,6 +52,18 @@ impl EvalSuiteMetrics {
             && self.embedding_primary_rate >= 0.40
     }
 
+    /// Gates for zero-embed `fast` engine (no embedding-primary requirement).
+    pub fn passes_fast_gates(&self) -> bool {
+        let fsr_ok = self.false_sufficiency_rate.is_none_or(|fsr| fsr < 0.10)
+            && self.false_sufficiency_proxy < 0.10;
+        self.full_workspace_fallback_count == 0
+            && fsr_ok
+            && self.recall >= 0.55
+            && self.precision >= 0.73
+            && self.no_seed_count <= 2
+            && self.embedding_primary_rate <= 0.10
+    }
+
     pub fn record_failure(&mut self, class: FailureClass) {
         if class == FailureClass::None {
             return;

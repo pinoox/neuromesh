@@ -1,3 +1,4 @@
+use neuromesh_core::RetrievalEngine;
 use neuromesh_core::SeedEngineId;
 use serde::{Deserialize, Serialize};
 
@@ -18,10 +19,15 @@ impl RetrievalTier {
         }
     }
 
-    pub fn seed_engine(self, configured: SeedEngineId) -> SeedEngineId {
+    pub fn seed_engine(
+        self,
+        configured: SeedEngineId,
+        retrieval: RetrievalEngine,
+        embeddings_enabled: bool,
+    ) -> SeedEngineId {
         match self {
             Self::L1 | Self::L2 => configured,
-            Self::L3 => SeedEngineId::SemanticLite,
+            Self::L3 => retrieval.l3_seed_engine(configured, embeddings_enabled),
         }
     }
 

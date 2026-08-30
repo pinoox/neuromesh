@@ -9,7 +9,7 @@ use neuromesh_context::learning_eval::{
 };
 use neuromesh_context::retrieval::failure::{classify_retrieval_failure, FailureClass};
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
-use neuromesh_core::{OptimizationMode, ProjectId, Result};
+use neuromesh_core::{OptimizationMode, ProjectId, Result, RetrievalEngine};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
 use neuromesh_task::TaskSignatureExtractor;
@@ -22,6 +22,10 @@ pub fn execute(args: &[String]) -> Result<()> {
     let learning_mode = args.iter().any(|a| a == "--learning");
     let release_gates = args.iter().any(|a| a == "--release-gates");
     let calibrate = args.iter().any(|a| a == "--calibrate");
+    if let Some(engine) = eval_engine_from_args(args) {
+        std::env::set_var("NEUROMESH_ENGINE", engine.as_str());
+    }
+    let eval_cfg = neuromesh_core::Config::load();
     let current_dir = neuromesh_index::assert_safe_workspace(&env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
@@ -48,9 +52,12 @@ pub fn execute(args: &[String]) -> Result<()> {
     graph.ingest_workspace(&scanned);
     #[cfg(feature = "embeddings")]
     {
-        let emb = neuromesh_core::Config::load().embeddings;
-        if emb.enabled {
-            let _ = neuromesh_graph::rebuild_embeddings_for_workspace(&graph, &current_dir, &emb);
+        if eval_cfg.embeddings.enabled {
+            let _ = neuromesh_graph::rebuild_embeddings_for_workspace(
+                &graph,
+                &current_dir,
+                &eval_cfg.embeddings,
+            );
         }
     }
     let index_ms = index_started.elapsed().as_millis();
@@ -227,9 +234,10 @@ pub fn execute(args: &[String]) -> Result<()> {
             });
         }
         let suite = aggregate_cell_results(&cells);
-        let report = ReleaseGateReport::evaluate(&suite);
+        let report = ReleaseGateReport::evaluate_for_engine(eval_cfg.retrieval.engine, &suite);
         println!(
-            "\nRelease gates (Benchmark A): {}",
+            "\nRelease gates (Benchmark A, engine={}): {}",
+            eval_cfg.retrieval.engine.as_str(),
             if report.passed { "PASS" } else { "FAIL" }
         );
         println!("{}", serde_json::to_string_pretty(&report)?);
@@ -405,4 +413,18 @@ fn execute_learning_eval(
     });
     let _ = graph;
     Ok(())
+}
+
+fn eval_engine_from_args(args: &[String]) -> Option<RetrievalEngine> {
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--engine" {
+            if let Some(raw) = args.get(i + 1) {
+                return RetrievalEngine::parse(raw);
+            }
+        }
+        if let Some(raw) = arg.strip_prefix("--engine=") {
+            return RetrievalEngine::parse(raw);
+        }
+    }
+    None
 }

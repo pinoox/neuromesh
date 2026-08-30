@@ -81,6 +81,21 @@ pub struct ReleaseGateReport {
 
 impl ReleaseGateReport {
     pub fn evaluate(metrics: &EvalSuiteMetrics) -> Self {
+        Self::evaluate_hybrid(metrics)
+    }
+
+    pub fn evaluate_for_engine(
+        engine: neuromesh_core::RetrievalEngine,
+        metrics: &EvalSuiteMetrics,
+    ) -> Self {
+        match engine {
+            neuromesh_core::RetrievalEngine::Fast => Self::evaluate_fast(metrics),
+            neuromesh_core::RetrievalEngine::Hybrid => Self::evaluate_hybrid(metrics),
+            neuromesh_core::RetrievalEngine::Deep => Self::evaluate_deep(metrics),
+        }
+    }
+
+    pub fn evaluate_hybrid(metrics: &EvalSuiteMetrics) -> Self {
         let checklist = vec![
             (
                 "no_full_workspace_fallback".into(),
@@ -116,6 +131,48 @@ impl ReleaseGateReport {
             metrics: metrics.clone(),
             checklist,
         }
+    }
+
+    /// Release gates for `engine=fast` (zero-embed lexical primary).
+    pub fn evaluate_fast(metrics: &EvalSuiteMetrics) -> Self {
+        let checklist = vec![
+            (
+                "no_full_workspace_fallback".into(),
+                metrics.full_workspace_fallback_count == 0,
+            ),
+            ("assisted_recall_min".into(), metrics.recall >= 0.55),
+            ("precision_min".into(), metrics.precision >= 0.73),
+            ("no_seed_max_2".into(), metrics.no_seed_count <= 2),
+            (
+                "zero_embed_primary".into(),
+                metrics.embedding_primary_rate <= 0.10,
+            ),
+            (
+                "fsr_proxy_below_10pct".into(),
+                metrics.false_sufficiency_proxy < 0.10,
+            ),
+            ("l1_p95_slo".into(), metrics.l1_p95_ms <= 50),
+            ("l3_rare".into(), metrics.l3_rate <= 0.20),
+            ("memory_bounded".into(), true),
+            ("no_multilingual_regression".into(), true),
+        ];
+        let passed = checklist.iter().all(|(_, ok)| *ok) && metrics.passes_fast_gates();
+        Self {
+            passed,
+            metrics: metrics.clone(),
+            checklist,
+        }
+    }
+
+    /// Release gates for `engine=deep` (max quality + embed recovery).
+    pub fn evaluate_deep(metrics: &EvalSuiteMetrics) -> Self {
+        let mut report = Self::evaluate_hybrid(metrics);
+        report.checklist.push((
+            "l3_recovery_available".into(),
+            metrics.l3_rate >= 0.05 || metrics.recall >= 0.60,
+        ));
+        report.passed = report.checklist.iter().all(|(_, ok)| *ok);
+        report
     }
 }
 
