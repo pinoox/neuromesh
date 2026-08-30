@@ -19,6 +19,11 @@
 | `POST` | `/api/v1/projects/index` | Re-index |
 | `POST` | `/api/v1/context/activate` | Packet without an LLM in the middle |
 | `POST` | `/api/v1/context/expand` | Expand a fold or inactive node |
+| `GET` | `/api/engines` | Effective graph backend + seed engine (v0.8.2) |
+| `POST` | `/api/engines` | Save graph backend / seed engine to `nm.config.json` |
+| `GET` | `/api/graph-proxy/probe` | Live CBM connect + sample packet (same as `doctor --proxy --probe`) |
+
+**Settings UI** (Galaxy monitor): Graph Backend (Native / Auto / CBM) and Seed Engine presets; **Probe CBM connection** uses the probe endpoint above.
 
 Optional headers on proxy-style routes: `X-NeuroMesh-Mode: max_quality | balanced | max_savings`.
 

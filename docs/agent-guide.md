@@ -34,6 +34,14 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 
 Do not treat a utility fallback file as the answer when coverage says seeds missed or `packet_gaps` is non-empty.
 
+## Graph backend (optional, v0.8.2)
+
+Default is **`native`** (built-in graph + tiered retrieval). **`proxy_cbm`** / **`auto`** delegate only `get_context_packet` to [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp); folding, `search_symbols`, and `trace` stay native.
+
+- Prefer **native** for precision and speed unless CBM is already your indexed sidecar.
+- When `retrieval.retrieval_level` is `"proxy"`, treat `claim` as conservative (`partial` / `bounded` / `no_seed_resolved`) — never assume `likely_sufficient`.
+- Verify CBM: `neuromesh doctor --proxy --probe`. Config: [engines.md](engines.md), [graph-proxy.md](graph-proxy.md).
+
 ## When not to force NeuroMesh
 
 - Small, already-known paths (a few dozen lines) for a precise edit

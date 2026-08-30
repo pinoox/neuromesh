@@ -17,7 +17,7 @@ Start with the [root README](../README.md) if you want install and the agent loo
 | [Contributing](contributing.md) | Tests, clippy, adding a language |
 | [Changelog](CHANGELOG.md) | Version history |
 
-## Measured snapshot (v0.8.1)
+## Measured snapshot (v0.8.2)
 
 From `cargo run --release -p neuromesh-cli -- eval` on this repository. Full tables and gates: [quality.md](quality.md).
 
@@ -33,6 +33,8 @@ From `cargo run --release -p neuromesh-cli -- eval` on this repository. Full tab
 | :--- | ---: | ---: | ---: | ---: |
 | `handle_tool_call_intent` | 97.3% | 1.00 | **0** | 22 |
 | `physarum_usage` | 99.4% | 1.00 | **0** | 12 |
+
+**Multilingual Express benchmark** (v0.8.2, 60-cell holdout): native assisted recall **0.426**, precision **0.789**, warm p50 **~35 ms**; proxy_cbm assisted recall **0.578**, precision **0.504**, warm p50 **~230 ms**. Native remains default. Details: [quality.md](quality.md).
 
 Tiered retrieval: most queries stay **L1**; L2/L3 only on critical gaps. Release gates: `neuromesh eval --release-gates`. Learning dose-response: `neuromesh eval --learning`.
 

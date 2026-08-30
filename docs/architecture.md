@@ -7,11 +7,15 @@ The names come from living tissue — [nature.md](nature.md) — so contributors
 ```
 Prompt
   │
-  ▼
-QueryPlan (intent + concepts) — v0.8.1
+  ├─ graph_backend = proxy_cbm? ──► CBM search_graph + snippets (v0.8.2)
+  │                                      │
+  └─ native (default) ◄──────────────────┘ fallback_native
+      │
+      ▼
+QueryPlan (intent + concepts) — v0.8.2
   │
   ▼
-Identifiers, paths, alias expansion, concept seeds
+Identifiers, paths, alias expansion, alias code seeds (middleware/routing NL)
   │
   ▼
 Unique / import-aware / impl-aware resolve
@@ -37,7 +41,7 @@ Evidence packet → MCP client
   └─ expand_fold restores a body from the registry
 ```
 
-## Tiered retrieval (v0.8.1)
+## Tiered retrieval (v0.8.2)
 
 **North star:** MSC via graph — no embedding in L1/L2; embedding optional L3 only.
 
@@ -58,7 +62,13 @@ Single-pass escalation (`escalate.rs`) — no triple full re-activate per query.
 
 **Concept index** (`neuromesh-graph/concept_index.rs`): built at ingest from naming heuristics (`*Middleware`, `*Router`, `auth*`, `*Session`, …). Static alias clusters map NL → concept; code index maps concept → symbols.
 
-**Sufficiency** is conservative: `likely_sufficient` requires high task-role coverage, dependency coverage, and zero critical gaps. Default when uncertain: `partial`. FSR proxy in `neuromesh eval --release-gates`.
+**Sufficiency** is conservative: `likely_sufficient` requires high task-role coverage, dependency coverage, and zero critical gaps. Default when uncertain: `partial`. FSR proxy in `neuromesh eval --release-gates`. Proxy packets (`retrieval_level: "proxy"`) never stamp fixed scores — confidence/sufficiency are computed from matched vs expected keywords (cap ~0.45).
+
+## Graph proxy (optional, v0.8.2)
+
+When `graph_backend` is `proxy_cbm` or `auto` finds CBM, only **`get_context_packet`** uses the external MCP server. NeuroMesh forwards the full task context (`query` + `semantic_query` from keywords/expansion), parses CBM `{cols, rows}` JSON, filters empty-file Route hits, and shapes honest `retrieval` metadata. Other tools (`search_symbols`, `trace`, `expand_fold`) always use the native graph. **`native` remains the default** — test3 Express benchmark: native assisted beats proxy on precision (~0.79 vs ~0.50) and latency (~35 ms vs ~230 ms warm p50).
+
+See [graph-proxy.md](graph-proxy.md) and crate `neuromesh-graph-proxy`.
 
 ## Guarantees
 
@@ -80,6 +90,7 @@ Single-pass escalation (`escalate.rs`) — no triple full re-activate per query.
 | `neuromesh-context` | Genetic splice (skeletonizer), fold registry, **tiered retrieval** (`retrieval/`), gold harness |
 | `neuromesh-index` | Walker, hashes, language from path |
 | `neuromesh-memory` | Project facts from manifests and docs |
+| `neuromesh-graph-proxy` | External graph backends (CBM/Graphify) via MCP stdio — proxy packet + honest metadata |
 | `neuromesh-mcp` | MCP JSON-RPC 2.0 over stdio |
 | `neuromesh-cli` | `mcp`, `monitor`, `index`, `eval`, `doctor`, `connect` |
 | `neuromesh-router` | Osmotic QualityGate (mode vs critical tasks) |

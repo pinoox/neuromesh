@@ -2,6 +2,8 @@
 
 NeuroMesh separates **where structure comes from** (graph backend) from **how tasks pick starting symbols** (seed engine). Both are configurable from CLI, monitor Settings, or `nm.config.json`.
 
+**v0.8.2 recommendation:** keep **`native`** graph backend and **`keywords_expanded`** (or `hybrid`) seed engine. Use `proxy_cbm` only when CBM is already indexed and you want sidecar search — not as the primary investment path.
+
 ## Graph backend
 
 | Value | Meaning |
@@ -38,8 +40,10 @@ If the repo is not indexed in CBM yet, run `index_repository` via CBM (or Cursor
 ### Runtime behavior
 
 - Only **`get_context_packet`** uses the external graph when a proxy is active.
+- v0.8.2 forwards assisted signals to CBM and returns honest proxy `retrieval` metadata.
 - `search_symbols`, `trace`, `expand_fold`, galaxy UI, etc. still use the **native** graph.
 - With `fallback_native: true` (default), proxy failures fall back to native tiered activation.
+- Expect **~6–8× higher latency** on proxy vs native (CBM stdio round-trips per packet).
 
 See [graph-proxy.md](graph-proxy.md) for architecture details.
 

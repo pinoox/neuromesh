@@ -2,7 +2,20 @@
 
 NeuroMesh can delegate **indexing and graph queries** to an external MCP server while keeping **folding, packet assembly, and MCP tools** in NeuroMesh.
 
-Default is **`native`** — unchanged built-in graph (`neuromesh index`, `NeuralProjectGraph`, tiered retrieval).
+Default is **`native`** — unchanged built-in graph (`neuromesh index`, `NeuralProjectGraph`, tiered retrieval). **Native assisted is the recommended path** for precision and latency; proxy is an optional sidecar when CBM is already indexed in your IDE.
+
+## v0.8.2 stabilization
+
+Stock v0.8.1 proxy was broken (0 files on every query). v0.8.2 fixes:
+
+| Fix | What |
+| :--- | :--- |
+| **B1** | Parse CBM `search_graph` `{cols, rows}` JSON (not only `groups`/`results`) |
+| **B2** | Forward MCP `keywords`, `expansion`, and identifiers → CBM `query` + `semantic_query` |
+| **B3** | Honest proxy `retrieval` metadata — computed confidence/sufficiency (cap ~0.45), `critical_gaps`, `suggested_keywords` |
+| **B4** | Drop phantom Route hits with empty `file` (no `path: unknown` inflation) |
+
+Express test3 benchmark (60 cells, 10 langs × 6 tasks): proxy assisted recall **0.578** vs raw **0.448**; native assisted still wins on precision (**0.789** vs **0.504**) and warm p50 (**~35 ms** vs **~230 ms**).
 
 ## Backends
 
@@ -56,12 +69,13 @@ Index the repo in CBM first (`index_repository`). Verify with `neuromesh doctor 
 
 ## Runtime
 
-- **Assisted mode** — MCP `keywords` and `expansion` are forwarded to CBM (`query` + `semantic_query`); assisted ≠ raw on proxy.
+- **Assisted mode** — MCP `keywords` and `expansion` are forwarded to CBM (`query` + `semantic_query`); assisted ≠ raw on proxy (v0.8.2+).
 - **Honest metadata** — Proxy packets use computed confidence/sufficiency (cap ~0.45), not fixed 0.55/0.65.
 - **Route filtering** — Empty-file Route hits are dropped (no phantom `unknown` paths).
+- **Probe query** — `doctor --probe` uses a realistic middleware sample (`Router middleware app.use next pipeline`).
 
-1. NeuroMesh spawns the external MCP process (stdio)
-2. `get_context_packet` calls `search_graph` + `get_code_snippet` on CBM
+1. NeuroMesh spawns the external MCP process (stdio); child process stays alive for the session
+2. `get_context_packet` builds a `ProxySearchContext` from the task signature and calls `search_graph` + `get_code_snippet` on CBM
 3. Results are shaped into an evidence packet (folding on proxy snippets is minimal in v0.9)
 4. If proxy fails and `fallback_native: true`, native tiered activation runs unchanged
 

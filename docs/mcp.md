@@ -121,9 +121,11 @@ Aliases exist for older clients (`neuromesh_get_context`, `activate_context`, `e
 
 `mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality. `mode` does not add metadata; `response_detail` does (`minimal` ≤ 256 metadata tokens, `standard` ≤ 750, `diagnostic` on demand).
 
-### Retrieval metadata (v0.8.1)
+### Retrieval metadata (v0.8.2)
 
 Present on **all** detail levels (`minimal`, `standard`, `diagnostic`) when tiered activation runs. `minimal` uses a compact block (level, claim, gaps, next action); `standard` and `diagnostic` include full latency and confidence fields.
+
+**Native** example:
 
 ```json
 "retrieval": {
@@ -137,6 +139,21 @@ Present on **all** detail levels (`minimal`, `standard`, `diagnostic`) when tier
   "eligible_for_early_exit": false,
   "next_action": "neuromesh_search_symbols",
   "suggested_keywords": ["Router", "middleware"]
+}
+```
+
+**Proxy** (`graph_backend: proxy_cbm`, v0.8.2+): `retrieval_level` is `"proxy"`. Confidence and sufficiency are **computed** from matched vs expected keywords (never hardcoded). `claim` is `no_seed_resolved`, `partial`, or `bounded` — never `likely_sufficient` on proxy v1.
+
+```json
+"retrieval": {
+  "retrieval_level": "proxy",
+  "claim": "bounded",
+  "confidence": 0.2,
+  "sufficiency_score": 0.15,
+  "critical_gaps": ["next"],
+  "suggested_keywords": ["next"],
+  "graph_backend": "proxy_cbm",
+  "provider": "cbm"
 }
 ```
 

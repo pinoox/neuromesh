@@ -21,6 +21,7 @@ Nothing yet.
 
 - **`alias_seed_queries`** — NL middleware/routing prompts inject code seeds (`app.use`, `next`, …) without client keywords.
 - Expanded FA/AR middleware alias terms; `TraceMiddleware` intent detects `لوله`, `خط أنابيب`, `next()`.
+- **Docs** — architecture, graph-proxy, engines, quality (test3 v0.8.2 benchmark), site i18n updated for 0.8.2.
 
 ## 0.8.1 — 2026-08-29 (graph proxy + monitor)
 

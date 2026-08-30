@@ -120,7 +120,7 @@ flowchart LR
   X --> W[expand_fold if needed]
 ```
 
-**Intent → Concept → Graph** (v0.8.1): the prompt is normalized to a `QueryPlan` (routing, middleware, auth, …), static alias clusters map NL terms to concepts, and a code-derived **concept index** turns concepts into symbol seeds — no embedding in L1/L2.
+**Intent → Concept → Graph** (v0.8.2): the prompt is normalized to a `QueryPlan` (routing, middleware, auth, …), static alias clusters map NL terms to concepts (including FA/AR middleware → `app.use` / `next`), and a code-derived **concept index** turns concepts into symbol seeds — no embedding in L1/L2.
 
 1. **Read the task** as written. `handle_tool_call` survives; it is not lowercased into mush.  
 2. **Resolve on the mesh.** Single-pass L1→L2→L3 escalation only when **critical gaps** remain (not every query hits L3).  
@@ -144,12 +144,14 @@ neuromesh config seed-engine semantic_lite          # this repo (nm.config.json)
 neuromesh config seed-engine keywords_expanded --global
 ```
 
-**Graph backend** (optional external index via [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)): default `native`; `auto` detects CBM from Cursor MCP config:
+**Graph backend** (optional external index via [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)): default **`native`** (recommended — faster and more precise). `auto` or `proxy_cbm` delegates `get_context_packet` to CBM while folding and other tools stay native:
 
 ```bash
 neuromesh config graph-backend auto               # use CBM when installed
-neuromesh doctor --proxy --probe                    # verify CBM connection
+neuromesh doctor --proxy --probe                    # verify CBM connection + sample packet
 ```
+
+v0.8.2 stabilizes the CBM proxy: cols/rows JSON parsing, assisted keyword forwarding, honest retrieval metadata, Route phantom filtering. See [docs/graph-proxy.md](docs/graph-proxy.md).
 
 Full guide: [docs/engines.md](docs/engines.md) · [docs/graph-proxy.md](docs/graph-proxy.md). Monitor **Settings** exposes both engines without editing JSON.
 
@@ -320,7 +322,7 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release v0.8.1, 650,859 workspace tokens):
+On this repo (release v0.8.2, 650,859 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -346,6 +348,6 @@ Index snapshot from that eval run: **340 files · 3,161 nodes · 6,795 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.8.1 |
+| [Changelog](docs/CHANGELOG.md) | 0.8.2 |
 
 MIT · [LICENSE](LICENSE)
