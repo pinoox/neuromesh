@@ -223,6 +223,7 @@ impl TaskSignatureExtractor {
             client_path_hints: Vec::new(),
             client_entity_types: Vec::new(),
             client_intent: None,
+            retrieval_engine_override: None,
             engine_override: None,
             embed_min_cosine_override: None,
             confidence,

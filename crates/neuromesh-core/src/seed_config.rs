@@ -1,4 +1,4 @@
-use crate::{EmbeddingConfig, GraphProxyConfig, RetrievalConfig};
+use crate::{GraphProxyConfig, RetrievalConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -145,13 +145,9 @@ pub struct SeedResolutionTelemetry {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NmConfigOverlay {
     #[serde(default)]
-    pub seed_resolution: Option<SeedResolutionConfig>,
-    #[serde(default)]
     pub packet_header: Option<PacketHeaderConfig>,
     #[serde(default)]
     pub graph_backend: Option<GraphProxyConfig>,
-    #[serde(default)]
-    pub embeddings: Option<EmbeddingConfig>,
     #[serde(default)]
     pub retrieval: Option<RetrievalConfig>,
 }

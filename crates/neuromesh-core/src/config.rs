@@ -1,6 +1,6 @@
 use crate::{
     EmbeddingConfig, GraphBackendId, GraphProxyConfig, NeuroMeshError, NmConfigOverlay,
-    PacketHeaderConfig, Result, RetrievalConfig, RetrievalEngine, SeedEngineId,
+    PacketHeaderConfig, Result, RetrievalConfig, RetrievalEngine,
     SeedResolutionConfig,
 };
 use serde::{Deserialize, Serialize};
@@ -237,7 +237,7 @@ impl Config {
         cfg
     }
 
-    /// Workspace-root `nm.config.json` — merges only seed_resolution and packet_header.
+    /// Workspace-root `nm.config.json` — merges retrieval, packet_header, graph_backend.
     fn read_nm_config(workspace: &Path) -> Option<NmConfigOverlay> {
         let path = workspace.join("nm.config.json");
         if !path.exists() {
@@ -248,27 +248,11 @@ impl Config {
     }
 
     fn overlay_nm(&mut self, overlay: NmConfigOverlay) {
-        if overlay.retrieval.is_none() {
-            let legacy_hybrid = overlay.embeddings.as_ref().is_some_and(|e| e.enabled)
-                || overlay
-                    .seed_resolution
-                    .as_ref()
-                    .is_some_and(|s| s.engine == SeedEngineId::SemanticLite);
-            if legacy_hybrid {
-                self.retrieval.engine = RetrievalEngine::Hybrid;
-            }
-        }
-        if let Some(sr) = overlay.seed_resolution {
-            self.seed_resolution = sr;
-        }
         if let Some(ph) = overlay.packet_header {
             self.packet_header = ph;
         }
         if let Some(gb) = overlay.graph_backend {
             self.graph_backend = gb;
-        }
-        if let Some(em) = overlay.embeddings {
-            self.embeddings = em;
         }
         if let Some(re) = overlay.retrieval {
             self.retrieval = re;
@@ -308,21 +292,15 @@ impl Config {
                 Err(_) => {}
             }
         }
-        if let Ok(raw) = std::env::var("NEUROMESH_SEED_ENGINE") {
-            if let Some(engine) = SeedEngineId::parse(&raw) {
-                self.seed_resolution.engine = engine;
-            }
-        }
         if let Ok(raw) = std::env::var("NEUROMESH_GRAPH_BACKEND") {
             if let Some(backend) = GraphBackendId::parse(&raw) {
                 self.graph_backend.backend = backend;
             }
         }
-        if let Ok(raw) = std::env::var("NEUROMESH_AUTO_EXTRACT_KEYWORDS") {
-            self.seed_resolution.auto_extract_keywords = Self::parse_env_bool(&raw, true);
-        }
-        if let Ok(raw) = std::env::var("NEUROMESH_EMBEDDINGS") {
-            self.embeddings.enabled = Self::parse_env_bool(&raw, false);
+        if let Ok(raw) = std::env::var("NEUROMESH_ENGINE") {
+            if let Some(engine) = RetrievalEngine::parse(&raw) {
+                self.retrieval.engine = engine;
+            }
         }
         if let Ok(raw) = std::env::var("NEUROMESH_EMBED_MODEL") {
             if let Some(model) = crate::EmbeddingModelId::parse(&raw) {
@@ -336,11 +314,6 @@ impl Config {
         }
         if let Ok(raw) = std::env::var("NEUROMESH_SEMANTIC_CACHE") {
             self.embeddings.semantic_cache_enabled = Self::parse_env_bool(&raw, true);
-        }
-        if let Ok(raw) = std::env::var("NEUROMESH_ENGINE") {
-            if let Some(engine) = RetrievalEngine::parse(&raw) {
-                self.retrieval.engine = engine;
-            }
         }
         if let Ok(raw) = std::env::var("NEUROMESH_OPTIONAL_DEDUP") {
             let t = raw.trim().to_lowercase();
@@ -365,7 +338,7 @@ impl Config {
         );
     }
 
-    /// Load overlays/env, then apply retrieval preset (single knob → legacy surfaces).
+    /// Load overlays/env, then apply retrieval preset.
     pub fn normalized(mut self) -> Self {
         self.apply_retrieval_preset();
         self
@@ -421,49 +394,6 @@ impl Config {
         workspace.join("nm.config.json")
     }
 
-    /// Persist `seed_resolution.engine` in `~/.neuromesh/config.json` (creates file if missing).
-    pub fn set_global_seed_engine(engine: SeedEngineId) -> Result<PathBuf> {
-        let path = Self::home_config_path();
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let mut cfg = if path.exists() {
-            Self::read_file(&path).unwrap_or_default()
-        } else {
-            Self::default()
-        };
-        cfg.seed_resolution.engine = engine;
-        cfg.retrieval.engine = RetrievalEngine::from_seed_engine(engine);
-        cfg.apply_retrieval_preset();
-        fs::write(&path, serde_json::to_string_pretty(&cfg)?)?;
-        Ok(path)
-    }
-
-    /// Persist `seed_resolution.engine` in `<workspace>/nm.config.json` (version-control friendly).
-    pub fn set_workspace_seed_engine(workspace: &Path, engine: SeedEngineId) -> Result<PathBuf> {
-        let path = Self::workspace_nm_config_path(workspace);
-        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
-        let mut seed = overlay.seed_resolution.take().unwrap_or_default();
-        seed.engine = engine;
-        overlay.seed_resolution = Some(seed);
-        overlay.retrieval = Some(RetrievalConfig {
-            engine: RetrievalEngine::from_seed_engine(engine),
-        });
-        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
-        Ok(path)
-    }
-
-    pub fn global_seed_engine() -> Option<SeedEngineId> {
-        let path = Self::home_config_path();
-        Self::read_file(&path).map(|c| c.seed_resolution.engine)
-    }
-
-    pub fn workspace_seed_engine(workspace: &Path) -> Option<SeedEngineId> {
-        Self::read_nm_config(workspace)
-            .and_then(|o| o.seed_resolution)
-            .map(|sr| sr.engine)
-    }
-
     pub fn set_global_graph_backend(backend: GraphBackendId) -> Result<PathBuf> {
         let path = Self::home_config_path();
         if let Some(parent) = path.parent() {
@@ -488,44 +418,6 @@ impl Config {
         let mut gb = overlay.graph_backend.take().unwrap_or_default();
         gb.backend = backend;
         overlay.graph_backend = Some(gb);
-        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
-        Ok(path)
-    }
-
-    pub fn set_global_embeddings(enabled: bool) -> Result<PathBuf> {
-        let path = Self::home_config_path();
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let mut cfg = if path.exists() {
-            Self::read_file(&path).unwrap_or_default()
-        } else {
-            Self::default()
-        };
-        cfg.embeddings.enabled = enabled;
-        fs::write(&path, serde_json::to_string_pretty(&cfg)?)?;
-        Ok(path)
-    }
-
-    pub fn set_workspace_embeddings(workspace: &Path, enabled: bool) -> Result<PathBuf> {
-        let path = Self::workspace_nm_config_path(workspace);
-        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
-        let mut emb = overlay.embeddings.take().unwrap_or_default();
-        emb.enabled = enabled;
-        overlay.embeddings = Some(emb);
-        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
-        Ok(path)
-    }
-
-    pub fn set_workspace_embedding_model(
-        workspace: &Path,
-        model: crate::EmbeddingModelId,
-    ) -> Result<PathBuf> {
-        let path = Self::workspace_nm_config_path(workspace);
-        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
-        let mut emb = overlay.embeddings.take().unwrap_or_default();
-        emb.model = model;
-        overlay.embeddings = Some(emb);
         fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
         Ok(path)
     }

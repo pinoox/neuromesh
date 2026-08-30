@@ -22,28 +22,28 @@ Paste this body into whatever “project instructions / rules / AGENTS” file y
 
 Prefer NeuroMesh MCP for **reading and exploring** code — folded skeletons and targeted symbols, not multi-thousand-line dumps.
 
-## Default loop (v0.8.6 — bundled MiniLM)
+## Default loop (v0.9.0 — zero-embed fast engine)
 
-Release binaries include **bundled MiniLM** weights. **Prompt only** — no `keywords`/`expansion` unless the repo enabled a custom lexical seed engine.
+**Default:** `retrieval.engine: fast` — graph index + query-side lexical expansion. **No ONNX** at index or MCP startup. Pass the task as written only — **no** `keywords` / `expansion`.
 
 1. `get_context_packet` with the task as written (`query` / `task_description` / `prompt` / `task`). Optional: `path_hints` / `entity_types`.
-2. Check `retrieval.resolution_tier` (`embedding_primary` expected) and `retrieval.cache_hit`.
+2. Check `retrieval.resolution_tier` — expect **`lexical_primary`** or graph-assisted seeds (not `embedding_primary` unless repo set `engine: hybrid`).
 3. If `coverage.claim` is `partial`, `no_seed_resolved`, or `no_confident_match`, follow `packet_gaps` / `next`.
 4. `neuromesh_expand_fold` / `neuromesh_expand_gap` as needed; `neuromesh_trace` for callers.
 5. `neuromesh_record_feedback` after a successful edit.
 
-## Custom modes (opt-in in nm.config.json)
+## Engine presets (opt-in in nm.config.json)
 
-| Mode | Agent behavior |
+| `engine` | Agent behavior |
 | :--- | :--- |
-| **Embed (default)** | Prompt only |
-| **Lexical** (`keywords`, `keywords_expanded`) | Pass English code keywords + expansion |
-| **Hybrid** | Embed + keywords (Arabic-heavy repos) |
+| **`fast` (default)** | Prompt only — zero-embed |
+| **`hybrid`** | Prompt only — MiniLM sidecar |
+| **`deep`** | Prompt only — max quality + dedup |
 | **CBM proxy** | Conservative proxy claims; native for trace/fold |
 
 ## Anti-patterns
 
-- Sending keywords on default embed installs
+- Sending keywords on default **fast** installs
 - Whole-file reads when a packet suffices
 - Skipping `record_feedback`
 ```
@@ -54,20 +54,9 @@ Keep one copy in the repo (for example `AGENTS.md`) and point each IDE at it.
 
 ## Multilingual prompts
 
-**Default (bundled MiniLM):** pass the prompt in any language — embedding handles NL→symbol recovery. No keyword table.
+**Default (fast engine):** pass the prompt in any language — server-assisted concept expansion and graph traversal recover symbol seeds. No keyword table.
 
-**Custom lexical/hybrid engines only:** pass English **code terms** in `keywords` and related concepts in `expansion`, or enable `auto_extract_keywords`:
-
-| Language | Example prompt fragment | Suggested keywords (lexical mode only) |
-| :--- | :--- | :--- |
-| Persian (FA) | مسیردهی و middleware | `router`, `route`, `middleware`, `app.use` |
-| Spanish (ES) | enrutamiento y redirect | `router`, `redirect`, `response` |
-| Arabic (AR) | المصادقة والجلسة | `auth`, `session`, `cookie` |
-| German (DE) | Routing und Middleware | `router`, `middleware`, `route` |
-| Chinese (ZH) | 路由和中间件 | `router`, `middleware`, `route` |
-| Japanese (JA) | ルーティング | `router`, `route`, `handler` |
-| Russian (RU) | маршрутизация | `router`, `route`, `middleware` |
-| Turkish (TR) | yönlendirme | `router`, `redirect`, `route` |
+**Hybrid/deep engines:** same prompt-only workflow; MiniLM sidecar adds embedding-primary recall when needed.
 
 Keep one copy in the repo (for example `AGENTS.md`) and point each IDE at it, or duplicate into the client-specific paths below. Prefer **one** shared `AGENTS.md` when several tools share the same git root.
 

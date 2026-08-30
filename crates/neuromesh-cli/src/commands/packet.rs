@@ -2,7 +2,7 @@ use neuromesh_context::gold::{packet_file_names, packet_paths};
 use neuromesh_context::retrieval::apply_auto_extract_keywords;
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{
-    Config, OptimizationMode, ProjectId, Result, RetrievalMetadata, SeedEngineId, TaskSignature,
+    Config, OptimizationMode, ProjectId, Result, RetrievalEngine, RetrievalMetadata, TaskSignature,
 };
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_task::TaskSignatureExtractor;
@@ -16,7 +16,7 @@ use super::{configured_walker, FileCapArg};
 struct PacketArgs {
     json: bool,
     query: Option<String>,
-    engine: Option<SeedEngineId>,
+    engine: Option<RetrievalEngine>,
     keywords: Vec<String>,
     expansion: Vec<String>,
     path_hints: Vec<String>,
@@ -52,7 +52,7 @@ struct TaskJsonOut {
     client_path_hints: Vec<String>,
     client_entity_types: Vec<String>,
     client_intent: Option<String>,
-    engine_override: Option<String>,
+    retrieval_engine_override: Option<String>,
 }
 
 pub fn execute(args: &[String]) -> Result<()> {
@@ -130,7 +130,9 @@ pub fn execute(args: &[String]) -> Result<()> {
             client_path_hints: signature.client_path_hints.clone(),
             client_entity_types: signature.client_entity_types.clone(),
             client_intent: signature.client_intent.clone(),
-            engine_override: signature.engine_override.map(|e| e.as_str().to_string()),
+            retrieval_engine_override: signature
+                .retrieval_engine_override
+                .map(|e| e.as_str().to_string()),
         },
     };
 
@@ -174,7 +176,7 @@ fn print_human(prompt: &str, payload: &PacketJsonOut, paths: &std::collections::
         payload.latency_ms,
         payload.coverage.as_deref().unwrap_or("unknown")
     );
-    if let Some(engine) = payload.task.engine_override.as_deref() {
+    if let Some(engine) = payload.task.retrieval_engine_override.as_deref() {
         println!("Engine override: {}", engine);
     }
     if !payload.task.client_keywords.is_empty() {
@@ -221,19 +223,19 @@ fn parse_args(args: &[String]) -> Result<PacketArgs> {
                 let raw = args.get(i + 1).ok_or_else(|| {
                     neuromesh_core::NeuroMeshError::Config("--engine needs a value".into())
                 })?;
-                out.engine = Some(SeedEngineId::parse(raw).ok_or_else(|| {
+                out.engine = Some(RetrievalEngine::parse(raw).ok_or_else(|| {
                     neuromesh_core::NeuroMeshError::Config(format!(
                         "unknown engine {raw} (expected: {})",
-                        SeedEngineId::help_line()
+                        RetrievalEngine::help_line()
                     ))
                 })?);
                 i += 1;
             }
             v if let Some(raw) = v.strip_prefix("--engine=") => {
-                out.engine = Some(SeedEngineId::parse(raw).ok_or_else(|| {
+                out.engine = Some(RetrievalEngine::parse(raw).ok_or_else(|| {
                     neuromesh_core::NeuroMeshError::Config(format!(
                         "unknown engine {raw} (expected: {})",
-                        SeedEngineId::help_line()
+                        RetrievalEngine::help_line()
                     ))
                 })?);
             }
@@ -370,7 +372,7 @@ fn apply_client_signals(signature: &mut TaskSignature, args: &PacketArgs) {
             signature.client_intent = Some(intent.to_string());
         }
     }
-    signature.engine_override = args.engine;
+    signature.retrieval_engine_override = args.engine;
     let prompt = args.query.as_deref().unwrap_or("");
     let enabled = Config::load().seed_resolution.effective_auto_extract();
     apply_auto_extract_keywords(signature, prompt, enabled);
@@ -395,7 +397,7 @@ mod tests {
         ];
         let parsed = parse_args(&args).unwrap();
         assert!(parsed.json);
-        assert_eq!(parsed.engine, Some(SeedEngineId::Hybrid));
+        assert_eq!(parsed.engine, Some(RetrievalEngine::Hybrid));
         assert_eq!(parsed.keywords, vec!["Session", "redirect"]);
         assert_eq!(parsed.expansion, vec!["retry", "HTTPAdapter"]);
         assert_eq!(parsed.query.as_deref(), Some("How does redirect work?"));

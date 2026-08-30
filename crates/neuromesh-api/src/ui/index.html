@@ -2634,45 +2634,45 @@
                                 </div>
                             </div>
 
-                            <!-- SETTING: SEED ENGINE -->
+                            <!-- SETTING: RETRIEVAL ENGINE -->
                             <div class="modern-setting-group" style="margin-top: 1.25rem;">
                                 <div class="modern-setting-header">
                                     <div class="modern-setting-title-wrap">
-                                        <span class="setting-title" data-i18n="lbl_seed_engine">Seed Resolution Engine:</span>
-                                        <button class="info-toggle-btn" onclick="window.toggleSettingInfo('infoSeedEngine')" title="Toggle Guide">ℹ️</button>
+                                        <span class="setting-title" data-i18n="lbl_retrieval_engine">Retrieval Engine:</span>
+                                        <button class="info-toggle-btn" onclick="window.toggleSettingInfo('infoRetrievalEngine')" title="Toggle Guide">ℹ️</button>
                                     </div>
-                                    <span class="setting-badge">Seeds</span>
+                                    <span class="setting-badge">Engine</span>
                                 </div>
-                                <div id="infoSeedEngine" class="collapsible-setting-guide">
-                                    <span data-i18n="guide_seed_engine">Default: bundled MiniLM embed (prompt only). Custom: Keywords+ or Hybrid for lexical keyword assist.</span>
+                                <div id="infoRetrievalEngine" class="collapsible-setting-guide">
+                                    <span data-i18n="guide_retrieval_engine">Default: fast (zero-embed graph + lexical). Use hybrid for MiniLM sidecar or deep for max quality.</span>
                                 </div>
-                                <div class="preset-cards-row" id="presetSeedEngineCards">
-                                    <div class="preset-card active" onclick="window.selectSeedEngine('semantic_lite', this)">
-                                        <div class="preset-card-icon">✨</div>
+                                <div class="preset-cards-row" id="presetRetrievalEngineCards">
+                                    <div class="preset-card active" onclick="window.selectRetrievalEngine('fast', this)">
+                                        <div class="preset-card-icon">⚡</div>
                                         <div class="preset-card-body">
-                                            <div class="preset-card-title" data-i18n="opt_seed_sem_short">Embed (MiniLM)</div>
-                                            <div class="preset-card-desc" data-i18n="opt_seed_sem_desc">Bundled · prompt only · default</div>
+                                            <div class="preset-card-title" data-i18n="opt_engine_fast_short">Fast</div>
+                                            <div class="preset-card-desc" data-i18n="opt_engine_fast_desc">Zero-embed · graph + lexical · default</div>
                                         </div>
                                         <div class="preset-check">✓</div>
                                     </div>
-                                    <div class="preset-card" onclick="window.selectSeedEngine('hybrid', this)">
+                                    <div class="preset-card" onclick="window.selectRetrievalEngine('hybrid', this)">
                                         <div class="preset-card-icon">🧬</div>
                                         <div class="preset-card-body">
-                                            <div class="preset-card-title" data-i18n="opt_seed_hybrid_short">Hybrid</div>
-                                            <div class="preset-card-desc" data-i18n="opt_seed_hybrid_desc">Embed + keywords · custom</div>
+                                            <div class="preset-card-title" data-i18n="opt_engine_hybrid_short">Hybrid</div>
+                                            <div class="preset-card-desc" data-i18n="opt_engine_hybrid_desc">MiniLM sidecar + graph</div>
                                         </div>
                                         <div class="preset-check">✓</div>
                                     </div>
-                                    <div class="preset-card" onclick="window.selectSeedEngine('keywords_expanded', this)">
-                                        <div class="preset-card-icon">🔑</div>
+                                    <div class="preset-card" onclick="window.selectRetrievalEngine('deep', this)">
+                                        <div class="preset-card-icon">💎</div>
                                         <div class="preset-card-body">
-                                            <div class="preset-card-title" data-i18n="opt_seed_kw_short">Keywords+</div>
-                                            <div class="preset-card-desc" data-i18n="opt_seed_kw_desc">Lexical only · custom</div>
+                                            <div class="preset-card-title" data-i18n="opt_engine_deep_short">Deep</div>
+                                            <div class="preset-card-desc" data-i18n="opt_engine_deep_desc">Max quality + dedup</div>
                                         </div>
                                         <div class="preset-check">✓</div>
                                     </div>
                                 </div>
-                                <input type="hidden" id="settingsSeedEngine" value="semantic_lite">
+                                <input type="hidden" id="settingsRetrievalEngine" value="fast">
                             </div>
 
                             <!-- SETTING 2: CELLULAR OSMOTIC GATE -->
@@ -3017,8 +3017,14 @@
                 opt_graph_cbm_short: 'CBM Proxy',
                 opt_graph_cbm_desc: 'codebase-memory-mcp',
                 btn_probe_cbm: '🔬 Probe CBM connection',
-                lbl_seed_engine: 'Seed Resolution Engine:',
-                guide_seed_engine: 'Default: bundled MiniLM embed (prompt only). Custom: Keywords+ or Hybrid for lexical assist.',
+                lbl_retrieval_engine: 'Retrieval Engine:',
+                guide_retrieval_engine: 'Default: fast (zero-embed). hybrid = MiniLM sidecar; deep = max quality.',
+                opt_engine_fast_short: 'Fast',
+                opt_engine_fast_desc: 'Zero-embed · graph + lexical · default',
+                opt_engine_hybrid_short: 'Hybrid',
+                opt_engine_hybrid_desc: 'MiniLM sidecar + graph',
+                opt_engine_deep_short: 'Deep',
+                opt_engine_deep_desc: 'Max quality + dedup',
                 opt_seed_kw_short: 'Keywords+',
                 opt_seed_kw_desc: 'Expanded keywords · default',
                 opt_seed_hybrid_short: 'Hybrid',
@@ -3201,8 +3207,14 @@
                 opt_graph_cbm_short: 'پروکسی CBM',
                 opt_graph_cbm_desc: 'codebase-memory-mcp',
                 btn_probe_cbm: '🔬 آزمایش اتصال CBM',
-                lbl_seed_engine: 'موتور بذر (Seed Engine):',
-                guide_seed_engine: 'پیش‌فرض: embed با MiniLM باندل (فقط prompt). سفارشی: Keywords+ یا Hybrid.',
+                lbl_retrieval_engine: 'موتور بازیابی:',
+                guide_retrieval_engine: 'پیش‌فرض: fast (بدون embed). hybrid = MiniLM؛ deep = حداکثر کیفیت.',
+                opt_engine_fast_short: 'سریع',
+                opt_engine_fast_desc: 'بدون embed · گراف + lexical',
+                opt_engine_hybrid_short: 'Hybrid',
+                opt_engine_hybrid_desc: 'MiniLM + گراف',
+                opt_engine_deep_short: 'Deep',
+                opt_engine_deep_desc: 'حداکثر کیفیت + dedup',
                 opt_seed_kw_short: 'Keywords+',
                 opt_seed_kw_desc: 'کلمات گسترده · پیش‌فرض',
                 opt_seed_hybrid_short: 'Hybrid',
@@ -3849,7 +3861,7 @@
                 const elEngines = document.getElementById('bioEnginesValue');
                 if (elEngines) {
                     const gb = data.graph_backend_active || data.graph_backend || 'native';
-                    const se = data.seed_engine || 'semantic_lite';
+                    const se = data.retrieval_engine || 'fast';
                     const proxyTag = data.graph_proxy_connected ? ' · CBM live' : '';
                     elEngines.innerText = `${gb} · ${se}${proxyTag}`;
                 }
@@ -5088,10 +5100,10 @@
             if (el) el.classList.add('active');
         };
 
-        window.selectSeedEngine = function(engine, el) {
-            const input = document.getElementById('settingsSeedEngine');
+        window.selectRetrievalEngine = function(engine, el) {
+            const input = document.getElementById('settingsRetrievalEngine');
             if (input) input.value = engine;
-            const container = document.getElementById('presetSeedEngineCards');
+            const container = document.getElementById('presetRetrievalEngineCards');
             if (container) {
                 container.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
             }
@@ -5103,11 +5115,11 @@
                 const res = await fetch('/api/engines');
                 const data = await res.json();
                 const backend = data.graph_backend || 'native';
-                const engine = data.seed_engine || 'semantic_lite';
+                const engine = data.retrieval_engine || 'fast';
                 const backendCards = document.getElementById('presetGraphBackendCards');
-                const engineCards = document.getElementById('presetSeedEngineCards');
+                const engineCards = document.getElementById('presetRetrievalEngineCards');
                 const backendMap = { native: 0, auto: 1, proxy_cbm: 2, proxy_graphify: 2 };
-                const engineMap = { semantic_lite: 0, hybrid: 1, keywords_expanded: 2, keywords: 2, off: 0 };
+                const engineMap = { fast: 0, hybrid: 1, deep: 2 };
                 const bIdx = backendMap[backend] != null ? backendMap[backend] : 0;
                 const eIdx = engineMap[engine] != null ? engineMap[engine] : 0;
                 if (backendCards) {
@@ -5116,7 +5128,7 @@
                 }
                 if (engineCards) {
                     const card = engineCards.querySelectorAll('.preset-card')[eIdx];
-                    if (card) window.selectSeedEngine(engine, card);
+                    if (card) window.selectRetrievalEngine(engine, card);
                 }
                 const statusEl = document.getElementById('graphProxyStatus');
                 if (statusEl) {
@@ -5194,12 +5206,12 @@
             const modeRaw = document.getElementById('settingsModeSelect').value;
             const mode = modeMap[modeRaw] || 'balanced';
             const graph_backend = document.getElementById('settingsGraphBackend').value;
-            const seed_engine = document.getElementById('settingsSeedEngine').value;
+            const retrieval_engine = document.getElementById('settingsRetrievalEngine').value;
             try {
                 const res = await fetch('/api/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mode, graph_backend, seed_engine, persist: true })
+                    body: JSON.stringify({ mode, graph_backend, retrieval_engine, persist: true })
                 });
                 const data = await res.json();
                 if (data.success) {

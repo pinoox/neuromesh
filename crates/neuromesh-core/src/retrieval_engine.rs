@@ -42,16 +42,6 @@ impl RetrievalEngine {
         "fast | hybrid | deep"
     }
 
-    /// Map legacy seed engine names to the nearest retrieval preset.
-    pub fn from_seed_engine(seed: SeedEngineId) -> Self {
-        match seed {
-            SeedEngineId::Off | SeedEngineId::Keywords | SeedEngineId::KeywordsExpanded => {
-                Self::Fast
-            }
-            SeedEngineId::SemanticLite | SeedEngineId::Hybrid => Self::Hybrid,
-        }
-    }
-
     /// Apply preset to the legacy config surfaces (seed, embeddings, optimization mode).
     pub fn apply_preset(
         self,

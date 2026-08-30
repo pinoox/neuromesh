@@ -87,11 +87,20 @@ mod seed_engine_tests {
     }
 
     #[test]
-    fn engine_override_wins_over_config() {
+    fn retrieval_override_applies_preset() {
         let config = SeedResolutionConfig::default();
         let mut sig = TaskSignature::new("demo");
-        sig.engine_override = Some(SeedEngineId::Hybrid);
-        assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::Hybrid);
+        sig.retrieval_engine_override = Some(neuromesh_core::RetrievalEngine::Hybrid);
+        assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::SemanticLite);
+    }
+
+    #[test]
+    fn internal_engine_override_wins_over_retrieval() {
+        let config = SeedResolutionConfig::default();
+        let mut sig = TaskSignature::new("demo");
+        sig.retrieval_engine_override = Some(neuromesh_core::RetrievalEngine::Fast);
+        sig.engine_override = Some(SeedEngineId::Off);
+        assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::Off);
     }
 
     #[test]

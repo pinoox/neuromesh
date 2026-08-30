@@ -10,8 +10,7 @@ All notable user-facing changes live here. The README stays a product guide, not
 - **Default `fast`** — zero-embed index and MCP (no ONNX warm/rebuild); query-side concept expansion + graph traversal.
 - **Query expansion** — domain alias packs (auth/jwt/…), camelCase/snake_case identifier variants; L3 lexical recovery in `fast`.
 - **CLI** — `neuromesh config engine fast|hybrid|deep`, `neuromesh index --mode hybrid`, `neuromesh eval --release-gates --engine fast`, `neuromesh doctor --engine`.
-- **Release gates** — engine-specific thresholds; `fast` drops embedding-primary requirement, enforces `embedding_primary_rate ≤ 10%`.
-- **Legacy migration** — old `nm.config.json` with `embeddings.enabled: true` infers `hybrid`; `config seed-engine` maps to nearest preset.
+- **Breaking** — removed `config seed-engine`, `config embeddings`, `NEUROMESH_SEED_ENGINE`, `NEUROMESH_EMBEDDINGS`; use `retrieval.engine` preset only.
 
 ### Embed-primary performance (graph-first index)
 

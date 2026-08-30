@@ -57,30 +57,11 @@ neuromesh eval --release-gates --calibrate        # dev-split threshold tuning
 | FSR proxy | &lt; 10% | &lt; 10% |
 | Full-workspace fallback | 0 | 0 |
 
-## Tiered retrieval & release gates (v0.8.6 — hybrid legacy)
-
-MCP and `neuromesh packet --json` use **single-pass** L1→L2→L3 escalation. L2 pattern expand and L3 semantic recovery run only when **critical gaps** remain after the sufficiency check.
-
-```bash
-neuromesh eval --release-gates              # multi-metric gate report
-neuromesh eval --release-gates --calibrate  # dev-split threshold tuning
-```
+`false_sufficiency_rate` is **`null`** when no `task_success` labels exist (CLI eval without agent simulation). FSR **proxy** uses `likely_sufficient` + gold recall &lt; 0.5. **Proxy v0.8.2+** never emits fixed sufficiency/confidence scores — treat proxy `retrieval.claim` as conservative (`partial` / `bounded` only).
 
 Optional: run the multilingual MCP benchmark driver against any indexed Express (or similar) workspace and compare JSON summaries release-over-release.
 
-| Gate | Target |
-| :--- | :--- |
-| Assisted recall (holdout) | ≥ 55% |
-| Precision | ≥ 73% |
-| no_seed cells | ≤ 2 |
-| embedding_primary rate | ≥ 40% |
-| L3 rate | ≤ 15% |
-| FSR proxy | &lt; 10% |
-| Full-workspace fallback | 0 |
-
-`false_sufficiency_rate` is **`null`** when no `task_success` labels exist (CLI eval without agent simulation). FSR **proxy** uses `likely_sufficient` + gold recall &lt; 0.5. **Proxy v0.8.2+** never emits fixed sufficiency/confidence scores — treat proxy `retrieval.claim` as conservative (`partial` / `bounded` only).
-
-## Multilingual MCP benchmark (v0.8.6)
+## Multilingual MCP benchmark (historical)
 
 Holdout matrix: **60 cells** (10 languages × 6 Express-oriented tasks). MCP stdio `get_context_packet` with **prompt only** (bundled MiniLM embed-primary — no client keywords).
 
@@ -94,7 +75,7 @@ Build a **release** binary before measuring; debug builds skew latency.
 
 **Interpretation**
 
-- **Embed-primary default (v0.8.6):** bundled MiniLM — agents pass prompt only; lexical `keywords_expanded`/`hybrid` are custom opt-in. Benchmark target: recall ≥ 0.55, precision ≥ 0.73, no_seed ≤ 2 (Express 60-cell holdout).
+- **Embed-primary (hybrid/deep):** bundled MiniLM — agents pass prompt only. Benchmark target: recall ≥ 0.55, precision ≥ 0.73, no_seed ≤ 2, embedding_primary ≥ 40% (Express 60-cell holdout).
 - Re-run: `node test3/mcp_driver_v2.mjs <release-neuromesh> <express-workspace> <outdir> 6 raw native`
 
 ### Sketch enrichment (v0.8.6)

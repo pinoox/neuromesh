@@ -10,7 +10,7 @@ use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::retrieval::apply_auto_extract_keywords;
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
 use neuromesh_core::{
-    Config, NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId, TaskSignature,
+    Config, NeuroMeshError, NodeId, OptimizationMode, Result, RetrievalEngine, TaskSignature,
 };
 #[cfg(feature = "embeddings")]
 use neuromesh_embed::{embed_query_cached, packet_cache_begin, packet_cache_end, SemanticCacheKey};
@@ -1232,7 +1232,7 @@ fn apply_client_seed_signals(signature: &mut neuromesh_core::TaskSignature, argu
         }
     }
     if let Some(engine) = arguments.get("engine").and_then(Value::as_str) {
-        signature.engine_override = SeedEngineId::parse(engine);
+        signature.retrieval_engine_override = RetrievalEngine::parse(engine);
     }
 }
 

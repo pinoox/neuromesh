@@ -80,23 +80,23 @@ Or in `~/.neuromesh/config.json`:
 
 `"project_store": "local"` is the old behavior for every workspace. `NEUROMESH_STORE=local` is a one-shot. Leftover in-repo `.neuromesh` folders are copied into the managed slot once, then ignored until you trust them.
 
-## Seed engine & config
+## Retrieval engine & config
 
-Seed resolution picks symbol anchors before folding. **v0.8.6 default: bundled MiniLM embed-primary** — pass the prompt only; no client keywords. Lexical engines (`keywords`, `keywords_expanded`, `hybrid`) are **custom opt-in** via `nm.config.json`.
+NeuroMesh v0.9.0 uses one **retrieval engine** preset: `fast` | `hybrid` | `deep`. Default **`fast`** — graph index + query-side lexical expansion; pass the prompt only.
 
 | Layer | File | Scope |
 | :--- | :--- | :--- |
 | Global | `~/.neuromesh/config.json` | all workspaces |
 | Project | `nm.config.json` in repo root | commit-friendly per repo |
-| Managed slot | `~/.neuromesh/projects/…/config.json` | port / max-files / seed (via `neuromesh port`) |
-| Env | `NEUROMESH_SEED_ENGINE` | one-shot override |
+| Managed slot | `~/.neuromesh/projects/…/config.json` | port / max-files (via `neuromesh port`) |
+| Env | `NEUROMESH_ENGINE` | one-shot override |
 | MCP | `engine` param on `get_context_packet` | per call |
 
 ```bash
 neuromesh config                              # effective settings for cwd
-neuromesh config seed-engine get                 # show engine + override layers
-neuromesh config seed-engine hybrid             # opt-in: embed + lexical
-neuromesh config embeddings on|off
+neuromesh config engine get                   # show engine + override layers
+neuromesh config engine hybrid                # opt-in MiniLM sidecar
+neuromesh index --mode hybrid                 # graph + embed rebuild
 ```
 
 ## Packet (JSON benchmark path)
@@ -105,9 +105,7 @@ Same activation path as MCP `get_context_packet`, for scripts and CI:
 
 ```bash
 neuromesh packet --json --query "Where is HTTPAdapter.send?"
-neuromesh packet --json --engine hybrid \
-  --keywords "Session,redirect" --expansion "retry,models" \
-  --query "How does redirect work?"
+neuromesh packet --json --engine hybrid --query "How does redirect work?"
 ```
 
 Stdout is one JSON object: coverage, files, tokens, `seed_resolution`, client signals. Human-readable output when `--json` is omitted.
@@ -116,21 +114,12 @@ Example `nm.config.json` (copy from `nm.config.example.json`):
 
 ```json
 {
-  "embeddings": { "enabled": true },
+  "retrieval": { "engine": "fast" },
   "packet_header": { "enabled": true }
 }
 ```
 
-Custom lexical mode (opt-in):
-
-```json
-{
-  "embeddings": { "enabled": true },
-  "seed_resolution": { "engine": "keywords_expanded", "auto_extract_keywords": true }
-}
-```
-
-Engines: `off` · `keywords` · `keywords_expanded` · `hybrid` (custom). Default embed-primary needs no `seed_resolution` block.
+Engines: **`fast`** (default) · **`hybrid`** (MiniLM sidecar) · **`deep`** (max quality + dedup).
 
 Graph backend (`graph_backend.backend`): `native` (default) · `auto` · `proxy_cbm` · `proxy_graphify`. See [graph-proxy.md](graph-proxy.md).
 
@@ -140,7 +129,7 @@ neuromesh doctor --proxy
 neuromesh doctor --proxy --probe    # live CBM connect + sample packet
 ```
 
-Monitor **Settings → Graph Backend / Seed Engine** saves `nm.config.json` and reconnects the proxy. See [engines.md](engines.md).
+Monitor **Settings → Retrieval Engine / Graph Backend** saves `nm.config.json` and reconnects the proxy. See [engines.md](engines.md).
 
 ## Everyday
 
@@ -153,7 +142,9 @@ neuromesh index
 neuromesh optimize -- "How does handle_tool_call extract intent?"
 neuromesh eval
 neuromesh eval --learning
-neuromesh eval --release-gates    # embed-primary gates (recall ≥55%, precision ≥73%, no_seed ≤2)
+neuromesh eval --release-gates                    # gates for effective engine
+neuromesh eval --release-gates --engine fast        # zero-embed gate matrix
+neuromesh eval --release-gates --engine hybrid      # embed-primary gates
 neuromesh eval --calibrate        # dev/holdout calibration from test3 JSON
 ```
 

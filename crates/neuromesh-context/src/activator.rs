@@ -4250,7 +4250,7 @@ impl TaskSignatureExtractor {
         let mut signature = TaskSignatureExtractor::extract(
             "Design the product catalog domain for products, categories, and Laravel models.",
         );
-        signature.engine_override = Some(neuromesh_core::SeedEngineId::SemanticLite);
+        signature.retrieval_engine_override = Some(neuromesh_core::RetrievalEngine::Hybrid);
         assert!(signature.client_keywords.is_empty());
         let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
         assert!(view.active_tokens > 0);

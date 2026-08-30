@@ -1,7 +1,8 @@
 use crate::retrieval::concept_seeds::resolve_concept_seeds;
 use crate::retrieval::query_intent::QueryPlan;
 use neuromesh_core::{
-    EmbeddingConfig, SeedEngineId, SeedResolutionConfig, SeedResolutionTelemetry, TaskSignature,
+    EmbeddingConfig, OptimizationMode, SeedEngineId, SeedResolutionConfig,
+    SeedResolutionTelemetry, TaskSignature,
 };
 use neuromesh_graph::NeuralProjectGraph;
 use std::time::Instant;
@@ -34,7 +35,17 @@ pub struct SeedRunResult {
 }
 
 pub fn resolve_engine_id(signature: &TaskSignature, config: &SeedResolutionConfig) -> SeedEngineId {
-    signature.engine_override.unwrap_or(config.engine)
+    if let Some(internal) = signature.engine_override {
+        return internal;
+    }
+    if let Some(re) = signature.retrieval_engine_override {
+        let mut seed = SeedResolutionConfig::default();
+        let mut emb = EmbeddingConfig::default();
+        let mut mode = OptimizationMode::Balanced;
+        re.apply_preset(&mut mode, &mut seed, &mut emb);
+        return seed.engine;
+    }
+    config.engine
 }
 
 #[allow(clippy::too_many_arguments)]

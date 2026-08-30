@@ -9,12 +9,12 @@ alwaysApply: true
 
 This workspace has the NeuroMesh MCP server. Prefer it for **reading and exploring** code so the agent gets folded skeletons and targeted symbols instead of multi-thousand-line files.
 
-## Default loop (v0.8.6 — bundled MiniLM embed)
+## Default loop (v0.9.0 — zero-embed fast engine)
 
-**Default:** release binaries ship **bundled MiniLM** weights. Pass the task as written only — **no** `keywords` / `expansion` unless the repo owner enabled a **custom lexical seed engine** in `nm.config.json`.
+**Default:** `retrieval.engine: fast` — graph index + query-side lexical expansion. **No ONNX** at index or MCP startup. Pass the task as written only — **no** `keywords` / `expansion`.
 
 1. `get_context_packet` with `query` / `task_description` / `prompt` / `task` as written. Optional: `path_hints` / `entity_types`.
-2. Check `retrieval.resolution_tier` — expect `embedding_primary` on most NL prompts. `retrieval.cache_hit: true` = near-duplicate prompt reused (new `packet_id`).
+2. Check `retrieval.resolution_tier` — expect **`lexical_primary`** or graph-assisted seeds on NL prompts (not `embedding_primary` unless repo owner set `engine: hybrid`).
 3. If `coverage.claim` is `partial`, `no_seed_resolved`, or `no_confident_match`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` or `neuromesh_search_symbols` before broad Grep.
 4. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap`).
 5. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers and blast radius.
@@ -23,14 +23,19 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 
 Do not treat a utility fallback file as the answer when coverage says seeds missed or `packet_gaps` is non-empty.
 
-## Custom modes (opt-in via `nm.config.json`)
+## Engine presets (opt-in via `nm.config.json`)
 
-| Mode | When | Agent |
+| `engine` | When | Agent |
 | :--- | :--- | :--- |
-| **Embed (default)** | Bundled MiniLM ON, no seed override | Prompt only |
-| **Lexical** | `seed_resolution.engine`: `keywords`, `keywords_expanded` | Pass English code `keywords` + `expansion`, or `auto_extract_keywords` |
-| **Hybrid** | `seed_resolution.engine`: `hybrid` | Embed + lexical boost — for Arabic-heavy repos |
+| **`fast` (default)** | Zero-embed; instant index | Prompt only |
+| **`hybrid`** | MiniLM sidecar + graph (Phase A Int8) | Prompt only |
+| **`deep`** | Max quality + dedup + centroids | Prompt only |
 | **CBM proxy** | `graph_backend`: `auto` / `proxy_cbm` | Conservative proxy `claim`; native graph for trace/fold |
+
+```bash
+neuromesh config engine hybrid    # opt-in embeddings
+neuromesh embed rebuild           # after switching to hybrid/deep
+```
 
 ## When not to force NeuroMesh
 
@@ -41,6 +46,6 @@ Do not treat a utility fallback file as the answer when coverage says seeds miss
 
 ## Anti-patterns
 
-- Sending `keywords`/`expansion` on default embed installs (adds noise, ~0 recall gain)
+- Sending `keywords`/`expansion` on default **fast** installs (server auto-expansion handles NL)
 - Opening whole files when a packet or skeleton is enough
 - Skipping `neuromesh_record_feedback` after a good edit

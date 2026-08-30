@@ -1,4 +1,4 @@
-# Engines: retrieval presets, graph backend & legacy seed resolution
+# Engines: retrieval presets & graph backend
 
 NeuroMesh v0.9.0 uses one **retrieval engine** preset instead of scattered embedding/seed flags.
 
@@ -74,19 +74,6 @@ Query path (hybrid/deep): embed prompt once → two-stage ANN → graph-resolve 
 neuromesh config graph-backend native
 neuromesh doctor --proxy --probe
 ```
-
----
-
-## Legacy seed engines (deprecated)
-
-Fine-grained seed engines still work via `neuromesh config seed-engine` but map to the nearest retrieval preset:
-
-| Legacy seed | Maps to |
-| :--- | :--- |
-| `keywords` / `keywords_expanded` | `fast` |
-| `semantic_lite` / `hybrid` | `hybrid` |
-
-Old `nm.config.json` with `"embeddings": { "enabled": true }` and no `retrieval` block auto-upgrades to **`hybrid`** on load.
 
 ---
 

@@ -120,12 +120,12 @@ flowchart LR
   X --> W[expand_fold if needed]
 ```
 
-**Bundled MiniLM embedding engine** (v0.8.6): your prompt is embedded once (singleton + per-packet cache + semantic LRU), ANN-searches symbol sketches in `embeddings.bin`, then **graph-resolves** hits — **no client keywords**. Weights ship **inside the release tarball** (`models/minilm-multilingual-q/`). Source builds: `scripts/fetch-minilm-model.sh`. Lexical keyword assist is **opt-in** via `nm.config.json` seed engine override.
+**Zero-embed fast engine** (v0.9.0): graph index + query-side lexical expansion routes NL prompts to symbol seeds — **no ONNX** at index or MCP startup. Pass the prompt only; server-assisted concept expansion handles identifiers and domain terms. Opt in to **`hybrid`** or **`deep`** for bundled MiniLM sidecar when you need embedding-primary recall.
 
 1. **Read the task** as written — any language. Identifiers stay intact.  
-2. **Embed + route on the mesh.** MiniLM finds symbol seeds; L2/L3 escalate only on critical gaps (`recovery_min_cosine` 0.38 in L3).  
+2. **Graph + lexical route on the mesh.** Server-assisted expansion finds symbol seeds; L2/L3 escalate only on critical gaps.  
 3. **Ship seeds, grow the tube, fill the rest.** Physarum connects seeds under 20ms. Fill respects budget (`balanced` = 5k extra).  
-4. **Splice + sufficiency.** Check `retrieval.resolution_tier` (`embedding_primary`), `retrieval.cache_hit`, and `coverage.claim`.
+4. **Splice + sufficiency.** Check `retrieval.resolution_tier` (`lexical_primary` on fast), `retrieval.cache_hit`, and `coverage.claim`.
 
 Tell the agent ([full install guide](docs/agent-guide.md)):
 
@@ -137,18 +137,19 @@ get_context_packet(query / task_description / prompt / task)   # prompt only
   → neuromesh_record_feedback after a good edit
 ```
 
-**Custom routing** (only when you need lexical keyword assist or CBM):
+**Custom routing** (only when you need embeddings or CBM):
 
 ```bash
-neuromesh config seed-engine hybrid              # opt-in: embed + keywords
-neuromesh config seed-engine keywords_expanded   # legacy lexical-only
-neuromesh config graph-backend auto              # optional CBM proxy
-neuromesh doctor --embed                         # verify bundled MiniLM + sidecar
+neuromesh config engine hybrid              # opt-in MiniLM sidecar
+neuromesh config engine deep                # max quality + dedup
+neuromesh config graph-backend auto         # optional CBM proxy
+neuromesh doctor --engine                   # preset + ONNX skip status
+neuromesh embed rebuild                     # after switching to hybrid/deep
 ```
 
-v0.8.6 ships **bundled MiniLM** in release tarballs — prompt-only routing by default. Optional CBM proxy and lexical seed engines remain opt-in. See [docs/graph-proxy.md](docs/graph-proxy.md) and [docs/engines.md](docs/engines.md).
+v0.9.0 defaults to **`engine: fast`** — instant graph index, no bundled ONNX warm. Optional MiniLM sidecar and CBM proxy remain opt-in. See [docs/graph-proxy.md](docs/graph-proxy.md) and [docs/engines.md](docs/engines.md).
 
-Full guide: [docs/engines.md](docs/engines.md) · [docs/graph-proxy.md](docs/graph-proxy.md). Monitor **Settings** exposes both engines without editing JSON.
+Full guide: [docs/engines.md](docs/engines.md) · [docs/graph-proxy.md](docs/graph-proxy.md). Monitor **Settings** exposes retrieval engine and graph backend without editing JSON.
 
 ### Modes (the membrane)
 

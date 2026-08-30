@@ -53,18 +53,17 @@ Release binaries include **MiniLM multilingual Q** weights (`models/minilm-multi
 
 **Metadata:** `retrieval.resolution_tier` (`embedding_primary`, `L1_exact`, `L2_pattern`, `L3_semantic_recovery`), `retrieval.embedding_used`, `retrieval.cache_hit`, `coverage.claim`.
 
-## Custom seed engines (opt-in)
+## Retrieval engine presets
 
-Advanced users can set `seed_resolution.engine` in `nm.config.json`:
+Set `retrieval.engine` in `nm.config.json` or via `neuromesh config engine`:
 
-| Engine | Use case |
+| `engine` | Use case |
 | :--- | :--- |
-| *(default — embeddings ON, no override)* | **Embed-primary** — prompt only |
-| `keywords` / `keywords_expanded` | Lexical + optional `auto_extract_keywords` |
-| `hybrid` | Embed + lexical (Arabic-heavy projects) |
-| `off` | Disable seed resolution |
+| **`fast` (default)** | Zero-embed — graph + query-side lexical expansion |
+| **`hybrid`** | MiniLM sidecar + graph (multilingual NL, obfuscated naming) |
+| **`deep`** | Max quality + dedup + module centroids |
 
-The default embed path uses the embedding seed resolver internally — no `seed_resolution` block required for normal use.
+Seed resolution strategy is **derived from the preset** — no separate `seed_resolution.engine` knob.
 
 ## Graph proxy (optional)
 

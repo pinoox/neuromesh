@@ -1,6 +1,4 @@
-use neuromesh_core::{
-    Config, EmbeddingModelId, GraphBackendId, NeuroMeshError, Result, RetrievalEngine, SeedEngineId,
-};
+use neuromesh_core::{Config, GraphBackendId, NeuroMeshError, Result, RetrievalEngine};
 use neuromesh_graph_proxy::resolve_for_workspace;
 
 pub fn execute(args: &[String]) -> Result<()> {
@@ -14,26 +12,17 @@ pub fn execute(args: &[String]) -> Result<()> {
         Some("retrieval-engine") | Some("retrieval_engine") | Some("engine") => {
             handle_retrieval_engine(args.get(3).map(String::as_str), global_flag(args))
         }
-        Some("seed-engine") | Some("seed_engine") => {
-            handle_seed_engine(args.get(3).map(String::as_str), global_flag(args))
-        }
         Some("graph-backend") | Some("graph_backend") | Some("graph") => {
             handle_graph_backend(args.get(3).map(String::as_str), global_flag(args))
         }
-        Some("embeddings") | Some("embedding") => {
-            handle_embeddings(args.get(3).map(String::as_str), global_flag(args))
-        }
         Some(other) if RetrievalEngine::parse(other).is_some() => {
             handle_retrieval_engine(Some(other), global_flag(args))
-        }
-        Some(other) if SeedEngineId::parse(other).is_some() => {
-            handle_seed_engine(Some(other), global_flag(args))
         }
         Some(other) if GraphBackendId::parse(other).is_some() => {
             handle_graph_backend(Some(other), global_flag(args))
         }
         Some(other) => Err(NeuroMeshError::Config(format!(
-            "unknown config command: {other} (try: config engine, config seed-engine, config graph-backend, config show)"
+            "unknown config command: {other} (try: config engine, config graph-backend, config show)"
         ))),
     }
 }
@@ -110,126 +99,6 @@ fn print_graph_backend_status() -> Result<()> {
     Ok(())
 }
 
-fn handle_embeddings(value: Option<&str>, global: bool) -> Result<()> {
-    match value {
-        None | Some("get") | Some("show") => print_embeddings_status(),
-        Some("help") | Some("-h") | Some("--help") => {
-            print_embeddings_help();
-            Ok(())
-        }
-        Some("on") | Some("true") | Some("1") => set_embeddings_enabled(true, global),
-        Some("off") | Some("false") | Some("0") => set_embeddings_enabled(false, global),
-        Some(raw) if EmbeddingModelId::parse(raw).is_some() => {
-            let model = EmbeddingModelId::parse(raw).expect("checked");
-            let ws = std::env::current_dir()?;
-            let path = Config::set_workspace_embedding_model(&ws, model)?;
-            println!("Project embedding model: {}", model.as_str());
-            println!("Saved                  : {}", path.display());
-            Ok(())
-        }
-        Some(other) => Err(NeuroMeshError::Config(format!(
-            "invalid embeddings config: {other} (use: on, off, minilm_multilingual_q)"
-        ))),
-    }
-}
-
-fn set_embeddings_enabled(enabled: bool, global: bool) -> Result<()> {
-    if global {
-        let path = Config::set_global_embeddings(enabled)?;
-        println!(
-            "Global embeddings      : {}",
-            if enabled { "on" } else { "off" }
-        );
-        println!("Saved                  : {}", path.display());
-    } else {
-        let ws = std::env::current_dir()?;
-        let path = Config::set_workspace_embeddings(&ws, enabled)?;
-        println!(
-            "Project embeddings     : {}",
-            if enabled { "on" } else { "off" }
-        );
-        println!("Saved                  : {}", path.display());
-    }
-    Ok(())
-}
-
-fn print_embeddings_status() -> Result<()> {
-    let cfg = Config::load();
-    println!(
-        "Embeddings enabled     : {}",
-        if cfg.embeddings.enabled { "yes" } else { "no" }
-    );
-    println!("Model                  : {}", cfg.embeddings.model.as_str());
-    println!("Matryoshka dim         : {}", cfg.embeddings.matryoshka_dim);
-    println!("ANN top-k              : {}", cfg.embeddings.ann_top_k);
-    println!("Embed seed cap         : {}", cfg.embeddings.embed_seed_cap);
-    println!("Min cosine             : {}", cfg.embeddings.min_cosine);
-    println!("Index on build         : {}", cfg.embeddings.index_on_build);
-    println!(
-        "Semantic cache         : {} ({} entries, min cosine {})",
-        if cfg.embeddings.semantic_cache_enabled {
-            "on"
-        } else {
-            "off"
-        },
-        cfg.embeddings.semantic_cache_entries,
-        cfg.embeddings.semantic_cache_min_cosine
-    );
-    println!(
-        "Optional dedup         : {}",
-        cfg.embeddings
-            .optional_dedup_min_cosine
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "off".into())
-    );
-    println!(
-        "Module centroids       : {}",
-        if cfg.embeddings.module_cluster_enabled {
-            "on"
-        } else {
-            "off"
-        }
-    );
-    println!(
-        "Embed intent (General) : {}",
-        if cfg.embeddings.embed_intent_for_general {
-            "on"
-        } else {
-            "off"
-        }
-    );
-    if let Ok(raw) = std::env::var("NEUROMESH_EMBEDDINGS") {
-        println!("Env NEUROMESH_EMBEDDINGS: {raw}");
-    }
-    if let Ok(raw) = std::env::var("NEUROMESH_EMBED_MODEL") {
-        println!("Env NEUROMESH_EMBED_MODEL: {raw}");
-    }
-    #[cfg(not(feature = "embeddings"))]
-    println!("Binary feature         : embeddings disabled (rebuild with --features embeddings)");
-    #[cfg(feature = "embeddings")]
-    println!("Binary feature         : embeddings enabled");
-    Ok(())
-}
-
-fn print_embeddings_help() {
-    println!(
-        "\
-Usage: neuromesh config embeddings [on|off] [--global]
-
-  neuromesh config embeddings              show effective embedding settings
-  neuromesh config embeddings on           enable MiniLM vector recovery (project)
-  neuromesh config embeddings off          disable embeddings
-
-Model  : minilm_multilingual_q (only — auto-download on first index)
-Env    : NEUROMESH_EMBEDDINGS=1, NEUROMESH_EMBED_THREADS=4
-         NEUROMESH_SEMANTIC_CACHE=0, NEUROMESH_OPTIONAL_DEDUP=0.93
-Install: curl -fsSL …/install.sh | bash   (or install.ps1 on Windows)
-Doctor : neuromesh doctor --embed [--bench]
-Build  : cargo build -p neuromesh-cli --features embeddings
-"
-    );
-}
-
 fn handle_retrieval_engine(value: Option<&str>, global: bool) -> Result<()> {
     match value {
         None | Some("get") | Some("show") => print_retrieval_engine_status(),
@@ -281,10 +150,6 @@ fn print_retrieval_engine_status() -> Result<()> {
         cfg.retrieval.engine.as_str()
     );
     println!(
-        "  seed engine (derived)     : {}",
-        cfg.seed_resolution.engine.as_str()
-    );
-    println!(
         "  embeddings (derived)      : {}",
         if cfg.embeddings.enabled { "on" } else { "off" }
     );
@@ -292,15 +157,7 @@ fn print_retrieval_engine_status() -> Result<()> {
         "  optimization mode         : {}",
         format!("{:?}", cfg.mode).to_lowercase()
     );
-    if let Some(global) = Config::global_retrieval_engine() {
-        println!("  global (~/.neuromesh/config.json): {}", global.as_str());
-    }
-    if let Some(project) = Config::workspace_retrieval_engine(&ws) {
-        println!("  project (nm.config.json)         : {}", project.as_str());
-    }
-    if let Ok(raw) = std::env::var("NEUROMESH_ENGINE") {
-        println!("  env (NEUROMESH_ENGINE)           : {raw}");
-    }
+    print_retrieval_engine_layers(&ws)?;
     Ok(())
 }
 
@@ -311,59 +168,14 @@ Usage: neuromesh config engine [ENGINE] [--global]
 
   neuromesh config engine                  show effective retrieval engine
   neuromesh config engine fast             zero-embed graph + lexical (default)
-  neuromesh config engine hybrid           MiniLM sidecar + graph (Phase A)
+  neuromesh config engine hybrid           MiniLM sidecar + graph
   neuromesh config engine deep             max quality + dedup + centroids
 
 Engines: {}
 Env     : NEUROMESH_ENGINE=<engine>
-Legacy  : neuromesh config seed-engine (maps to nearest preset)
 ",
         RetrievalEngine::help_line()
     );
-}
-
-fn handle_seed_engine(value: Option<&str>, global: bool) -> Result<()> {
-    match value {
-        None | Some("get") | Some("show") => print_seed_engine_status(),
-        Some("help") | Some("-h") | Some("--help") => {
-            print_seed_engine_help();
-            Ok(())
-        }
-        Some(raw) => {
-            let engine = parse_engine(raw)?;
-            if global {
-                set_global(engine)
-            } else {
-                set_project(engine)
-            }
-        }
-    }
-}
-
-fn parse_engine(raw: &str) -> Result<SeedEngineId> {
-    SeedEngineId::parse(raw).ok_or_else(|| {
-        NeuroMeshError::Config(format!(
-            "invalid seed engine: {raw} (expected: {})",
-            SeedEngineId::help_line()
-        ))
-    })
-}
-
-fn set_global(engine: SeedEngineId) -> Result<()> {
-    let path = Config::set_global_seed_engine(engine)?;
-    println!("Global seed engine : {}", engine.as_str());
-    println!("Saved              : {}", path.display());
-    println!("Applies to         : all workspaces (unless overridden by nm.config.json or NEUROMESH_SEED_ENGINE)");
-    Ok(())
-}
-
-fn set_project(engine: SeedEngineId) -> Result<()> {
-    let ws = std::env::current_dir()?;
-    let path = Config::set_workspace_seed_engine(&ws, engine)?;
-    println!("Project seed engine: {}", engine.as_str());
-    println!("Saved              : {}", path.display());
-    println!("Commit nm.config.json to share engine choice with the team.");
-    Ok(())
 }
 
 fn print_status() -> Result<()> {
@@ -371,9 +183,8 @@ fn print_status() -> Result<()> {
     let cfg = Config::load();
     println!("\nNeuroMesh config (effective for this workspace)");
     println!(
-        "Retrieval engine   : {} (seed={}, embed={})",
+        "Retrieval engine   : {} (embed={})",
         cfg.retrieval.engine.as_str(),
-        cfg.seed_resolution.engine.as_str(),
         if cfg.embeddings.enabled { "on" } else { "off" }
     );
     println!(
@@ -394,7 +205,6 @@ fn print_status() -> Result<()> {
     println!("Manage:");
     println!("  neuromesh config engine fast|hybrid|deep       project (nm.config.json)");
     println!("  neuromesh config engine hybrid --global        ~/.neuromesh/config.json");
-    println!("  neuromesh config seed-engine <engine>          legacy fine-grained seed");
     println!(
         "  neuromesh config graph-backend auto              detect CBM/Graphify from MCP configs"
     );
@@ -403,63 +213,15 @@ fn print_status() -> Result<()> {
     Ok(())
 }
 
-fn print_seed_engine_status() -> Result<()> {
-    let ws = std::env::current_dir()?;
-    let cfg = Config::load();
-    println!(
-        "Effective seed engine: {}",
-        cfg.seed_resolution.engine.as_str()
-    );
-    print_seed_engine_layers(&ws)?;
-    Ok(())
-}
-
 fn print_retrieval_engine_layers(ws: &std::path::Path) -> Result<()> {
     if let Some(global) = Config::global_retrieval_engine() {
-        println!(
-            "  global retrieval (~/.neuromesh/config.json): {}",
-            global.as_str()
-        );
-    }
-    if let Some(project) = Config::workspace_retrieval_engine(ws) {
-        println!(
-            "  project retrieval (nm.config.json)         : {}",
-            project.as_str()
-        );
-    }
-    if let Some(global) = Config::global_seed_engine() {
-        println!(
-            "  global seed (legacy)                       : {}",
-            global.as_str()
-        );
-    }
-    if let Some(project) = Config::workspace_seed_engine(ws) {
-        println!(
-            "  project seed (legacy)                      : {}",
-            project.as_str()
-        );
-    }
-    if let Ok(raw) = std::env::var("NEUROMESH_ENGINE") {
-        println!("  env (NEUROMESH_ENGINE)                     : {raw}");
-    }
-    Ok(())
-}
-
-fn print_seed_engine_layers(ws: &std::path::Path) -> Result<()> {
-    if let Some(global) = Config::global_seed_engine() {
         println!("  global (~/.neuromesh/config.json): {}", global.as_str());
     }
-    if let Some(project) = Config::workspace_seed_engine(ws) {
+    if let Some(project) = Config::workspace_retrieval_engine(ws) {
         println!("  project (nm.config.json)         : {}", project.as_str());
     }
-    if let Some(slot) = Config::project_slot_config(ws) {
-        println!(
-            "  project slot (managed config)    : {}",
-            slot.seed_resolution.engine.as_str()
-        );
-    }
-    if let Ok(raw) = std::env::var("NEUROMESH_SEED_ENGINE") {
-        println!("  env (NEUROMESH_SEED_ENGINE)      : {raw}");
+    if let Ok(raw) = std::env::var("NEUROMESH_ENGINE") {
+        println!("  env (NEUROMESH_ENGINE)           : {raw}");
     }
     Ok(())
 }
@@ -467,7 +229,7 @@ fn print_seed_engine_layers(ws: &std::path::Path) -> Result<()> {
 fn print_help() {
     println!(
         "\
-Usage: neuromesh config [show|engine|seed-engine|graph-backend]
+Usage: neuromesh config [show|engine|graph-backend]
 
 Show or change NeuroMesh settings globally and per project.
 
@@ -479,15 +241,10 @@ Show or change NeuroMesh settings globally and per project.
 Retrieval engines: {}
 Env               : NEUROMESH_ENGINE=<engine>
 
-Legacy seed engines: {}
-Env (legacy)      : NEUROMESH_SEED_ENGINE=<engine>
-
 Global defaults live in ~/.neuromesh/config.json.
 Project overrides live in nm.config.json (commit-friendly).
-Managed project slot config.json can also set seed_resolution when using neuromesh port/index persist.
 ",
-        RetrievalEngine::help_line(),
-        SeedEngineId::help_line()
+        RetrievalEngine::help_line()
     );
 }
 
@@ -509,33 +266,16 @@ Doctor  : neuromesh doctor --proxy
     );
 }
 
-fn print_seed_engine_help() {
-    println!(
-        "\
-Usage: neuromesh config seed-engine [ENGINE] [--global]
-
-  neuromesh config seed-engine                  show effective engine
-  neuromesh config seed-engine hybrid           opt-in: embed + lexical (nm.config.json)
-  neuromesh config seed-engine keywords_expanded  opt-in: lexical-only
-
-Default (no override): engine=fast — zero-embed graph + query-side lexical expansion.
-
-Custom seed engines (legacy): {}
-",
-        SeedEngineId::help_line()
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn parses_engine_names() {
+    fn parses_retrieval_engine_names() {
         assert_eq!(
-            parse_engine("keywords_expanded").unwrap(),
-            SeedEngineId::KeywordsExpanded
+            parse_retrieval_engine("hybrid").unwrap(),
+            RetrievalEngine::Hybrid
         );
-        assert!(parse_engine("nope").is_err());
+        assert!(parse_retrieval_engine("nope").is_err());
     }
 }

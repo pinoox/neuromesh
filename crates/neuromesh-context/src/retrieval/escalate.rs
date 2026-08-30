@@ -8,7 +8,9 @@ use crate::retrieval::patterns::pattern_expand;
 use crate::retrieval::query_intent::QueryPlan;
 use crate::retrieval::sufficiency::{SufficiencyEstimate, SufficiencyEstimator};
 use crate::retrieval::tier::RetrievalTier;
-use neuromesh_core::{Config, ContextView, OptimizationMode, TaskSignature};
+use neuromesh_core::{
+    Config, ContextView, EmbeddingConfig, OptimizationMode, SeedResolutionConfig, TaskSignature,
+};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_task::normalize_unicode;
 use std::collections::HashMap;
@@ -32,8 +34,27 @@ pub fn run_incremental(
 ) -> EscalationResult {
     let embedding_config = Config::load().embeddings.clone();
     let app_config = Config::load();
-    let retrieval_engine = app_config.retrieval.engine;
-    let embeddings_enabled = embedding_config.effective_enabled();
+    let retrieval_engine = signature
+        .retrieval_engine_override
+        .unwrap_or(app_config.retrieval.engine);
+    let configured_engine = if signature.retrieval_engine_override.is_some() {
+        let mut seed = SeedResolutionConfig::default();
+        let mut emb = EmbeddingConfig::default();
+        let mut mode = OptimizationMode::Balanced;
+        retrieval_engine.apply_preset(&mut mode, &mut seed, &mut emb);
+        seed.engine
+    } else {
+        app_config.seed_resolution.engine
+    };
+    let embeddings_enabled = if signature.retrieval_engine_override.is_some() {
+        let mut seed = SeedResolutionConfig::default();
+        let mut emb = EmbeddingConfig::default();
+        let mut mode = OptimizationMode::Balanced;
+        retrieval_engine.apply_preset(&mut mode, &mut seed, &mut emb);
+        emb.enabled
+    } else {
+        embedding_config.effective_enabled()
+    };
     #[cfg(feature = "embeddings")]
     let plan = crate::retrieval::query_intent_embed::from_signature_with_embeddings(
         signature,
@@ -41,7 +62,6 @@ pub fn run_incremental(
     );
     #[cfg(not(feature = "embeddings"))]
     let plan = QueryPlan::from_signature(signature);
-    let configured_engine = Config::load().seed_resolution.engine;
     let mut levels_attempted: Vec<String> = Vec::new();
     let mut latency_ms: HashMap<String, u64> = HashMap::new();
 
