@@ -103,8 +103,8 @@
           <div class="slime-panel">
             <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.engine">Builds your packet</span></div>
             <div class="mini-engine" id="mini-engine">
-              <div class="engine-step" data-step="0"><span class="engine-tag">Seeds</span><div class="engine-bar"></div></div>
-              <div class="engine-step" data-step="1"><span class="engine-tag">Physarum</span><div class="engine-bar"></div></div>
+              <div class="engine-step" data-step="0"><span class="engine-tag">Prompt</span><div class="engine-bar"></div></div>
+              <div class="engine-step" data-step="1"><span class="engine-tag">Route</span><div class="engine-bar"></div></div>
               <div class="engine-step" data-step="2"><span class="engine-tag">Fill</span><div class="engine-bar"></div></div>
               <div class="engine-step" data-step="3"><span class="engine-tag">Fold</span><div class="engine-bar"></div></div>
               <div class="engine-step" data-step="4"><span class="engine-tag">Packet</span><div class="engine-bar"></div></div>
@@ -129,14 +129,14 @@
             <a href="https://github.com/pinoox/neuromesh/releases/latest" class="badge" target="_blank" rel="noopener">
               <span class="badge-dot green"></span> <span data-i18n="hero.badgeRelease">v0.9.0 — zero-embed fast engine · instant index</span>
             </a>
-            <span class="badge">MiniLM Q</span>
+            <span class="badge" data-i18n="hero.badgeLocal">Local-first</span>
             <span class="badge">MCP stdio</span>
             <span class="badge">MIT License</span>
           </div>
         </div>
 
         <p class="hero-desc reveal reveal-delay-3" data-i18n-html="hero.desc">
-          Your AI agent does not need three thousand lines of boilerplate to fix one bug. NeuroMesh reads your repo like a map: it <strong>routes to the right symbols</strong>, sends a tight evidence packet to the model, and <strong>folds everything else</strong> into one-line markers you can expand when needed.
+          Your AI agent does not need three thousand lines of boilerplate to fix one bug. NeuroMesh indexes your repo into a live graph, routes your prompt to the right symbols, and sends a <strong>folded evidence packet</strong> — not whole-file dumps. Default <strong>engine: fast</strong> needs no model download.
         </p>
 
         <div class="hero-cta reveal reveal-delay-3">
@@ -250,7 +250,7 @@
               <div class="nature-emoji">🧬</div>
               <div>
                 <h4 data-i18n="nature.n1.t">Smart folding</h4>
-                <div class="engine" data-i18n="nature.n1.e">Genetic skeletonizer</div>
+                <div class="engine" data-i18n="nature.n1.e">Code skeleton</div>
                 <p data-i18n="nature.n1.p">Hide boilerplate. Keep signatures, imports, and file shape.</p>
               </div>
             </div>
@@ -274,7 +274,7 @@
               <div class="nature-emoji">🛡️</div>
               <div>
                 <h4 data-i18n="nature.n4.t">Safety modes</h4>
-                <div class="engine" data-i18n="nature.n4.e">QualityGate</div>
+                <div class="engine" data-i18n="nature.n4.e">Context budget</div>
                 <p data-i18n="nature.n4.p">Balanced by default. Auth and payment tasks automatically get more context.</p>
               </div>
             </div>
@@ -313,7 +313,7 @@
             <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-constellation.jpg" data-i18n-caption="galaxy.c1" data-caption="Constellation — crates and subsystems">
               <img src="assets/galaxy-constellation.jpg" alt="Macro constellation of project subsystems" loading="lazy">
             </button>
-            <div class="gallery-caption" data-i18n="galaxy.c1">Bird's-eye view of crates and modules</div>
+            <div class="gallery-caption" data-i18n="galaxy.c1">Bird's-eye view of packages and modules</div>
           </div>
           <div class="gallery-item reveal reveal-delay-1">
             <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-3d.jpg" data-i18n-caption="galaxy.c2" data-caption="3D galaxy — files and synapses; Physarum tubes">
@@ -382,8 +382,8 @@
                 <button type="button" class="pipe-node" data-step="1" data-phase="read">
                   <div class="pipe-node-icon">🔍</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title" data-pipe-title="1">Identifiers</div>
-                    <div class="pipe-node-key" data-pipe-key="1">symbols from task text</div>
+                    <div class="pipe-node-title" data-pipe-title="1">Find symbols</div>
+                    <div class="pipe-node-key" data-pipe-key="1">graph + expansion</div>
                   </div>
                 </button>
               </div>
@@ -415,8 +415,8 @@
                 <button type="button" class="pipe-node" data-step="4" data-phase="route">
                   <div class="pipe-node-icon">🦠</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title" data-pipe-title="4">Physarum tubes</div>
-                    <div class="pipe-node-key" data-pipe-key="4">cheapest path &lt; 20ms</div>
+                    <div class="pipe-node-title" data-pipe-title="4">Connect the path</div>
+                    <div class="pipe-node-key" data-pipe-key="4">shortest useful path</div>
                   </div>
                 </button>
               </div>
@@ -434,15 +434,15 @@
                 <button type="button" class="pipe-node" data-step="5" data-phase="splice">
                   <div class="pipe-node-icon">⚡</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title" data-pipe-title="5">Fill + synapses</div>
-                    <div class="pipe-node-key" data-pipe-key="5">token budget · pheromones</div>
+                    <div class="pipe-node-title" data-pipe-title="5">Fill the budget</div>
+                    <div class="pipe-node-key" data-pipe-key="5">token budget · your edits</div>
                   </div>
                 </button>
                 <button type="button" class="pipe-node" data-step="6" data-phase="splice">
                   <div class="pipe-node-icon">🧬</div>
                   <div class="pipe-node-body">
-                    <div class="pipe-node-title" data-pipe-title="6">Exon / intron</div>
-                    <div class="pipe-node-key" data-pipe-key="6">bodies → fold markers</div>
+                    <div class="pipe-node-title" data-pipe-title="6">Fold the rest</div>
+                    <div class="pipe-node-key" data-pipe-key="6">one-line markers</div>
                   </div>
                 </button>
                 <button type="button" class="pipe-node" data-step="7" data-phase="splice">
@@ -609,23 +609,23 @@
     <!-- Stats -->
     <section id="stats" style="background: linear-gradient(180deg, transparent, rgba(31,111,235,0.04), transparent);">
       <div class="container" style="text-align: center;">
-        <div class="section-label reveal" style="justify-content: center;" data-i18n="stats.label">Real numbers</div>
-        <h2 class="reveal" data-i18n="stats.title">Measured on a large Rust workspace</h2>
+        <div class="section-label reveal" data-i18n="stats.label">Real numbers</div>
+        <h2 class="reveal" data-i18n="stats.title">Measured on a real monorepo</h2>
         <p class="lead reveal" style="margin: 0 auto 8px;" data-i18n-html="stats.lead">Token savings are <em>per task</em>, after folding — not a marketing average. Run <code>neuromesh eval</code> on your repo.</p>
-        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">v0.9.0 · graph-first retrieval · up to ~97% fewer tokens vs full workspace dump</p>
+        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">v0.9.0 · default fast engine · up to ~97% fewer tokens vs attaching the whole project</p>
 
         <div class="stats-row">
           <div class="stat-box reveal">
             <div class="stat-value" data-target="97.3">0</div>
-            <div class="stat-label" data-i18n="stats.s1">% token savings (typical MCP handler task)</div>
+            <div class="stat-label" data-i18n="stats.s1">% token savings (fix MCP handler task)</div>
           </div>
           <div class="stat-box reveal reveal-delay-1">
             <div class="stat-value" data-target="99.4">0</div>
-            <div class="stat-label" data-i18n="stats.s2">% token savings (graph routing task)</div>
+            <div class="stat-label" data-i18n="stats.s2">% token savings (trace routing code task)</div>
           </div>
           <div class="stat-box reveal reveal-delay-2">
             <div class="stat-value" data-target="340">0</div>
-            <div class="stat-label" data-i18n="stats.s3">Files indexed in demo repo</div>
+            <div class="stat-label" data-i18n="stats.s3">Files indexed in benchmark project</div>
           </div>
           <div class="stat-box reveal reveal-delay-3">
             <div class="stat-value" data-target="22">0</div>
@@ -637,17 +637,17 @@
           <table>
             <thead>
               <tr>
-                <th>Task</th><th>Mode</th><th>WS tok</th><th>Selected</th><th>Packet</th><th>vs WS</th><th>Recall</th><th>Grep</th><th>ms</th>
+                <th data-i18n="stats.th.task">Task</th><th>Mode</th><th data-i18n="stats.th.repo">Full repo</th><th data-i18n="stats.th.before">Before fold</th><th data-i18n="stats.th.packet">Packet</th><th data-i18n="stats.th.saved">Saved</th><th>Grep</th><th>ms</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td><code>handle_tool_call_intent</code></td><td>balanced</td><td>650,859</td><td>72,428</td><td>17,389</td>
-                <td style="color:var(--success-fg)">97.3%</td><td>1.00</td><td style="color:var(--success-fg)"><strong>0</strong></td><td>22</td>
+                <td data-i18n="stats.task1">Fix MCP tool handler</td><td>balanced</td><td>650,859</td><td>72,428</td><td>17,389</td>
+                <td style="color:var(--success-fg)">97.3%</td><td style="color:var(--success-fg)"><strong>0</strong></td><td>22</td>
               </tr>
               <tr>
-                <td><code>physarum_usage</code></td><td>balanced</td><td>650,859</td><td>19,625</td><td>4,080</td>
-                <td style="color:var(--success-fg)">99.4%</td><td>1.00</td><td style="color:var(--success-fg)"><strong>0</strong></td><td>12</td>
+                <td data-i18n="stats.task2">Trace graph routing</td><td>balanced</td><td>650,859</td><td>19,625</td><td>4,080</td>
+                <td style="color:var(--success-fg)">99.4%</td><td style="color:var(--success-fg)"><strong>0</strong></td><td>12</td>
               </tr>
             </tbody>
           </table>
@@ -658,27 +658,28 @@
     <!-- Engines -->
     <section id="engines">
       <div class="container">
-        <div class="section-label reveal" data-i18n="engines.label">Tune it</div>
-        <h2 class="reveal" data-i18n="engines.title">Two knobs. Sensible defaults.</h2>
-        <p class="lead reveal" data-i18n="engines.lead">v0.9.0 ships with <strong>engine: fast</strong> — instant graph index, no ONNX warm. Install, index, pass your prompt — done.</p>
+        <div class="section-label reveal" data-i18n="engines.label">Defaults</div>
+        <h2 class="reveal" data-i18n="engines.title">Fast by default. Embeddings opt-in.</h2>
+        <p class="lead reveal" data-i18n-html="engines.lead">v0.9.0 ships with <strong>engine: fast</strong> — instant graph index, no ONNX warm. Install, index, pass your prompt — done. Opt in to <strong>hybrid</strong> / <strong>deep</strong> when you need semantic search.</p>
 
         <div class="feature-grid reveal" style="margin-top: 2rem;">
           <div class="feature-card">
             <div class="feature-icon">🌿</div>
-            <h3 data-i18n="engines.graphTitle">Where context comes from</h3>
-            <p data-i18n="engines.graphDesc"><code>native</code> (default) · <code>auto</code> · <code>proxy_cbm</code>.</p>
+            <h3 data-i18n="engines.graphTitle">Retrieval engine</h3>
+            <p data-i18n-html="engines.graphDesc"><strong>fast</strong> (default) — graph + prompt expansion, no download. <strong>hybrid</strong> / <strong>deep</strong> — add MiniLM when NL recall needs a boost.</p>
             <div class="code-block" style="margin-top: 1rem;">
-              <pre>neuromesh config graph-backend auto
-neuromesh doctor --proxy --probe</pre>
+              <pre>neuromesh config engine get
+neuromesh install embed minilm   # only for hybrid/deep
+neuromesh config engine hybrid</pre>
             </div>
           </div>
           <div class="feature-card">
-            <div class="feature-icon">🔑</div>
-            <h3 data-i18n="engines.seedTitle">How prompts find symbols</h3>
-            <p data-i18n="engines.seedDesc"><strong>Default: bundled MiniLM embed</strong> — no client keywords. Custom lexical via <code>nm.config.json</code>.</p>
+            <div class="feature-icon">🔌</div>
+            <h3 data-i18n="engines.seedTitle">Connect your editor</h3>
+            <p data-i18n-html="engines.seedDesc">One command registers MCP and copies agent rules so your IDE actually uses NeuroMesh instead of raw file reads.</p>
             <div class="code-block" style="margin-top: 1rem;">
-              <pre>neuromesh doctor --embed
-# bundled MiniLM — prompt-only get_context_packet</pre>
+              <pre>neuromesh connect --global --agent-rules
+neuromesh index</pre>
             </div>
           </div>
         </div>
@@ -750,8 +751,8 @@ cargo build --release --bin neuromesh --features embeddings</pre>
             <button class="copy-btn" data-copy="neuromesh doctor&#10;neuromesh connect&#10;neuromesh index" data-i18n="ui.copy">Copy</button>
           </div>
           <pre>neuromesh doctor
-neuromesh connect    # wire MCP for Cursor / VS Code / Claude
-neuromesh index      # MiniLM bundled — no extra download</pre>
+neuromesh connect --global --agent-rules
+neuromesh index      # graph in RAM — usually under 30s</pre>
         </div>
       </div>
     </section>
@@ -836,6 +837,18 @@ neuromesh index      # MiniLM bundled — no extra download</pre>
         <h2 class="reveal" data-i18n="docs.title">Documentation</h2>
 
         <div class="docs-grid">
+          <a href="agent-guide.md" class="doc-link reveal">
+            <span>🤖</span>
+            <div><div class="doc-title" data-i18n="docs.d4.t">Agent setup</div><div class="doc-sub" data-i18n="docs.d4.s">Rules and prompts per IDE</div></div>
+          </a>
+          <a href="configuration.md" class="doc-link reveal reveal-delay-1">
+            <span>⚙️</span>
+            <div><div class="doc-title" data-i18n="docs.d7.t">Configuration</div><div class="doc-sub" data-i18n="docs.d7.s">Engines, connect, monitor port</div></div>
+          </a>
+          <a href="quality.md" class="doc-link reveal reveal-delay-2">
+            <span>📊</span>
+            <div><div class="doc-title" data-i18n="docs.d5.t">Benchmarks</div><div class="doc-sub" data-i18n="docs.d5.s">Run eval on your own repo</div></div>
+          </a>
           <a href="nature.md" class="doc-link reveal">
             <span>🧬</span>
             <div><div class="doc-title" data-i18n="docs.d1.t">Why biology?</div><div class="doc-sub" data-i18n="docs.d1.s">The ideas behind folding and routing</div></div>
@@ -847,18 +860,6 @@ neuromesh index      # MiniLM bundled — no extra download</pre>
           <a href="mcp.md" class="doc-link reveal reveal-delay-2">
             <span>🔌</span>
             <div><div class="doc-title" data-i18n="docs.d3.t">MCP & CLI</div><div class="doc-sub" data-i18n="docs.d3.s">Every tool and command</div></div>
-          </a>
-          <a href="agent-guide.md" class="doc-link reveal">
-            <span>🤖</span>
-            <div><div class="doc-title" data-i18n="docs.d4.t">Agent setup</div><div class="doc-sub" data-i18n="docs.d4.s">Rules and prompts per IDE</div></div>
-          </a>
-          <a href="quality.md" class="doc-link reveal reveal-delay-1">
-            <span>📊</span>
-            <div><div class="doc-title" data-i18n="docs.d5.t">Benchmarks</div><div class="doc-sub" data-i18n="docs.d5.s">Recall, latency, release gates</div></div>
-          </a>
-          <a href="contributing.md" class="doc-link reveal reveal-delay-2">
-            <span>🤝</span>
-            <div><div class="doc-title" data-i18n="docs.d6.t">Contributing</div><div class="doc-sub" data-i18n="docs.d6.s">Add a language or improve routing</div></div>
           </a>
         </div>
       </div>
