@@ -10,13 +10,13 @@ pub fn execute(args: &[String]) -> Result<()> {
             Ok(())
         }
         Some("retrieval-engine") | Some("retrieval_engine") | Some("engine") => {
-            handle_retrieval_engine(args.get(3).map(String::as_str), global_flag(args))
+            handle_retrieval_engine(args, args.get(3).map(String::as_str), global_flag(args))
         }
         Some("graph-backend") | Some("graph_backend") | Some("graph") => {
             handle_graph_backend(args.get(3).map(String::as_str), global_flag(args))
         }
         Some(other) if RetrievalEngine::parse(other).is_some() => {
-            handle_retrieval_engine(Some(other), global_flag(args))
+            handle_retrieval_engine(args, Some(other), global_flag(args))
         }
         Some(other) if GraphBackendId::parse(other).is_some() => {
             handle_graph_backend(Some(other), global_flag(args))
@@ -99,7 +99,7 @@ fn print_graph_backend_status() -> Result<()> {
     Ok(())
 }
 
-fn handle_retrieval_engine(value: Option<&str>, global: bool) -> Result<()> {
+fn handle_retrieval_engine(args: &[String], value: Option<&str>, global: bool) -> Result<()> {
     match value {
         None | Some("get") | Some("show") => print_retrieval_engine_status(),
         Some("help") | Some("-h") | Some("--help") => {
@@ -108,6 +108,7 @@ fn handle_retrieval_engine(value: Option<&str>, global: bool) -> Result<()> {
         }
         Some(raw) => {
             let engine = parse_retrieval_engine(raw)?;
+            crate::commands::install::ensure_minilm_for_engine(args, engine)?;
             if global {
                 set_global_retrieval(engine)
             } else {
@@ -130,6 +131,9 @@ fn set_global_retrieval(engine: RetrievalEngine) -> Result<()> {
     let path = Config::set_global_retrieval_engine(engine)?;
     println!("Global retrieval engine : {}", engine.as_str());
     println!("Saved                   : {}", path.display());
+    if engine != RetrievalEngine::Fast {
+        println!("Next                    : neuromesh embed rebuild");
+    }
     Ok(())
 }
 
@@ -139,6 +143,9 @@ fn set_project_retrieval(engine: RetrievalEngine) -> Result<()> {
     println!("Project retrieval engine: {}", engine.as_str());
     println!("Saved                   : {}", path.display());
     println!("Commit nm.config.json to share engine choice with the team.");
+    if engine != RetrievalEngine::Fast {
+        println!("Next                    : neuromesh embed rebuild");
+    }
     Ok(())
 }
 
@@ -153,6 +160,24 @@ fn print_retrieval_engine_status() -> Result<()> {
         "  embeddings (derived)      : {}",
         if cfg.embeddings.enabled { "on" } else { "off" }
     );
+    #[cfg(feature = "embeddings")]
+    if cfg.retrieval.engine != RetrievalEngine::Fast {
+        if neuromesh_embed::bundled_minilm_available() {
+            if let Some(dir) = neuromesh_embed::resolve_bundled_minilm_dir() {
+                println!(
+                    "  embed model               : installed ({})",
+                    dir.display()
+                );
+            } else {
+                println!("  embed model               : installed");
+            }
+        } else {
+            println!(
+                "  embed model               : not installed ({})",
+                neuromesh_embed::install_hint()
+            );
+        }
+    }
     println!(
         "  optimization mode         : {}",
         format!("{:?}", cfg.mode).to_lowercase()
@@ -168,8 +193,11 @@ Usage: neuromesh config engine [ENGINE] [--global]
 
   neuromesh config engine                  show effective retrieval engine
   neuromesh config engine fast             zero-embed graph + lexical (default)
-  neuromesh config engine hybrid           MiniLM sidecar + graph
+  neuromesh config engine hybrid           prompts to install MiniLM if missing
+  neuromesh config engine hybrid --yes     install MiniLM without prompting
   neuromesh config engine deep             max quality + dedup + centroids
+
+  neuromesh install embed minilm           download MiniLM Q (~250 MB, once)
 
 Engines: {}
 Env     : NEUROMESH_ENGINE=<engine>

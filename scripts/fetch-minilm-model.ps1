@@ -1,3 +1,4 @@
+# Optional recovery: download MiniLM ONNX + tokenizer when missing from repo checkout (~50–80 MB).
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $Dest = Join-Path $Root "crates\neuromesh-embed\models\minilm-multilingual-q"

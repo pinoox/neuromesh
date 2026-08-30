@@ -1,3 +1,4 @@
+use crate::model_install::{default_models_root, install_hint, MINILM_MULTILINGUAL_Q};
 use fastembed::{
     InitOptionsUserDefined, Pooling, QuantizationMode, TextEmbedding, TokenizerFiles,
     UserDefinedEmbeddingModel,
@@ -5,7 +6,6 @@ use fastembed::{
 use neuromesh_core::EmbeddingModelId;
 use std::path::{Path, PathBuf};
 
-const MINILM_DIR: &str = "minilm-multilingual-q";
 const ONNX_NAME: &str = "model_optimized.onnx";
 
 #[derive(Debug)]
@@ -30,29 +30,13 @@ impl std::error::Error for BundledModelError {}
 pub fn bundled_model_search_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Ok(dir) = std::env::var("NEUROMESH_MODEL_DIR") {
-        paths.push(PathBuf::from(dir).join(MINILM_DIR));
+        paths.push(PathBuf::from(dir).join(MINILM_MULTILINGUAL_Q.dir_name));
     }
+    paths.push(default_models_root().join(MINILM_MULTILINGUAL_Q.dir_name));
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
-            paths.push(parent.join("models").join(MINILM_DIR));
+            paths.push(parent.join("models").join(MINILM_MULTILINGUAL_Q.dir_name));
         }
-    }
-    if let Some(home) = dirs::home_dir() {
-        paths.push(
-            home.join(".local")
-                .join("share")
-                .join("neuromesh")
-                .join("models")
-                .join(MINILM_DIR),
-        );
-    }
-    if let Ok(local) = std::env::var("LOCALAPPDATA") {
-        paths.push(
-            PathBuf::from(local)
-                .join("neuromesh")
-                .join("models")
-                .join(MINILM_DIR),
-        );
     }
     if let Some(dev) = option_env!("NEUROMESH_DEV_MODEL_DIR") {
         paths.push(PathBuf::from(dev));
@@ -63,7 +47,7 @@ pub fn bundled_model_search_paths() -> Vec<PathBuf> {
 pub fn resolve_bundled_minilm_dir() -> Option<PathBuf> {
     bundled_model_search_paths()
         .into_iter()
-        .find(|dir| dir.join(ONNX_NAME).is_file())
+        .find(|dir| dir.join(ONNX_NAME).is_file() && dir.join("tokenizer.json").is_file())
 }
 
 pub fn bundled_minilm_available() -> bool {
@@ -91,10 +75,13 @@ pub fn try_load_bundled_minilm(
         )));
     }
     let dir = resolve_bundled_minilm_dir().ok_or_else(|| {
-        BundledModelError::Missing(
-            "MiniLM not found; run scripts/fetch-minilm-model.sh or set NEUROMESH_MODEL_DIR"
-                .to_string(),
-        )
+        BundledModelError::Missing(format!(
+            "MiniLM not installed ({}). Expected: {}",
+            install_hint(),
+            default_models_root()
+                .join(MINILM_MULTILINGUAL_Q.dir_name)
+                .display()
+        ))
     })?;
 
     let user_model = UserDefinedEmbeddingModel::new(

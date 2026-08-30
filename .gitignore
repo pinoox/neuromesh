@@ -56,7 +56,7 @@ desktop.ini
 # Extension packages
 *.vsix
 
-# Bundled MiniLM ONNX (fetch via scripts/fetch-minilm-model.*)
+# MiniLM ONNX (on-demand via `neuromesh install embed minilm`; dev fetch: scripts/fetch-minilm-model.*)
 crates/neuromesh-embed/models/minilm-multilingual-q/*.onnx
 crates/neuromesh-embed/models/minilm-multilingual-q/*.json
 !crates/neuromesh-embed/models/minilm-multilingual-q/README.md

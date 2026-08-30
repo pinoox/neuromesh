@@ -120,7 +120,7 @@ Restart your IDE so MCP picks up the new server. Re-run the installer to **updat
 | Windows       | `%LOCALAPPDATA%\Programs\neuromesh\neuromesh.exe` |
 
 
-Hybrid/deep embeddings, CBM proxy, monitor port: [docs/configuration.md](docs/configuration.md).
+Hybrid/deep embeddings (`neuromesh install embed minilm`), CBM proxy, monitor port: [docs/configuration.md](docs/configuration.md).
 
 ---
 

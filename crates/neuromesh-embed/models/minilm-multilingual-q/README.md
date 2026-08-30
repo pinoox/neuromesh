@@ -1,18 +1,32 @@
-# MiniLM multilingual Q (bundled)
+# MiniLM multilingual Q (on-demand)
 
-ONNX weights for `ParaphraseMLMiniLML12V2Q` — loaded via fastembed `UserDefinedEmbeddingModel` (no HuggingFace download at runtime when present).
+ONNX weights for `ParaphraseMLMiniLML12V2Q` — loaded via fastembed `UserDefinedEmbeddingModel`.
 
-## Fetch once (dev / CI)
+## Install (users)
+
+Release binaries do **not** ship model weights. Install once:
 
 ```bash
-# Linux / macOS
-./scripts/fetch-minilm-model.sh
-
-# Windows
-./scripts/fetch-minilm-model.ps1
+neuromesh install embed minilm
+# or when switching engine:
+neuromesh config engine hybrid --install
 ```
 
-Required files in this directory:
+Weights are stored under:
+
+- Linux/macOS: `~/.local/share/neuromesh/models/minilm-multilingual-q/`
+- Windows: `%LOCALAPPDATA%\neuromesh\models\minilm-multilingual-q\`
+
+Legacy releases may still have `{exe}/models/minilm-multilingual-q/` next to the binary.
+
+## Dev-only fetch (not in git)
+
+```bash
+./scripts/fetch-minilm-model.sh   # Linux / macOS
+./scripts/fetch-minilm-model.ps1  # Windows
+```
+
+Required files:
 
 - `model_optimized.onnx`
 - `tokenizer.json`
@@ -25,9 +39,8 @@ Source: [Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q](https://huggingfac
 ## Runtime search order
 
 1. `$NEUROMESH_MODEL_DIR/minilm-multilingual-q`
-2. `{exe}/models/minilm-multilingual-q` (release tarball layout)
-3. `~/.local/share/neuromesh/models/minilm-multilingual-q`
-4. `%LOCALAPPDATA%/neuromesh/models/minilm-multilingual-q`
-5. This crate path (source builds after fetch)
+2. `~/.local/share/neuromesh/models/minilm-multilingual-q` (or `%LOCALAPPDATA%\neuromesh\models\…`)
+3. `{exe}/models/minilm-multilingual-q` (legacy release layout)
+4. Crate path after dev fetch (`NEUROMESH_DEV_MODEL_DIR` from `build.rs`)
 
-If none match, fastembed falls back to HuggingFace cache download.
+No HuggingFace auto-download at runtime — run `neuromesh install embed minilm` first.

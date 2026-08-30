@@ -56,6 +56,9 @@ fn main() -> Result<()> {
         "init" => {
             return commands::init::execute();
         }
+        "install" => {
+            return commands::install::execute(&args[1..]);
+        }
         "graph" => {
             return commands::graph::execute();
         }
@@ -302,7 +305,8 @@ fn print_help() {
         "  eval       Gold-task recall / precision / fill budget (alias: evaluate, benchmark)"
     );
     println!("  doctor     Workspace root, scan, MCP/proxy/embed (`--mcp`, `--proxy`, `--embed`, `--bench`)");
-    println!("  embed      Warm bundled MiniLM (`embed prefetch`, `--quiet`)");
+    println!("  install    On-demand embed models (`install embed minilm`, `install embed list`)");
+    println!("  embed      Warm installed MiniLM (`embed prefetch`, `embed rebuild`)");
     println!("  init       Ensure NeuroMesh data directories exist");
     println!("  models     List configured / local AI models");
     println!("  version    Print version (-v, --version)");

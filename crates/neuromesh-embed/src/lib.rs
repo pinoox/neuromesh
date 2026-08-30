@@ -1,12 +1,18 @@
 mod bundled_model;
 mod embedder;
 mod intent_prototypes;
+mod model_install;
 mod query_cache;
 mod search;
 mod semantic_packet_cache;
 
 pub use bundled_model::{
     bundled_minilm_available, bundled_model_search_paths, resolve_bundled_minilm_dir,
+};
+pub use model_install::{
+    default_models_root, install_hint, install_hint_with_flag, install_model, is_model_installed,
+    list_installed, parse_model_id, EmbedModelSpec, InstallOptions, ModelInstallError, CATALOG,
+    MINILM_MULTILINGUAL_Q,
 };
 
 pub use embedder::{

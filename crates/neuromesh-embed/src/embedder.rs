@@ -1,6 +1,7 @@
 use crate::bundled_model::{bundled_minilm_available, try_load_bundled_minilm};
+use crate::model_install::install_hint;
 use crate::search::truncate_and_normalize;
-use fastembed::{EmbeddingModel, TextEmbedding, TextInitOptions};
+use fastembed::TextEmbedding;
 use neuromesh_core::{EmbeddingConfig, EmbeddingModelId};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
@@ -100,39 +101,27 @@ pub fn format_document_for_model(
     }
 }
 
-fn init_options(config: &EmbeddingConfig, show_download_progress: bool) -> TextInitOptions {
-    let fastembed_model = match config.model {
-        EmbeddingModelId::Gemma300mQ4 => EmbeddingModel::EmbeddingGemma300MQ4,
-        EmbeddingModelId::MiniLmMultilingualQ => EmbeddingModel::ParaphraseMLMiniLML12V2Q,
-    };
-    let mut opts =
-        TextInitOptions::new(fastembed_model).with_show_download_progress(show_download_progress);
-    if let Some(n) = config.intra_threads {
-        opts = opts.with_intra_threads(n);
-    }
-    opts
-}
-
 fn try_init_text_embedding(
     config: &EmbeddingConfig,
-    show_download_progress: bool,
+    _show_download_progress: bool,
 ) -> Result<TextEmbedding, EmbedderError> {
-    if config.model == EmbeddingModelId::MiniLmMultilingualQ && bundled_minilm_available() {
-        match try_load_bundled_minilm(config.model, config.intra_threads) {
-            Ok(model) => {
-                tracing::debug!(
-                    "loaded bundled MiniLM from {:?}",
-                    crate::bundled_model::resolve_bundled_minilm_dir()
-                );
-                return Ok(model);
+    match config.model {
+        EmbeddingModelId::MiniLmMultilingualQ => {
+            if !bundled_minilm_available() {
+                return Err(EmbedderError::Init(format!(
+                    "MiniLM not installed. {}",
+                    install_hint()
+                )));
             }
-            Err(e) => {
-                tracing::warn!("bundled MiniLM present but failed to load: {e}; falling back to fastembed cache");
-            }
+            try_load_bundled_minilm(config.model, config.intra_threads)
+                .map_err(|e| EmbedderError::Init(format!("{e}. {}", install_hint())))
         }
+        EmbeddingModelId::Gemma300mQ4 => Err(EmbedderError::Init(format!(
+            "gemma300m_q4 is not installable yet; use MiniLM ({}). {}",
+            EmbeddingModelId::MiniLmMultilingualQ.as_str(),
+            install_hint()
+        ))),
     }
-    TextEmbedding::try_new(init_options(config, show_download_progress))
-        .map_err(|e| EmbedderError::Init(e.to_string()))
 }
 
 pub struct Embedder {
@@ -190,7 +179,7 @@ impl Embedder {
         Ok(embedder)
     }
 
-    /// Warm bundled or cached MiniLM (downloads only when no bundled weights).
+    /// Warm installed MiniLM weights (requires `neuromesh install embed minilm`).
     pub fn prefetch_model(
         config: EmbeddingConfig,
         show_download_progress: bool,
