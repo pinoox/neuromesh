@@ -52,7 +52,7 @@ jobs:
         run: bash scripts/fetch-minilm-model.sh
 
       - name: Build release binaries
-        run: cargo build --release --bin neuromesh --bin nmx --target ${{ matrix.target }} --features embeddings
+        run: cargo build --release --bin neuromesh --target ${{ matrix.target }} --features embeddings
 
       - name: Verify bundled model packaged
         shell: bash

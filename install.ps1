@@ -8,6 +8,21 @@ $Repo = "pinoox/neuromesh"
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\neuromesh"
 $BinPath = Join-Path $InstallDir "neuromesh.exe"
 
+function Install-CliAlias {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$AliasPath
+    )
+    if (Test-Path $AliasPath) {
+        Remove-Item $AliasPath -Force -ErrorAction SilentlyContinue
+    }
+    try {
+        New-Item -ItemType HardLink -Path $AliasPath -Target $Source -ErrorAction Stop | Out-Null
+    } catch {
+        Copy-Item -Path $Source -Destination $AliasPath -Force
+    }
+}
+
 Write-Host @"
   _   _                      __  __           _
  | \ | | ___ _   _ _ __ ___ |  \/  | ___  ___| |__
@@ -60,7 +75,7 @@ Start-Sleep -Milliseconds 400
 
 Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $BinPath -Force
 $NmxPath = Join-Path $InstallDir "nmx.exe"
-Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $NmxPath -Force
+Install-CliAlias -Source $BinPath -AliasPath $NmxPath
 
 $BundledModels = Join-Path $TempExtract "models\minilm-multilingual-q"
 if (Test-Path $BundledModels) {
@@ -72,8 +87,9 @@ if (Test-Path $BundledModels) {
 
 $CargoBinDir = Join-Path $env:USERPROFILE ".cargo\bin"
 if (Test-Path $CargoBinDir) {
-    Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination (Join-Path $CargoBinDir "neuromesh.exe") -Force -ErrorAction SilentlyContinue
-    Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination (Join-Path $CargoBinDir "nmx.exe") -Force -ErrorAction SilentlyContinue
+    $CargoNm = Join-Path $CargoBinDir "neuromesh.exe"
+    Copy-Item -Path (Join-Path $TempExtract "neuromesh.exe") -Destination $CargoNm -Force -ErrorAction SilentlyContinue
+    Install-CliAlias -Source $CargoNm -AliasPath (Join-Path $CargoBinDir "nmx.exe")
 }
 
 Remove-Item -Path $TempZip -Force -ErrorAction SilentlyContinue

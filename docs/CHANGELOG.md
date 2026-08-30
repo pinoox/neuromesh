@@ -6,6 +6,7 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ### Retrieval phase 2.1 (TEAM_REVIEW fixes)
 
+- **CLI alias** — single Cargo bin `neuromesh`; `nmx` is install/release hard link or symlink (no duplicate compile).
 - **Fast L3 unlock (F1a)** — remove `needs_embedding_escalation` sidecar early-return; `ensure_file_tier_sidecar` before L3 activate; `embedding_confidence` honors loaded sidecar when `enabled=false`.
 - **Fast instant index (F1)** — `index_on_build: false`; sidecar built on first weak-lexical L3 (~90s cold on large repos; one-shot warn log).
 - **L3 skip (F3)** — strong lexical seeds (confidence ≥0.6) skip L3; removed `prompt_has_alias_cluster_match` EN block; `ort_session_active=false` when L3 never fires.

@@ -1,6 +1,6 @@
 # CLI
 
-Binary: `neuromesh` (`neuromesh-cli` crate).
+Single Cargo binary: **`neuromesh`**. **`nmx`** is a packaging alias (symlink on Unix, hard link or copy on Windows) — not a second compile target.
 
 ## Install (recommended)
 
@@ -204,3 +204,14 @@ neuromesh doctor --max-files 20000   # one scan only, does not save
 `neuromesh index --max-files …` writes `max_files` next to the monitor port in the project data dir (`neuromesh store` prints it). `neuromesh monitor --max-files 20000` is one run only (same idea as `--port`).
 
 `index` and `doctor` print `File cap: auto → N (ceiling 50000)` and `Truncated` when files were omitted. Re-index after changing the cap.
+
+## Build from source
+
+```bash
+cargo build --release -p neuromesh-cli --features embeddings
+# optional short alias in target/release (hard link / symlink — not a second compile):
+./scripts/link-cli-alias.sh          # Unix
+./scripts/link-cli-alias.ps1         # Windows
+```
+
+Release zips and `install.sh` / `install.ps1` ship both `neuromesh` and `nmx` as the same binary (symlink or hard link). `cargo install … --bin neuromesh` installs only `neuromesh`; add `nmx` with the link script or a shell alias.
