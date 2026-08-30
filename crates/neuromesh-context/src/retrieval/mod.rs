@@ -36,7 +36,10 @@ pub use impact::{retrieve_impact_context, ImpactRetrievalResult};
 pub use orchestrator::RetrievalOrchestrator;
 pub use patterns::{pattern_expand, MAX_PATTERN_FILES, MAX_PATTERN_HOPS};
 pub use query_intent::{assisted_signals, classify_intent, QueryIntent, QueryPlan};
-pub use server_assisted::{apply_auto_extract_keywords, infer_assisted_seed_signals};
+pub use server_assisted::{
+    apply_auto_extract_keywords, apply_client_keyword_alias_bridge, infer_assisted_seed_signals,
+    is_code_like_token,
+};
 pub use sufficiency::{SufficiencyEstimate, SufficiencyEstimator};
 pub use task_profile::{detect_task_profile, TaskProfileKind};
 pub use tier::RetrievalTier;

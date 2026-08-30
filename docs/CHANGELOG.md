@@ -4,6 +4,15 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### Retrieval phase 2.1 (TEAM_REVIEW fixes)
+
+- **Fast L3 unlock (F1a)** — remove `needs_embedding_escalation` sidecar early-return; `ensure_file_tier_sidecar` before L3 activate; `embedding_confidence` honors loaded sidecar when `enabled=false`.
+- **Fast instant index (F1)** — `index_on_build: false`; sidecar built on first weak-lexical L3 (~90s cold on large repos; one-shot warn log).
+- **L3 skip (F3)** — strong lexical seeds (confidence ≥0.6) skip L3; removed `prompt_has_alias_cluster_match` EN block; `ort_session_active=false` when L3 never fires.
+- **Keyword bridge (F7)** — client `keywords` blob runs through alias code seeds + expansion before activation.
+- **Embed gates (F2/F6)** — `embed_runtime_active` helper; lazy symbol embed + gap-fill + incremental refresh when sidecar exists.
+- **Stem union precision (F4)** — drop generic ASCII ≥4 token union; concept triggers only.
+
 ### Retrieval phase 2 (test6 team)
 
 - **Farsi lexical (J)** — Persian terms in plugin/validation/errors/content_type clusters; `alias_code_seeds_for_prompt` bridge; pure-Farsi server-assisted inference.
@@ -12,7 +21,7 @@ All notable user-facing changes live here. The README stays a product guide, not
 - **Passage quality (C)** — lib implementation titles; error-handler symbol boost; types penalty in passages.
 - **Hybrid matryoshka 256 (E)** — sidecar size only; ORT session RAM unchanged (~630 MB idle documented).
 - **Precision (F)** — `.d.ts` seed penalty when lib stem in prompt; MCP precision ≥15% holdout gate.
-- **Fast L3 (H)** — lean hierarchical sidecar at index (`index_on_build`); L3 embed for hard non-fa NL; fa skips L3 when alias clusters match.
+- **Fast L3 (H)** — hierarchical sidecar deferred until first L3; L3 embed for hard weak-lexical NL; strong lexical seeds skip L3.
 - **Hybrid lexical fallback (I)** — sufficiency-guarded `alias_gap_fill` when embed scores weak.
 - **MCP telemetry** — `retrieval.embedding_used`, `resolution_tier`, `ort_session_active` in minimal JSON.
 

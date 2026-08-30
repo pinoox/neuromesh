@@ -52,7 +52,7 @@ impl RetrievalEngine {
         match self {
             Self::Fast => {
                 emb.enabled = false;
-                emb.index_on_build = true;
+                emb.index_on_build = false;
                 emb.hierarchical_index = true;
                 emb.two_stage_enabled = false;
                 emb.optional_dedup_min_cosine = None;
@@ -135,7 +135,7 @@ mod tests {
         let mut emb = EmbeddingConfig::default();
         RetrievalEngine::Fast.apply_preset(&mut mode, &mut seed, &mut emb);
         assert!(!emb.enabled);
-        assert!(emb.index_on_build);
+        assert!(!emb.index_on_build);
         assert!(emb.hierarchical_index);
         assert_eq!(seed.engine, SeedEngineId::KeywordsExpanded);
         assert!(seed.auto_extract_keywords);

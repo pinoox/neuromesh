@@ -1568,7 +1568,8 @@ impl NeuralProjectGraph {
                 #[cfg(feature = "embeddings")]
                 {
                     let emb = neuromesh_core::Config::load().embeddings;
-                    if emb.enabled {
+                    let sidecar_path = neuromesh_core::embeddings_path(workspace);
+                    if emb.enabled || emb.index_on_build || sidecar_path.exists() {
                         let _ = crate::embeddings::refresh_embeddings_after_index(
                             self, workspace, &emb,
                         );

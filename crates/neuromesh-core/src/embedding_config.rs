@@ -106,10 +106,35 @@ impl EmbeddingConfig {
         self.enabled
     }
 
+    /// Runtime embed tier active: sidecar loaded with hierarchical file-first index.
+    pub fn embed_runtime_active(&self, sidecar_loaded: bool) -> bool {
+        sidecar_loaded && self.hierarchical_index
+    }
+
     pub fn normalized(mut self) -> Self {
         if self.matryoshka_dim == 0 {
             self.matryoshka_dim = self.model.default_matryoshka_dim();
         }
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn embed_runtime_active_requires_sidecar_and_hierarchical() {
+        let config = EmbeddingConfig {
+            hierarchical_index: true,
+            ..Default::default()
+        };
+        assert!(!config.embed_runtime_active(false));
+        assert!(config.embed_runtime_active(true));
+        let flat = EmbeddingConfig {
+            hierarchical_index: false,
+            ..Default::default()
+        };
+        assert!(!flat.embed_runtime_active(true));
     }
 }

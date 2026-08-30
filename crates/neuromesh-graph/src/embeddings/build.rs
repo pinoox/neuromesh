@@ -622,3 +622,20 @@ pub fn refresh_embeddings_after_index(
     }
     rebuild_embeddings_for_workspace(graph, workspace, config)
 }
+
+/// Build and install file-tier sidecar on first fast L3 (lazy ONNX; persists for later queries).
+pub fn ensure_file_tier_sidecar(
+    graph: &NeuralProjectGraph,
+    workspace: &Path,
+    config: &EmbeddingConfig,
+) -> neuromesh_core::Result<()> {
+    if graph.embedding_index().is_loaded() {
+        return Ok(());
+    }
+    tracing::warn!(
+        "first fast L3 embed: building file-tier sidecar (may take ~90s on large repos)"
+    );
+    let index = rebuild_embeddings(graph, workspace, config)?;
+    graph.install_embedding_index(index);
+    Ok(())
+}

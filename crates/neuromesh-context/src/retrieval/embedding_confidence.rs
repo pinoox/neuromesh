@@ -34,7 +34,7 @@ pub fn max_seed_embedding_score(
     embedding_config: &EmbeddingConfig,
     seed_ids: &[NodeId],
 ) -> Option<f32> {
-    if !embedding_config.enabled || seed_ids.is_empty() {
+    if !embeddings_active_for_confidence(embedding_config, graph) || seed_ids.is_empty() {
         return None;
     }
     let index = graph.embedding_index();
@@ -66,6 +66,14 @@ pub fn max_seed_embedding_score(
     None
 }
 
+/// Embeddings usable for cosine confidence (hybrid enabled or fast L3 sidecar loaded).
+pub fn embeddings_active_for_confidence(
+    embedding_config: &EmbeddingConfig,
+    graph: &NeuralProjectGraph,
+) -> bool {
+    embedding_config.enabled || graph.embedding_index().is_loaded()
+}
+
 /// True when embeddings are on but resolved seeds align poorly with the prompt.
 pub fn low_embedding_confidence(
     graph: &NeuralProjectGraph,
@@ -73,7 +81,7 @@ pub fn low_embedding_confidence(
     embedding_config: &EmbeddingConfig,
     seed_ids: &[NodeId],
 ) -> bool {
-    if !embedding_config.enabled || seed_ids.is_empty() {
+    if !embeddings_active_for_confidence(embedding_config, graph) || seed_ids.is_empty() {
         return false;
     }
     max_seed_embedding_score(graph, prompt, embedding_config, seed_ids)
@@ -151,4 +159,27 @@ pub fn max_embedding_score_from_seeds(seeds: &[neuromesh_core::SeedResolution]) 
         .iter()
         .filter_map(|s| s.embedding_score)
         .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neuromesh_core::ProjectId;
+
+    #[test]
+    fn embeddings_active_for_confidence_when_sidecar_loaded() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("conf-test"));
+        let config = EmbeddingConfig {
+            enabled: false,
+            ..Default::default()
+        };
+        assert!(!embeddings_active_for_confidence(&config, &graph));
+        let index = neuromesh_graph::EmbeddingIndex {
+            dim: 384,
+            file_node_ids: vec![NodeId::new("f1")],
+            ..Default::default()
+        };
+        graph.install_embedding_index(index);
+        assert!(embeddings_active_for_confidence(&config, &graph));
+    }
 }

@@ -137,12 +137,6 @@ pub fn stem_union_file_hits(
             patterns.extend(concept_stem_patterns(concept));
         }
     }
-    for token in prompt.split_whitespace() {
-        let t = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
-        if t.len() >= 4 && t.is_ascii() {
-            patterns.push(t);
-        }
-    }
     if patterns.is_empty() {
         return Vec::new();
     }
@@ -176,6 +170,17 @@ mod tests {
         let reranked = rerank_file_hits(&graph, "plugin utils", hits, 0.30, 8);
         // Graph has no nodes — all filtered; test floor guard
         assert!(reranked.is_empty() || reranked.iter().all(|(_, s)| *s >= 0.30));
+    }
+
+    #[test]
+    fn stem_union_ignores_generic_ascii_tokens() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("stem-union-test"));
+        // Generic NL tokens must not union arbitrary files.
+        let hits = stem_union_file_hits(&graph, "how does error handler work", 0.30, &[]);
+        assert!(
+            hits.is_empty(),
+            "generic prompt should not union without concept trigger, got {hits:?}"
+        );
     }
 
     #[test]

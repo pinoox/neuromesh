@@ -41,7 +41,7 @@ fn merge_expansion(out: &mut Vec<String>, terms: impl IntoIterator<Item = impl A
 }
 
 /// Keep symbol-like embedded tokens; drop capitalized NL words (e.g. German "Wie").
-fn is_code_like_token(token: &str) -> bool {
+pub fn is_code_like_token(token: &str) -> bool {
     let t = token.trim();
     if t.is_empty() {
         return false;
@@ -118,6 +118,19 @@ pub fn infer_assisted_seed_signals(prompt: &str) -> (Vec<String>, Vec<String>) {
     keywords.truncate(MAX_INFERRED_KEYWORDS);
     expansion.truncate(MAX_INFERRED_EXPANSION);
     (keywords, expansion)
+}
+
+/// Bridge client keyword blob through alias clusters (F7 — keywords without prompt cluster match).
+pub fn apply_client_keyword_alias_bridge(signature: &mut TaskSignature) {
+    if signature.client_keywords.is_empty() {
+        return;
+    }
+    let kw_blob = signature.client_keywords.join(" ");
+    merge_keywords(
+        &mut signature.client_keywords,
+        alias_code_seeds_for_prompt(&kw_blob),
+    );
+    merge_expansion(&mut signature.client_expansion, expand_aliases(&kw_blob));
 }
 
 /// Fill missing `client_keywords` / `client_expansion` from server inference (FILL-ONLY-MISSING).
@@ -219,6 +232,20 @@ mod tests {
             })
             .count();
         assert!(hits >= 2, "keywords={kw:?} expansion={exp:?}");
+    }
+
+    #[test]
+    fn client_keyword_bridge_plugin_utils() {
+        use neuromesh_task::TaskSignatureExtractor;
+
+        let mut sig = TaskSignatureExtractor::extract("How does registration work?");
+        sig.client_keywords = vec!["plugin-utils".into()];
+        apply_client_keyword_alias_bridge(&mut sig);
+        assert!(
+            sig.client_keywords.iter().any(|k| k.contains("plugin")),
+            "keywords={:?}",
+            sig.client_keywords
+        );
     }
 
     #[test]

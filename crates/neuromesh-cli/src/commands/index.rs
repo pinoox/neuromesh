@@ -125,7 +125,7 @@ pub fn execute(
                 );
             }
         } else {
-            println!("Embeddings   : disabled (engine=fast, zero-embed index)");
+            println!("Embeddings   : deferred until L3 (engine=fast, zero-embed index)");
         }
     }
 

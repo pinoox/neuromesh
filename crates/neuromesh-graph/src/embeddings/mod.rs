@@ -25,8 +25,9 @@ pub use sketch::{node_type_label, symbol_sketch};
 
 #[cfg(feature = "embeddings")]
 pub use build::{
-    graph_digest, maybe_rebuild_embeddings, passage_hash, rebuild_embeddings,
-    rebuild_embeddings_for_workspace, refresh_embeddings_after_index, symbol_passage_for_node,
+    ensure_file_tier_sidecar, graph_digest, maybe_rebuild_embeddings, passage_hash,
+    rebuild_embeddings, rebuild_embeddings_for_workspace, refresh_embeddings_after_index,
+    symbol_passage_for_node,
 };
 
 #[cfg(feature = "embeddings")]

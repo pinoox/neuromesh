@@ -70,17 +70,21 @@ Query flow: **coarse pool file union** → **file ANN** (top **8**, min cosine 0
 
 **RAM note:** hybrid/deep idle ~**630 MB** is dominated by the **ONNX session/arena**, not sidecar vectors. `matryoshka_dim=256` shrinks `embeddings.bin` only — it does **not** reduce ORT session RAM.
 
+**Re-embed after dim change:** switching hybrid to `matryoshka_dim=256` invalidates older 384-dim sidecars (`is_compatible_hierarchical` fails). Run `neuromesh embed rebuild` once after upgrade.
+
 **Agent contract:** hybrid/deep are **prompt-only** — MCP ignores client `keywords` / `expansion` / `auto_extract_keywords`. Server-side alias gap-fill runs when embed scores are weak. MiniLM handles multilingual NL directly.
 
-### Fast — lean sidecar + optional L3 embed
+### Fast — zero-embed index + optional L3 sidecar
 
 | Item | Value |
 | :--- | :--- |
-| **Index** | `index_on_build: true`, hierarchical file tier only (no warm ONNX at index) |
-| **Query** | lexical L1 default; L3 semantic recovery only for hard **non-Farsi** NL when sidecar loaded |
-| **Farsi** | alias cluster bridge only — L3 embed skipped when Persian clusters match |
+| **Index** | graph only — no ONNX, no sidecar (`index_on_build: false`) |
+| **Query** | lexical L1 default; L3 builds file-tier sidecar on first weak-lexical escalation |
+| **Strong lexical** | confidence ≥0.6 non-embed seeds skip L3 (fa/en); no ORT load |
 
-**ORT retention:** first L3 embed loads ONNX (~600 MB) for the MCP session lifetime; RAM may not return to ~19 MB until MCP restart. See `retrieval.ort_session_active` in packet JSON.
+**First L3 latency:** cold file-tier embed runs inside the MCP request (~90s on large repos). One-shot warn log. Async background build is planned for a later release.
+
+**ORT retention:** first L3 embed loads ONNX (~600 MB) for the MCP session lifetime; RAM may not return to ~19 MB until MCP restart. See `retrieval.ort_session_active` in packet JSON — expect `false` when all queries resolve with strong lexical seeds.
 
 ### Deep — full symbol sidecar
 

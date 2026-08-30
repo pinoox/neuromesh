@@ -128,7 +128,7 @@ fn run_semantic_lite(
         false
     };
 
-    if embedding_config.enabled {
+    if embedding_config.embed_runtime_active(graph.embedding_index().is_loaded()) {
         push_alias_lexical_gap_fill(graph, prompt, config, embedding_config, sink);
     }
 

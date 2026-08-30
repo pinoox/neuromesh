@@ -281,10 +281,10 @@ impl McpToolHandler {
 
                 let mut signature = TaskSignatureExtractor::extract(&task_desc);
                 let retrieval_engine = effective_retrieval_engine(&signature);
+                apply_client_seed_signals(&mut signature, arguments);
+                neuromesh_context::retrieval::apply_client_keyword_alias_bridge(&mut signature);
                 if is_embed_primary_engine(retrieval_engine) {
                     strip_embed_primary_client_signals(&mut signature);
-                } else {
-                    apply_client_seed_signals(&mut signature, arguments);
                 }
                 let auto_extract = if is_embed_primary_engine(retrieval_engine) {
                     false

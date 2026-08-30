@@ -27,7 +27,7 @@ pub fn lazy_embed_symbols_for_files(
     file_ids: &[NodeId],
     prompt: Option<&str>,
 ) -> neuromesh_core::Result<usize> {
-    if !config.enabled || !config.hierarchical_index || file_ids.is_empty() {
+    if !config.embed_runtime_active(graph.embedding_index().is_loaded()) || file_ids.is_empty() {
         return Ok(0);
     }
 

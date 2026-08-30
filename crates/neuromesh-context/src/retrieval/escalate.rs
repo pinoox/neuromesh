@@ -1,7 +1,6 @@
 //! Single-pass incremental L1→L2→L3 escalation without full re-activation.
 
 use crate::activator::ContextActivator;
-use crate::retrieval::alias::prompt_has_alias_cluster_match;
 use crate::retrieval::budget::RetrievalBudget;
 use crate::retrieval::embedding_confidence::{is_embedding_reason, low_embedding_confidence};
 use crate::retrieval::patterns::pattern_expand;
@@ -10,7 +9,8 @@ use crate::retrieval::query_intent::QueryPlan;
 use crate::retrieval::sufficiency::{SufficiencyEstimate, SufficiencyEstimator};
 use crate::retrieval::tier::RetrievalTier;
 use neuromesh_core::{
-    Config, ContextView, EmbeddingConfig, OptimizationMode, SeedResolutionConfig, TaskSignature,
+    Config, ContextView, EmbeddingConfig, OptimizationMode, RetrievalEngine, SeedResolutionConfig,
+    TaskSignature,
 };
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_task::normalize_unicode;
@@ -165,21 +165,31 @@ pub fn run_incremental(
     }
 
     // L3: bounded semantic recovery (max 2 seeds)
-    if should_escalate_to_l3(
-        &est,
-        &view,
-        activator,
-        graph,
-        signature,
-        &embedding_config,
-        retrieval_engine,
-    ) {
+    if should_escalate_to_l3(&est, &view, activator, graph, signature, &embedding_config) {
         let l3_start = Instant::now();
+        #[cfg(feature = "embeddings")]
+        let mut l3_sidecar_loaded = graph.embedding_index().is_loaded();
+        #[cfg(feature = "embeddings")]
+        if retrieval_engine == RetrievalEngine::Fast && !l3_sidecar_loaded {
+            if let Some(workspace) = graph.workspace_root() {
+                let l3_emb = fast_l3_embedding_config(retrieval_engine, &embedding_config);
+                if let Err(e) =
+                    neuromesh_graph::ensure_file_tier_sidecar(graph, &workspace, &l3_emb)
+                {
+                    tracing::warn!("fast L3 sidecar build failed: {e}");
+                } else {
+                    l3_sidecar_loaded = graph.embedding_index().is_loaded();
+                }
+            }
+        }
+        #[cfg(not(feature = "embeddings"))]
+        let l3_sidecar_loaded = sidecar_loaded;
+        let l3_embeddings_active = embeddings_enabled || l3_sidecar_loaded;
         sig.engine_override = Some(RetrievalTier::L3.seed_engine(
             configured_engine,
             retrieval_engine,
-            embeddings_active,
-            sidecar_loaded,
+            l3_embeddings_active,
+            l3_sidecar_loaded,
         ));
         sig.embed_min_cosine_override = Some(embedding_config.recovery_min_cosine);
         view = activator.activate_incremental(
@@ -257,13 +267,7 @@ fn should_escalate_to_l3(
     graph: &NeuralProjectGraph,
     signature: &TaskSignature,
     embedding_config: &neuromesh_core::EmbeddingConfig,
-    retrieval_engine: neuromesh_core::RetrievalEngine,
 ) -> bool {
-    if retrieval_engine == neuromesh_core::RetrievalEngine::Fast
-        && prompt_has_alias_cluster_match(&signature.raw_prompt)
-    {
-        return false;
-    }
     !est.critical_gaps.is_empty()
         || needs_embedding_escalation(
             view,
@@ -284,9 +288,6 @@ fn needs_embedding_escalation(
     embedding_config: &neuromesh_core::EmbeddingConfig,
 ) -> bool {
     let sidecar_loaded = graph.embedding_index().is_loaded();
-    if !embedding_config.enabled && !sidecar_loaded {
-        return false;
-    }
     let resolved: Vec<_> = view
         .seeds
         .iter()
@@ -304,7 +305,28 @@ fn needs_embedding_escalation(
         return false;
     }
     let seed_ids: Vec<_> = activator.seed_node_ids(view).into_iter().collect();
+    // Pre-sidecar fast: cosine unavailable — weak lexical seeds warrant L3 sidecar build.
+    if !sidecar_loaded && !embedding_config.enabled {
+        return true;
+    }
     low_embedding_confidence(graph, prompt, embedding_config, &seed_ids)
+}
+
+fn fast_l3_embedding_config(
+    retrieval_engine: RetrievalEngine,
+    base: &EmbeddingConfig,
+) -> EmbeddingConfig {
+    if retrieval_engine != RetrievalEngine::Fast {
+        return base.clone();
+    }
+    let mut emb = EmbeddingConfig::default();
+    let mut seed = SeedResolutionConfig::default();
+    let mut mode = OptimizationMode::Balanced;
+    retrieval_engine.apply_preset(&mut mode, &mut seed, &mut emb);
+    emb.model = base.model;
+    emb.matryoshka_dim = base.matryoshka_dim;
+    emb.intra_threads = base.intra_threads;
+    emb.normalized()
 }
 
 #[derive(Debug, Clone)]
