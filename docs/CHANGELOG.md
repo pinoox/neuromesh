@@ -4,6 +4,8 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.9.0 — 2026-08-30
+
 ### Retrieval phase 2.1 (TEAM_REVIEW fixes)
 
 - **CLI alias** — single Cargo bin `neuromesh`; `nmx` is install/release hard link or symlink (no duplicate compile).
@@ -34,8 +36,6 @@ All notable user-facing changes live here. The README stays a product guide, not
 - **File passage** — file stem in tier-0 passage; stem-matching symbols prioritized.
 - **Precision** — path-stem seed boost; hybrid optional cap 2; light dedup on connector files.
 - **Quality** — `mini-fastify` fixture; Fastify holdout release gates (`evaluate_fastify_holdout`).
-
-## 0.9.0 — 2026-08-30
 
 ### Unified retrieval engines (Zero-Embed default)
 
