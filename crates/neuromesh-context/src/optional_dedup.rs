@@ -9,7 +9,9 @@ use std::collections::HashMap;
 /// Paths under test/mock trees must not be deduped against implementation files.
 pub fn is_test_or_mock_path(path: &str) -> bool {
     let p = path.replace('\\', "/").to_lowercase();
-    p.contains("/test/")
+    p.starts_with("test/")
+        || p.starts_with("tests/")
+        || p.contains("/test/")
         || p.contains("/tests/")
         || p.contains("__tests__")
         || p.contains("__mocks__")

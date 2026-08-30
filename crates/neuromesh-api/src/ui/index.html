@@ -1972,7 +1972,7 @@
                             <div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.35rem;">
                                     <span>🔗 <strong data-i18n="bio_engines">Graph & seed engines</strong></span>
-                                    <strong id="bioEnginesValue" style="color: var(--accent-cyan);">native · keywords_expanded</strong>
+                                    <strong id="bioEnginesValue" style="color: var(--accent-cyan);">native · embed (MiniLM)</strong>
                                 </div>
                                 <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem;" data-i18n="bio_engines_help">Graph backend for structural queries; seed engine for keyword→symbol resolution. Change in Settings or via CLI config.</div>
                             </div>
@@ -2644,14 +2644,14 @@
                                     <span class="setting-badge">Seeds</span>
                                 </div>
                                 <div id="infoSeedEngine" class="collapsible-setting-guide">
-                                    <span data-i18n="guide_seed_engine">Controls how task keywords map to graph seeds before folding. hybrid adds semantic-lite pass; keywords_expanded is the default tier-1 engine.</span>
+                                    <span data-i18n="guide_seed_engine">Default: bundled MiniLM embed (prompt only). Custom: Keywords+ or Hybrid for lexical keyword assist.</span>
                                 </div>
                                 <div class="preset-cards-row" id="presetSeedEngineCards">
-                                    <div class="preset-card active" onclick="window.selectSeedEngine('keywords_expanded', this)">
-                                        <div class="preset-card-icon">🔑</div>
+                                    <div class="preset-card active" onclick="window.selectSeedEngine('semantic_lite', this)">
+                                        <div class="preset-card-icon">✨</div>
                                         <div class="preset-card-body">
-                                            <div class="preset-card-title" data-i18n="opt_seed_kw_short">Keywords+</div>
-                                            <div class="preset-card-desc" data-i18n="opt_seed_kw_desc">Expanded keywords · default</div>
+                                            <div class="preset-card-title" data-i18n="opt_seed_sem_short">Embed (MiniLM)</div>
+                                            <div class="preset-card-desc" data-i18n="opt_seed_sem_desc">Bundled · prompt only · default</div>
                                         </div>
                                         <div class="preset-check">✓</div>
                                     </div>
@@ -2659,20 +2659,20 @@
                                         <div class="preset-card-icon">🧬</div>
                                         <div class="preset-card-body">
                                             <div class="preset-card-title" data-i18n="opt_seed_hybrid_short">Hybrid</div>
-                                            <div class="preset-card-desc" data-i18n="opt_seed_hybrid_desc">Keywords + semantic-lite</div>
+                                            <div class="preset-card-desc" data-i18n="opt_seed_hybrid_desc">Embed + keywords · custom</div>
                                         </div>
                                         <div class="preset-check">✓</div>
                                     </div>
-                                    <div class="preset-card" onclick="window.selectSeedEngine('semantic_lite', this)">
-                                        <div class="preset-card-icon">✨</div>
+                                    <div class="preset-card" onclick="window.selectSeedEngine('keywords_expanded', this)">
+                                        <div class="preset-card-icon">🔑</div>
                                         <div class="preset-card-body">
-                                            <div class="preset-card-title" data-i18n="opt_seed_sem_short">Semantic Lite</div>
-                                            <div class="preset-card-desc" data-i18n="opt_seed_sem_desc">Embedding-style hints</div>
+                                            <div class="preset-card-title" data-i18n="opt_seed_kw_short">Keywords+</div>
+                                            <div class="preset-card-desc" data-i18n="opt_seed_kw_desc">Lexical only · custom</div>
                                         </div>
                                         <div class="preset-check">✓</div>
                                     </div>
                                 </div>
-                                <input type="hidden" id="settingsSeedEngine" value="keywords_expanded">
+                                <input type="hidden" id="settingsSeedEngine" value="semantic_lite">
                             </div>
 
                             <!-- SETTING 2: CELLULAR OSMOTIC GATE -->
@@ -3018,7 +3018,7 @@
                 opt_graph_cbm_desc: 'codebase-memory-mcp',
                 btn_probe_cbm: '🔬 Probe CBM connection',
                 lbl_seed_engine: 'Seed Resolution Engine:',
-                guide_seed_engine: 'How task keywords map to graph seeds before folding. hybrid adds semantic-lite; keywords_expanded is the default.',
+                guide_seed_engine: 'Default: bundled MiniLM embed (prompt only). Custom: Keywords+ or Hybrid for lexical assist.',
                 opt_seed_kw_short: 'Keywords+',
                 opt_seed_kw_desc: 'Expanded keywords · default',
                 opt_seed_hybrid_short: 'Hybrid',
@@ -3202,7 +3202,7 @@
                 opt_graph_cbm_desc: 'codebase-memory-mcp',
                 btn_probe_cbm: '🔬 آزمایش اتصال CBM',
                 lbl_seed_engine: 'موتور بذر (Seed Engine):',
-                guide_seed_engine: 'نحوه نگاشت کلمات کلیدی به بذرهای گراف قبل از folding. hybrid، semantic-lite اضافه می‌کند؛ keywords_expanded پیش‌فرض است.',
+                guide_seed_engine: 'پیش‌فرض: embed با MiniLM باندل (فقط prompt). سفارشی: Keywords+ یا Hybrid.',
                 opt_seed_kw_short: 'Keywords+',
                 opt_seed_kw_desc: 'کلمات گسترده · پیش‌فرض',
                 opt_seed_hybrid_short: 'Hybrid',
@@ -3849,7 +3849,7 @@
                 const elEngines = document.getElementById('bioEnginesValue');
                 if (elEngines) {
                     const gb = data.graph_backend_active || data.graph_backend || 'native';
-                    const se = data.seed_engine || 'keywords_expanded';
+                    const se = data.seed_engine || 'semantic_lite';
                     const proxyTag = data.graph_proxy_connected ? ' · CBM live' : '';
                     elEngines.innerText = `${gb} · ${se}${proxyTag}`;
                 }
@@ -5103,11 +5103,11 @@
                 const res = await fetch('/api/engines');
                 const data = await res.json();
                 const backend = data.graph_backend || 'native';
-                const engine = data.seed_engine || 'keywords_expanded';
+                const engine = data.seed_engine || 'semantic_lite';
                 const backendCards = document.getElementById('presetGraphBackendCards');
                 const engineCards = document.getElementById('presetSeedEngineCards');
                 const backendMap = { native: 0, auto: 1, proxy_cbm: 2, proxy_graphify: 2 };
-                const engineMap = { keywords_expanded: 0, hybrid: 1, semantic_lite: 2, keywords: 0, off: 0 };
+                const engineMap = { semantic_lite: 0, hybrid: 1, keywords_expanded: 2, keywords: 2, off: 0 };
                 const bIdx = backendMap[backend] != null ? backendMap[backend] : 0;
                 const eIdx = engineMap[engine] != null ? engineMap[engine] : 0;
                 if (backendCards) {

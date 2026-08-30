@@ -76,10 +76,8 @@ pub fn best_intent_match(query_vec: &[f32], min_cosine: f32) -> Option<(IntentPr
     let mut best: Option<(IntentPrototype, f32)> = None;
     for entry in guard.iter() {
         let score = cosine_similarity(&entry.vector, query_vec);
-        if score >= min_cosine {
-            if best.map(|(_, s)| score > s).unwrap_or(true) {
-                best = Some((entry.intent, score));
-            }
+        if score >= min_cosine && best.map(|(_, s)| score > s).unwrap_or(true) {
+            best = Some((entry.intent, score));
         }
     }
     best

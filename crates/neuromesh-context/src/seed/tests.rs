@@ -102,6 +102,19 @@ mod seed_engine_tests {
         assert_eq!(cfg.matryoshka_dim, 384);
         assert_eq!(cfg.intra_threads, Some(4));
         assert_eq!(cfg.embed_seed_cap, 4);
+        assert!((cfg.recovery_min_cosine - 0.38).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn hybrid_engine_uses_lexical_assist_when_enabled() {
+        let mut config = SeedResolutionConfig {
+            engine: SeedEngineId::Hybrid,
+            auto_extract_keywords: true,
+            ..Default::default()
+        };
+        assert!(config.effective_auto_extract());
+        config.auto_extract_keywords = false;
+        assert!(!config.effective_auto_extract());
     }
 
     #[test]

@@ -132,6 +132,7 @@ pub fn run_incremental(
     if should_escalate_to_l3(&est, &view, activator, graph, signature, &embedding_config) {
         let l3_start = Instant::now();
         sig.engine_override = Some(RetrievalTier::L3.seed_engine(configured_engine));
+        sig.embed_min_cosine_override = Some(embedding_config.recovery_min_cosine);
         view = activator.activate_incremental(
             graph,
             &sig,

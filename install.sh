@@ -28,7 +28,7 @@ cat << 'EOF'
  |_| \_|\___|\__,_|_|  \___/|_|  |_|\___||___/_| |_|
 EOF
 printf "${NC}\n"
-printf "${BOLD}NeuroMesh v0.8.6 — MCP context engine (MiniLM embeddings built in)${NC}\n\n"
+printf "${BOLD}NeuroMesh v0.8.6 — bundled MiniLM embed · MCP context engine${NC}\n\n"
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"

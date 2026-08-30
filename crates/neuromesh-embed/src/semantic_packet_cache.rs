@@ -101,10 +101,8 @@ impl SemanticPacketCache {
                 continue;
             }
             let score = cosine_similarity(&entry.prompt_vec, query_vec);
-            if score >= min_cosine {
-                if best.map(|(_, s)| score > s).unwrap_or(true) {
-                    best = Some((slot, score));
-                }
+            if score >= min_cosine && best.map(|(_, s)| score > s).unwrap_or(true) {
+                best = Some((slot, score));
             }
         }
         let (slot, _) = best?;

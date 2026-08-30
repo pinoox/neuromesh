@@ -59,6 +59,8 @@ pub struct EmbeddingConfig {
     pub module_cluster_enabled: bool,
     /// Refine rule-based General intent via embedding prototypes (opt-in).
     pub embed_intent_for_general: bool,
+    /// Lower cosine floor for L3 recovery pass only (primary seeds use `min_cosine`).
+    pub recovery_min_cosine: f32,
 }
 
 impl Default for EmbeddingConfig {
@@ -79,6 +81,7 @@ impl Default for EmbeddingConfig {
             optional_dedup_min_cosine: Some(0.93),
             module_cluster_enabled: true,
             embed_intent_for_general: false,
+            recovery_min_cosine: 0.38,
         }
     }
 }

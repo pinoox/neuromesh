@@ -54,7 +54,13 @@ jobs:
       - name: Build release binaries
         run: cargo build --release --bin neuromesh --bin nmx --target ${{ matrix.target }} --features embeddings
 
-      - name: Verify embeddings feature linked (Linux)
+      - name: Verify bundled model packaged
+        shell: bash
+        run: |
+          test -f crates/neuromesh-embed/models/minilm-multilingual-q/model_optimized.onnx
+          test -f crates/neuromesh-embed/models/minilm-multilingual-q/tokenizer.json
+
+      - name: Embed crate tests (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: cargo test -p neuromesh-embed --verbose
 

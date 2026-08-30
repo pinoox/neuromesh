@@ -102,7 +102,7 @@ fn run_semantic_lite(
 
     #[cfg(feature = "embeddings")]
     let embedding_used = if !is_style {
-        push_embedding_seeds(graph, prompt, embedding_config, config, sink)
+        push_embedding_seeds(graph, signature, prompt, embedding_config, config, sink)
     } else {
         false
     };
@@ -138,12 +138,25 @@ fn run_hybrid(
     signature: &TaskSignature,
     prompt: &str,
     config: &SeedResolutionConfig,
-    _embedding_config: &EmbeddingConfig,
+    embedding_config: &EmbeddingConfig,
     sink: &mut SeedSink<'_, '_, '_>,
     is_style: bool,
 ) -> (bool, bool) {
     push_anchor_queries(graph, signature, prompt, sink);
     crate::activator::seed_uncovered_clusters_inner(graph, signature, &mut sink.buffers_mut());
+
+    #[cfg(feature = "embeddings")]
+    let embedding_used = if !is_style {
+        push_embedding_seeds(graph, signature, prompt, embedding_config, config, sink)
+    } else {
+        false
+    };
+    #[cfg(not(feature = "embeddings"))]
+    let embedding_used = {
+        let _ = embedding_config;
+        false
+    };
+
     push_client_keywords(graph, signature, prompt, config, sink);
     push_client_expansion(graph, signature, prompt, config, sink);
     push_path_hint_seeds(graph, signature, prompt, config, sink);
@@ -156,5 +169,5 @@ fn run_hybrid(
     } else {
         false
     };
-    (scaffold, false)
+    (scaffold, embedding_used)
 }

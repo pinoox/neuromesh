@@ -33,21 +33,13 @@ struct Inner {
 }
 
 pub struct McpSemanticCache {
-    max_entries: usize,
     inner: Mutex<Inner>,
     hits: Mutex<u64>,
 }
 
 impl Default for McpSemanticCache {
     fn default() -> Self {
-        Self::new(16)
-    }
-}
-
-impl McpSemanticCache {
-    pub fn new(max_entries: usize) -> Self {
         Self {
-            max_entries: max_entries.max(1),
             inner: Mutex::new(Inner {
                 project_id: None,
                 order: VecDeque::new(),
@@ -56,6 +48,12 @@ impl McpSemanticCache {
             }),
             hits: Mutex::new(0),
         }
+    }
+}
+
+impl McpSemanticCache {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn hit_count(&self) -> u64 {

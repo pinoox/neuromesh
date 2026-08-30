@@ -82,7 +82,7 @@ Or in `~/.neuromesh/config.json`:
 
 ## Seed engine & config
 
-Seed resolution strategy controls how NeuroMesh picks symbol anchors before folding. Default engine: **`keywords_expanded`**. For natural-language prompts without client keywords, prefer **`semantic_lite`** or **`hybrid`**.
+Seed resolution picks symbol anchors before folding. **v0.8.6 default: bundled MiniLM embed-primary** — pass the prompt only; no client keywords. Lexical engines (`keywords`, `keywords_expanded`, `hybrid`) are **custom opt-in** via `nm.config.json`.
 
 | Layer | File | Scope |
 | :--- | :--- | :--- |
@@ -94,9 +94,9 @@ Seed resolution strategy controls how NeuroMesh picks symbol anchors before fold
 
 ```bash
 neuromesh config                              # effective settings for cwd
-neuromesh config seed-engine                  # show engine + override layers
-neuromesh config seed-engine semantic_lite     # write nm.config.json here
-neuromesh config seed-engine hybrid --global   # machine default
+neuromesh config seed-engine get                 # show engine + override layers
+neuromesh config seed-engine hybrid             # opt-in: embed + lexical
+neuromesh config embeddings on|off
 ```
 
 ## Packet (JSON benchmark path)
@@ -116,12 +116,21 @@ Example `nm.config.json` (copy from `nm.config.example.json`):
 
 ```json
 {
-  "seed_resolution": { "engine": "semantic_lite" },
+  "embeddings": { "enabled": true },
   "packet_header": { "enabled": true }
 }
 ```
 
-Engines: `off` · `keywords` · `keywords_expanded` · `semantic_lite` · `hybrid`
+Custom lexical mode (opt-in):
+
+```json
+{
+  "embeddings": { "enabled": true },
+  "seed_resolution": { "engine": "keywords_expanded", "auto_extract_keywords": true }
+}
+```
+
+Engines: `off` · `keywords` · `keywords_expanded` · `hybrid` (custom). Default embed-primary needs no `seed_resolution` block.
 
 Graph backend (`graph_backend.backend`): `native` (default) · `auto` · `proxy_cbm` · `proxy_graphify`. See [graph-proxy.md](graph-proxy.md).
 
@@ -144,7 +153,7 @@ neuromesh index
 neuromesh optimize -- "How does handle_tool_call extract intent?"
 neuromesh eval
 neuromesh eval --learning
-neuromesh eval --release-gates    # holdout gates (assisted ≥55%, L3 ≤15%, FSR <10%)
+neuromesh eval --release-gates    # embed-primary gates (recall ≥55%, precision ≥73%, no_seed ≤2)
 neuromesh eval --calibrate        # dev/holdout calibration from test3 JSON
 ```
 
@@ -152,7 +161,7 @@ neuromesh eval --calibrate        # dev/holdout calibration from test3 JSON
 
 `eval --learning` indexes `tests/fixtures/learning-causal/`, sweeps reinforcement levels on `PromoCodeInput`, and prints bonus → rank → emitted → MRR. See [quality.md](quality.md#learning--emission-v0715).
 
-`eval --release-gates` runs the v0.8.3 holdout matrix (assisted recall, L3 rate, false-sufficiency proxy). `eval --calibrate` tunes sufficiency thresholds from benchmark JSON under `tests/fixtures/test3/`.
+`eval --release-gates` runs the v0.8.6 embed-primary holdout matrix (recall ≥55%, precision ≥73%, no_seed ≤2, embedding_primary rate).
 
 The process uses the **current working directory** as the project. `neuromesh connect` writes that path into each client's MCP config so the IDE does not have to guess.
 

@@ -19,8 +19,8 @@ window.NMI18n = (function () {
       'nav.installBtn': 'Get started',
 
       'hero.slimeTag': 'Built for AI-assisted coding',
-      'hero.badgeRelease': 'v0.8.6 — MiniLM · pre-built binary',
-      'hero.desc': 'Your AI agent does not need three thousand lines of boilerplate to fix one bug. NeuroMesh reads your repo like a map: it <strong>routes to the right symbols</strong>, sends a tight evidence packet to the model, and <strong>folds everything else</strong> into one-line markers you can expand when needed. Works with Cursor, Claude, Codex, VS Code, and every MCP client.',
+      'hero.badgeRelease': 'v0.8.6 — bundled MiniLM · zero-config embed',
+      'hero.desc': 'Ask in plain language — Persian, Arabic, English, anything. NeuroMesh <strong>embeds your prompt with bundled MiniLM</strong>, finds the right symbols on a live code graph, and sends a <strong>folded evidence packet</strong> instead of three thousand-line file dumps. No keyword tables. No HuggingFace download at install. Works with Cursor, Claude, Codex, VS Code, and every MCP client.',
       'hero.ctaInstall': 'Install in 30 seconds',
       'hero.ctaDocs': 'Read the docs',
       'hero.ctaStar': 'Star on GitHub',
@@ -147,13 +147,13 @@ window.NMI18n = (function () {
       'stats.s3': 'Files indexed in demo repo',
       'stats.s4': 'ms to build a packet (warm)',
 
-      'engines.label': 'Tune it',
-      'engines.title': 'Two knobs. sensible defaults.',
-      'engines.lead': 'Start with the built-in graph and <code>semantic_lite</code> + <strong>MiniLM</strong> embeddings (prompt-only, no keywords). Optional: plug in CBM for <code>get_context_packet</code> only; folding and trace stay local.',
-      'engines.graphTitle': 'Where context comes from',
-      'engines.graphDesc': '<code>native</code> (default) · <code>auto</code> · <code>proxy_cbm</code>. Auto picks up CBM if your IDE already has it.',
-      'engines.seedTitle': 'How prompts find symbols',
-      'engines.seedDesc': '<code>semantic_lite</code> (default) — MiniLM embeds your prompt and graph-resolves hits. Use <code>keywords_expanded</code> only for lexical legacy mode.',
+      'engines.label': 'Defaults',
+      'engines.title': 'Embed-first. Everything else is opt-in.',
+      'engines.lead': 'v0.8.6 ships <strong>bundled MiniLM</strong> weights in every release. Install, index, pass your prompt — done. Optional: CBM proxy for <code>get_context_packet</code>; lexical/hybrid seed engines for keyword assist.',
+      'engines.graphTitle': 'Graph backend',
+      'engines.graphDesc': '<code>native</code> (default) — AST index in RAM. <code>auto</code> / <code>proxy_cbm</code> only if you already use codebase-memory-mcp.',
+      'engines.seedTitle': 'Prompt → symbols',
+      'engines.seedDesc': '<strong>Default: bundled MiniLM embed</strong> — no client keywords. Custom: <code>keywords_expanded</code> or <code>hybrid</code> via <code>nm.config.json</code>.',
       'engines.docsLink': 'Full setup guide →',
 
       'install.label': 'Get started',
@@ -238,8 +238,8 @@ window.NMI18n = (function () {
       'nav.installBtn': 'شروع کن',
 
       'hero.slimeTag': 'برای کدنویسی با AI ساخته شده',
-      'hero.badgeRelease': 'نسخه 0.8.6 — MiniLM · باینری آماده',
-      'hero.desc': 'Agent شما برای یک باگ کوچک به سه هزار خط boilerplate نیاز ندارد. NeuroMesh مخزن را مثل نقشه می‌خواند: <strong>به symbol درست می‌رسد</strong>، بستهٔ فشرده به مدل می‌فرستد، و <strong>بقیه را تا می‌کند</strong> — با marker یک‌خطی که هر وقت خواستید باز می‌کنید. با Cursor، Claude، Codex، VS Code و هر clientِ MCP.',
+      'hero.badgeRelease': 'نسخه 0.8.6 — MiniLM باندل · embed بدون تنظیم',
+      'hero.desc': 'به هر زبانی بپرسید. NeuroMesh با <strong>MiniLM باندل‌شده</strong> prompt را embed می‌کند، symbol درست را روی گراف زنده پیدا می‌کند و <strong>بستهٔ تا‌شده</strong> می‌فرستد — نه dump هزار خطی. بدون جدول keyword. بدون دانلود جدا. Cursor، Claude، VS Code و هر clientِ MCP.',
       'hero.ctaInstall': 'نصب در ۳۰ ثانیه',
       'hero.ctaDocs': 'مستندات',
       'hero.ctaStar': 'ستاره در GitHub',
@@ -366,13 +366,13 @@ window.NMI18n = (function () {
       'stats.s3': 'فایل index‌شده در demo',
       'stats.s4': 'ms ساخت بسته (warm)',
 
-      'engines.label': 'تنظیم کن',
-      'engines.title': 'دو کلید. پیش‌فرض‌های منطقی.',
-      'engines.lead': 'با گراف داخلی و <code>semantic_lite</code> + embedding <strong>MiniLM</strong> شروع کنید (فقط prompt). CBM اختیاری فقط برای <code>get_context_packet</code>.',
-      'engines.graphTitle': 'context از کجا بیاید',
-      'engines.graphDesc': '<code>native</code> (پیش‌فرض) · <code>auto</code> · <code>proxy_cbm</code>.',
-      'engines.seedTitle': 'prompt چطور symbol پیدا کند',
-      'engines.seedDesc': '<code>semantic_lite</code> (پیش‌فرض) — MiniLM prompt را embed می‌کند. <code>keywords_expanded</code> فقط برای حالت lexical.',
+      'engines.label': 'پیش‌فرض',
+      'engines.title': 'اول embed. بقیه اختیاری.',
+      'engines.lead': 'v0.8.6 وزن <strong>MiniLM</strong> را داخل release می‌آورد. نصب، index، prompt — تمام. اختیاری: CBM proxy؛ موتور lexical/hybrid.',
+      'engines.graphTitle': 'گراف backend',
+      'engines.graphDesc': '<code>native</code> (پیش‌فرض). <code>auto</code> / <code>proxy_cbm</code> فقط اگر CBM دارید.',
+      'engines.seedTitle': 'prompt → symbol',
+      'engines.seedDesc': '<strong>پیش‌فرض: embed با MiniLM باندل</strong> — بدون keyword. سفارشی: <code>keywords_expanded</code> یا <code>hybrid</code>.',
       'engines.docsLink': 'راهنمای کامل تنظیمات →',
 
       'install.label': 'شروع کن',
@@ -446,11 +446,13 @@ window.NMI18n = (function () {
   const phrases = {
     en: [
       'Ship less context. Ship the right code.',
+      'Prompt only. MiniLM finds the symbols.',
       'Route first. Fold the rest.',
       'Your repo as a map — not a dump.',
     ],
     fa: [
       'کمتر context بفرست. کد درست را بفرست.',
+      'فقط prompt. MiniLM symbol را پیدا می‌کند.',
       'اول مسیر. بعد fold.',
       'repo مثل نقشه — نه dump.',
     ],
@@ -460,8 +462,8 @@ window.NMI18n = (function () {
     en: [
       { icon: '💬', title: 'Your prompt', phase: 'read', key: 'pipe.0',
         desc: 'Describe the task in plain language. NeuroMesh keeps identifiers, file hints, and intent as you wrote them.' },
-      { icon: '🔍', title: 'Find symbols', phase: 'read', key: 'pipe.1',
-        desc: 'Keywords and aliases turn your words into concrete functions and files — no embedding guesswork on the hot path.' },
+      { icon: '🔍', title: 'Embed & match', phase: 'read', key: 'pipe.1',
+        desc: 'Bundled MiniLM embeds your prompt and ANN-searches symbol sketches in the sidecar — any language, no keyword tables.' },
       { icon: '🕸️', title: 'Load the graph', phase: 'route', key: 'pipe.2',
         desc: 'Your repo lives in RAM as structure: files, calls, imports — not shredded text chunks.' },
       { icon: '🌱', title: 'Pick seed files', phase: 'route', key: 'pipe.3',
@@ -478,8 +480,8 @@ window.NMI18n = (function () {
     fa: [
       { icon: '💬', title: 'prompt شما', phase: 'read', key: 'pipe.0',
         desc: 'task را به زبان خودتان بنویسید. NeuroMesh شناسه‌ها، hint فایل و intent را همان‌طور نگه می‌دارد.' },
-      { icon: '🔍', title: 'symbol پیدا کن', phase: 'read', key: 'pipe.1',
-        desc: 'keyword و alias کلمات شما را به function و file واقعی در گراف تبدیل می‌کنند.' },
+      { icon: '🔍', title: 'embed و match', phase: 'read', key: 'pipe.1',
+        desc: 'MiniLM باندل prompt را embed می‌کند و sketch نمادها را در sidecar جستجو می‌کند — هر زبانی، بدون جدول keyword.' },
       { icon: '🕸️', title: 'گراف را بار کن', phase: 'route', key: 'pipe.2',
         desc: 'repo در RAM به‌صورت ساختار index می‌شود: فایل، call، import — نه chunk متنی.' },
       { icon: '🌱', title: 'فایل seed', phase: 'route', key: 'pipe.3',
@@ -498,7 +500,7 @@ window.NMI18n = (function () {
   const pipeNodeKeys = {
     en: [
       { title: 'Your prompt', key: 'Intent preserved' },
-      { title: 'Find symbols', key: 'NL → code' },
+      { title: 'Embed & match', key: 'MiniLM ANN' },
       { title: 'Load the graph', key: 'Calls · imports' },
       { title: 'Pick seed files', key: 'Owners first' },
       { title: 'Connect the path', key: 'Smart routing' },
@@ -508,7 +510,7 @@ window.NMI18n = (function () {
     ],
     fa: [
       { title: 'prompt شما', key: 'intent حفظ می‌شود' },
-      { title: 'symbol پیدا کن', key: 'NL → کد' },
+      { title: 'embed و match', key: 'MiniLM ANN' },
       { title: 'گراف را بار کن', key: 'Call · import' },
       { title: 'فایل seed', key: 'صاحب symbol اول' },
       { title: 'مسیر را وصل کن', key: 'مسیریابی هوشمند' },

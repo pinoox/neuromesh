@@ -16,7 +16,7 @@ Write-Host @"
  |_| \_|\___|\__,_|_|  \___/|_|  |_|\___||___/_| |_|
 "@ -ForegroundColor Cyan
 
-Write-Host "NeuroMesh v0.8.6 — MCP context engine (MiniLM embeddings built in)`n" -ForegroundColor Green
+Write-Host "NeuroMesh v0.8.6 — bundled MiniLM embed · MCP context engine`n" -ForegroundColor Green
 
 Write-Host "Fetching latest release…" -ForegroundColor Gray
 $DownloadUrl = "https://github.com/$Repo/releases/latest/download/neuromesh-windows-x86_64.zip"

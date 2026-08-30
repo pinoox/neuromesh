@@ -56,6 +56,9 @@ pub struct TaskSignature {
     /// Per-call seed engine override.
     #[serde(default)]
     pub engine_override: Option<SeedEngineId>,
+    /// L3 embedding recovery: lower ANN cosine floor (uses `EmbeddingConfig.recovery_min_cosine`).
+    #[serde(default)]
+    pub embed_min_cosine_override: Option<f32>,
     pub confidence: f32,
     pub raw_prompt: String,
 }
@@ -81,6 +84,7 @@ impl TaskSignature {
             client_entity_types: Vec::new(),
             client_intent: None,
             engine_override: None,
+            embed_min_cosine_override: None,
             confidence: 0.85,
             raw_prompt: prompt,
         }

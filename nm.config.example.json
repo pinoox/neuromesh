@@ -1,6 +1,10 @@
 {
+  "embeddings": {
+    "enabled": true,
+    "model": "minilm_multilingual_q",
+    "index_on_build": true
+  },
   "seed_resolution": {
-    "engine": "semantic_lite",
     "max_keywords": 8,
     "max_expansion": 8,
     "max_resolved_seeds": 5,

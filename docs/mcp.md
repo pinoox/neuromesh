@@ -1,6 +1,8 @@
 # MCP tools
 
-Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). That is what Cursor, Claude, Codex, OpenCode, MiMo CLI, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
+Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). **v0.8.6 default:** bundled **MiniLM embed** — pass the prompt only to `get_context_packet`; no client keywords unless the project enabled a custom lexical seed engine.
+
+That is what Cursor, Claude, Codex, OpenCode, MiMo CLI, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
 
 **Warning:** Never run `neuromesh mcp` without a workspace path (or `NEUROMESH_WORKSPACE`) **unless** the IDE sets `WORKSPACE_FOLDER_PATHS` / `VSCODE_CWD` or sends a workspace root in MCP `initialize`. Without any of those, the server may bind to your home directory and index unrelated projects. For a one-time global install, use the simple config below; `neuromesh connect --global` writes it to `~/.cursor/mcp.json`.
 
@@ -121,9 +123,9 @@ Aliases exist for older clients (`neuromesh_get_context`, `activate_context`, `e
 
 `mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality. `mode` does not add metadata; `response_detail` does (`minimal` ≤ 256 metadata tokens, `standard` ≤ 750, `diagnostic` on demand).
 
-### Retrieval metadata (v0.8.3)
+### Retrieval metadata (v0.8.6)
 
-Present on **all** detail levels (`minimal`, `standard`, `diagnostic`) when tiered activation runs. `minimal` uses a compact block (level, claim, gaps, next action); `standard` and `diagnostic` include full latency and confidence fields.
+Present on **all** detail levels when tiered activation runs. Default embed path sets `retrieval.resolution_tier` to **`embedding_primary`** when MiniLM ANN resolves seeds. `retrieval.cache_hit: true` means a near-duplicate prompt reused the semantic LRU (fresh `packet_id`). `minimal` uses a compact block; `standard` and `diagnostic` include full latency and confidence fields.
 
 **Native** example:
 

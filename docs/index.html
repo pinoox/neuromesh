@@ -127,7 +127,7 @@
           </div>
           <div class="hero-badge-row">
             <a href="https://github.com/pinoox/neuromesh/releases/latest" class="badge" target="_blank" rel="noopener">
-              <span class="badge-dot green"></span> <span data-i18n="hero.badgeRelease">v0.8.6 — MiniLM · pre-built binary</span>
+              <span class="badge-dot green"></span> <span data-i18n="hero.badgeRelease">v0.8.6 — bundled MiniLM · zero-config embed</span>
             </a>
             <span class="badge">MiniLM Q</span>
             <span class="badge">MCP stdio</span>
@@ -660,7 +660,7 @@
       <div class="container">
         <div class="section-label reveal" data-i18n="engines.label">Tune it</div>
         <h2 class="reveal" data-i18n="engines.title">Two knobs. Sensible defaults.</h2>
-        <p class="lead reveal" data-i18n="engines.lead">Start with the built-in graph and <code>semantic_lite</code> + <strong>MiniLM</strong> embeddings (prompt-only). Optional: CBM for <code>get_context_packet</code> only.</p>
+        <p class="lead reveal" data-i18n="engines.lead">v0.8.6 ships <strong>bundled MiniLM</strong> in every release. Install, index, pass your prompt — done.</p>
 
         <div class="feature-grid reveal" style="margin-top: 2rem;">
           <div class="feature-card">
@@ -675,10 +675,10 @@ neuromesh doctor --proxy --probe</pre>
           <div class="feature-card">
             <div class="feature-icon">🔑</div>
             <h3 data-i18n="engines.seedTitle">How prompts find symbols</h3>
-            <p data-i18n="engines.seedDesc"><code>semantic_lite</code> (default) — MiniLM embeds your prompt. No client keywords required.</p>
+            <p data-i18n="engines.seedDesc"><strong>Default: bundled MiniLM embed</strong> — no client keywords. Custom lexical via <code>nm.config.json</code>.</p>
             <div class="code-block" style="margin-top: 1rem;">
               <pre>neuromesh doctor --embed
-# MiniLM bundled in release (models/ next to binary)</pre>
+# bundled MiniLM — prompt-only get_context_packet</pre>
             </div>
           </div>
         </div>

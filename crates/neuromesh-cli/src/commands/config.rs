@@ -379,10 +379,12 @@ fn print_seed_engine_help() {
 Usage: neuromesh config seed-engine [ENGINE] [--global]
 
   neuromesh config seed-engine                  show effective engine
-  neuromesh config seed-engine semantic_lite    project override (nm.config.json)
-  neuromesh config seed-engine hybrid --global  machine-wide default
+  neuromesh config seed-engine hybrid           opt-in: embed + lexical (nm.config.json)
+  neuromesh config seed-engine keywords_expanded  opt-in: lexical-only
 
-Engines: {}
+Default (no override): bundled MiniLM embed-primary — prompt only.
+
+Custom engines: {}
 ",
         SeedEngineId::help_line()
     );

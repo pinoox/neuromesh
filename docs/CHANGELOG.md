@@ -2,6 +2,8 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
+## Unreleased
+
 ## 0.8.6 — 2026-08-30
 
 ### MiniLM-first release
@@ -14,7 +16,8 @@ All notable user-facing changes live here. The README stays a product guide, not
 - **Embed intent for General (opt-in)** — `embed_intent_for_general: false` by default.
 - **Sketch enrichment** — leading doc comments in symbol passages (sidecar v2+); `embed_seed_cap: 4`.
 - **Singleton embedder** + per-packet query cache + MCP warm; env: `NEUROMESH_SEMANTIC_CACHE`, `NEUROMESH_OPTIONAL_DEDUP`.
-- **Docs & GitHub Pages** — v0.8.6, MiniLM-only messaging, binary-first install guide.
+- **Docs & GitHub Pages** — v0.8.6 embed-first landing, developer messaging, agent rules synced.
+- **Embed-primary defaults** — bundled MiniLM + prompt-only routing; hybrid embed+lexical opt-in; L3 recovery; release gates for embed metrics.
 
 ## 0.8.4 — 2026-08-30
 

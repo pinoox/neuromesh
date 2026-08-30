@@ -23,6 +23,9 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Fetch bundled MiniLM weights
+        run: bash scripts/fetch-minilm-model.sh
+
       - name: Check Formatting
         run: cargo fmt --all -- --check
 
@@ -40,3 +43,9 @@ jobs:
 
       - name: Graph proxy fixture tests
         run: cargo test -p neuromesh-graph-proxy --verbose
+
+      - name: Release binary smoke (embed-primary)
+        run: |
+          cargo build --release -p neuromesh-cli --bin neuromesh --features embeddings
+          ./target/release/neuromesh -V
+          ./target/release/neuromesh doctor --embed

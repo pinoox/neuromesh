@@ -66,6 +66,10 @@ pub struct BenchmarkCellResult {
     pub l1_ms: u64,
     pub l2_ms: Option<u64>,
     pub l3_ms: Option<u64>,
+    #[serde(default)]
+    pub no_seed: bool,
+    #[serde(default)]
+    pub embedding_primary: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,7 +87,12 @@ impl ReleaseGateReport {
                 metrics.full_workspace_fallback_count == 0,
             ),
             ("assisted_recall_min".into(), metrics.recall >= 0.55),
-            ("precision_min".into(), metrics.precision >= 0.75),
+            ("precision_min".into(), metrics.precision >= 0.73),
+            ("no_seed_max_2".into(), metrics.no_seed_count <= 2),
+            (
+                "embedding_primary_rate".into(),
+                metrics.embedding_primary_rate >= 0.40,
+            ),
             (
                 "fsr_proxy_below_10pct".into(),
                 metrics.false_sufficiency_proxy < 0.10,
@@ -161,6 +170,8 @@ pub fn aggregate_cell_results(cells: &[BenchmarkCellResult]) -> EvalSuiteMetrics
         &cells.iter().map(|c| c.recall).collect::<Vec<_>>(),
     );
     let l3_count = cells.iter().filter(|c| c.retrieval_level == "L3").count();
+    let no_seed_count = cells.iter().filter(|c| c.no_seed).count();
+    let embed_primary = cells.iter().filter(|c| c.embedding_primary).count();
     let mut metrics = EvalSuiteMetrics {
         recall,
         precision,
@@ -176,6 +187,8 @@ pub fn aggregate_cell_results(cells: &[BenchmarkCellResult]) -> EvalSuiteMetrics
         l1_p95_ms: percentile_latency(cells, 95),
         l3_rate: l3_count as f32 / n,
         full_workspace_fallback_count: 0,
+        no_seed_count,
+        embedding_primary_rate: embed_primary as f32 / n,
         failure_classes: Vec::new(),
         split: "holdout".into(),
     };

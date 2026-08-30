@@ -7,7 +7,7 @@ use neuromesh_context::gold::{
 use neuromesh_context::learning_eval::{
     compute_ranking_metrics, dose_response_rank, emitted_paths_from_view,
 };
-use neuromesh_context::retrieval::failure::classify_retrieval_failure;
+use neuromesh_context::retrieval::failure::{classify_retrieval_failure, FailureClass};
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{OptimizationMode, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
@@ -46,6 +46,14 @@ pub fn execute(args: &[String]) -> Result<()> {
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let index_started = Instant::now();
     graph.ingest_workspace(&scanned);
+    #[cfg(feature = "embeddings")]
+    {
+        let emb = neuromesh_core::Config::load().embeddings;
+        if emb.enabled {
+            let _ = neuromesh_graph::maybe_rebuild_embeddings(&graph, &current_dir, &emb);
+            let _ = neuromesh_embed::Embedder::warm(emb);
+        }
+    }
     let index_ms = index_started.elapsed().as_millis();
     let stats = graph.stats();
     let workspace_tokens = graph.total_tokens().max(1);
@@ -173,6 +181,20 @@ pub fn execute(args: &[String]) -> Result<()> {
                 &level,
                 None,
             );
+            let embedding_primary = view
+                .retrieval
+                .as_ref()
+                .and_then(|r| r.resolution_tier.as_deref())
+                .is_some_and(|t| t == "embedding_primary")
+                || view
+                    .retrieval
+                    .as_ref()
+                    .map(|r| r.embedding_used)
+                    .unwrap_or(false);
+            let no_seed = claim == "no_seed_resolved"
+                || claim == "no_confident_match"
+                || failure == FailureClass::NoSeed
+                || metrics.recall == 0.0;
             cells.push(BenchmarkCellResult {
                 benchmark: "A_regression".into(),
                 cell_id: task.id.clone(),
@@ -201,6 +223,8 @@ pub fn execute(args: &[String]) -> Result<()> {
                     .retrieval
                     .as_ref()
                     .and_then(|r| r.latency_ms.get("L3").copied()),
+                no_seed,
+                embedding_primary,
             });
         }
         let suite = aggregate_cell_results(&cells);

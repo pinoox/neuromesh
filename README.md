@@ -120,40 +120,33 @@ flowchart LR
   X --> W[expand_fold if needed]
 ```
 
-**Local embedding engine** (v0.8.6): **MiniLM multilingual Q** only — the prompt is embedded once (singleton + per-packet cache + semantic LRU), ANN-searches symbol sketches in `embeddings.bin`, then **graph-resolves** hits — no client keywords required. Weights ship **bundled** in release tarballs (`models/minilm-multilingual-q/` via fastembed `UserDefinedEmbeddingModel`); source builds run `scripts/fetch-minilm-model.sh` once. Keyword assist (`auto_extract_keywords`) runs only when seed engine is `keywords_expanded`, `keywords`, or `hybrid`.
+**Bundled MiniLM embedding engine** (v0.8.6): your prompt is embedded once (singleton + per-packet cache + semantic LRU), ANN-searches symbol sketches in `embeddings.bin`, then **graph-resolves** hits — **no client keywords**. Weights ship **inside the release tarball** (`models/minilm-multilingual-q/`). Source builds: `scripts/fetch-minilm-model.sh`. Lexical keyword assist is **opt-in** via `nm.config.json` seed engine override.
 
-1. **Read the task** as written. `handle_tool_call` survives; it is not lowercased into mush.  
-2. **Resolve on the mesh.** L1 uses embedding-primary seeds; L2/L3 escalate on critical gaps or **low embedding confidence** (prompt–sketch cosine below `min_cosine`).  
-3. **Ship seeds, grow the tube, fill the rest.** Seeds always ship. Physarum connects two+ seeds under 20ms. Fill respects a real budget (`balanced` = 5k extra tokens; L1 selected cap **2k**).  
-4. **Splice + sufficiency.** Bodies fold to markers. Check `retrieval.claim`, `retrieval.resolution_tier`, and `coverage.claim` (`no_confident_match` when embedding finds nothing above threshold).
+1. **Read the task** as written — any language. Identifiers stay intact.  
+2. **Embed + route on the mesh.** MiniLM finds symbol seeds; L2/L3 escalate only on critical gaps (`recovery_min_cosine` 0.38 in L3).  
+3. **Ship seeds, grow the tube, fill the rest.** Physarum connects seeds under 20ms. Fill respects budget (`balanced` = 5k extra).  
+4. **Splice + sufficiency.** Check `retrieval.resolution_tier` (`embedding_primary`), `retrieval.cache_hit`, and `coverage.claim`.
 
 Tell the agent ([full install guide](docs/agent-guide.md)):
 
 ```
-get_context_packet(query / task_description / prompt / task)
-  → check retrieval.claim and coverage.claim
+get_context_packet(query / task_description / prompt / task)   # prompt only
+  → check retrieval.resolution_tier and coverage.claim
   → neuromesh_expand_fold if a body is still folded
   → neuromesh_trace for callers
   → neuromesh_record_feedback after a good edit
 ```
 
-**Seed engine** (how symbols are resolved before folding): default **`semantic_lite`** + local embeddings (prompt-only). Switch to lexical mode when you want client/server keywords:
+**Custom routing** (only when you need lexical keyword assist or CBM):
 
 ```bash
-neuromesh config seed-engine keywords_expanded   # lexical + auto_extract
-neuromesh config seed-engine semantic_lite         # default (embedding-primary)
-neuromesh doctor --embed                           # verify sidecar + model
-neuromesh doctor --embed --bench                   # p50/p95 warm embed latency
+neuromesh config seed-engine hybrid              # opt-in: embed + keywords
+neuromesh config seed-engine keywords_expanded   # legacy lexical-only
+neuromesh config graph-backend auto              # optional CBM proxy
+neuromesh doctor --embed                         # verify bundled MiniLM + sidecar
 ```
 
-**Graph backend** (optional external index via [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)): default **`native`** (recommended — faster and more precise). `auto` or `proxy_cbm` delegates `get_context_packet` to CBM while folding and other tools stay native:
-
-```bash
-neuromesh config graph-backend auto               # use CBM when installed
-neuromesh doctor --proxy --probe                    # verify CBM connection + sample packet
-```
-
-v0.8.2 stabilizes the CBM proxy: cols/rows JSON parsing, assisted keyword forwarding, honest retrieval metadata, Route phantom filtering. See [docs/graph-proxy.md](docs/graph-proxy.md).
+v0.8.6 ships **bundled MiniLM** in release tarballs — prompt-only routing by default. Optional CBM proxy and lexical seed engines remain opt-in. See [docs/graph-proxy.md](docs/graph-proxy.md) and [docs/engines.md](docs/engines.md).
 
 Full guide: [docs/engines.md](docs/engines.md) · [docs/graph-proxy.md](docs/graph-proxy.md). Monitor **Settings** exposes both engines without editing JSON.
 
@@ -188,9 +181,9 @@ irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex
 Then:
 
 ```bash
-neuromesh doctor          # verify binary + PATH
+neuromesh doctor          # verify binary + bundled MiniLM
 neuromesh connect         # write MCP configs for Cursor / VS Code / Claude / …
-neuromesh index           # index workspace + download MiniLM sidecar (first run)
+neuromesh index           # index workspace + write embeddings.bin sidecar
 ```
 
 | Platform | Binary location |
@@ -341,7 +334,7 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, and Ruby go th
 
 Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run: `neuromesh eval`.
 
-On this repo (release v0.8.3, 650,859 workspace tokens):
+On this repo (release **v0.8.6**, 650,859 workspace tokens):
 
 | Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

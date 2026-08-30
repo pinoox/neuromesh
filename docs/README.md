@@ -7,7 +7,7 @@ Start with the [root README](../README.md) if you want install and the agent loo
 | [Living systems](nature.md) | Physarum, STDP, exons, osmosis — mapped to crates |
 | [Architecture](architecture.md) | Pipeline, tiered retrieval, crate map, runtime guarantees |
 | [Graph proxy](graph-proxy.md) | Optional CBM/Graphify backend via MCP stdio |
-| [Engines](engines.md) | Graph backend + seed engine — CLI, monitor, recipes |
+| [Engines](engines.md) | Default embed (bundled MiniLM) + custom seed engines |
 | [MCP tools](mcp.md) | What each tool returns and how the agent should call them |
 | [Agent guide](agent-guide.md) | Teach every IDE to prefer NeuroMesh (rules, AGENTS.md, smoke test) |
 | [Agent rule](agent-rule.mdc) | Cursor-ready `.mdc` template (same body as the guide) |
@@ -38,4 +38,4 @@ From `cargo run --release -p neuromesh-cli -- eval` on this repository. Full tab
 
 Tiered retrieval: most queries stay **L1**; L2/L3 only on critical gaps. Release gates: `neuromesh eval --release-gates`. Learning dose-response: `neuromesh eval --learning`.
 
-NeuroMesh is a **context engine**: one primary call (`get_context_packet`) returns a task-conditioned evidence packet with optional `retrieval` metadata. The biology (slime mold, synapses, gene splice) is the design language — see [nature.md](nature.md).
+NeuroMesh is a **context engine** (v0.8.6): **`get_context_packet`** with bundled **MiniLM embed** — prompt only, folded evidence packet, optional `retrieval` metadata. Biology metaphors: [nature.md](nature.md).

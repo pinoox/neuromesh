@@ -34,7 +34,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "get_context_packet",
             "Get evidence packet",
-            "Return a compact evidence packet by default: packet_id, coverage (claim: no_recorded_gap | bounded | partial | no_seed_resolved | no_confident_match; covered, skipped, sidecar_files, unsure, packet_gaps), selected/packet tokens, skeletonized files with optional sidecar:true, fold ids without bodies, and missing seeds only when coverage is partial or no_seed_resolved. no_confident_match means embedding recovery found no symbol above min_cosine — treat as absent functionality, not a weak guess. no_recorded_gap only when seeds resolve, gaps empty, no sidecars, and packet not budget-truncated. bounded means seeds resolved but connector/sidecar fill or budget cut applied. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as query, task_description, prompt, or task. Default seed engine is semantic_lite with local embeddings — pass keywords/expansion only when seed engine is keywords, keywords_expanded, or hybrid (or set auto_extract_keywords=true). retrieval.resolution_tier and retrieval.max_embedding_score distinguish exact lexical hits from embedding recovery.",
+            "Return a compact evidence packet by default: packet_id, coverage (claim: no_recorded_gap | bounded | partial | no_seed_resolved | no_confident_match; covered, skipped, sidecar_files, unsure, packet_gaps), selected/packet tokens, skeletonized files with optional sidecar:true, fold ids without bodies, and missing seeds only when coverage is partial or no_seed_resolved. no_confident_match means embedding recovery found no symbol above min_cosine — treat as absent functionality, not a weak guess. no_recorded_gap only when seeds resolve, gaps empty, no sidecars, and packet not budget-truncated. bounded means seeds resolved but connector/sidecar fill or budget cut applied. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as query, task_description, prompt, or task. Default (v0.8.6): bundled MiniLM embed — prompt only. Pass keywords/expansion only when seed engine is keywords, keywords_expanded, or hybrid. retrieval.resolution_tier (embedding_primary), retrieval.cache_hit, and retrieval.max_embedding_score distinguish embed hits from lexical recovery.",
             json!({
                 "type": "object",
                 "properties": {
@@ -57,12 +57,12 @@ pub fn tools_list() -> Vec<Value> {
                     "keywords": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Optional override: 3–5 core English code terms (server auto-extracts when omitted)"
+                        "description": "Optional: English code terms — only for custom lexical/hybrid seed engines"
                     },
                     "expansion": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Optional override: 3–5 related concepts (server auto-extracts when omitted)"
+                        "description": "Optional: related concepts — only for custom lexical/hybrid seed engines"
                     },
                     "path_hints": {
                         "type": "array",
@@ -96,7 +96,7 @@ pub fn tools_list() -> Vec<Value> {
                     },
                     "auto_extract_keywords": {
                         "type": "boolean",
-                        "description": "When true (default), server infers keywords/expansion from the prompt for missing sides. Set false for raw semantics."
+                        "description": "Lexical assist only: infer keywords/expansion from prompt when seed engine is keywords/keywords_expanded/hybrid (ignored on default embed path)"
                     }
                 }
             }),

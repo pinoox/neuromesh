@@ -311,6 +311,7 @@ mod tests {
             client_entity_types: vec![],
             client_intent: None,
             engine_override: None,
+            embed_min_cosine_override: None,
             confidence: 0.9,
             raw_prompt: "Apply hover-lift using SCSS tokens and mixins on ProductCard".into(),
         };

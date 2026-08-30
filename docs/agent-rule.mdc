@@ -9,26 +9,38 @@ alwaysApply: true
 
 This workspace has the NeuroMesh MCP server. Prefer it for **reading and exploring** code so the agent gets folded skeletons and targeted symbols instead of multi-thousand-line files.
 
-## Default loop
+## Default loop (v0.8.6 — bundled MiniLM embed)
 
-1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). **Default (v0.8.5):** local embedding engine — pass the prompt only; add `keywords`/`expansion` only when seed engine is `keywords_expanded`, `keywords`, or `hybrid`.
-2. If `coverage.claim` is `partial`, `no_seed_resolved`, or `no_confident_match`, follow `packet_gaps` / `next`. `no_confident_match` means no embedding hit above threshold — functionality may be absent.
-3. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
-4. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
-5. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched. Use `neuromesh_get_node_weights` before/after to verify learning deltas when debugging routing.
-6. If feedback should have changed the packet but `files[]` looks the same, call `neuromesh_explain_packet` and inspect `selection.candidates` for `emitted`, `drop_stage`, and `score_breakdown`.
+**Default:** release binaries ship **bundled MiniLM** weights. Pass the task as written only — **no** `keywords` / `expansion` unless the repo owner enabled a **custom lexical seed engine** in `nm.config.json`.
+
+1. `get_context_packet` with `query` / `task_description` / `prompt` / `task` as written. Optional: `path_hints` / `entity_types`.
+2. Check `retrieval.resolution_tier` — expect `embedding_primary` on most NL prompts. `retrieval.cache_hit: true` = near-duplicate prompt reused (new `packet_id`).
+3. If `coverage.claim` is `partial`, `no_seed_resolved`, or `no_confident_match`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` or `neuromesh_search_symbols` before broad Grep.
+4. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap`).
+5. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers and blast radius.
+6. After a successful edit: `neuromesh_record_feedback` with `task_success` and nodes touched.
+7. If the packet should have changed but `files[]` did not, call `neuromesh_explain_packet`.
 
 Do not treat a utility fallback file as the answer when coverage says seeds missed or `packet_gaps` is non-empty.
 
+## Custom modes (opt-in via `nm.config.json`)
+
+| Mode | When | Agent |
+| :--- | :--- | :--- |
+| **Embed (default)** | Bundled MiniLM ON, no seed override | Prompt only |
+| **Lexical** | `seed_resolution.engine`: `keywords`, `keywords_expanded` | Pass English code `keywords` + `expansion`, or `auto_extract_keywords` |
+| **Hybrid** | `seed_resolution.engine`: `hybrid` | Embed + lexical boost — for Arabic-heavy repos |
+| **CBM proxy** | `graph_backend`: `auto` / `proxy_cbm` | Conservative proxy `claim`; native graph for trace/fold |
+
 ## When not to force NeuroMesh
 
-- Small, already-known paths (a few dozen lines) for a precise edit
-- Applying patches / writing files (use normal editor tools; NeuroMesh does not replace them)
-- Config, lockfiles, generated assets, or binary-ish content
-- After NeuroMesh already reported incomplete coverage and you need a targeted Grep/Read on the gap
+- Small, already-known paths (a few dozen lines)
+- Applying patches / writing files
+- Config, lockfiles, generated assets
+- After incomplete coverage — targeted Grep/Read on the gap
 
 ## Anti-patterns
 
-- Opening large whole source files into context when a packet or skeleton is enough
-- Expanding every fold “just in case”
-- Skipping `neuromesh_record_feedback` after a good edit (no STDP learning for the next packet)
+- Sending `keywords`/`expansion` on default embed installs (adds noise, ~0 recall gain)
+- Opening whole files when a packet or skeleton is enough
+- Skipping `neuromesh_record_feedback` after a good edit

@@ -3,12 +3,13 @@
 use crate::retrieval::embedding_confidence::TIER_EMBEDDING_PRIMARY;
 use crate::seed::ranker::{signal_weight, SignalKind};
 use crate::seed::sink::SeedSink;
-use neuromesh_core::{EmbeddingConfig, SeedResolutionConfig};
+use neuromesh_core::{EmbeddingConfig, SeedResolutionConfig, TaskSignature};
 use neuromesh_embed::embed_query_cached;
 use neuromesh_graph::NeuralProjectGraph;
 
 pub fn push_embedding_seeds(
     graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
     prompt: &str,
     embedding_config: &EmbeddingConfig,
     seed_config: &SeedResolutionConfig,
@@ -30,11 +31,11 @@ pub fn push_embedding_seeds(
         }
     };
 
-    let hits = index.ann_search(
-        &query,
-        embedding_config.ann_top_k,
-        embedding_config.min_cosine,
-    );
+    let min_cosine = signature
+        .embed_min_cosine_override
+        .unwrap_or(embedding_config.min_cosine);
+
+    let hits = index.ann_search(&query, embedding_config.ann_top_k, min_cosine);
     if hits.is_empty() {
         return false;
     }

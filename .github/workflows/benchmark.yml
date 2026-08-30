@@ -11,7 +11,7 @@ on:
 
 jobs:
   benchmark:
-    name: Run Dual-Track Empirical Benchmark
+    name: Gold eval & MiniLM embed bench (v0.8.6)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,25 +20,46 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Build Optimized Release Binary
-        run: cargo build --release --bin neuromesh
+      - name: Fetch bundled MiniLM model
+        run: bash scripts/fetch-minilm-model.sh
 
-      - name: Run Built-in Dual Track Benchmark
-        run: |
-          ./target/release/neuromesh benchmark | tee benchmark_output.txt
+      - name: Build release binary (embeddings)
+        run: cargo build --release --bin neuromesh --features embeddings
 
-      - name: Publish Benchmark Summary to GitHub
+      - name: Gold-task evaluation
         run: |
-          echo "## 📊 Continuous Benchmark Run Summary" >> $GITHUB_STEP_SUMMARY
-          echo "Run on commit \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          ./target/release/neuromesh eval | tee eval_output.txt
+
+      - name: Embed engine bench
+        run: |
+          ./target/release/neuromesh doctor --embed --bench | tee embed_bench_output.txt
+
+      - name: Release gates (informational)
+        continue-on-error: true
+        run: |
+          ./target/release/neuromesh eval --release-gates | tee release_gates_output.txt
+
+      - name: Publish Benchmark Summary
+        run: |
+          echo "## Benchmark v0.8.6 — bundled MiniLM embed-primary" >> $GITHUB_STEP_SUMMARY
+          echo "Commit \`${{ github.sha }}\` · release binary with \`--features embeddings\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Gold eval (\`neuromesh eval\`)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cat benchmark_output.txt >> $GITHUB_STEP_SUMMARY
+          tail -n 40 eval_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Embed bench (\`doctor --embed --bench\`)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat embed_bench_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          if [ -f release_gates_output.txt ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Release gates (informational — holdout matrix)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 30 release_gates_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi

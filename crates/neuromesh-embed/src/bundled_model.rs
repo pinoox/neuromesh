@@ -91,9 +91,10 @@ pub fn try_load_bundled_minilm(
         )));
     }
     let dir = resolve_bundled_minilm_dir().ok_or_else(|| {
-        BundledModelError::Missing(format!(
+        BundledModelError::Missing(
             "MiniLM not found; run scripts/fetch-minilm-model.sh or set NEUROMESH_MODEL_DIR"
-        ))
+                .to_string(),
+        )
     })?;
 
     let user_model = UserDefinedEmbeddingModel::new(
