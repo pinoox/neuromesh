@@ -38,11 +38,21 @@ pub fn symbol_sketch(node: &ContextNode) -> Option<String> {
     };
     let kind = node_type_label(node.node_type);
     let signature = node.signature.as_deref().unwrap_or("").trim();
-    let sketch = if signature.is_empty() {
-        format!("title: {title} | text: {kind}")
+    let doc = node.doc_summary.as_deref().unwrap_or("").trim();
+    let sig = if signature.is_empty() {
+        String::new()
     } else {
-        let sig = signature.chars().take(180).collect::<String>();
-        format!("title: {title} | text: {kind} {sig}")
+        signature.chars().take(180).collect::<String>()
+    };
+    let doc_part = if doc.is_empty() {
+        String::new()
+    } else {
+        format!(" - {}", doc.chars().take(120).collect::<String>())
+    };
+    let sketch = if sig.is_empty() {
+        format!("title: {title} | text: {kind}{doc_part}")
+    } else {
+        format!("title: {title} | text: {kind} {sig}{doc_part}")
     };
     Some(sketch)
 }
@@ -62,6 +72,7 @@ mod tests {
             node_type: NodeType::File,
             name: "a.rs".into(),
             signature: None,
+            doc_summary: None,
             line_range: None,
             token_cost: 0,
             content: None,
@@ -75,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn includes_symbol_and_signature() {
+    fn includes_symbol_signature_and_doc() {
         let node = ContextNode {
             id: NodeId::new("fn1"),
             project_id: ProjectId::new("p"),
@@ -83,6 +94,7 @@ mod tests {
             node_type: NodeType::Function,
             name: "handleAuth".into(),
             signature: Some("export function handleAuth(req, res)".into()),
+            doc_summary: Some("Validates JWT and attaches user to request".into()),
             line_range: None,
             token_cost: 0,
             content: None,
@@ -95,5 +107,6 @@ mod tests {
         let sketch = symbol_sketch(&node).expect("sketch");
         assert!(sketch.contains("handleAuth"));
         assert!(sketch.contains("function"));
+        assert!(sketch.contains("Validates JWT"));
     }
 }

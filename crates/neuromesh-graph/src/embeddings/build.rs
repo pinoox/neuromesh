@@ -47,6 +47,7 @@ pub fn rebuild_embeddings(
                 &title,
                 node_type_label(node.node_type),
                 sig,
+                node.doc_summary.as_deref(),
             );
         }
         node_ids.push(node.id.clone());

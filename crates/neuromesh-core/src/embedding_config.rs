@@ -43,6 +43,8 @@ pub struct EmbeddingConfig {
     pub model: EmbeddingModelId,
     pub matryoshka_dim: usize,
     pub ann_top_k: usize,
+    /// Max embedding seeds inserted after ANN (pool remains `ann_top_k`).
+    pub embed_seed_cap: usize,
     pub min_cosine: f32,
     pub index_on_build: bool,
     /// ONNX Runtime intra-op threads (`None` = all cores). Default 4 for laptop hybrid CPUs.
@@ -57,6 +59,7 @@ impl Default for EmbeddingConfig {
             model,
             matryoshka_dim: model.default_matryoshka_dim(),
             ann_top_k: 16,
+            embed_seed_cap: 4,
             min_cosine: 0.45,
             index_on_build: true,
             intra_threads: Some(4),

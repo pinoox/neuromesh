@@ -1,7 +1,7 @@
 use neuromesh_core::NodeId;
 use serde::{Deserialize, Serialize};
 
-pub const SIDECAR_VERSION: u32 = 1;
+pub const SIDECAR_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingSidecar {

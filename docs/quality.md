@@ -71,6 +71,16 @@ Build a **release** binary before measuring; debug builds skew latency.
 - **Server-side assisted default** (v0.8.3): raw MCP calls match or exceed v0.8.2 client-assisted recall/precision with **zero no_seed** across all languages. Opt out via `auto_extract_keywords=false` or `NEUROMESH_AUTO_EXTRACT_KEYWORDS=0`.
 - Re-run: `node test3/mcp_driver_v2.mjs <release-neuromesh> <express-workspace> <outdir> 6 raw native`
 
+### Sketch enrichment (v0.8.5+)
+
+Index-time symbol sketches include signature + leading doc comment (`doc_summary`); sidecar **v2**. ANN pool `ann_top_k: 16`, seed insert cap `embed_seed_cap: 4` — no reranker on hot path. **Re-index required** after upgrade.
+
+| Gate | Target |
+| :--- | :--- |
+| Recall (60-cell, embedding-primary + sketches) | ≥ 0.460 (no regression) |
+| Precision | ≥ 0.80 |
+| Warm p95 embed | ≤ 60 ms (unchanged — index-only enrichment) |
+
 ### Embedding performance (v0.8.5+)
 
 Singleton ONNX session (no re-init per packet), per-packet query cache, MCP/index warm-up, default **MiniLM multilingual Q** (384-dim), ONNX `intra_threads` default 4.

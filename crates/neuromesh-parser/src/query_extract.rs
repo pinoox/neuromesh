@@ -188,7 +188,7 @@ pub fn parse(
             *last = Some(grammar);
         }
         let tree = parser.parse(content, None)?;
-        Some(extract(path, content, &tree, query, options))
+        Some(extract(path, content, &tree, query, options, grammar))
     })
 }
 
@@ -301,6 +301,7 @@ fn extract(
     tree: &Tree,
     query: &Query,
     options: QueryOptions,
+    grammar: Grammar,
 ) -> AstAnalysisResult {
     let filename = path
         .file_stem()
@@ -385,7 +386,7 @@ fn extract(
             symbol_type: ty.kind,
             signature: Some(first_line(ty.node, src)),
             line_range: line_range(ty.node),
-            docstring: None,
+            docstring: leading_doc_summary(ty.node, src, grammar),
             exported: is_exported(ty.node, &ty.name, src, options.export),
             parent: None,
             calls: Vec::new(),
@@ -402,7 +403,7 @@ fn extract(
             symbol_type: NodeType::Function,
             signature: Some(first_line(func.node, src)),
             line_range: line_range_bytes(func.node.start_byte(), func.end_byte, src),
-            docstring: None,
+            docstring: leading_doc_summary(func.node, src, grammar),
             exported: is_exported(func.node, &func.name, src, options.export),
             parent,
             calls: Vec::new(),
@@ -1053,6 +1054,125 @@ fn first_line(node: Node, src: &[u8]) -> String {
         .to_string()
 }
 
+const DOC_SUMMARY_MAX_CHARS: usize = 120;
+
+/// First doc line / leading comment block for embedding sketches (index-time only).
+fn leading_doc_summary(node: Node, src: &[u8], grammar: Grammar) -> Option<String> {
+    if grammar == Grammar::Python {
+        python_docstring(node, src)
+    } else {
+        leading_comment_summary(node, src, grammar)
+    }
+}
+
+fn leading_comment_summary(node: Node, src: &[u8], grammar: Grammar) -> Option<String> {
+    let text_src = std::str::from_utf8(src).ok()?;
+    let lines: Vec<&str> = text_src.lines().collect();
+    let start_row = node.start_position().row;
+    if start_row == 0 {
+        return None;
+    }
+    let mut row = start_row.saturating_sub(1);
+    while row > 0 && lines.get(row).is_some_and(|l| l.trim().is_empty()) {
+        row -= 1;
+    }
+    let mut parts: Vec<String> = Vec::new();
+    while row < start_row {
+        let Some(line) = lines.get(row) else {
+            break;
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            break;
+        }
+        if let Some(chunk) = strip_doc_comment_line(trimmed, grammar) {
+            if !chunk.is_empty() {
+                parts.push(chunk);
+            }
+            if row == 0 {
+                break;
+            }
+            row -= 1;
+            continue;
+        }
+        break;
+    }
+    parts.reverse();
+    normalize_doc_summary(parts.join(" "))
+}
+
+fn strip_doc_comment_line(line: &str, grammar: Grammar) -> Option<String> {
+    if line.starts_with("/**") || line.starts_with("/*") {
+        let inner = line
+            .trim_start_matches("/**")
+            .trim_start_matches("/*")
+            .trim_end_matches("*/")
+            .trim();
+        return (!inner.is_empty()).then(|| inner.to_string());
+    }
+    if line.starts_with("///") || line.starts_with("//!") {
+        return Some(line[3..].trim().to_string());
+    }
+    if line.starts_with("//") {
+        return (grammar == Grammar::TypeScript || grammar == Grammar::Php)
+            .then(|| line[2..].trim().to_string());
+    }
+    if line.starts_with('#') && grammar == Grammar::Php {
+        return Some(line[1..].trim().to_string());
+    }
+    if line.starts_with('*') {
+        return Some(line.trim_start_matches('*').trim().to_string());
+    }
+    None
+}
+
+fn python_docstring(node: Node, src: &[u8]) -> Option<String> {
+    let body = node.child_by_field_name("body")?;
+    let mut cursor = body.walk();
+    for child in body.children(&mut cursor) {
+        let string_node = if child.kind() == "string" {
+            Some(child)
+        } else if child.kind() == "expression_statement" {
+            child.named_child(0).filter(|n| n.kind() == "string")
+        } else {
+            None
+        };
+        if let Some(s) = string_node {
+            let raw = text(s, src);
+            let inner = raw
+                .trim()
+                .trim_start_matches(|c| {
+                    c == 'r' || c == 'u' || c == 'f' || c == 'R' || c == 'U' || c == 'F'
+                })
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim();
+            return normalize_doc_summary(inner.to_string());
+        }
+    }
+    None
+}
+
+fn normalize_doc_summary(raw: String) -> Option<String> {
+    let collapsed = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.is_empty() {
+        return None;
+    }
+    let capped = if collapsed.chars().count() > DOC_SUMMARY_MAX_CHARS {
+        collapsed
+            .chars()
+            .take(DOC_SUMMARY_MAX_CHARS)
+            .collect::<String>()
+    } else {
+        collapsed
+    };
+    Some(capped)
+}
+
 fn line_range(node: Node) -> std::ops::Range<usize> {
     (node.start_position().row + 1)..(node.end_position().row + 2)
 }
@@ -1448,5 +1568,85 @@ class RedirectableUrlMatcher {
             save.line_range
         );
         assert!(save.calls.iter().any(|c| c == "persist"));
+    }
+
+    #[test]
+    fn typescript_jsdoc_becomes_docstring() {
+        let ast = parse_lang(
+            Grammar::TypeScript,
+            TYPESCRIPT_QUERIES,
+            QueryOptions::typescript(),
+            "middleware.ts",
+            "/** Validates JWT for protected routes */\nexport function authMiddleware(req, res, next) {\n  next();\n}\n",
+        );
+        let sym = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "authMiddleware")
+            .expect("authMiddleware");
+        assert_eq!(
+            sym.docstring.as_deref(),
+            Some("Validates JWT for protected routes")
+        );
+    }
+
+    #[test]
+    fn rust_doc_comment_becomes_docstring() {
+        let ast = parse_lang(
+            Grammar::Rust,
+            RUST_QUERIES,
+            QueryOptions::rust(),
+            "auth.rs",
+            "/// Checks bearer token validity\npub fn verify_token(token: &str) -> bool {\n    !token.is_empty()\n}\n",
+        );
+        let sym = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "verify_token")
+            .expect("verify_token");
+        assert_eq!(
+            sym.docstring.as_deref(),
+            Some("Checks bearer token validity")
+        );
+    }
+
+    #[test]
+    fn python_docstring_becomes_docstring() {
+        let ast = parse_lang(
+            Grammar::Python,
+            PYTHON_QUERIES,
+            QueryOptions::python(),
+            "auth.py",
+            "def guard_request(request):\n    \"\"\"Ensure session is active before routing.\"\"\"\n    return request\n",
+        );
+        let sym = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "guard_request")
+            .expect("guard_request");
+        assert_eq!(
+            sym.docstring.as_deref(),
+            Some("Ensure session is active before routing.")
+        );
+    }
+
+    #[test]
+    fn php_leading_comment_becomes_docstring() {
+        let ast = parse_lang(
+            Grammar::Php,
+            PHP_QUERIES,
+            QueryOptions::php(),
+            "AuthMiddleware.php",
+            "<?php\n/** Handle authenticated API requests */\nfunction handleAuth($request) {\n  return $request;\n}\n",
+        );
+        let sym = ast
+            .symbols
+            .iter()
+            .find(|s| s.name == "handleAuth")
+            .expect("handleAuth");
+        assert!(sym
+            .docstring
+            .as_deref()
+            .is_some_and(|d| d.contains("authenticated")));
     }
 }

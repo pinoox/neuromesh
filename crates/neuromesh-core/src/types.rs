@@ -156,6 +156,8 @@ pub struct ContextNode {
     pub node_type: NodeType,
     pub name: String,
     pub signature: Option<String>,
+    #[serde(default)]
+    pub doc_summary: Option<String>,
     pub line_range: Option<Range<usize>>,
     pub token_cost: usize,
     pub content: Option<String>,
@@ -177,6 +179,7 @@ impl ContextNode {
             node_type: self.node_type,
             name: self.name.clone(),
             signature: self.signature.clone(),
+            doc_summary: self.doc_summary.clone(),
             line_range: self.line_range.clone(),
             token_cost: self.token_cost,
             content: None,

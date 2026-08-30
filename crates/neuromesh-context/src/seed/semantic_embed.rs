@@ -39,8 +39,9 @@ pub fn push_embedding_seeds(
         return false;
     }
 
+    let seed_cap = embedding_config.embed_seed_cap.max(1);
     let weight = signal_weight(seed_config, SignalKind::SemanticEmbed, 0);
-    for (idx, (node_id, score)) in hits.iter().enumerate() {
+    for (idx, (node_id, score)) in hits.iter().take(seed_cap).enumerate() {
         let energy = weight * score;
         let decay = 1.0 / (1.0 + idx as f32 * 0.05);
         sink.insert(

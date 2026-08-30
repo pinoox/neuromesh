@@ -74,7 +74,9 @@ neuromesh doctor --embed --bench            # p50/p95 warm embed (20 queries)
 neuromesh index                             # writes embeddings.bin when enabled
 ```
 
-Index writes `embeddings.bin` beside `graph.bin`. **Switching models requires `neuromesh index`** (sidecar stores `model_id`). Query path embeds the prompt once per packet, ANN-searches sketches, then **graph-resolves** hits (no raw file dump). Lexical keyword fallback runs only when embeddings are disabled or the sidecar is missing.
+Index writes `embeddings.bin` beside `graph.bin` (**sidecar v2**). **Re-index after upgrade** — sketches now include signature + leading doc comment (Tree-sitter at index time). **Switching models also requires `neuromesh index`** (sidecar stores `model_id`).
+
+Query path: embed prompt once per packet → ANN pool (`ann_top_k: 16`) → insert top **`embed_seed_cap: 4`** seeds → **graph-resolve** hits (no reranker, no raw file dump). Lexical keyword fallback runs only when embeddings are disabled or the sidecar is missing.
 
 **Metadata:** `retrieval.resolution_tier` (`embedding_primary`, `L1_exact`, `L2_pattern`, `L3_semantic_recovery`), `retrieval.max_embedding_score`, `coverage: no_confident_match` when nothing clears `min_cosine`.
 

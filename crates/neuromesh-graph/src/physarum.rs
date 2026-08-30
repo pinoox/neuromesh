@@ -303,6 +303,7 @@ mod tests {
             node_type: NodeType::File,
             name: path.to_string(),
             signature: None,
+            doc_summary: None,
             line_range: None,
             token_cost: 100,
             content: None,

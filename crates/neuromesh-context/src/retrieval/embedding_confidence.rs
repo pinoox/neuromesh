@@ -12,10 +12,18 @@ pub const TIER_L2_PATTERN: &str = "L2_pattern";
 pub const TIER_L3_SEMANTIC: &str = "L3_semantic_recovery";
 
 fn query_vector(embedding_config: &EmbeddingConfig, prompt: &str) -> Option<Vec<f32>> {
-    if let Some(v) = cached_query_vector(embedding_config, prompt) {
-        return Some(v);
+    #[cfg(feature = "embeddings")]
+    {
+        if let Some(v) = cached_query_vector(embedding_config, prompt) {
+            return Some(v);
+        }
+        embed_query_cached(embedding_config, prompt).ok()
     }
-    embed_query_cached(embedding_config, prompt).ok()
+    #[cfg(not(feature = "embeddings"))]
+    {
+        let _ = (embedding_config, prompt);
+        None
+    }
 }
 
 /// Max cosine between `prompt` and resolved seed node vectors (0 when unavailable).

@@ -101,6 +101,7 @@ mod seed_engine_tests {
         assert_eq!(cfg.model.as_str(), "minilm_multilingual_q");
         assert_eq!(cfg.matryoshka_dim, 384);
         assert_eq!(cfg.intra_threads, Some(4));
+        assert_eq!(cfg.embed_seed_cap, 4);
     }
 
     #[test]

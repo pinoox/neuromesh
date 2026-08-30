@@ -156,6 +156,7 @@ fn print_embeddings_status() -> Result<()> {
     println!("Model                  : {}", cfg.embeddings.model.as_str());
     println!("Matryoshka dim         : {}", cfg.embeddings.matryoshka_dim);
     println!("ANN top-k              : {}", cfg.embeddings.ann_top_k);
+    println!("Embed seed cap         : {}", cfg.embeddings.embed_seed_cap);
     println!("Min cosine             : {}", cfg.embeddings.min_cosine);
     println!("Index on build         : {}", cfg.embeddings.index_on_build);
     if let Ok(raw) = std::env::var("NEUROMESH_EMBEDDINGS") {

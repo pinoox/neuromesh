@@ -37,26 +37,44 @@ pub fn format_query(prompt: &str) -> String {
     format_query_gemma(prompt)
 }
 
-pub fn format_document_gemma(title: &str, kind: &str, signature: &str) -> String {
+pub fn format_document_gemma(
+    title: &str,
+    kind: &str,
+    signature: &str,
+    doc: Option<&str>,
+) -> String {
     let sig = signature.trim();
+    let doc_part = doc
+        .filter(|d| !d.trim().is_empty())
+        .map(|d| format!(" - {}", d.trim()))
+        .unwrap_or_default();
     if sig.is_empty() {
-        format!("title: {title} | text: {kind}")
+        format!("title: {title} | text: {kind}{doc_part}")
     } else {
-        format!("title: {title} | text: {kind} {sig}")
+        format!("title: {title} | text: {kind} {sig}{doc_part}")
     }
 }
 
-pub fn format_document_minilm(title: &str, kind: &str, signature: &str) -> String {
+pub fn format_document_minilm(
+    title: &str,
+    kind: &str,
+    signature: &str,
+    doc: Option<&str>,
+) -> String {
     let sig = signature.trim();
+    let doc_part = doc
+        .filter(|d| !d.trim().is_empty())
+        .map(|d| format!(" - {}", d.trim()))
+        .unwrap_or_default();
     if sig.is_empty() {
-        format!("passage: {title} {kind}")
+        format!("passage: {title} {kind}{doc_part}")
     } else {
-        format!("passage: {title} {kind} {sig}")
+        format!("passage: {title} {kind} {sig}{doc_part}")
     }
 }
 
 pub fn format_document(title: &str, kind: &str, signature: &str) -> String {
-    format_document_gemma(title, kind, signature)
+    format_document_gemma(title, kind, signature, None)
 }
 
 pub fn format_query_for_model(model: EmbeddingModelId, prompt: &str) -> String {
@@ -71,10 +89,13 @@ pub fn format_document_for_model(
     title: &str,
     kind: &str,
     signature: &str,
+    doc: Option<&str>,
 ) -> String {
     match model {
-        EmbeddingModelId::Gemma300mQ4 => format_document_gemma(title, kind, signature),
-        EmbeddingModelId::MiniLmMultilingualQ => format_document_minilm(title, kind, signature),
+        EmbeddingModelId::Gemma300mQ4 => format_document_gemma(title, kind, signature, doc),
+        EmbeddingModelId::MiniLmMultilingualQ => {
+            format_document_minilm(title, kind, signature, doc)
+        }
     }
 }
 
@@ -187,17 +208,30 @@ mod tests {
                 EmbeddingModelId::MiniLmMultilingualQ,
                 "AuthGuard",
                 "function",
-                "fn check()"
+                "fn check()",
+                None,
             ),
             "passage: AuthGuard function fn check()"
         );
     }
 
     #[test]
+    fn minilm_document_with_doc() {
+        assert!(format_document_for_model(
+            EmbeddingModelId::MiniLmMultilingualQ,
+            "AuthGuard",
+            "function",
+            "fn check()",
+            Some("Validates JWT"),
+        )
+        .contains("Validates JWT"));
+    }
+
+    #[test]
     fn gemma_asymmetric_prefixes() {
         assert!(format_query_for_model(EmbeddingModelId::Gemma300mQ4, "x").contains("query:"));
         assert!(
-            format_document_for_model(EmbeddingModelId::Gemma300mQ4, "T", "k", "")
+            format_document_for_model(EmbeddingModelId::Gemma300mQ4, "T", "k", "", None)
                 .starts_with("title:")
         );
     }

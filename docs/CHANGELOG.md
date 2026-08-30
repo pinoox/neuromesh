@@ -4,6 +4,12 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### Sketch enrichment + embed trim (v0.8.5+)
+
+- **Index-time sketches** — Tree-sitter extracts leading doc comment / docstring (TS, Rust, Python, PHP) into `doc_summary` on graph nodes; embedding passages include signature + doc (sidecar **v2** — re-index required).
+- **Embed seed cap** — `embeddings.embed_seed_cap` default **4**; ANN pool stays `ann_top_k: 16`; no reranker or extra ONNX session.
+- **No MCP latency change** — enrichment is index-only; hot path unchanged aside from fewer weak embedding seeds.
+
 ### Embedding performance (v0.8.5+)
 
 - **Singleton embedder** — `Embedder::lazy_global` replaces per-query `try_new`; MCP background warm on startup; index warm after sidecar rebuild.
