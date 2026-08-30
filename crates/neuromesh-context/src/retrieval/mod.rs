@@ -15,7 +15,7 @@ pub mod sufficiency;
 pub mod task_profile;
 pub mod tier;
 
-pub use alias::{expand_aliases, AliasEntry};
+pub use alias::{expand_aliases, infer_assisted_seed_signals, AliasEntry};
 pub use budget::RetrievalBudget;
 pub use calibration::{CalibrationReport, EvalSuiteMetrics};
 pub use concept_seeds::resolve_concept_seeds;

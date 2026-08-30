@@ -5,6 +5,7 @@ use crate::response::{
     fold_descriptors_from_skeleton, ContextBuild, ResponseDetail,
 };
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
+use neuromesh_context::retrieval::infer_assisted_seed_signals;
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
 use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId};
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
@@ -268,6 +269,7 @@ impl McpToolHandler {
 
                 let mut signature = TaskSignatureExtractor::extract(&task_desc);
                 apply_client_seed_signals(&mut signature, arguments);
+                apply_server_assisted_defaults(&mut signature, &task_desc);
                 if let Ok(episodes) = self
                     .memory_db
                     .find_similar_episodes(&self.graph.project_id(), &task_desc)
@@ -1126,6 +1128,20 @@ fn apply_client_seed_signals(signature: &mut neuromesh_core::TaskSignature, argu
     }
     if let Some(engine) = arguments.get("engine").and_then(Value::as_str) {
         signature.engine_override = SeedEngineId::parse(engine);
+    }
+}
+
+/// Native assisted by default: infer keywords/expansion when the client sends only the task text.
+fn apply_server_assisted_defaults(signature: &mut neuromesh_core::TaskSignature, prompt: &str) {
+    if !signature.client_keywords.is_empty() || !signature.client_expansion.is_empty() {
+        return;
+    }
+    let (keywords, expansion) = infer_assisted_seed_signals(prompt);
+    for kw in keywords {
+        push_unique_normalized(&mut signature.client_keywords, &kw);
+    }
+    for term in expansion {
+        push_unique_normalized(&mut signature.client_expansion, &term);
     }
 }
 

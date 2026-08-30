@@ -20,6 +20,19 @@ pub fn resolve_launch_spec(
     }
 }
 
+/// MCP stdio defaults to native graph. Only explicit proxy backends attach an external graph.
+pub fn resolve_mcp_launch_spec(
+    config: &GraphProxyConfig,
+    workspace: &Path,
+) -> Option<GraphProxyLaunchSpec> {
+    match config.backend {
+        GraphBackendId::Native | GraphBackendId::Auto => None,
+        GraphBackendId::ProxyCbm | GraphBackendId::ProxyGraphify => {
+            resolve_launch_spec(config, workspace)
+        }
+    }
+}
+
 fn manual_or_detect(
     config: &GraphProxyConfig,
     workspace: &Path,
@@ -47,4 +60,20 @@ fn manual_or_detect(
         .into_iter()
         .find(|c| c.spec.provider == provider)
         .map(|c| c.spec)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neuromesh_core::GraphProxyConfig;
+    use std::path::Path;
+
+    #[test]
+    fn mcp_skips_auto_backend() {
+        let cfg = GraphProxyConfig {
+            backend: GraphBackendId::Auto,
+            ..GraphProxyConfig::default()
+        };
+        assert!(resolve_mcp_launch_spec(&cfg, Path::new("/tmp/ws")).is_none());
+    }
 }

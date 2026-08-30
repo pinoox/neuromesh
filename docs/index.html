@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeuroMesh — Don't delete the extra code. Fold it.</title>
-  <meta name="description" content="NeuroMesh: a neural graph in RAM, reversible one-line folds, and an evidence packet instead of thousand-line files dumped into your AI editor.">
+  <title>NeuroMesh — Ship less context. Ship the right code.</title>
+  <meta name="description" content="MCP context engine for Cursor, Claude, and VS Code: find the files that matter, fold the rest, and stop paying for thousand-line dumps.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d1117'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%232ea043'/%3E%3Ccircle cx='12' cy='13' r='3' fill='%2356d364'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,11 +26,11 @@
       </a>
       <nav>
         <ul>
-          <li><a href="#pain" data-i18n="nav.pain">The pain</a></li>
+          <li><a href="#pain" data-i18n="nav.pain">Why</a></li>
           <li><a href="#fold" data-i18n="nav.fold">Fold</a></li>
-          <li><a href="#galaxy" data-i18n="nav.galaxy">Galaxy</a></li>
-          <li><a href="#learning" data-i18n="nav.learning">Learning</a></li>
-          <li><a href="#engines" data-i18n="nav.engines">Engines</a></li>
+          <li><a href="#galaxy" data-i18n="nav.galaxy">Explore</a></li>
+          <li><a href="#learning" data-i18n="nav.learning">Learns</a></li>
+          <li><a href="#engines" data-i18n="nav.engines">Setup</a></li>
           <li><a href="#install" data-i18n="nav.install">Install</a></li>
           <li><a href="#connect" data-i18n="nav.connect">Connect</a></li>
           <li><a href="#tools" data-i18n="nav.tools">Tools</a></li>
@@ -57,7 +57,7 @@
           </ul>
         </div>
         <a href="https://github.com/pinoox/neuromesh" class="btn btn-ghost" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
-        <a href="#install" class="btn btn-primary" data-i18n="nav.installBtn">Install</a>
+        <a href="#install" class="btn btn-primary" data-i18n="nav.installBtn">Get started</a>
       </div>
     </div>
   </header>
@@ -70,7 +70,7 @@
         <div class="hero-slime-overlay"></div>
         <div class="hero-slime-panels">
           <div class="slime-panel">
-            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.graph">Graph · RAM mesh</span></div>
+            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.graph">Finds the path</span></div>
             <div class="mini-graph">
               <svg viewBox="0 0 240 88" xmlns="http://www.w3.org/2000/svg">
                 <defs>
@@ -92,7 +92,7 @@
             </div>
           </div>
           <div class="slime-panel">
-            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.code">Code · fold splice</span></div>
+            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.code">Folds the noise</span></div>
             <div class="mini-code">
               <span class="expressed">fn handle_tool_call()</span> { … }<br>
               <span class="folded">/* fold: 12 lines | unused_helper */</span>
@@ -101,7 +101,7 @@
             </div>
           </div>
           <div class="slime-panel">
-            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.engine">Engine · packet</span></div>
+            <div class="slime-panel-label"><span class="dot"></span> <span data-i18n="panel.engine">Builds your packet</span></div>
             <div class="mini-engine" id="mini-engine">
               <div class="engine-step" data-step="0"><span class="engine-tag">Seeds</span><div class="engine-bar"></div></div>
               <div class="engine-step" data-step="1"><span class="engine-tag">Physarum</span><div class="engine-bar"></div></div>
@@ -123,11 +123,11 @@
         <div class="hero-meta reveal reveal-delay-2">
           <div class="hero-slime-tag">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8 2 5 5.5 5 10c0 3.5 2 6.5 5 8 1 .5 2 .5 3 0 3-1.5 5-4.5 5-8 0-4.5-3-8-6-8zm0 3c1.5 0 3 1.5 3 4s-1.5 4-3 4-3-1.5-3-4 1.5-4 3-4z"/></svg>
-            <span data-i18n="hero.slimeTag">Physarum routing · live neural mesh</span>
+            <span data-i18n="hero.slimeTag">Built for AI-assisted coding</span>
           </div>
           <div class="hero-badge-row">
             <a href="https://github.com/pinoox/neuromesh/releases/latest" class="badge" target="_blank" rel="noopener">
-              <span class="badge-dot green"></span> <span data-i18n="hero.badgeRelease">Latest release</span>
+              <span class="badge-dot green"></span> <span data-i18n="hero.badgeRelease">v0.8.2 — ready to use</span>
             </a>
             <span class="badge">Rust 1.80+</span>
             <span class="badge">MCP stdio</span>
@@ -136,18 +136,15 @@
         </div>
 
         <p class="hero-desc reveal reveal-delay-3" data-i18n-html="hero.desc">
-          How does nature pack two metres of DNA into a nucleus without deleting a single letter?
-          Not by throwing genes away — by <strong>folding</strong>.
-          NeuroMesh does the same to your repository: a neural graph in RAM, reversible one-line folds,
-          and an evidence packet instead of three thousand-line files dumped into Cursor or Claude.
+          Your AI agent does not need three thousand lines of boilerplate to fix one bug. NeuroMesh reads your repo like a map: it <strong>routes to the right symbols</strong>, sends a tight evidence packet to the model, and <strong>folds everything else</strong> into one-line markers you can expand when needed.
         </p>
 
         <div class="hero-cta reveal reveal-delay-3">
           <a href="#install" class="btn btn-primary">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm9.78-2.22-4.5 4.5a.75.75 0 0 1-1.06 0l-2-2a.75.75 0 1 1 1.06-1.06L6.25 9.94l3.97-3.97a.75.75 0 0 1 1.06 1.06Z"/></svg>
-            <span data-i18n="hero.ctaInstall">Quick install</span>
+            <span data-i18n="hero.ctaInstall">Install in 30 seconds</span>
           </a>
-          <a href="https://github.com/pinoox/neuromesh/blob/main/docs/README.md" class="btn btn-secondary" target="_blank" rel="noopener" data-i18n="hero.ctaDocs">Documentation</a>
+          <a href="https://github.com/pinoox/neuromesh/blob/main/docs/README.md" class="btn btn-secondary" target="_blank" rel="noopener" data-i18n="hero.ctaDocs">Read the docs</a>
           <a href="https://github.com/pinoox/neuromesh" class="btn btn-secondary" target="_blank" rel="noopener">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
             <span data-i18n="hero.ctaStar">Star on GitHub</span>
@@ -155,14 +152,14 @@
         </div>
 
         <p class="hero-clients reveal">
-          <span data-i18n="hero.clients">Local-first MCP ·</span>
-          <span data-i18n="hero.clientsList">Cursor · Codex · OpenCode · MiMo CLI · Antigravity · VS Code · Claude · Kilo · Trae · Windsurf · Zed</span>
+          <span data-i18n="hero.clients">Works with ·</span>
+          <span data-i18n="hero.clientsList">Cursor · VS Code · Claude · Codex · OpenCode · Windsurf · Zed · Kilo · Trae · Antigravity · MiMo CLI</span>
         </p>
 
         <div class="fold-demo reveal" style="margin-top: 48px;" id="fold-demo">
           <div class="fold-demo-header">
             <div class="window-dots"><span></span><span></span><span></span></div>
-            <span data-i18n="hero.foldHeader">src/handler.rs — folded skeleton</span>
+            <span data-i18n="hero.foldHeader">What the model actually sees — folded skeleton</span>
           </div>
           <div class="fold-demo-body" id="fold-code"></div>
         </div>
@@ -173,41 +170,40 @@
     <!-- The Pain -->
     <section id="pain">
       <div class="container">
-        <div class="section-label reveal" data-i18n="pain.label">The problem</div>
-        <h2 class="reveal" data-i18n="pain.title">The pain</h2>
+        <div class="section-label reveal" data-i18n="pain.label">Sound familiar?</div>
+        <h2 class="reveal" data-i18n="pain.title">Your editor is oversharing</h2>
         <p class="lead reveal" data-i18n-html="pain.lead">
-          You ask a simple question in a large project. The editor copies two or three
-          <strong>thousand-line files</strong> and ships them to the model.
+          You ask one focused question. The agent pulls in two or three <strong>massive files</strong>, burns tokens, and still misses the function you cared about.
         </p>
 
         <div class="card-grid">
           <div class="card card-problem reveal">
             <div class="card-icon">💸</div>
-            <h3 data-i18n="pain.c1.title">Tokens you never needed</h3>
-            <p data-i18n="pain.c1.desc">Dollar cost on every turn — paying for helpers you will never touch.</p>
+            <h3 data-i18n="pain.c1.title">You pay for noise</h3>
+            <p data-i18n="pain.c1.desc">Private helpers, legacy parsers, and unrelated utilities — billed on every turn.</p>
           </div>
           <div class="card reveal reveal-delay-1">
             <div class="card-icon" style="background: rgba(210,153,34,0.12);">⏳</div>
-            <h3 data-i18n="pain.c2.title">Seconds of fake loading</h3>
-            <p data-i18n="pain.c2.desc">While the window fills with unrelated bodies and private utilities.</p>
+            <h3 data-i18n="pain.c2.title">You wait for the wrong stuff</h3>
+            <p data-i18n="pain.c2.desc">The chat fills up while the model still has not seen the code path you asked about.</p>
           </div>
           <div class="card reveal reveal-delay-2">
             <div class="card-icon" style="background: rgba(248,81,73,0.12);">🌊</div>
-            <h3 data-i18n="pain.c3.title">Lost in the middle</h3>
-            <p data-i18n="pain.c3.desc">The model drowns in unrelated code and invents bugs that don't exist.</p>
+            <h3 data-i18n="pain.c3.title">The model hallucinates</h3>
+            <p data-i18n="pain.c3.desc">Too much context. Wrong conclusions. Bugs that were never in your codebase.</p>
           </div>
         </div>
 
         <div class="table-wrap reveal">
           <table>
             <thead>
-              <tr><th data-i18n="pain.th.approach">Approach</th><th data-i18n="pain.th.wrong">What goes wrong</th></tr>
+              <tr><th data-i18n="pain.th.approach">What people try</th><th data-i18n="pain.th.wrong">Why it fails</th></tr>
             </thead>
             <tbody>
-              <tr><td data-i18n="pain.r1.a">Vector RAG</td><td data-i18n="pain.r1.b">Chunks smash functions. The shape of the code disappears.</td></tr>
-              <tr><td data-i18n="pain.r2.a">"Just attach the files"</td><td data-i18n="pain.r2.b">The model sees everything and understands nothing.</td></tr>
-              <tr><td data-i18n="pain.r3.a">A static code graph</td><td data-i18n-html="pain.r3.b">Better map — then it still pastes <strong>full files</strong> into the prompt.</td></tr>
-              <tr><td data-i18n="pain.r4.a"><strong style="color:var(--success-fg)">NeuroMesh</strong></td><td data-i18n-html="pain.r4.b"><strong style="color:var(--success-fg)">Route first, then fold.</strong> The graph finds the path. The packet is what the model reads.</td></tr>
+              <tr><td data-i18n="pain.r1.a">Vector RAG</td><td data-i18n="pain.r1.b">Chunks break functions apart. Structure disappears.</td></tr>
+              <tr><td data-i18n="pain.r2.a">"Attach the whole file"</td><td data-i18n="pain.r2.b">The model sees everything. Understands nothing.</td></tr>
+              <tr><td data-i18n="pain.r3.a">Static code graphs</td><td data-i18n-html="pain.r3.b">Nice map — then they still paste <strong>full files</strong> into the prompt.</td></tr>
+              <tr><td data-i18n="pain.r4.a"><strong style="color:var(--success-fg)">NeuroMesh</strong></td><td data-i18n-html="pain.r4.b"><strong style="color:var(--success-fg)">Route, then fold.</strong> Only the relevant skeleton reaches the model. Expand a fold when you need the body.</td></tr>
             </tbody>
           </table>
         </div>
@@ -217,86 +213,85 @@
     <!-- Fold -->
     <section id="fold" style="background: linear-gradient(180deg, transparent, rgba(46,160,67,0.03), transparent);">
       <div class="container">
-        <div class="section-label reveal" data-i18n="fold.label">Core concept</div>
-        <h2 class="reveal" data-i18n="fold.title">Don't delete. Fold.</h2>
+        <div class="section-label reveal" data-i18n="fold.label">How it works</div>
+        <h2 class="reveal" data-i18n="fold.title">Keep structure. Cut tokens.</h2>
         <p class="lead reveal" data-i18n-html="fold.lead">
-          Nature does not delete DNA to fit a nucleus. It <strong>supercoils</strong>.
-          NeuroMesh treats the syntax tree like a genetic strand in RAM.
+          NeuroMesh never deletes your code. It <strong>folds</strong> what the task does not need into a single reversible line — like a table of contents that still knows where every function lives.
         </p>
 
         <div class="card-grid" style="margin-top: 32px;">
           <div class="card reveal">
             <div class="card-icon" style="background: var(--success-muted);">🧬</div>
-            <h3 data-i18n="fold.c1.title">Exons — expressed</h3>
-            <p data-i18n="fold.c1.desc">Functions you need stay fully visible — real body, real lines.</p>
+            <h3 data-i18n="fold.c1.title">What you need — open</h3>
+            <p data-i18n="fold.c1.desc">The functions and files that match your task stay fully visible with real bodies.</p>
           </div>
           <div class="card reveal reveal-delay-1">
             <div class="card-icon" style="background: rgba(210,153,34,0.12);">📦</div>
-            <h3 data-i18n="fold.c2.title">Introns — folded</h3>
-            <p data-i18n="fold.c2.desc">Everything else collapses to a one-line reversible marker with a fold ID.</p>
+            <h3 data-i18n="fold.c2.title">What you do not — folded</h3>
+            <p data-i18n="fold.c2.desc">Everything else becomes a one-line marker with a fold ID. Signatures and imports stay in view.</p>
           </div>
           <div class="card reveal reveal-delay-2">
             <div class="card-icon" style="background: var(--purple-muted);">⚡</div>
-            <h3 data-i18n="fold.c3.title">Wake on demand</h3>
-            <p data-i18n-html="fold.c3.desc"><code style="color:var(--purple-fg)">neuromesh_expand_fold</code> unsplices from memory. No disk grep.</p>
+            <h3 data-i18n="fold.c3.title">Need the body? One tool call</h3>
+            <p data-i18n-html="fold.c3.desc">Run <code style="color:var(--purple-fg)">neuromesh_expand_fold</code> — instant restore from memory, no grep hunt.</p>
           </div>
         </div>
 
         <div class="quote reveal" data-i18n-html="fold.quote">
-          <strong>Structure stays. Tokens sleep. Wake a fold when you need it.</strong>
+          <strong>You keep the map. The model stops reading the encyclopedia.</strong>
         </div>
 
         <!-- Nature -->
         <div style="margin-top: 80px;">
-          <div class="section-label reveal" data-i18n="fold.bio.label">Biomimicry</div>
-          <h2 class="reveal" data-i18n="fold.bio.title">Inspired by living systems</h2>
+          <div class="section-label reveal" data-i18n="fold.bio.label">Under the hood</div>
+          <h2 class="reveal" data-i18n="fold.bio.title">Inspired by how nature packs information</h2>
           <div class="nature-grid">
             <div class="nature-item reveal">
               <div class="nature-emoji">🧬</div>
               <div>
-                <h4 data-i18n="nature.n1.t">DNA supercoiling</h4>
+                <h4 data-i18n="nature.n1.t">Smart folding</h4>
                 <div class="engine" data-i18n="nature.n1.e">Genetic skeletonizer</div>
-                <p data-i18n="nature.n1.p">Fold unused bodies; keep the map of the file.</p>
+                <p data-i18n="nature.n1.p">Hide boilerplate. Keep signatures, imports, and file shape.</p>
               </div>
             </div>
             <div class="nature-item reveal reveal-delay-1">
               <div class="nature-emoji">🦠</div>
               <div>
-                <h4 data-i18n="nature.n2.t">Physarum (slime mold)</h4>
-                <div class="engine" data-i18n="nature.n2.e">Steiner / shortest tissue</div>
-                <p data-i18n="nature.n2.p">Grow the cheapest path between seeds — not the whole neighborhood.</p>
+                <h4 data-i18n="nature.n2.t">Shortest path</h4>
+                <div class="engine" data-i18n="nature.n2.e">Graph routing</div>
+                <p data-i18n="nature.n2.p">Connect only the files your task needs — not the whole repo neighborhood.</p>
               </div>
             </div>
             <div class="nature-item reveal reveal-delay-2">
               <div class="nature-emoji">⚡</div>
               <div>
-                <h4 data-i18n="nature.n3.t">Synapses & STDP</h4>
-                <div class="engine" data-i18n="nature.n3.e">Pheromone edges + record_feedback</div>
-                <p data-i18n="nature.n3.p">Paths you actually edited get stronger next time.</p>
+                <h4 data-i18n="nature.n3.t">Remembers what worked</h4>
+                <div class="engine" data-i18n="nature.n3.e">Learning from your edits</div>
+                <p data-i18n="nature.n3.p">Files you actually changed get priority on the next similar task.</p>
               </div>
             </div>
             <div class="nature-item reveal">
               <div class="nature-emoji">🛡️</div>
               <div>
-                <h4 data-i18n="nature.n4.t">Cell membrane</h4>
+                <h4 data-i18n="nature.n4.t">Safety modes</h4>
                 <div class="engine" data-i18n="nature.n4.e">QualityGate</div>
-                <p data-i18n="nature.n4.p">Tight by default; auth / payment tasks open the membrane.</p>
+                <p data-i18n="nature.n4.p">Balanced by default. Auth and payment tasks automatically get more context.</p>
               </div>
             </div>
             <div class="nature-item reveal reveal-delay-1">
               <div class="nature-emoji">🍄</div>
               <div>
-                <h4 data-i18n="nature.n5.t">Mycelium</h4>
-                <div class="engine" data-i18n="nature.n5.e">Hyphal prefetch</div>
-                <p data-i18n="nature.n5.p">Warm the next hop before the second tool call.</p>
+                <h4 data-i18n="nature.n5.t">Faster follow-ups</h4>
+                <div class="engine" data-i18n="nature.n5.e">Prefetch</div>
+                <p data-i18n="nature.n5.p">The next likely file is warmed before your second tool call.</p>
               </div>
             </div>
             <div class="nature-item reveal reveal-delay-2">
               <div class="nature-emoji">🕸️</div>
               <div>
-                <h4 data-i18n="nature.n6.t">Neural mesh</h4>
-                <div class="engine" data-i18n="nature.n6.e">Project graph in RAM</div>
-                <p data-i18n="nature.n6.p">Files, functions, Imports, Calls — a nervous system, not a bag of strings.</p>
+                <h4 data-i18n="nature.n6.t">Live code graph</h4>
+                <div class="engine" data-i18n="nature.n6.e">Indexed in RAM</div>
+                <p data-i18n="nature.n6.p">Functions, imports, and calls — so routing is structural, not guesswork.</p>
               </div>
             </div>
           </div>
@@ -307,11 +302,10 @@
     <!-- Galaxy -->
     <section id="galaxy">
       <div class="container">
-        <div class="section-label reveal" data-i18n="galaxy.label">Visualization</div>
+        <div class="section-label reveal" data-i18n="galaxy.label">See your repo</div>
         <h2 class="reveal" data-i18n="galaxy.title">3D Neural Galaxy</h2>
         <p class="lead reveal" data-i18n-html="galaxy.lead">
-          <code style="color:var(--accent-fg)">neuromesh monitor</code> is the live mesh: subsystems as a constellation,
-          then the file graph, then the symbols inside a module.
+          Run <code style="color:var(--accent-fg)">neuromesh monitor</code> and explore your project as a live graph — subsystems, files, symbols — before you ask the agent anything.
         </p>
 
         <div class="gallery">
@@ -319,19 +313,19 @@
             <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-constellation.jpg" data-i18n-caption="galaxy.c1" data-caption="Constellation — crates and subsystems">
               <img src="assets/galaxy-constellation.jpg" alt="Macro constellation of project subsystems" loading="lazy">
             </button>
-            <div class="gallery-caption" data-i18n="galaxy.c1">Constellation — crates and subsystems</div>
+            <div class="gallery-caption" data-i18n="galaxy.c1">Bird's-eye view of crates and modules</div>
           </div>
           <div class="gallery-item reveal reveal-delay-1">
             <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-3d.jpg" data-i18n-caption="galaxy.c2" data-caption="3D galaxy — files and synapses; Physarum tubes">
               <img src="assets/galaxy-3d.jpg" alt="3D Neural Galaxy file graph with Physarum tubes" loading="lazy">
             </button>
-            <div class="gallery-caption" data-i18n="galaxy.c2">3D galaxy — files and synapses; Physarum tubes</div>
+            <div class="gallery-caption" data-i18n="galaxy.c2">File graph with call/import links</div>
           </div>
           <div class="gallery-item reveal reveal-delay-2">
             <button type="button" class="gallery-thumb" data-lightbox="assets/galaxy-module.jpg" data-i18n-caption="galaxy.c3" data-caption="Module zoom — files and AST symbols in one crate">
               <img src="assets/galaxy-module.jpg" alt="Module zoom showing Core files and symbols" loading="lazy">
             </button>
-            <div class="gallery-caption" data-i18n="galaxy.c3">Module zoom — files and AST symbols in one crate</div>
+            <div class="gallery-caption" data-i18n="galaxy.c3">Zoom into one module and its symbols</div>
           </div>
         </div>
 
@@ -345,9 +339,9 @@
     <!-- How it works -->
     <section id="how">
       <div class="container" style="text-align: center;">
-        <div class="section-label reveal" style="justify-content: center;" data-i18n="how.label">Pipeline</div>
-        <h2 class="reveal" data-i18n="how.title">How a turn actually goes</h2>
-        <p class="lead reveal" style="margin: 0 auto;" data-i18n="how.lead">Route first, then fold. Seeds are never truncated to fake a small packet.</p>
+        <div class="section-label reveal" style="justify-content: center;" data-i18n="how.label">Your workflow</div>
+        <h2 class="reveal" data-i18n="how.title">One question. One tight packet.</h2>
+        <p class="lead reveal" style="margin: 0 auto;" data-i18n="how.lead">Ask in plain language (English, Persian, Arabic, …). NeuroMesh finds symbols, pulls neighbors, folds the rest, and tells you when to grep for more.</p>
 
         <div class="pipeline-board reveal" id="pipeline">
           <svg class="pipeline-tubes" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
@@ -373,8 +367,8 @@
               <div class="phase-header">
                 <div class="phase-num">1</div>
                 <div>
-                  <div class="phase-title" data-i18n="how.phase1.title">Read</div>
-                  <div class="phase-sub" data-i18n="how.phase1.sub">Task as written</div>
+                  <div class="phase-title" data-i18n="how.phase1.title">Understand</div>
+                  <div class="phase-sub" data-i18n="how.phase1.sub">Your prompt as written</div>
                 </div>
               </div>
               <div class="phase-steps">
@@ -400,7 +394,7 @@
                 <div class="phase-num">2</div>
                 <div>
                   <div class="phase-title" data-i18n="how.phase2.title">Route</div>
-                  <div class="phase-sub" data-i18n="how.phase2.sub">Graph + Physarum</div>
+                  <div class="phase-sub" data-i18n="how.phase2.sub">Graph + smart fill</div>
                 </div>
               </div>
               <div class="phase-steps">
@@ -432,7 +426,7 @@
               <div class="phase-header">
                 <div class="phase-num">3</div>
                 <div>
-                  <div class="phase-title" data-i18n="how.phase3.title">Splice</div>
+                  <div class="phase-title" data-i18n="how.phase3.title">Deliver</div>
                   <div class="phase-sub" data-i18n="how.phase3.sub">Fold + packet</div>
                 </div>
               </div>
@@ -504,12 +498,10 @@
     <!-- Adaptive learning -->
     <section id="learning" class="learning-section">
       <div class="container">
-        <div class="section-label reveal" data-i18n="learn.label">Synaptic STDP</div>
-        <h2 class="reveal" data-i18n="learn.title">Smarter every turn</h2>
+        <div class="section-label reveal" data-i18n="learn.label">Gets smarter</div>
+        <h2 class="reveal" data-i18n="learn.title">The more you ship, the better it routes</h2>
         <p class="lead reveal" data-i18n-html="learn.lead">
-          NeuroMesh doesn't forget what worked. Every successful edit is experience —
-          <code>neuromesh_record_feedback</code> strengthens the synapses on the path you actually used.
-          Next packet, the mesh routes faster and closer to gold.
+          After a successful edit, call <code>neuromesh_record_feedback</code>. NeuroMesh strengthens the paths you actually used — so the next similar task needs fewer greps and fewer tokens.
         </p>
 
         <div class="learning-stage reveal">
@@ -521,28 +513,28 @@
                 <span data-i18n="learn.turn">Turn</span> <strong id="learning-turn-num">1</strong> <span data-i18n="learn.turnOf">/ 3</span>
               </div>
               <p class="learning-turn-caption" id="learning-turn-caption" data-i18n="learn.turnCap1">
-                First visit — the mesh explores weaker paths.
+                First time — the agent explores and may grep twice.
               </p>
             </div>
           </div>
 
           <div class="learning-panel">
             <div class="learning-loop">
-              <div class="learning-loop-title" data-i18n="learn.loopTitle">The learning loop</div>
+              <div class="learning-loop-title" data-i18n="learn.loopTitle">The loop that makes it stick</div>
               <div class="learning-loop-steps">
                 <div class="loop-step" data-loop="0">
                   <span class="loop-icon">📦</span>
                   <div>
-                    <strong data-i18n="learn.loop1.t">get_context</strong>
-                    <span data-i18n="learn.loop1.s">Route on pheromone edges</span>
+                    <strong data-i18n="learn.loop1.t">get_context_packet</strong>
+                    <span data-i18n="learn.loop1.s">Agent gets a focused packet</span>
                   </div>
                 </div>
                 <div class="loop-arrow">↓</div>
                 <div class="loop-step" data-loop="1">
                   <span class="loop-icon">✏️</span>
                   <div>
-                    <strong data-i18n="learn.loop2.t">Edit & succeed</strong>
-                    <span data-i18n="learn.loop2.s">Agent touches real files</span>
+                    <strong data-i18n="learn.loop2.t">You edit & succeed</strong>
+                    <span data-i18n="learn.loop2.s">Real files, real fix</span>
                   </div>
                 </div>
                 <div class="loop-arrow">↓</div>
@@ -550,15 +542,15 @@
                   <span class="loop-icon">⚡</span>
                   <div>
                     <strong data-i18n="learn.loop3.t">record_feedback</strong>
-                    <span data-i18n="learn.loop3.s">Spike synapses — STDP learns</span>
+                    <span data-i18n="learn.loop3.s">Tell NeuroMesh what worked</span>
                   </div>
                 </div>
                 <div class="loop-arrow">↓</div>
                 <div class="loop-step" data-loop="3">
                   <span class="loop-icon">🧠</span>
                   <div>
-                    <strong data-i18n="learn.loop4.t">Next packet</strong>
-                    <span data-i18n="learn.loop4.s">Stronger path, fewer misses</span>
+                    <strong data-i18n="learn.loop4.t">Next task</strong>
+                    <span data-i18n="learn.loop4.s">Shorter path, fewer misses</span>
                   </div>
                 </div>
               </div>
@@ -567,21 +559,21 @@
             <div class="learning-metrics">
               <div class="learning-metric">
                 <div class="learning-metric-head">
-                  <span data-i18n="learn.m1">Synaptic strength</span>
+                  <span data-i18n="learn.m1">Route strength</span>
                   <strong id="metric-strength">18%</strong>
                 </div>
                 <div class="learning-metric-bar"><div class="learning-metric-fill" id="bar-strength" style="width:18%"></div></div>
               </div>
               <div class="learning-metric">
                 <div class="learning-metric-head">
-                  <span data-i18n="learn.m2">Recall</span>
+                  <span data-i18n="learn.m2">Hit rate</span>
                   <strong id="metric-recall">0.75</strong>
                 </div>
                 <div class="learning-metric-bar"><div class="learning-metric-fill recall" id="bar-recall" style="width:75%"></div></div>
               </div>
               <div class="learning-metric">
                 <div class="learning-metric-head">
-                  <span data-i18n="learn.m3">Grep fallbacks</span>
+                  <span data-i18n="learn.m3">Extra greps</span>
                   <strong id="metric-grep">2</strong>
                 </div>
                 <div class="learning-metric-bar"><div class="learning-metric-fill grep" id="bar-grep" style="width:66%"></div></div>
@@ -593,24 +585,23 @@
         <div class="learning-cards reveal">
           <div class="learning-card">
             <div class="learning-card-icon">🧪</div>
-            <h3 data-i18n="learn.c1.t">Experience from edits</h3>
-            <p data-i18n-html="learn.c1.p">Only paths the agent <em>actually edited</em> get credit. No fake links from guessing — unique resolve keeps the graph honest.</p>
+            <h3 data-i18n="learn.c1.t">Learns from real edits</h3>
+            <p data-i18n-html="learn.c1.p">Only files you <em>actually changed</em> influence the next packet — no fake shortcuts.</p>
           </div>
           <div class="learning-card featured">
             <div class="learning-card-icon">🔗</div>
-            <h3 data-i18n="learn.c2.t">Pheromone edges</h3>
-            <p data-i18n="learn.c2.p">Co-edited files share stronger tubes. Physarum prefers reinforced routes — like slime mold remembering where food was.</p>
+            <h3 data-i18n="learn.c2.t">Shared paths stick</h3>
+            <p data-i18n="learn.c2.p">Files you often edit together stay linked — the graph prefers routes that worked before.</p>
           </div>
           <div class="learning-card">
             <div class="learning-card-icon">🍄</div>
-            <h3 data-i18n="learn.c3.t">Mycelial memory</h3>
-            <p data-i18n="learn.c3.p">Hyphal prefetch warms the next hop in RAM. The mesh doesn't just learn routes — it pre-warms what you'll expand next.</p>
+            <h3 data-i18n="learn.c3.t">Ready for the next hop</h3>
+            <p data-i18n="learn.c3.p">Likely follow-up files are pre-warmed so expand and trace feel instant.</p>
           </div>
         </div>
 
         <div class="learning-quote reveal" data-i18n-html="learn.quote">
-          <strong>Fire together, wire together.</strong>
-          Skip <code>record_feedback</code> and the next packet starts from zero plasticity.
+          <strong>Skip feedback and every session starts from zero.</strong> One line after a good fix compounds over time.
         </div>
       </div>
     </section>
@@ -618,27 +609,27 @@
     <!-- Stats -->
     <section id="stats" style="background: linear-gradient(180deg, transparent, rgba(31,111,235,0.04), transparent);">
       <div class="container" style="text-align: center;">
-        <div class="section-label reveal" style="justify-content: center;" data-i18n="stats.label">Measured</div>
-        <h2 class="reveal" data-i18n="stats.title">What we actually measured</h2>
-        <p class="lead reveal" style="margin: 0 auto 8px;" data-i18n-html="stats.lead">Savings are per task, after folding. Re-run: <code>neuromesh eval</code></p>
-        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">Release 2026-08-30 v0.8.2 · 650,859 workspace tokens</p>
+        <div class="section-label reveal" style="justify-content: center;" data-i18n="stats.label">Real numbers</div>
+        <h2 class="reveal" data-i18n="stats.title">Measured on a large Rust workspace</h2>
+        <p class="lead reveal" style="margin: 0 auto 8px;" data-i18n-html="stats.lead">Token savings are <em>per task</em>, after folding — not a marketing average. Run <code>neuromesh eval</code> on your repo.</p>
+        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">v0.8.2 · up to ~97% fewer tokens vs dumping the whole workspace</p>
 
         <div class="stats-row">
           <div class="stat-box reveal">
             <div class="stat-value" data-target="97.3">0</div>
-            <div class="stat-label" data-i18n="stats.s1">% vs workspace (handle_tool_call)</div>
+            <div class="stat-label" data-i18n="stats.s1">% token savings (typical MCP handler task)</div>
           </div>
           <div class="stat-box reveal reveal-delay-1">
             <div class="stat-value" data-target="99.4">0</div>
-            <div class="stat-label" data-i18n="stats.s2">% vs workspace (physarum)</div>
+            <div class="stat-label" data-i18n="stats.s2">% token savings (graph routing task)</div>
           </div>
           <div class="stat-box reveal reveal-delay-2">
             <div class="stat-value" data-target="340">0</div>
-            <div class="stat-label" data-i18n="stats.s3">Files indexed</div>
+            <div class="stat-label" data-i18n="stats.s3">Files indexed in demo repo</div>
           </div>
           <div class="stat-box reveal reveal-delay-3">
             <div class="stat-value" data-target="22">0</div>
-            <div class="stat-label" data-i18n="stats.s4">ms packet activation</div>
+            <div class="stat-label" data-i18n="stats.s4">ms to build a packet (warm)</div>
           </div>
         </div>
 
@@ -667,15 +658,15 @@
     <!-- Engines -->
     <section id="engines">
       <div class="container">
-        <div class="section-label reveal" data-i18n="engines.label">Configuration</div>
-        <h2 class="reveal" data-i18n="engines.title">Graph backend & seed engine</h2>
-        <p class="lead reveal" data-i18n="engines.lead">Native graph by default. Optionally delegate structure to codebase-memory-mcp (CBM) while NeuroMesh keeps folding and packets.</p>
+        <div class="section-label reveal" data-i18n="engines.label">Tune it</div>
+        <h2 class="reveal" data-i18n="engines.title">Two knobs. Sensible defaults.</h2>
+        <p class="lead reveal" data-i18n="engines.lead">Start with the built-in graph — it is faster and more precise for daily coding. Optional: plug in an external code graph (CBM) for <code>get_context_packet</code> only; folding and trace stay local.</p>
 
         <div class="feature-grid reveal" style="margin-top: 2rem;">
           <div class="feature-card">
             <div class="feature-icon">🌿</div>
-            <h3 data-i18n="engines.graphTitle">Graph backend</h3>
-            <p data-i18n="engines.graphDesc"><code>native</code> · <code>auto</code> · <code>proxy_cbm</code>. Auto-detect reads <code>~/.cursor/mcp.json</code>. Only <code>get_context_packet</code> uses the proxy.</p>
+            <h3 data-i18n="engines.graphTitle">Where context comes from</h3>
+            <p data-i18n="engines.graphDesc"><code>native</code> (default) · <code>auto</code> · <code>proxy_cbm</code>. Auto picks up CBM if your IDE already has it. Change in Settings or one CLI command.</p>
             <div class="code-block" style="margin-top: 1rem;">
               <pre>neuromesh config graph-backend auto
 neuromesh doctor --proxy --probe</pre>
@@ -683,8 +674,8 @@ neuromesh doctor --proxy --probe</pre>
           </div>
           <div class="feature-card">
             <div class="feature-icon">🔑</div>
-            <h3 data-i18n="engines.seedTitle">Seed engine</h3>
-            <p data-i18n="engines.seedDesc"><code>keywords_expanded</code> (default), <code>hybrid</code>, <code>semantic_lite</code>. Controls keyword→symbol resolution before folding.</p>
+            <h3 data-i18n="engines.seedTitle">How prompts find symbols</h3>
+            <p data-i18n="engines.seedDesc"><code>keywords_expanded</code> (default) works great for mixed NL + code. Try <code>hybrid</code> for vague prompts without client keywords.</p>
             <div class="code-block" style="margin-top: 1rem;">
               <pre>neuromesh config seed-engine hybrid
 neuromesh monitor  # Settings UI</pre>
@@ -692,7 +683,7 @@ neuromesh monitor  # Settings UI</pre>
           </div>
         </div>
         <p class="reveal" style="margin-top: 1.25rem; font-size: 0.9rem; color: var(--text-secondary);">
-          <a href="engines.md" data-i18n="engines.docsLink">Full engines guide →</a>
+          <a href="engines.md" data-i18n="engines.docsLink">Full setup guide →</a>
         </p>
       </div>
     </section>
@@ -701,8 +692,8 @@ neuromesh monitor  # Settings UI</pre>
     <section id="install">
       <div class="container">
         <div class="section-label reveal" data-i18n="install.label">Get started</div>
-        <h2 class="reveal" data-i18n="install.title">Install</h2>
-        <p class="lead reveal" data-i18n-html="install.lead">One command. Then <code>neuromesh doctor</code> and <code>neuromesh connect</code>.</p>
+        <h2 class="reveal" data-i18n="install.title">Install NeuroMesh</h2>
+        <p class="lead reveal" data-i18n-html="install.lead">One command, then <code>neuromesh doctor</code> to verify, and <code>neuromesh connect</code> to wire your editor.</p>
 
         <div class="tabs reveal">
           <button class="tab-btn active" data-tab="mac" data-i18n="install.tabMac">macOS / Linux</button>
@@ -767,11 +758,10 @@ neuromesh connect    # write MCP configs for this repo</pre>
     <!-- Connect -->
     <section id="connect" style="background: linear-gradient(180deg, transparent, rgba(188,140,255,0.04), transparent);">
       <div class="container">
-        <div class="section-label reveal" data-i18n="connect.label">Integration</div>
-        <h2 class="reveal" data-i18n="connect.title">Connect</h2>
+        <div class="section-label reveal" data-i18n="connect.label">Plug in your editor</div>
+        <h2 class="reveal" data-i18n="connect.title">Connect in one command</h2>
         <p class="lead reveal" data-i18n-html="connect.lead">
-          Native <strong>MCP stdio</strong> — Cursor, Claude, Codex, Antigravity, VS Code, Kilo Code, Trae, and more.
-          Default config uses the portable command <code>neuromesh</code> — workspace is auto-detected from the IDE.
+          NeuroMesh speaks <strong>MCP over stdio</strong> — the standard protocol Cursor, Claude, VS Code, Windsurf, Zed, and dozens of agents already support. No cloud. No API key for indexing. Your code stays on your machine.
         </p>
 
         <div class="code-block reveal">
@@ -790,51 +780,50 @@ neuromesh connect    # write MCP configs for this repo</pre>
         </div>
 
         <div class="clients-grid reveal">
-          <div class="client-chip">Cursor <code>.cursor/mcp.json</code></div>
-          <div class="client-chip">VS Code <code>.vscode/mcp.json</code></div>
-          <div class="client-chip">OpenCode <code>opencode.json</code></div>
-          <div class="client-chip">MiMo CLI <code>.mimo-code.json</code></div>
-          <div class="client-chip">Codex <code>.codex/config.toml</code></div>
-          <div class="client-chip">Antigravity <code>.agents/mcp_config.json</code></div>
-          <div class="client-chip">Kilo Code <code>.kilo/kilo.jsonc</code></div>
-          <div class="client-chip">Trae <code>.trae/mcp.json</code></div>
-          <div class="client-chip">MiniMax Code <code>.minimax/mcp.json</code></div>
-          <div class="client-chip">Claude Code <code>.mcp.json</code></div>
+          <div class="client-chip">Cursor</div>
+          <div class="client-chip">VS Code</div>
           <div class="client-chip">Claude Desktop</div>
-          <div class="client-chip">Gemini CLI <code>~/.gemini/settings.json</code></div>
+          <div class="client-chip">Claude Code</div>
+          <div class="client-chip">Codex</div>
+          <div class="client-chip">OpenCode</div>
           <div class="client-chip">Windsurf</div>
-          <div class="client-chip">Cline / Roo</div>
           <div class="client-chip">Zed</div>
+          <div class="client-chip">Kilo Code</div>
+          <div class="client-chip">Trae</div>
+          <div class="client-chip">Cline / Roo</div>
+          <div class="client-chip">Antigravity</div>
+          <div class="client-chip">MiMo CLI</div>
+          <div class="client-chip">Gemini CLI</div>
+          <div class="client-chip">MiniMax Code</div>
         </div>
-        <p class="reveal connect-note" data-i18n-html="connect.note">Run <code>neuromesh connect</code> to write configs for installed apps, or <code>neuromesh connect --print</code> for snippets.</p>
+        <p class="reveal connect-note" data-i18n-html="connect.note">Run <code>neuromesh connect</code> and pick your apps — or <code>neuromesh connect --print</code> to copy a snippet manually.</p>
       </div>
     </section>
 
     <!-- Tools -->
     <section id="tools">
       <div class="container">
-        <div class="section-label reveal" data-i18n="tools.label">MCP Tools</div>
-        <h2 class="reveal" data-i18n="tools.title">Tools</h2>
-        <p class="lead reveal" data-i18n="tools.lead">Tell the agent: get context → expand fold if needed → trace → record feedback.</p>
+        <div class="section-label reveal" data-i18n="tools.label">Agent tools</div>
+        <h2 class="reveal" data-i18n="tools.title">What your agent can call</h2>
+        <p class="lead reveal" data-i18n="tools.lead">Teach the agent this loop: <strong>get_context_packet</strong> → expand a fold if needed → trace callers → record_feedback after a good edit.</p>
 
         <div class="tools-grid">
-          <div class="tool-item reveal"><div class="tool-name">get_context_packet</div><div class="tool-desc">Compact packet: skeletons, @nm header, fold ids, seed telemetry</div></div>
-          <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_expand_fold</div><div class="tool-desc">Wake one intron by fold_id — no disk grep</div></div>
-          <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_trace</div><div class="tool-desc">Call / import chains</div></div>
-          <div class="tool-item reveal"><div class="tool-name">neuromesh_search_symbols</div><div class="tool-desc">Ranked symbol search</div></div>
-          <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_get_dependencies</div><div class="tool-desc">Typed neighbors</div></div>
-          <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_analyze_impact</div><div class="tool-desc">Blast radius analysis</div></div>
-          <div class="tool-item reveal"><div class="tool-name">neuromesh_get_architecture</div><div class="tool-desc">Languages, packages, entry points</div></div>
-          <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_record_feedback</div><div class="tool-desc">Synaptic learning on the path you used</div></div>
-          <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_get_project_memory</div><div class="tool-desc">Facts from manifests and docs</div></div>
-          <div class="tool-item reveal"><div class="tool-name">neuromesh_explain_packet</div><div class="tool-desc">On-demand diagnostics for a packet_id</div></div>
-          <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_get_file_skeleton</div><div class="tool-desc">Fold one file; metadata without body</div></div>
-          <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_get_stats</div><div class="tool-desc">Mesh size and index stats</div></div>
+          <div class="tool-item reveal"><div class="tool-name">get_context_packet</div><div class="tool-desc" data-i18n="tools.t0">Start here — compact skeletons, fold IDs, coverage hints</div></div>
+          <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_expand_fold</div><div class="tool-desc" data-i18n="tools.t1">Restore one folded function body — no disk grep</div></div>
+          <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_trace</div><div class="tool-desc" data-i18n="tools.t2">Follow call and import chains</div></div>
+          <div class="tool-item reveal"><div class="tool-name">neuromesh_search_symbols</div><div class="tool-desc" data-i18n="tools.t3">Find symbols when coverage is partial</div></div>
+          <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_get_dependencies</div><div class="tool-desc" data-i18n="tools.t4">See what a file imports and calls</div></div>
+          <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_analyze_impact</div><div class="tool-desc" data-i18n="tools.t5">Blast radius before you refactor</div></div>
+          <div class="tool-item reveal"><div class="tool-name">neuromesh_get_architecture</div><div class="tool-desc" data-i18n="tools.t6">Languages, packages, entry points at a glance</div></div>
+          <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_record_feedback</div><div class="tool-desc" data-i18n="tools.t7">One line after a good edit — routes improve next time</div></div>
+          <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_get_project_memory</div><div class="tool-desc" data-i18n="tools.t8">Project facts from manifests and docs</div></div>
+          <div class="tool-item reveal"><div class="tool-name">neuromesh_explain_packet</div><div class="tool-desc" data-i18n="tools.t9">Debug why a file was selected or dropped</div></div>
+          <div class="tool-item reveal reveal-delay-1"><div class="tool-name">neuromesh_get_file_skeleton</div><div class="tool-desc" data-i18n="tools.t10">Fold a single file on demand</div></div>
+          <div class="tool-item reveal reveal-delay-2"><div class="tool-name">neuromesh_get_stats</div><div class="tool-desc" data-i18n="tools.t11">Graph size and index health</div></div>
         </div>
 
         <p class="reveal" style="margin-top: 24px; color: var(--fg-muted); font-size: 0.875rem;" data-i18n="tools.footer">
-          Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, Ruby — tree-sitter queries.
-          Framework overlays for Laravel, Django, Next, Nuxt, Spring, Android, and 30+ more.
+          30+ languages and frameworks — Rust, TypeScript, Python, Go, PHP, Laravel, Django, Next, Vue, Spring, Android, Express, and more.
         </p>
       </div>
     </section>
@@ -842,33 +831,33 @@ neuromesh connect    # write MCP configs for this repo</pre>
     <!-- Docs -->
     <section id="docs">
       <div class="container">
-        <div class="section-label reveal" data-i18n="docs.label">Learn more</div>
+        <div class="section-label reveal" data-i18n="docs.label">Go deeper</div>
         <h2 class="reveal" data-i18n="docs.title">Documentation</h2>
 
         <div class="docs-grid">
           <a href="nature.md" class="doc-link reveal">
             <span>🧬</span>
-            <div><div class="doc-title" data-i18n="docs.d1.t">Living systems</div><div class="doc-sub" data-i18n="docs.d1.s">DNA, Physarum, STDP — mapped to crates</div></div>
+            <div><div class="doc-title" data-i18n="docs.d1.t">Why biology?</div><div class="doc-sub" data-i18n="docs.d1.s">The ideas behind folding and routing</div></div>
           </a>
           <a href="architecture.md" class="doc-link reveal reveal-delay-1">
             <span>🏗️</span>
-            <div><div class="doc-title" data-i18n="docs.d2.t">Architecture</div><div class="doc-sub" data-i18n="docs.d2.s">Pipeline and guarantees</div></div>
+            <div><div class="doc-title" data-i18n="docs.d2.t">Architecture</div><div class="doc-sub" data-i18n="docs.d2.s">How a packet is built</div></div>
           </a>
           <a href="mcp.md" class="doc-link reveal reveal-delay-2">
             <span>🔌</span>
-            <div><div class="doc-title" data-i18n="docs.d3.t">MCP & CLI</div><div class="doc-sub" data-i18n="docs.d3.s">Tools and commands reference</div></div>
+            <div><div class="doc-title" data-i18n="docs.d3.t">MCP & CLI</div><div class="doc-sub" data-i18n="docs.d3.s">Every tool and command</div></div>
           </a>
           <a href="agent-guide.md" class="doc-link reveal">
             <span>🤖</span>
-            <div><div class="doc-title" data-i18n="docs.d4.t">Agent guide</div><div class="doc-sub" data-i18n="docs.d4.s">Per-IDE setup tutorial</div></div>
+            <div><div class="doc-title" data-i18n="docs.d4.t">Agent setup</div><div class="doc-sub" data-i18n="docs.d4.s">Rules and prompts per IDE</div></div>
           </a>
           <a href="quality.md" class="doc-link reveal reveal-delay-1">
             <span>📊</span>
-            <div><div class="doc-title" data-i18n="docs.d5.t">Quality</div><div class="doc-sub" data-i18n="docs.d5.s">Gold, eval, numbers</div></div>
+            <div><div class="doc-title" data-i18n="docs.d5.t">Benchmarks</div><div class="doc-sub" data-i18n="docs.d5.s">Recall, latency, release gates</div></div>
           </a>
           <a href="contributing.md" class="doc-link reveal reveal-delay-2">
             <span>🤝</span>
-            <div><div class="doc-title" data-i18n="docs.d6.t">Contributing</div><div class="doc-sub" data-i18n="docs.d6.s">Build a solver or a language</div></div>
+            <div><div class="doc-title" data-i18n="docs.d6.t">Contributing</div><div class="doc-sub" data-i18n="docs.d6.s">Add a language or improve routing</div></div>
           </a>
         </div>
       </div>
@@ -882,7 +871,7 @@ neuromesh connect    # write MCP configs for this repo</pre>
       <a href="CHANGELOG.md" data-i18n="footer.changelog">Changelog</a>
       <a href="https://github.com/pinoox/neuromesh/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
     </div>
-    <p data-i18n="footer.tagline">NeuroMesh · Don't delete the extra code. Fold it.</p>
+    <p data-i18n="footer.tagline">NeuroMesh · Ship less context. Ship the right code.</p>
   </footer>
 
   <!-- Lightbox -->
@@ -908,7 +897,7 @@ neuromesh connect    # write MCP configs for this repo</pre>
       function phrases() {
         return window.NMI18n
           ? NMI18n.getPhrases()
-          : ["Don't delete the extra code. Fold it.", 'Route first, then fold.', 'Structure stays. Tokens sleep.'];
+          : ["Ship less context. Ship the right code.", 'Route first. Fold the rest.', 'Your repo as a map — not a dump.'];
       }
 
       function clearTw() {

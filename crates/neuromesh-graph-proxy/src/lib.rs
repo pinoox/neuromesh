@@ -16,7 +16,7 @@ pub use packet::{
     ProxySearchContext,
 };
 pub use probe::{probe_graph_proxy, ProbeReport};
-pub use resolve::resolve_launch_spec;
+pub use resolve::{resolve_launch_spec, resolve_mcp_launch_spec};
 
 /// Active external graph session (one MCP server child process).
 pub struct GraphProxySession {

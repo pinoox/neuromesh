@@ -1,4 +1,5 @@
 use neuromesh_context::gold::{packet_file_names, packet_paths};
+use neuromesh_context::retrieval::infer_assisted_seed_signals;
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{
     OptimizationMode, ProjectId, Result, RetrievalMetadata, SeedEngineId, TaskSignature,
@@ -370,6 +371,16 @@ fn apply_client_signals(signature: &mut TaskSignature, args: &PacketArgs) {
         }
     }
     signature.engine_override = args.engine;
+    if signature.client_keywords.is_empty() && signature.client_expansion.is_empty() {
+        let prompt = args.query.as_deref().unwrap_or("");
+        let (keywords, expansion) = infer_assisted_seed_signals(prompt);
+        for kw in keywords {
+            push_unique_normalized(&mut signature.client_keywords, &kw);
+        }
+        for term in expansion {
+            push_unique_normalized(&mut signature.client_expansion, &term);
+        }
+    }
 }
 
 #[cfg(test)]

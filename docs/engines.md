@@ -2,7 +2,7 @@
 
 NeuroMesh separates **where structure comes from** (graph backend) from **how tasks pick starting symbols** (seed engine). Both are configurable from CLI, monitor Settings, or `nm.config.json`.
 
-**v0.8.2 recommendation:** keep **`native`** graph backend and **`keywords_expanded`** (or `hybrid`) seed engine. Use `proxy_cbm` only when CBM is already indexed and you want sidecar search — not as the primary investment path.
+**v0.8.2 recommendation:** keep **`native`** graph backend and **`keywords_expanded`** (or `hybrid`) seed engine. MCP stdio always uses **native + server-side assisted** keywords unless you set `proxy_cbm` explicitly. Use `auto` in monitor only when you want CBM sidecar detection.
 
 ## Graph backend
 

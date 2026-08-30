@@ -202,6 +202,32 @@ pub fn alias_seed_queries(prompt: &str) -> Vec<String> {
     out
 }
 
+/// When the MCP client sends no `keywords` / `expansion`, infer assisted signals from the
+/// prompt so stdio MCP matches benchmark "native assisted" without agent-side rules.
+pub fn infer_assisted_seed_signals(prompt: &str) -> (Vec<String>, Vec<String>) {
+    let mut keywords = alias_seed_queries(prompt);
+    let expanded = expand_aliases(prompt);
+    let mut expansion: Vec<String> = Vec::new();
+    for term in expanded {
+        let is_concept = canonical_concepts()
+            .iter()
+            .any(|c| term.eq_ignore_ascii_case(c));
+        if is_concept {
+            if !expansion.iter().any(|e| e.eq_ignore_ascii_case(&term)) {
+                expansion.push(term);
+            }
+        } else if term.is_ascii()
+            && term.len() >= 3
+            && !keywords.iter().any(|k| k.eq_ignore_ascii_case(&term))
+        {
+            keywords.push(term);
+        }
+    }
+    keywords.truncate(8);
+    expansion.truncate(8);
+    (keywords, expansion)
+}
+
 /// Inject alias-expanded terms into signature related_concepts (L1 internal expansion).
 pub fn inject_alias_expansion(related: &mut Vec<String>, prompt: &str) {
     for term in expand_aliases(prompt) {
@@ -227,11 +253,12 @@ mod tests {
     }
 
     #[test]
-    fn fa_middleware_yields_code_seeds() {
-        let seeds = alias_seed_queries(
-            "لوله‌ی میان‌افزارها (middleware pipeline) را توضیح بده و اینکه next() چطور کار می‌کند.",
+    fn infer_assisted_from_fa_middleware() {
+        let (kw, exp) = infer_assisted_seed_signals(
+            "لوله‌ی میان‌افزارها (middleware pipeline) را توضیح بده و next() چطور کار می‌کند.",
         );
-        assert!(seeds.iter().any(|s| s == "app.use"));
-        assert!(seeds.iter().any(|s| s == "next"));
+        assert!(kw.iter().any(|s| s == "app.use"));
+        assert!(kw.iter().any(|s| s == "next"));
+        assert!(exp.iter().any(|s| s == "middleware"));
     }
 }

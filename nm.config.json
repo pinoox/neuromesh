@@ -2,7 +2,7 @@
   "seed_resolution": null,
   "packet_header": null,
   "graph_backend": {
-    "backend": "auto",
+    "backend": "native",
     "fallback_native": true
   }
 }

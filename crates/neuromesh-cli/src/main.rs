@@ -2,7 +2,7 @@ mod commands;
 
 use neuromesh_core::{Config, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
-use neuromesh_graph_proxy::{resolve_for_workspace, GraphProxySession};
+use neuromesh_graph_proxy::{resolve_mcp_launch_spec, GraphProxySession};
 use neuromesh_memory::MemoryDatabase;
 use std::env;
 use std::sync::Arc;
@@ -197,7 +197,7 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                     working_memory,
                 );
                 let cfg = Config::load();
-                if let Some(spec) = resolve_for_workspace(&cfg.graph_backend, &current_dir) {
+                if let Some(spec) = resolve_mcp_launch_spec(&cfg.graph_backend, &current_dir) {
                     match GraphProxySession::connect(spec.clone(), &current_dir).await {
                         Ok(session) => {
                             eprintln!(
