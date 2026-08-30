@@ -2,7 +2,7 @@
 
 NeuroMesh separates **where structure comes from** (graph backend) from **how tasks pick starting symbols** (seed engine). Both are configurable from CLI, monitor Settings, or `nm.config.json`.
 
-**v0.8.2 recommendation:** keep **`native`** graph backend and **`keywords_expanded`** (or `hybrid`) seed engine. MCP stdio always uses **native + server-side assisted** keywords unless you set `proxy_cbm` explicitly. Use `auto` in monitor only when you want CBM sidecar detection.
+**v0.8.3 recommendation:** keep **`native`** graph backend and **`keywords_expanded`** (or `hybrid`) seed engine. MCP stdio always uses **native + server-side assisted** keywords unless you set `proxy_cbm` explicitly. Use `auto` in monitor only when you want CBM sidecar detection.
 
 ## Graph backend
 
@@ -49,7 +49,29 @@ See [graph-proxy.md](graph-proxy.md) for architecture details.
 
 ---
 
-## Seed engine
+## Embedding engine (L3, optional)
+
+Multilingual vector recovery for NL prompts that still miss after L1/L2. **Off by default** — enable when you need stronger greenfield / cross-language seed recovery without delegating to CBM.
+
+| Model | Role | Size (approx) |
+| :--- | :--- | :--- |
+| `gemma300m_q4` | **Default** — EmbeddingGemma-300M Q4, 100+ languages | ~150–200 MB download |
+| `minilm_multilingual_q` | Ultra-light fallback | ~80–120 MB |
+
+```bash
+neuromesh config embeddings on              # nm.config.json
+neuromesh config embeddings gemma300m_q4    # pick model
+neuromesh doctor --embed                    # sidecar + sample latency
+cargo build -p neuromesh-cli --features embeddings
+```
+
+Build with **`embeddings` feature** compiled in. Index writes `embeddings.bin` beside `graph.bin` when `index_on_build: true`. Query path embeds the prompt once and ANN-searches symbol sketches — results still pass through native graph resolve.
+
+Env: `NEUROMESH_EMBEDDINGS=1`, `NEUROMESH_EMBED_MODEL=gemma300m_q4`
+
+Compared to CBM's bundled **`nomic-embed-code`** (code-PL similarity), Gemma Q4 targets **spoken-language** queries — the job NeuroMesh L3 actually needs.
+
+---
 
 | Value | Role |
 | :--- | :--- |

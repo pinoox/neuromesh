@@ -1,6 +1,6 @@
 use crate::{
-    GraphBackendId, GraphProxyConfig, NeuroMeshError, NmConfigOverlay, PacketHeaderConfig, Result,
-    SeedEngineId, SeedResolutionConfig,
+    EmbeddingConfig, GraphBackendId, GraphProxyConfig, NeuroMeshError, NmConfigOverlay,
+    PacketHeaderConfig, Result, SeedEngineId, SeedResolutionConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -168,6 +168,8 @@ pub struct Config {
     pub packet_header: PacketHeaderConfig,
     #[serde(default)]
     pub graph_backend: GraphProxyConfig,
+    #[serde(default)]
+    pub embeddings: EmbeddingConfig,
 }
 
 impl Default for Config {
@@ -186,6 +188,7 @@ impl Default for Config {
             seed_resolution: SeedResolutionConfig::default(),
             packet_header: PacketHeaderConfig::default(),
             graph_backend: GraphProxyConfig::default(),
+            embeddings: EmbeddingConfig::default(),
         }
     }
 }
@@ -250,6 +253,9 @@ impl Config {
         if let Some(gb) = overlay.graph_backend {
             self.graph_backend = gb;
         }
+        if let Some(em) = overlay.embeddings {
+            self.embeddings = em;
+        }
     }
 
     fn overlay_project(&mut self, other: Self) {
@@ -263,6 +269,7 @@ impl Config {
         self.seed_resolution = other.seed_resolution;
         self.packet_header = other.packet_header;
         self.graph_backend = other.graph_backend;
+        self.embeddings = other.embeddings;
     }
 
     fn read_file(path: &Path) -> Option<Self> {
@@ -295,6 +302,14 @@ impl Config {
         }
         if let Ok(raw) = std::env::var("NEUROMESH_AUTO_EXTRACT_KEYWORDS") {
             self.seed_resolution.auto_extract_keywords = Self::parse_env_bool(&raw, true);
+        }
+        if let Ok(raw) = std::env::var("NEUROMESH_EMBEDDINGS") {
+            self.embeddings.enabled = Self::parse_env_bool(&raw, false);
+        }
+        if let Ok(raw) = std::env::var("NEUROMESH_EMBED_MODEL") {
+            if let Some(model) = crate::EmbeddingModelId::parse(&raw) {
+                self.embeddings.model = model;
+            }
         }
         self
     }
@@ -334,6 +349,8 @@ impl Config {
         merged.max_files = self.max_files;
         merged.seed_resolution = self.seed_resolution.clone();
         merged.packet_header = self.packet_header.clone();
+        merged.embeddings = self.embeddings.clone();
+        merged.graph_backend = self.graph_backend.clone();
         fs::write(&path, serde_json::to_string_pretty(&merged)?)?;
         Ok(path)
     }
@@ -408,6 +425,44 @@ impl Config {
         let mut gb = overlay.graph_backend.take().unwrap_or_default();
         gb.backend = backend;
         overlay.graph_backend = Some(gb);
+        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
+        Ok(path)
+    }
+
+    pub fn set_global_embeddings(enabled: bool) -> Result<PathBuf> {
+        let path = Self::home_config_path();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut cfg = if path.exists() {
+            Self::read_file(&path).unwrap_or_default()
+        } else {
+            Self::default()
+        };
+        cfg.embeddings.enabled = enabled;
+        fs::write(&path, serde_json::to_string_pretty(&cfg)?)?;
+        Ok(path)
+    }
+
+    pub fn set_workspace_embeddings(workspace: &Path, enabled: bool) -> Result<PathBuf> {
+        let path = Self::workspace_nm_config_path(workspace);
+        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
+        let mut emb = overlay.embeddings.take().unwrap_or_default();
+        emb.enabled = enabled;
+        overlay.embeddings = Some(emb);
+        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
+        Ok(path)
+    }
+
+    pub fn set_workspace_embedding_model(
+        workspace: &Path,
+        model: crate::EmbeddingModelId,
+    ) -> Result<PathBuf> {
+        let path = Self::workspace_nm_config_path(workspace);
+        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
+        let mut emb = overlay.embeddings.take().unwrap_or_default();
+        emb.model = model;
+        overlay.embeddings = Some(emb);
         fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
         Ok(path)
     }

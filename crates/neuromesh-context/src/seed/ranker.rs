@@ -34,6 +34,7 @@ pub fn signal_weight(config: &SeedResolutionConfig, signal: SignalKind, position
         SignalKind::Expansion => config.weights.expansion_match,
         SignalKind::PathHint => config.weights.path_hint_bonus,
         SignalKind::EntityType => config.weights.entity_type_bonus,
+        SignalKind::SemanticEmbed => config.weights.semantic_embed_match,
     };
     let decay = 1.0 / (1.0 + position as f32 * 0.08);
     base * decay
@@ -46,6 +47,7 @@ pub enum SignalKind {
     Expansion,
     PathHint,
     EntityType,
+    SemanticEmbed,
 }
 
 #[cfg(test)]

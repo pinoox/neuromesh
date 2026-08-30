@@ -9,6 +9,7 @@ use super::{configured_walker, print_file_cap, snapshot, FileCapArg};
 pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
     let mcp_diag = args.iter().any(|a| a == "--mcp");
     let proxy_diag = args.iter().any(|a| a == "--proxy" || a == "--probe");
+    let embed_diag = args.iter().any(|a| a == "--embed");
     let probe_live = args.iter().any(|a| a == "--probe");
     println!("\nNeuroMesh doctor");
     println!(
@@ -123,6 +124,49 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
                 println!("  Status         : failed");
                 if let Some(err) = &report.error {
                     println!("  Error          : {err}");
+                }
+            }
+        }
+    }
+
+    if embed_diag {
+        let emb = cfg.embeddings;
+        println!("\nEmbedding engine (L3)");
+        println!(
+            "  Config         : {} ({})",
+            if emb.enabled { "enabled" } else { "disabled" },
+            emb.model.as_str()
+        );
+        #[cfg(not(feature = "embeddings"))]
+        println!("  Binary         : embeddings feature not compiled");
+        #[cfg(feature = "embeddings")]
+        {
+            let sidecar = neuromesh_core::embeddings_path(&root);
+            if sidecar.exists() {
+                println!("  Sidecar        : {} (present)", sidecar.display());
+                if let Ok(Some(sc)) = neuromesh_graph::load_sidecar(&sidecar) {
+                    println!(
+                        "  Vectors        : {} symbols × {} dims (gen {})",
+                        sc.node_ids.len(),
+                        sc.dim,
+                        sc.graph_generation
+                    );
+                }
+            } else {
+                println!("  Sidecar        : missing (run neuromesh index with embeddings on)");
+            }
+            if emb.enabled {
+                let started = std::time::Instant::now();
+                match neuromesh_embed::Embedder::try_new(emb.clone()) {
+                    Ok(mut embedder) => match embedder.embed_query("doctor probe middleware") {
+                        Ok(vec) => println!(
+                            "  Sample embed   : ok ({} dims, {} ms)",
+                            vec.len(),
+                            started.elapsed().as_millis()
+                        ),
+                        Err(e) => println!("  Sample embed   : failed ({e})"),
+                    },
+                    Err(e) => println!("  Model load     : failed ({e})"),
                 }
             }
         }

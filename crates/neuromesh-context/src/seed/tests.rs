@@ -4,7 +4,9 @@ mod seed_engine_tests {
     use crate::seed::ranker::{signal_weight, SignalKind};
     use crate::seed::sink::SeedBuffers;
     use crate::seed::{resolve_engine_id, run_seed_resolution};
-    use neuromesh_core::{ProjectId, SeedEngineId, SeedResolutionConfig, TaskSignature};
+    use neuromesh_core::{
+        EmbeddingConfig, ProjectId, SeedEngineId, SeedResolutionConfig, TaskSignature,
+    };
     use neuromesh_graph::NeuralProjectGraph;
     use neuromesh_task::TaskSignatureExtractor;
     use std::collections::HashMap;
@@ -67,6 +69,7 @@ mod seed_engine_tests {
             &sig,
             &sig.raw_prompt,
             &config,
+            &EmbeddingConfig::default(),
             &mut buffers,
             resolve_seed_query,
             false,
@@ -80,5 +83,18 @@ mod seed_engine_tests {
         let mut sig = TaskSignature::new("demo");
         sig.engine_override = Some(SeedEngineId::Hybrid);
         assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::Hybrid);
+    }
+
+    #[test]
+    fn embedding_config_defaults_disabled() {
+        let cfg = EmbeddingConfig::default();
+        assert!(!cfg.enabled);
+        assert_eq!(cfg.model.as_str(), "gemma300m_q4");
+    }
+
+    #[test]
+    fn seed_weights_include_semantic_embed() {
+        let cfg = SeedResolutionConfig::default();
+        assert!(cfg.weights.semantic_embed_match > 0.0);
     }
 }

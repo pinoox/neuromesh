@@ -271,7 +271,7 @@ fn print_help() {
     println!(
         "  eval       Gold-task recall / precision / fill budget (alias: evaluate, benchmark)"
     );
-    println!("  doctor     Workspace root, scan, MCP env, monitor port (`--mcp`)");
+    println!("  doctor     Workspace root, scan, MCP/proxy/embed (`--mcp`, `--proxy`, `--embed`)");
     println!("  init       Ensure NeuroMesh data directories exist");
     println!("  models     List configured / local AI models");
     println!("  version    Print version (-v, --version)");

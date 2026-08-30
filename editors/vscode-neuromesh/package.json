@@ -2,7 +2,7 @@
   "name": "vscode-neuromesh",
   "displayName": "NeuroMesh",
   "description": "Evidence packets, reversible folds, and a live mesh sidebar for Cursor & VS Code. Don’t dump files — fold them.",
-  "version": "0.8.2",
+  "version": "0.8.4",
   "publisher": "neuromesh",
   "license": "MIT",
   "homepage": "https://github.com/pinoox/neuromesh",

@@ -24,3 +24,7 @@ tracing.workspace = true
 parking_lot.workspace = true
 chrono.workspace = true
 uuid.workspace = true
+
+[features]
+default = []
+embeddings = ["neuromesh-context/embeddings", "neuromesh-graph/embeddings"]

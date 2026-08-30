@@ -64,6 +64,7 @@ impl RetrievalOrchestrator {
             eligible_for_early_exit: est.eligible_for_early_exit,
             next_action,
             suggested_keywords,
+            embedding_used: view.embedding_used,
         });
 
         view

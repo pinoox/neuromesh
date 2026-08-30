@@ -415,8 +415,10 @@ pub struct RetrievalMetadata {
     pub eligible_for_early_exit: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_action: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub suggested_keywords: Option<Vec<String>>,
+    #[serde(default)]
+    pub embedding_used: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -487,6 +489,8 @@ pub struct ContextView {
     pub packet_header: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retrieval: Option<RetrievalMetadata>,
+    #[serde(default)]
+    pub embedding_used: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

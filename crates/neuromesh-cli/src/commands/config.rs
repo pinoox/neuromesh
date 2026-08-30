@@ -1,4 +1,6 @@
-use neuromesh_core::{Config, GraphBackendId, NeuroMeshError, Result, SeedEngineId};
+use neuromesh_core::{
+    Config, EmbeddingModelId, GraphBackendId, NeuroMeshError, Result, SeedEngineId,
+};
 use neuromesh_graph_proxy::resolve_for_workspace;
 
 pub fn execute(args: &[String]) -> Result<()> {
@@ -14,6 +16,9 @@ pub fn execute(args: &[String]) -> Result<()> {
         }
         Some("graph-backend") | Some("graph_backend") | Some("graph") => {
             handle_graph_backend(args.get(3).map(String::as_str), global_flag(args))
+        }
+        Some("embeddings") | Some("embedding") => {
+            handle_embeddings(args.get(3).map(String::as_str), global_flag(args))
         }
         Some(other) if SeedEngineId::parse(other).is_some() => {
             handle_seed_engine(Some(other), global_flag(args))
@@ -97,6 +102,91 @@ fn print_graph_backend_status() -> Result<()> {
         println!("Env override           : {raw}");
     }
     Ok(())
+}
+
+fn handle_embeddings(value: Option<&str>, global: bool) -> Result<()> {
+    match value {
+        None | Some("get") | Some("show") => print_embeddings_status(),
+        Some("help") | Some("-h") | Some("--help") => {
+            print_embeddings_help();
+            Ok(())
+        }
+        Some("on") | Some("true") | Some("1") => set_embeddings_enabled(true, global),
+        Some("off") | Some("false") | Some("0") => set_embeddings_enabled(false, global),
+        Some(raw) if EmbeddingModelId::parse(raw).is_some() => {
+            let model = EmbeddingModelId::parse(raw).expect("checked");
+            let ws = std::env::current_dir()?;
+            let path = Config::set_workspace_embedding_model(&ws, model)?;
+            println!("Project embedding model: {}", model.as_str());
+            println!("Saved                  : {}", path.display());
+            Ok(())
+        }
+        Some(other) => Err(NeuroMeshError::Config(format!(
+            "invalid embeddings config: {other} (use: on, off, gemma300m_q4, minilm_multilingual_q)"
+        ))),
+    }
+}
+
+fn set_embeddings_enabled(enabled: bool, global: bool) -> Result<()> {
+    if global {
+        let path = Config::set_global_embeddings(enabled)?;
+        println!(
+            "Global embeddings      : {}",
+            if enabled { "on" } else { "off" }
+        );
+        println!("Saved                  : {}", path.display());
+    } else {
+        let ws = std::env::current_dir()?;
+        let path = Config::set_workspace_embeddings(&ws, enabled)?;
+        println!(
+            "Project embeddings     : {}",
+            if enabled { "on" } else { "off" }
+        );
+        println!("Saved                  : {}", path.display());
+    }
+    Ok(())
+}
+
+fn print_embeddings_status() -> Result<()> {
+    let cfg = Config::load();
+    println!(
+        "Embeddings enabled     : {}",
+        if cfg.embeddings.enabled { "yes" } else { "no" }
+    );
+    println!("Model                  : {}", cfg.embeddings.model.as_str());
+    println!("Matryoshka dim         : {}", cfg.embeddings.matryoshka_dim);
+    println!("ANN top-k              : {}", cfg.embeddings.ann_top_k);
+    println!("Min cosine             : {}", cfg.embeddings.min_cosine);
+    println!("Index on build         : {}", cfg.embeddings.index_on_build);
+    if let Ok(raw) = std::env::var("NEUROMESH_EMBEDDINGS") {
+        println!("Env NEUROMESH_EMBEDDINGS: {raw}");
+    }
+    if let Ok(raw) = std::env::var("NEUROMESH_EMBED_MODEL") {
+        println!("Env NEUROMESH_EMBED_MODEL: {raw}");
+    }
+    #[cfg(not(feature = "embeddings"))]
+    println!("Binary feature         : embeddings disabled (rebuild with --features embeddings)");
+    #[cfg(feature = "embeddings")]
+    println!("Binary feature         : embeddings enabled");
+    Ok(())
+}
+
+fn print_embeddings_help() {
+    println!(
+        "\
+Usage: neuromesh config embeddings [on|off|MODEL] [--global]
+
+  neuromesh config embeddings              show effective embedding settings
+  neuromesh config embeddings on           enable L3 vector recovery (project)
+  neuromesh config embeddings off          disable embeddings
+  neuromesh config embeddings gemma300m_q4 set model (project)
+
+Models: gemma300m_q4 (default), minilm_multilingual_q
+Env    : NEUROMESH_EMBEDDINGS=1, NEUROMESH_EMBED_MODEL=gemma300m_q4
+Doctor : neuromesh doctor --embed
+Build  : cargo build -p neuromesh-cli --features embeddings
+"
+    );
 }
 
 fn handle_seed_engine(value: Option<&str>, global: bool) -> Result<()> {

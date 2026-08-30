@@ -4,7 +4,21 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-### Server-side assisted default (v0.8.3)
+## 0.8.4 — 2026-08-30
+
+### L3 local embedding engine (optional)
+
+- **`neuromesh-embed` crate** — fastembed-rs + ONNX Runtime; default model **EmbeddingGemma-300M Q4** (multilingual NL, ~150–200 MB download); fallback **MiniLM multilingual Q**.
+- **L3-only** — vector ANN runs inside `semantic_lite` when L1/L2 still have critical gaps; max 2 recovery seeds; graph resolve after ANN (no file dump).
+- **`embeddings.bin` sidecar** — index-time symbol sketches; invalidated on graph generation / file-hash change.
+- **Config** — `embeddings` block in `config.json` / `nm.config.json`; `NEUROMESH_EMBEDDINGS=1`, `NEUROMESH_EMBED_MODEL=gemma300m_q4`.
+- **CLI** — `neuromesh config embeddings on|off`, `neuromesh doctor --embed`.
+- **Cargo feature** — `embeddings` (default off); build with `cargo build -p neuromesh-cli --features embeddings`.
+- **MCP** — `retrieval.embedding_used` when L3 vector recovery fires.
+
+## 0.8.3 — 2026-08-30
+
+### Server-side assisted default
 
 - **`get_context_packet`** auto-extracts English code `keywords` and related `expansion` from every prompt server-side (`auto_extract_keywords=true` default). Rule-based pipeline: query-intent packs → alias code seeds → embedded symbols → alias concepts. No LLM required.
 - **FILL-ONLY-MISSING** — client-supplied keywords/expansion are never overwritten; only empty sides are populated.

@@ -34,7 +34,7 @@ neuromesh eval
 
 `neuromesh eval` prints **workspace / selected / packet** tokens, reduction vs both, recall, precision, **Grep still needed**, and latency. Published numbers must come from that table — not from a padded corpus or a global 99% claim.
 
-## Tiered retrieval & release gates (v0.8.2)
+## Tiered retrieval & release gates (v0.8.3)
 
 MCP and `neuromesh packet --json` use **single-pass** L1→L2→L3 escalation. L2 pattern expand and L3 semantic recovery run only when **critical gaps** remain after the sufficiency check.
 
@@ -70,6 +70,10 @@ Build a **release** binary before measuring; debug builds skew latency.
 
 - **Server-side assisted default** (v0.8.3): raw MCP calls match or exceed v0.8.2 client-assisted recall/precision with **zero no_seed** across all languages. Opt out via `auto_extract_keywords=false` or `NEUROMESH_AUTO_EXTRACT_KEYWORDS=0`.
 - Re-run: `node test3/mcp_driver_v2.mjs <release-neuromesh> <express-workspace> <outdir> 6 raw native`
+
+### L3 embeddings (v0.8.4, optional)
+
+Requires `cargo build --features embeddings` and `embeddings.enabled: true` in config. Default model **EmbeddingGemma-300M Q4** — multilingual NL, stronger than CBM's code-only `nomic-embed-code` for spoken-language prompts. Runs only on L3 escalation (critical gaps after L1/L2); does not change default MCP hot path when disabled.
 
 ## Multilingual MCP benchmark (v0.8.2, historical)
 

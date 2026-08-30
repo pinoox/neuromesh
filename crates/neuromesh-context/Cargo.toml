@@ -10,12 +10,17 @@ neuromesh-core = { path = "../neuromesh-core" }
 neuromesh-graph = { path = "../neuromesh-graph" }
 neuromesh-task = { path = "../neuromesh-task" }
 neuromesh-parser = { path = "../neuromesh-parser" }
+neuromesh-embed = { path = "../neuromesh-embed", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true
 tracing.workspace = true
 parking_lot.workspace = true
 regex.workspace = true
+
+[features]
+default = []
+embeddings = ["dep:neuromesh-embed", "neuromesh-graph/embeddings"]
 
 [dev-dependencies]
 neuromesh-index = { path = "../neuromesh-index" }

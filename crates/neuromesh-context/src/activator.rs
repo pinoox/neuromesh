@@ -269,6 +269,7 @@ impl ContextActivator {
 
         let app_config = Config::load();
         let seed_config = app_config.seed_resolution.clone();
+        let embedding_config = app_config.embeddings.clone();
         let header_config = app_config.packet_header.clone();
 
         let mut buffers = SeedBuffers {
@@ -288,12 +289,14 @@ impl ContextActivator {
             &sig_for_seeds,
             prompt,
             &seed_config,
+            &embedding_config,
             &mut buffers,
             resolve_seed_query,
             is_style_task(signature),
         );
 
         let scaffold_used = seed_result.scaffold_used;
+        let embedding_used = seed_result.embedding_used;
 
         {
             let mut sink = SeedSink::new(
@@ -946,6 +949,7 @@ impl ContextActivator {
             seed_resolution_telemetry: Some(seed_resolution_telemetry),
             packet_header,
             retrieval: None,
+            embedding_used,
         };
         *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
         view
@@ -1135,6 +1139,9 @@ fn merge_context_views(base: ContextView, extension: ContextView) -> ContextView
     }
     if let Some(cov) = extension.coverage {
         merged.coverage = Some(cov);
+    }
+    if extension.embedding_used {
+        merged.embedding_used = true;
     }
     merged
 }

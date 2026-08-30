@@ -121,7 +121,7 @@ Aliases exist for older clients (`neuromesh_get_context`, `activate_context`, `e
 
 `mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality. `mode` does not add metadata; `response_detail` does (`minimal` ≤ 256 metadata tokens, `standard` ≤ 750, `diagnostic` on demand).
 
-### Retrieval metadata (v0.8.2)
+### Retrieval metadata (v0.8.3)
 
 Present on **all** detail levels (`minimal`, `standard`, `diagnostic`) when tiered activation runs. `minimal` uses a compact block (level, claim, gaps, next action); `standard` and `diagnostic` include full latency and confidence fields.
 

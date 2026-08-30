@@ -86,6 +86,13 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
     }
     graph.ingest_scan_report(&report);
     graph.save_persisted(&current_dir)?;
+    #[cfg(feature = "embeddings")]
+    {
+        let emb = neuromesh_core::Config::load().embeddings;
+        if emb.enabled && emb.index_on_build {
+            let _ = neuromesh_graph::maybe_rebuild_embeddings(&graph, &current_dir, &emb);
+        }
+    }
 
     if has_html {
         memory_db.save_project_fact(&ProjectFact::new(

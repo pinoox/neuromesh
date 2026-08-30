@@ -1,6 +1,8 @@
 use crate::retrieval::concept_seeds::resolve_concept_seeds;
 use crate::retrieval::query_intent::QueryPlan;
-use neuromesh_core::{SeedEngineId, SeedResolutionConfig, SeedResolutionTelemetry, TaskSignature};
+use neuromesh_core::{
+    EmbeddingConfig, SeedEngineId, SeedResolutionConfig, SeedResolutionTelemetry, TaskSignature,
+};
 use neuromesh_graph::NeuralProjectGraph;
 use std::time::Instant;
 
@@ -12,6 +14,9 @@ pub mod micro_header;
 pub mod ranker;
 pub mod sink;
 
+#[cfg(feature = "embeddings")]
+pub mod semantic_embed;
+
 #[cfg(test)]
 mod tests;
 
@@ -22,6 +27,7 @@ pub use sink::{ResolveSeedFn, SeedBuffers, SeedSink};
 #[derive(Debug, Clone)]
 pub struct SeedRunResult {
     pub scaffold_used: bool,
+    pub embedding_used: bool,
     pub telemetry: SeedResolutionTelemetry,
     pub monorepo_packages: Vec<String>,
     pub packet_header: Option<String>,
@@ -31,11 +37,13 @@ pub fn resolve_engine_id(signature: &TaskSignature, config: &SeedResolutionConfi
     signature.engine_override.unwrap_or(config.engine)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_seed_resolution(
     graph: &NeuralProjectGraph,
     signature: &TaskSignature,
     prompt: &str,
     config: &SeedResolutionConfig,
+    embedding_config: &EmbeddingConfig,
     buffers: &mut SeedBuffers<'_, '_, '_>,
     resolve: ResolveSeedFn,
     is_style: bool,
@@ -43,15 +51,22 @@ pub fn run_seed_resolution(
     let started = Instant::now();
     let engine = resolve_engine_id(signature, config);
 
-    let scaffold_used = {
+    let (scaffold_used, embedding_used) = {
         let mut sink = SeedSink::new(
             buffers.resolutions,
             buffers.energies,
             buffers.reasons,
             resolve,
         );
-        let used = engines::dispatch(
-            engine, graph, signature, prompt, config, &mut sink, is_style,
+        let (scaffold, embedding) = engines::dispatch(
+            engine,
+            graph,
+            signature,
+            prompt,
+            config,
+            embedding_config,
+            &mut sink,
+            is_style,
         );
 
         if sink.resolved_count() == 0 {
@@ -68,7 +83,7 @@ pub fn run_seed_resolution(
             );
             fallback::lexical_fallback(graph, prompt, config, &mut sink);
         }
-        used
+        (scaffold, embedding)
     };
 
     ranker::cap_and_rank(buffers, config);
@@ -92,6 +107,7 @@ pub fn run_seed_resolution(
 
     SeedRunResult {
         scaffold_used,
+        embedding_used,
         telemetry,
         monorepo_packages,
         packet_header: None,

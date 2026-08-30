@@ -34,7 +34,7 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 
 Do not treat a utility fallback file as the answer when coverage says seeds missed or `packet_gaps` is non-empty.
 
-## Graph backend (optional, v0.8.2)
+## Graph backend (optional, v0.8.3)
 
 Default is **`native`** (built-in graph + tiered retrieval). **`proxy_cbm`** / **`auto`** delegate only `get_context_packet` to [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp); folding, `search_symbols`, and `trace` stay native.
 

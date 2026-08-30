@@ -1,4 +1,4 @@
-use crate::GraphProxyConfig;
+use crate::{EmbeddingConfig, GraphProxyConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -56,6 +56,7 @@ pub struct SeedSignalWeights {
     pub expansion_match: f32,
     pub path_hint_bonus: f32,
     pub entity_type_bonus: f32,
+    pub semantic_embed_match: f32,
 }
 
 impl Default for SeedSignalWeights {
@@ -66,6 +67,7 @@ impl Default for SeedSignalWeights {
             expansion_match: 0.5,
             path_hint_bonus: 0.3,
             entity_type_bonus: 0.2,
+            semantic_embed_match: 0.75,
         }
     }
 }
@@ -136,4 +138,6 @@ pub struct NmConfigOverlay {
     pub packet_header: Option<PacketHeaderConfig>,
     #[serde(default)]
     pub graph_backend: Option<GraphProxyConfig>,
+    #[serde(default)]
+    pub embeddings: Option<EmbeddingConfig>,
 }

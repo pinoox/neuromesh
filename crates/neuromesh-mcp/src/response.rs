@@ -266,6 +266,7 @@ impl ContextBuild<'_> {
                 "eligible_for_early_exit": r.eligible_for_early_exit,
                 "next_action": r.next_action,
                 "suggested_keywords": r.suggested_keywords,
+                "embedding_used": r.embedding_used,
             })
         })
     }
