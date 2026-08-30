@@ -4,12 +4,19 @@ use neuromesh_core::{EmbeddingConfig, NodeId};
 use neuromesh_graph::NeuralProjectGraph;
 
 #[cfg(feature = "embeddings")]
-use neuromesh_embed::{cosine_similarity, Embedder};
+use neuromesh_embed::{cached_query_vector, cosine_similarity, embed_query_cached};
 
 pub const TIER_EMBEDDING_PRIMARY: &str = "embedding_primary";
 pub const TIER_L1_EXACT: &str = "L1_exact";
 pub const TIER_L2_PATTERN: &str = "L2_pattern";
 pub const TIER_L3_SEMANTIC: &str = "L3_semantic_recovery";
+
+fn query_vector(embedding_config: &EmbeddingConfig, prompt: &str) -> Option<Vec<f32>> {
+    if let Some(v) = cached_query_vector(embedding_config, prompt) {
+        return Some(v);
+    }
+    embed_query_cached(embedding_config, prompt).ok()
+}
 
 /// Max cosine between `prompt` and resolved seed node vectors (0 when unavailable).
 #[cfg(feature = "embeddings")]
@@ -26,8 +33,7 @@ pub fn max_seed_embedding_score(
     if !index.is_loaded() {
         return None;
     }
-    let mut embedder = Embedder::try_new(embedding_config.clone()).ok()?;
-    let query = embedder.embed_query(prompt).ok()?;
+    let query = query_vector(embedding_config, prompt)?;
     let mut best = 0.0f32;
     for id in seed_ids {
         let idx = index.node_ids.iter().position(|n| n == id)?;

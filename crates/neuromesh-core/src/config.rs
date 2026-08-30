@@ -311,6 +311,12 @@ impl Config {
                 self.embeddings.model = model;
             }
         }
+        if let Ok(raw) = std::env::var("NEUROMESH_EMBED_THREADS") {
+            if let Ok(n) = raw.trim().parse::<usize>() {
+                self.embeddings.intra_threads = if n == 0 { None } else { Some(n) };
+            }
+        }
+        self.embeddings = self.embeddings.clone().normalized();
         self
     }
 

@@ -182,6 +182,16 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
 
             let cap = commands::max_files_from_args(args)?;
             let _ = graph.load_persisted(&current_dir);
+            let cfg = Config::load();
+            #[cfg(feature = "embeddings")]
+            if cfg.embeddings.enabled {
+                let emb = cfg.embeddings.clone();
+                std::thread::spawn(move || {
+                    if let Err(e) = neuromesh_embed::Embedder::warm(emb) {
+                        eprintln!("NeuroMesh embed warm-up: {e}");
+                    }
+                });
+            }
             let _ = neuromesh_mcp::warmup_project_learning(
                 memory_db.as_ref(),
                 graph.as_ref(),
@@ -271,7 +281,7 @@ fn print_help() {
     println!(
         "  eval       Gold-task recall / precision / fill budget (alias: evaluate, benchmark)"
     );
-    println!("  doctor     Workspace root, scan, MCP/proxy/embed (`--mcp`, `--proxy`, `--embed`)");
+    println!("  doctor     Workspace root, scan, MCP/proxy/embed (`--mcp`, `--proxy`, `--embed`, `--bench`)");
     println!("  init       Ensure NeuroMesh data directories exist");
     println!("  models     List configured / local AI models");
     println!("  version    Print version (-v, --version)");

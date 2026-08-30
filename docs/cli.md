@@ -123,6 +123,8 @@ Monitor **Settings → Graph Backend / Seed Engine** saves `nm.config.json` and 
 
 ```bash
 neuromesh doctor
+neuromesh doctor --embed              # embedding sidecar + cold warm
+neuromesh doctor --embed --bench      # p50/p95 warm embed latency
 neuromesh index
 neuromesh optimize -- "How does handle_tool_call extract intent?"
 neuromesh eval

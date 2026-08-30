@@ -51,25 +51,34 @@ See [graph-proxy.md](graph-proxy.md) for architecture details.
 
 ## Local embedding engine (default)
 
-Multilingual vector seed resolution for natural-language prompts. **On by default** — the agent sends the task as written; the engine embeds the prompt and ANN-searches symbol sketches on the native graph.
+Multilingual vector seed resolution for natural-language prompts. **On by default** — the agent sends the task as written; the engine embeds the prompt once (singleton ONNX session + per-packet cache) and ANN-searches symbol sketches on the native graph.
+
+### Profiles
+
+| Profile | Config | When |
+| :--- | :--- | :--- |
+| **Interactive (default)** | `minilm_multilingual_q`, singleton warm, `intra_threads: 4` | MCP / IDE daily use |
+| **Quality (offline)** | `gemma300m_q4`, re-index overnight | Higher NL quality; not for interactive hot path |
+| **Lexical legacy** | `keywords_expanded` + `embeddings.enabled: false` | Match v0.8.3 behavior |
 
 | Model | Role | Size (approx) |
 | :--- | :--- | :--- |
-| `gemma300m_q4` | **Default** — EmbeddingGemma-300M Q4, 100+ languages | ~150–200 MB download |
-| `minilm_multilingual_q` | Ultra-light fallback | ~80–120 MB |
+| `minilm_multilingual_q` | **Default** — Paraphrase MiniLM L12 v2 Q, multilingual | ~50–80 MB download |
+| `gemma300m_q4` | Quality tier — EmbeddingGemma-300M Q4 | ~150–200 MB download |
 
 ```bash
 neuromesh config embeddings off             # disable vector path
-neuromesh config embeddings gemma300m_q4    # pick model
-neuromesh doctor --embed                    # sidecar + sample latency
+neuromesh config embeddings gemma300m_q4    # quality tier (re-index required)
+neuromesh doctor --embed                    # sidecar + cold warm latency
+neuromesh doctor --embed --bench            # p50/p95 warm embed (20 queries)
 neuromesh index                             # writes embeddings.bin when enabled
 ```
 
-Index writes `embeddings.bin` beside `graph.bin`. Query path embeds the prompt once, ANN-searches sketches, then **graph-resolves** hits (no raw file dump). Lexical keyword fallback runs only when embeddings are disabled or the sidecar is missing.
+Index writes `embeddings.bin` beside `graph.bin`. **Switching models requires `neuromesh index`** (sidecar stores `model_id`). Query path embeds the prompt once per packet, ANN-searches sketches, then **graph-resolves** hits (no raw file dump). Lexical keyword fallback runs only when embeddings are disabled or the sidecar is missing.
 
 **Metadata:** `retrieval.resolution_tier` (`embedding_primary`, `L1_exact`, `L2_pattern`, `L3_semantic_recovery`), `retrieval.max_embedding_score`, `coverage: no_confident_match` when nothing clears `min_cosine`.
 
-Env: `NEUROMESH_EMBEDDINGS=0` to disable, `NEUROMESH_EMBED_MODEL=gemma300m_q4`
+Env: `NEUROMESH_EMBEDDINGS=0` to disable, `NEUROMESH_EMBED_MODEL=minilm_multilingual_q|gemma300m_q4`, `NEUROMESH_EMBED_THREADS=4` (ONNX intra-op threads; useful on Intel hybrid CPUs).
 
 ---
 

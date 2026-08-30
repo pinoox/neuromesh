@@ -4,7 +4,7 @@ use crate::retrieval::embedding_confidence::TIER_EMBEDDING_PRIMARY;
 use crate::seed::ranker::{signal_weight, SignalKind};
 use crate::seed::sink::SeedSink;
 use neuromesh_core::{EmbeddingConfig, SeedResolutionConfig};
-use neuromesh_embed::Embedder;
+use neuromesh_embed::embed_query_cached;
 use neuromesh_graph::NeuralProjectGraph;
 
 pub fn push_embedding_seeds(
@@ -22,14 +22,7 @@ pub fn push_embedding_seeds(
         return false;
     }
 
-    let mut embedder = match Embedder::try_new(embedding_config.clone()) {
-        Ok(e) => e,
-        Err(e) => {
-            tracing::warn!("embedding model unavailable: {e}");
-            return false;
-        }
-    };
-    let query = match embedder.embed_query(prompt) {
+    let query = match embed_query_cached(embedding_config, prompt) {
         Ok(v) => v,
         Err(e) => {
             tracing::warn!("embedding query failed: {e}");

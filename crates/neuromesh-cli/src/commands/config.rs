@@ -179,12 +179,12 @@ Usage: neuromesh config embeddings [on|off|MODEL] [--global]
   neuromesh config embeddings              show effective embedding settings
   neuromesh config embeddings on           enable L3 vector recovery (project)
   neuromesh config embeddings off          disable embeddings
-  neuromesh config embeddings gemma300m_q4 set model (project)
+  neuromesh config embeddings gemma300m_q4 set quality-tier model (project)
 
-Models: gemma300m_q4 (default), minilm_multilingual_q
-Env    : NEUROMESH_EMBEDDINGS=1, NEUROMESH_EMBED_MODEL=gemma300m_q4
-Doctor : neuromesh doctor --embed
-Build  : cargo build -p neuromesh-cli --features embeddings
+Models: minilm_multilingual_q (default), gemma300m_q4 (quality)
+Env    : NEUROMESH_EMBEDDINGS=1, NEUROMESH_EMBED_MODEL=minilm_multilingual_q, NEUROMESH_EMBED_THREADS=4
+Doctor : neuromesh doctor --embed [--bench]
+Build  : cargo build -p neuromesh-cli (embeddings on by default)
 "
     );
 }

@@ -47,9 +47,11 @@ mod seed_engine_tests {
 
     #[test]
     fn lexical_engines_require_auto_extract_when_enabled() {
-        let mut config = SeedResolutionConfig::default();
-        config.engine = SeedEngineId::KeywordsExpanded;
-        config.auto_extract_keywords = true;
+        let mut config = SeedResolutionConfig {
+            engine: SeedEngineId::KeywordsExpanded,
+            auto_extract_keywords: true,
+            ..Default::default()
+        };
         assert!(config.effective_auto_extract());
         config.engine = SeedEngineId::SemanticLite;
         assert!(!config.effective_auto_extract());
@@ -93,10 +95,12 @@ mod seed_engine_tests {
     }
 
     #[test]
-    fn embedding_config_defaults_enabled() {
+    fn embedding_config_defaults_minilm_enabled() {
         let cfg = EmbeddingConfig::default();
         assert!(cfg.enabled);
-        assert_eq!(cfg.model.as_str(), "gemma300m_q4");
+        assert_eq!(cfg.model.as_str(), "minilm_multilingual_q");
+        assert_eq!(cfg.matryoshka_dim, 384);
+        assert_eq!(cfg.intra_threads, Some(4));
     }
 
     #[test]

@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EmbeddingModelId {
-    #[default]
     Gemma300mQ4,
+    #[default]
     MiniLmMultilingualQ,
 }
 
@@ -27,6 +27,13 @@ impl EmbeddingModelId {
             Self::MiniLmMultilingualQ => "minilm_multilingual_q",
         }
     }
+
+    pub fn default_matryoshka_dim(self) -> usize {
+        match self {
+            Self::Gemma300mQ4 => 256,
+            Self::MiniLmMultilingualQ => 384,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,17 +45,21 @@ pub struct EmbeddingConfig {
     pub ann_top_k: usize,
     pub min_cosine: f32,
     pub index_on_build: bool,
+    /// ONNX Runtime intra-op threads (`None` = all cores). Default 4 for laptop hybrid CPUs.
+    pub intra_threads: Option<usize>,
 }
 
 impl Default for EmbeddingConfig {
     fn default() -> Self {
+        let model = EmbeddingModelId::MiniLmMultilingualQ;
         Self {
             enabled: true,
-            model: EmbeddingModelId::Gemma300mQ4,
-            matryoshka_dim: 256,
+            model,
+            matryoshka_dim: model.default_matryoshka_dim(),
             ann_top_k: 16,
             min_cosine: 0.45,
             index_on_build: true,
+            intra_threads: Some(4),
         }
     }
 }
@@ -56,5 +67,12 @@ impl Default for EmbeddingConfig {
 impl EmbeddingConfig {
     pub fn effective_enabled(&self) -> bool {
         self.enabled
+    }
+
+    pub fn normalized(mut self) -> Self {
+        if self.matryoshka_dim == 0 {
+            self.matryoshka_dim = self.model.default_matryoshka_dim();
+        }
+        self
     }
 }

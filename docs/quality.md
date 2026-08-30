@@ -71,9 +71,30 @@ Build a **release** binary before measuring; debug builds skew latency.
 - **Server-side assisted default** (v0.8.3): raw MCP calls match or exceed v0.8.2 client-assisted recall/precision with **zero no_seed** across all languages. Opt out via `auto_extract_keywords=false` or `NEUROMESH_AUTO_EXTRACT_KEYWORDS=0`.
 - Re-run: `node test3/mcp_driver_v2.mjs <release-neuromesh> <express-workspace> <outdir> 6 raw native`
 
-### L3 embeddings (v0.8.4, optional)
+### Embedding performance (v0.8.5+)
 
-Requires `cargo build --features embeddings` and `embeddings.enabled: true` in config. Default model **EmbeddingGemma-300M Q4** — multilingual NL, stronger than CBM's code-only `nomic-embed-code` for spoken-language prompts. Runs only on L3 escalation (critical gaps after L1/L2); does not change default MCP hot path when disabled.
+Singleton ONNX session (no re-init per packet), per-packet query cache, MCP/index warm-up, default **MiniLM multilingual Q** (384-dim), ONNX `intra_threads` default 4.
+
+```bash
+neuromesh doctor --embed --bench   # cold warm + p50/p95 over 20 cached queries
+```
+
+| Gate | Target |
+| :--- | :--- |
+| Recall (60-cell Express, embedding-primary) | ≥ 0.460 (no regression vs v0.8.3 lexical) |
+| Precision | ≥ 0.80 |
+| Warm p95 (embed + cache path, excl. cold load) | ≤ 60 ms |
+
+| mode | recall | precision | no_seed | warm p50 |
+| :--- | ---: | ---: | ---: | ---: |
+| native raw + server auto-extract (v0.8.3 lexical) | **0.460** | **0.811** | 0/60 | ~34 ms |
+| embedding-primary MiniLM + singleton (v0.8.5+, target) | ≥ 0.460 | ≥ 0.80 | 0/60 | ~10–30 ms embed |
+
+Re-run 60-cell driver: `node test3/mcp_driver_v2.mjs <release-neuromesh> <express-workspace> <outdir> 6 raw native` with `embeddings.enabled: true` and fresh sidecar after index.
+
+### L3 embeddings (v0.8.4, historical)
+
+Requires `cargo build --features embeddings` and `embeddings.enabled: true` in config. v0.8.4 used EmbeddingGemma-300M Q4 on L3 escalation only; v0.8.5 moved embeddings to L1 hot path with MiniLM default.
 
 ## Multilingual MCP benchmark (v0.8.2, historical)
 

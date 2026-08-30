@@ -3,7 +3,7 @@ use crate::embeddings::{
 };
 use crate::NeuralProjectGraph;
 use neuromesh_core::{EmbeddingConfig, EmbeddingModelId};
-use neuromesh_embed::{format_document, Embedder};
+use neuromesh_embed::{format_document_for_model, Embedder};
 use std::path::Path;
 
 pub fn graph_digest(graph: &NeuralProjectGraph) -> String {
@@ -27,19 +27,27 @@ pub fn rebuild_embeddings(
     workspace: &Path,
     config: &EmbeddingConfig,
 ) -> neuromesh_core::Result<EmbeddingIndex> {
-    let mut embedder = Embedder::try_new(config.clone())
+    let arc = Embedder::lazy_global(config.clone())
         .map_err(|e| neuromesh_core::NeuroMeshError::Internal(e.to_string()))?;
+    let mut embedder = arc.lock();
     let mut node_ids = Vec::new();
     let mut texts = Vec::new();
     for node in graph.get_all_nodes() {
         let Some(mut sketch) = symbol_sketch(&node) else {
             continue;
         };
-        if config.model == EmbeddingModelId::Gemma300mQ4 {
+        if config.model == EmbeddingModelId::Gemma300mQ4
+            || config.model == EmbeddingModelId::MiniLmMultilingualQ
+        {
             let path = node.file_path.to_string_lossy().replace('\\', "/");
             let title = format!("{}::{}", path, node.name);
             let sig = node.signature.as_deref().unwrap_or("");
-            sketch = format_document(&title, node_type_label(node.node_type), sig);
+            sketch = format_document_for_model(
+                config.model,
+                &title,
+                node_type_label(node.node_type),
+                sig,
+            );
         }
         node_ids.push(node.id.clone());
         texts.push(sketch);

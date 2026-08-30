@@ -4,9 +4,17 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### Embedding performance (v0.8.5+)
+
+- **Singleton embedder** — `Embedder::lazy_global` replaces per-query `try_new`; MCP background warm on startup; index warm after sidecar rebuild.
+- **Per-packet query cache** — one ONNX inference per `get_context_packet` (seed path + confidence gate share vector).
+- **Default model → MiniLM** — `minilm_multilingual_q`, 384-dim matryoshka; symmetric `query:` / `passage:` prefixes; Gemma remains opt-in quality tier.
+- **ONNX threads** — `embeddings.intra_threads` (default 4); override with `NEUROMESH_EMBED_THREADS`.
+- **CLI** — `neuromesh doctor --embed --bench` (p50/p95 warm latency).
+
 ### Embedding-primary default (v0.8.5)
 
-- **Default seed engine** — `semantic_lite` with local **EmbeddingGemma Q4** (`embeddings.enabled: true`). Prompt-only MCP/CLI — no client keywords required.
+- **Default seed engine** — `semantic_lite` with local **MiniLM multilingual Q** (`embeddings.enabled: true`). Prompt-only MCP/CLI — no client keywords required.
 - **Keyword assist gated** — `auto_extract_keywords` runs only when seed engine is `keywords`, `keywords_expanded`, or `hybrid`.
 - **Embedding confidence gate** — L1/L2 early exit blocked when resolved seeds have low prompt–sketch cosine; escalates to L2/L3 even on `partial`/`bounded`.
 - **Honest low-confidence signal** — new coverage claim `no_confident_match` when embedding recovery finds nothing above `min_cosine`.

@@ -152,7 +152,12 @@ impl ContextActivator {
         signature: &TaskSignature,
         mode: OptimizationMode,
     ) -> ContextView {
-        self.activate_with_hops(graph, signature, mode, 0)
+        #[cfg(feature = "embeddings")]
+        neuromesh_embed::packet_cache_begin();
+        let view = self.activate_with_hops(graph, signature, mode, 0);
+        #[cfg(feature = "embeddings")]
+        neuromesh_embed::packet_cache_end();
+        view
     }
 
     /// Tier orchestrator entry: `hops_override` of 0 uses mode-derived hops.

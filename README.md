@@ -120,7 +120,7 @@ flowchart LR
   X --> W[expand_fold if needed]
 ```
 
-**Local embedding engine** (v0.8.5 default): the prompt is embedded once (EmbeddingGemma Q4, 100+ languages), ANN-searches symbol sketches in `embeddings.bin`, then **graph-resolves** hits — no client keywords required. Alias/concept seeds still augment routing. Keyword assist (`auto_extract_keywords`) runs only when seed engine is `keywords_expanded`, `keywords`, or `hybrid`.
+**Local embedding engine** (v0.8.5 default): the prompt is embedded once (MiniLM multilingual Q, singleton + per-packet cache), ANN-searches symbol sketches in `embeddings.bin`, then **graph-resolves** hits — no client keywords required. Alias/concept seeds still augment routing. Keyword assist (`auto_extract_keywords`) runs only when seed engine is `keywords_expanded`, `keywords`, or `hybrid`.
 
 1. **Read the task** as written. `handle_tool_call` survives; it is not lowercased into mush.  
 2. **Resolve on the mesh.** L1 uses embedding-primary seeds; L2/L3 escalate on critical gaps or **low embedding confidence** (prompt–sketch cosine below `min_cosine`).  
@@ -143,6 +143,7 @@ get_context_packet(query / task_description / prompt / task)
 neuromesh config seed-engine keywords_expanded   # lexical + auto_extract
 neuromesh config seed-engine semantic_lite         # default (embedding-primary)
 neuromesh doctor --embed                           # verify sidecar + model
+neuromesh doctor --embed --bench                   # p50/p95 warm embed latency
 ```
 
 **Graph backend** (optional external index via [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)): default **`native`** (recommended — faster and more precise). `auto` or `proxy_cbm` delegates `get_context_packet` to CBM while folding and other tools stay native:

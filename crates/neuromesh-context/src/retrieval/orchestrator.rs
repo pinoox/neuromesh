@@ -27,6 +27,21 @@ impl RetrievalOrchestrator {
         signature: &TaskSignature,
         mode: OptimizationMode,
     ) -> ContextView {
+        #[cfg(feature = "embeddings")]
+        neuromesh_embed::packet_cache_begin();
+        let view = self.run_inner(activator, graph, signature, mode);
+        #[cfg(feature = "embeddings")]
+        neuromesh_embed::packet_cache_end();
+        view
+    }
+
+    fn run_inner(
+        &self,
+        activator: &ContextActivator,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+    ) -> ContextView {
         let EscalationResult {
             mut view,
             final_tier,

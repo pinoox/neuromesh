@@ -35,5 +35,8 @@ jobs:
       - name: Embedding feature tests
         run: cargo test -p neuromesh-context --features embeddings --verbose
 
+      - name: Embed crate unit tests
+        run: cargo test -p neuromesh-embed --verbose
+
       - name: Graph proxy fixture tests
         run: cargo test -p neuromesh-graph-proxy --verbose
