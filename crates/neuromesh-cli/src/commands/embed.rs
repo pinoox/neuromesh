@@ -118,6 +118,6 @@ fn rebuild(args: &[String]) -> Result<()> {
 fn print_help() {
     println!("\nUsage:");
     println!("  neuromesh embed prefetch [--quiet]   Warm MiniLM weights");
-    println!("  neuromesh embed rebuild [--quiet]    Build sidecar v6 (files first; symbols lazy)");
+    println!("  neuromesh embed rebuild [--quiet]    Build sidecar (hybrid: file tier + lazy symbols; deep: all symbols)");
     println!("\n  Default index is graph-only; run embed rebuild after first index.\n");
 }

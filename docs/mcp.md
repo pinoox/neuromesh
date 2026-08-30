@@ -1,6 +1,6 @@
 # MCP tools
 
-Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). **v0.8.6 default:** bundled **MiniLM embed** — pass the prompt only to `get_context_packet`; no client keywords unless the project enabled a custom lexical seed engine.
+Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). **v0.9.0 default:** **`engine: fast`** — graph index + query-side lexical expansion; pass the prompt only to `get_context_packet`. Opt in to **`hybrid`** / **`deep`** for bundled MiniLM embed-primary.
 
 That is what Cursor, Claude, Codex, OpenCode, MiMo CLI, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
 
@@ -71,7 +71,7 @@ get_context_packet(query / task_description / prompt / task)
   → after a successful edit: neuromesh_record_feedback
 ```
 
-Start with `get_context_packet`. For natural-language or non-English prompts, pass **`keywords`**, **`expansion`**, and optional **`path_hints`** / **`entity_types`**. The deprecated alias `neuromesh_get_context` still works for one release.
+Start with `get_context_packet`. Pass the **prompt as written** — any language. Optional: `path_hints`, `entity_types`, `mode`. Do **not** send `keywords` / `expansion` on default **`engine: fast`**; the server expands concepts. Hybrid/deep: same prompt-only workflow. The deprecated alias `neuromesh_get_context` still works for one release.
 
 ## Agent rule (recommended)
 
@@ -94,7 +94,7 @@ Cursor-ready template: [agent-rule.mdc](agent-rule.mdc). Same body without YAML 
 
 | Tool | Input | Returns |
 | :--- | :--- | :--- |
-| **`get_context_packet`** | `query`, `task_description`, `prompt`, or `task`; optional `keywords`, `expansion`, `path_hints`, `entity_types`, `intent`, `engine`; optional `mode`; optional `response_detail` | Compact evidence packet (`minimal` by default) + `task.seed_resolution` telemetry |
+| **`get_context_packet`** | `query`, `task_description`, `prompt`, or `task`; optional `path_hints`, `entity_types`, `intent`, `engine`, `mode`, `response_detail` | Compact evidence packet (`minimal` by default) + `task.seed_resolution` telemetry |
 | `neuromesh_explain_packet` | `packet_id`; optional `include` | On-demand diagnostics (no fold bodies) |
 | `neuromesh_expand_fold` | `fold_id`, `node_id`, or `query`; optional `reason` | Original folded body |
 | `neuromesh_get_file_skeleton` | `file_path`, optional `active_symbols` | One skeletonized file + fold descriptors (no bodies) |
@@ -123,9 +123,9 @@ Aliases exist for older clients (`neuromesh_get_context`, `activate_context`, `e
 
 `mode`: `balanced` (default, +5,000 fill), `max_savings` (0), `max_quality` (+16,000). Critical tasks (auth / payment / secret) upgrade to max quality. `mode` does not add metadata; `response_detail` does (`minimal` ≤ 256 metadata tokens, `standard` ≤ 750, `diagnostic` on demand).
 
-### Retrieval metadata (v0.8.6)
+### Retrieval metadata (v0.9.0)
 
-Present on **all** detail levels when tiered activation runs. Default embed path sets `retrieval.resolution_tier` to **`embedding_primary`** when MiniLM ANN resolves seeds. `retrieval.cache_hit: true` means a near-duplicate prompt reused the semantic LRU (fresh `packet_id`). `minimal` uses a compact block; `standard` and `diagnostic` include full latency and confidence fields.
+Present on **all** detail levels when tiered activation runs. Default **`engine: fast`** sets `retrieval.resolution_tier` to **`lexical_primary`**. With **`hybrid`** / **`deep`**, expect **`embedding_primary`** when MiniLM ANN resolves seeds. `retrieval.cache_hit: true` means a near-duplicate prompt reused the semantic LRU (fresh `packet_id`). `minimal` uses a compact block; `standard` and `diagnostic` include full latency and confidence fields.
 
 **Native** example:
 

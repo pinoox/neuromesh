@@ -4,10 +4,10 @@
 
 | Step | What |
 | :--- | :--- |
-| 1 | **Install:** `curl -fsSL …/install.sh \| bash` (macOS/Linux) or `irm …/install.ps1 \| iex` (Windows) — pre-built binary, MiniLM built in |
-| 2 | `neuromesh doctor` then from your **app** repo: `neuromesh connect` (or `--print` and paste) |
+| 1 | **Install:** `curl -fsSL …/install.sh \| bash` (macOS/Linux) or `irm …/install.ps1 \| iex` (Windows) |
+| 2 | `neuromesh doctor` then from your **app** repo: `neuromesh connect --global --agent-rules` |
 | 3 | Add the agent instructions below for your IDE |
-| 4 | `neuromesh index`, restart IDE, smoke-test (MiniLM bundled in release) |
+| 4 | `neuromesh index`, restart IDE, smoke-test |
 
 Without step 3, tool lists may show NeuroMesh while the agent never calls it. That is expected: MCP ≠ rules.
 

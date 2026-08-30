@@ -4,14 +4,17 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-### v0.9.0 — unified retrieval engines (Zero-Embed default)
+## 0.9.0 — 2026-08-30
+
+### Unified retrieval engines (Zero-Embed default)
 
 - **`retrieval.engine` preset** — single knob: `fast` | `hybrid` | `deep` replaces scattered embedding/seed flags.
 - **Default `fast`** — zero-embed index and MCP (no ONNX warm/rebuild); query-side concept expansion + graph traversal.
-- **Hierarchical sidecar v6** — `hybrid`/`deep` index **file tier first** (~250 MiniLM passes); symbol tier **lazy** on query; sub-10s cold embed rebuild typical.
+- **Hierarchical sidecar v6** — **`hybrid`** indexes **file tier first** (~250 MiniLM passes); symbol tier **lazy** on query. **`deep`** embeds **all symbols** at rebuild (flat sidecar, max recall).
 - **Sidecar safety** — per-workspace write lock + atomic `embeddings.bin` replace; concurrent MCP queries cannot corrupt cache.
 - **Query path** — file ANN → symbol subset ANN + coarse pool fallback; Physarum unchanged.
 - **CLI** — `neuromesh config engine fast|hybrid|deep`, `neuromesh index --mode hybrid`, `neuromesh eval --release-gates --engine fast`, `neuromesh doctor --engine`.
+- **Docs** — README refocused on developer workflow; advanced setup in [configuration.md](configuration.md).
 - **Breaking** — removed `config seed-engine`, `config embeddings`, `NEUROMESH_SEED_ENGINE`, `NEUROMESH_EMBEDDINGS`; sidecar v4/v5 requires `embed rebuild` for hierarchical v6.
 
 ### Embed-primary performance (graph-first index)

@@ -11,7 +11,7 @@ on:
 
 jobs:
   benchmark:
-    name: Gold eval & MiniLM embed bench (v0.8.6)
+    name: Gold eval & MiniLM embed bench (v0.9.0)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -49,7 +49,7 @@ jobs:
 
       - name: Publish Benchmark Summary
         run: |
-          echo "## Benchmark v0.8.6 — bundled MiniLM embed-primary" >> $GITHUB_STEP_SUMMARY
+          echo "## Benchmark v0.9.0 — tiered retrieval engines" >> $GITHUB_STEP_SUMMARY
           echo "Commit \`${{ github.sha }}\` · release binary with \`--features embeddings\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Gold eval (\`neuromesh eval\`)" >> $GITHUB_STEP_SUMMARY

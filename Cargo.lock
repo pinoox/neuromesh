@@ -1758,7 +1758,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-api"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "futures-util",
@@ -1786,7 +1786,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-cache"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -1799,7 +1799,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-cli"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -1828,7 +1828,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-context"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -1846,7 +1846,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-core"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -1860,7 +1860,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-embed"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "dirs",
  "fastembed",
@@ -1874,7 +1874,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-graph"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "bincode",
  "chrono",
@@ -1895,7 +1895,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-graph-proxy"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "dirs",
  "neuromesh-core",
@@ -1909,7 +1909,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-index"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -1925,7 +1925,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-local-ai"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "neuromesh-core",
  "parking_lot",
@@ -1936,7 +1936,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-mcp"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "neuromesh-cache",
@@ -1961,7 +1961,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-memory"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -1975,7 +1975,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-observability"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -1990,7 +1990,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-parser"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "neuromesh-core",
  "neuromesh-index",
@@ -2016,7 +2016,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-provider"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "futures-util",
  "neuromesh-core",
@@ -2029,7 +2029,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-router"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "neuromesh-context",
  "neuromesh-core",
@@ -2042,7 +2042,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-task"
-version = "0.8.6"
+version = "0.9.0"
 dependencies = [
  "neuromesh-core",
  "neuromesh-parser",

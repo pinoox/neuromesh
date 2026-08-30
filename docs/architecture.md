@@ -2,7 +2,7 @@
 
 NeuroMesh builds a **structural project graph**, then a **task-conditioned packet**. The graph is the nervous system. The packet is the thought.
 
-**v0.8.6 default:** **native graph + bundled MiniLM embeddings** — prompt-only routing; no client keywords. Lexical seed engines and CBM proxy are opt-in.
+**v0.9.0 default:** **`engine: fast`** — native graph + query-side lexical expansion; **no ONNX** at index or MCP startup. Opt in to **`hybrid`** (hierarchical sidecar v6) or **`deep`** (full symbol embed). CBM graph proxy remains opt-in.
 
 ```
 Prompt (any language)
@@ -12,16 +12,16 @@ Prompt (any language)
   └─ native (default) ◄──────────────────┘ fallback_native
       │
       ▼
-MiniLM query embed (bundled ONNX, singleton + per-packet cache)
+retrieval.engine preset
   │
-      ▼
-ANN on embeddings.bin sidecar → graph-resolve hits
+  ├─ fast (default) ──► QueryPlan + lexical/graph seeds
   │
-      ▼
-QueryPlan (intent + concepts)
+  ├─ hybrid ──► MiniLM query embed → hierarchical ANN (file → lazy symbol)
   │
+  └─ deep ──► MiniLM query embed → flat symbol ANN (all symbols at rebuild)
+      │
       ▼
-Tiered retrieval (L1 embed-primary → L2 patterns → L3 recovery)
+Tiered retrieval (L1 → L2 patterns → L3 recovery)
   │
       ▼
 Seed files always ship (skeletonized)
@@ -35,15 +35,27 @@ Evidence packet → MCP client
       └─ expand_fold restores a body from the registry
 ```
 
-## Embed-primary routing (v0.8.6)
+## Fast engine routing (v0.9.0 default)
 
-Release binaries include **MiniLM multilingual Q** weights (`models/minilm-multilingual-q/`). At runtime:
+Default **`engine: fast`** builds the AST graph only (`neuromesh index`). At query time:
 
-1. **Index** — symbol sketches → `embeddings.bin` (sidecar v3: doc-enriched sketches + module centroids).
+1. **QueryPlan** — intent + server-assisted concept expansion from the prompt.
+2. **Graph seeds** — lexical + structural resolution (no embed sidecar required).
+3. **Escalate** — L2 pattern expand, then L3 lexical recovery if critical gaps remain.
+
+Expect `retrieval.resolution_tier` **`lexical_primary`** on NL prompts unless the repo owner set `engine: hybrid` or `deep`.
+
+## Hybrid / deep embed routing (opt-in)
+
+When `engine` is **`hybrid`**, release binaries include **MiniLM multilingual Q** weights (`models/minilm-multilingual-q/`):
+
+1. **Index** — hierarchical sidecar v6: file tier at rebuild; symbol tier lazy on query.
 2. **Query** — embed prompt once (semantic LRU for near-duplicates).
-3. **ANN** — top hits from sidecar (`ann_top_k: 16`, insert cap `embed_seed_cap: 4`).
+3. **ANN** — file ANN (top 4) → lazy symbol embed → symbol subset ANN + coarse pool fallback.
 4. **Graph resolve** — unique symbol → file seeds; no raw file dump.
 5. **Escalate** — L2 pattern expand, then L3 recovery with lower `recovery_min_cosine` (0.38) if critical gaps remain.
+
+When `engine` is **`deep`**, the same model embeds **every symbol** at rebuild (flat sidecar). Query uses full two-stage symbol ANN plus module centroids and optional-file dedup — no file tier or lazy embed.
 
 | Tier | Role | When |
 | :--- | :--- | :--- |
@@ -100,4 +112,4 @@ See [graph-proxy.md](graph-proxy.md) and crate `neuromesh-graph-proxy`.
 | `neuromesh-api` | Local monitor HTTP / SSE |
 | `neuromesh-core` | Shared types, `EmbeddingConfig`, budgets |
 
-See also [nature.md](nature.md) for the biological metaphor map.
+See also [nature.md](nature.md) for the biological metaphor map · [configuration.md](configuration.md) for presets and tuning.

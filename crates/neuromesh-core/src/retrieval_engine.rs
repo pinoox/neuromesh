@@ -78,7 +78,7 @@ impl RetrievalEngine {
             Self::Deep => {
                 emb.enabled = true;
                 emb.index_on_build = false;
-                emb.hierarchical_index = true;
+                emb.hierarchical_index = false;
                 emb.two_stage_enabled = true;
                 emb.coarse_pool_max = 400;
                 emb.optional_dedup_min_cosine = Some(0.93);
@@ -152,6 +152,7 @@ mod tests {
         assert_eq!(mode, OptimizationMode::MaxQuality);
         assert_eq!(emb.optional_dedup_min_cosine, Some(0.93));
         assert!(emb.module_cluster_enabled);
+        assert!(!emb.hierarchical_index);
     }
 
     #[test]

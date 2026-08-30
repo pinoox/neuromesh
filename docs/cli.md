@@ -4,7 +4,7 @@ Binary: `neuromesh` (`neuromesh-cli` crate).
 
 ## Install (recommended)
 
-Pre-built release binaries include MiniLM embeddings — no Rust toolchain required.
+Pre-built release binaries — no Rust toolchain required. Default **`engine: fast`** needs no embed warm at startup; hybrid/deep use bundled MiniLM.
 
 ```bash
 # macOS / Linux
@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/pinoox/neuromesh/main/install.sh | 
 irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex
 ```
 
-Then: `neuromesh doctor` → `neuromesh connect` → `neuromesh index`. MiniLM ships bundled in release tarballs; `neuromesh embed prefetch` only warms or fetches fallback weights.
+Then: `neuromesh doctor` → `neuromesh connect` → `neuromesh index`. Advanced presets and sidecar: [configuration.md](configuration.md).
 
 ```
 neuromesh mcp          # stdio MCP server (what the IDE launches)
@@ -32,7 +32,7 @@ neuromesh eval         # gold recall / precision / fill on cwd and tests/fixture
 neuromesh eval --learning   # dose-response learning benchmark (learning-causal fixture)
 neuromesh benchmark    # same as eval
 neuromesh store        # managed home vs trusted local `.neuromesh`
-neuromesh config       # seed engine + settings (global or nm.config.json)
+neuromesh config       # retrieval engine + settings (global or nm.config.json)
 neuromesh connect      # write MCP configs (or `--print` snippets)
 neuromesh doctor       # workspace root, scan, skipped extensions, graph, port
 neuromesh version
@@ -129,7 +129,7 @@ neuromesh doctor --proxy
 neuromesh doctor --proxy --probe    # live CBM connect + sample packet
 ```
 
-Monitor **Settings → Retrieval Engine / Graph Backend** saves `nm.config.json` and reconnects the proxy. See [engines.md](engines.md).
+Monitor **Settings → Retrieval Engine / Graph Backend** saves `nm.config.json` and reconnects the proxy. See [configuration.md](configuration.md) · [engines.md](engines.md).
 
 ## Everyday
 
@@ -152,7 +152,7 @@ neuromesh eval --calibrate        # dev/holdout calibration from test3 JSON
 
 `eval --learning` indexes `tests/fixtures/learning-causal/`, sweeps reinforcement levels on `PromoCodeInput`, and prints bonus → rank → emitted → MRR. See [quality.md](quality.md#learning--emission-v0715).
 
-`eval --release-gates` runs the v0.8.6 embed-primary holdout matrix (recall ≥55%, precision ≥73%, no_seed ≤2, embedding_primary rate).
+`eval --release-gates` runs the v0.9.0 tiered holdout matrix per engine (`--engine fast|hybrid|deep`; recall ≥55%, precision ≥73%, no_seed ≤2).
 
 The process uses the **current working directory** as the project. `neuromesh connect` writes that path into each client's MCP config so the IDE does not have to guess.
 
