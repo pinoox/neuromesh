@@ -1,5 +1,6 @@
+use crate::bundled_model::{bundled_minilm_available, try_load_bundled_minilm};
 use crate::search::truncate_and_normalize;
-use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+use fastembed::{EmbeddingModel, TextEmbedding, TextInitOptions};
 use neuromesh_core::{EmbeddingConfig, EmbeddingModelId};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
@@ -99,16 +100,39 @@ pub fn format_document_for_model(
     }
 }
 
-fn init_options(config: &EmbeddingConfig) -> InitOptions {
+fn init_options(config: &EmbeddingConfig, show_download_progress: bool) -> TextInitOptions {
     let fastembed_model = match config.model {
         EmbeddingModelId::Gemma300mQ4 => EmbeddingModel::EmbeddingGemma300MQ4,
         EmbeddingModelId::MiniLmMultilingualQ => EmbeddingModel::ParaphraseMLMiniLML12V2Q,
     };
-    let mut opts = InitOptions::new(fastembed_model).with_show_download_progress(false);
+    let mut opts =
+        TextInitOptions::new(fastembed_model).with_show_download_progress(show_download_progress);
     if let Some(n) = config.intra_threads {
         opts = opts.with_intra_threads(n);
     }
     opts
+}
+
+fn try_init_text_embedding(
+    config: &EmbeddingConfig,
+    show_download_progress: bool,
+) -> Result<TextEmbedding, EmbedderError> {
+    if config.model == EmbeddingModelId::MiniLmMultilingualQ && bundled_minilm_available() {
+        match try_load_bundled_minilm(config.model, config.intra_threads) {
+            Ok(model) => {
+                tracing::debug!(
+                    "loaded bundled MiniLM from {:?}",
+                    crate::bundled_model::resolve_bundled_minilm_dir()
+                );
+                return Ok(model);
+            }
+            Err(e) => {
+                tracing::warn!("bundled MiniLM present but failed to load: {e}; falling back to fastembed cache");
+            }
+        }
+    }
+    TextEmbedding::try_new(init_options(config, show_download_progress))
+        .map_err(|e| EmbedderError::Init(e.to_string()))
 }
 
 pub struct Embedder {
@@ -118,12 +142,25 @@ pub struct Embedder {
 
 impl Embedder {
     pub fn try_new(config: EmbeddingConfig) -> Result<Self, EmbedderError> {
-        let model = TextEmbedding::try_new(init_options(&config))
-            .map_err(|e| EmbedderError::Init(e.to_string()))?;
+        Self::try_new_with_options(config, false)
+    }
+
+    fn try_new_with_options(
+        config: EmbeddingConfig,
+        show_download_progress: bool,
+    ) -> Result<Self, EmbedderError> {
+        let model = try_init_text_embedding(&config, show_download_progress)?;
         Ok(Self { model, config })
     }
 
     pub fn lazy_global(config: EmbeddingConfig) -> Result<Arc<Mutex<Self>>, EmbedderError> {
+        Self::lazy_global_with_progress(config, false)
+    }
+
+    pub fn lazy_global_with_progress(
+        config: EmbeddingConfig,
+        show_download_progress: bool,
+    ) -> Result<Arc<Mutex<Self>>, EmbedderError> {
         if let Some(existing) = GLOBAL.get() {
             let guard = existing.lock();
             if guard.config.model != config.model
@@ -138,17 +175,35 @@ impl Embedder {
             drop(guard);
             return Ok(existing.clone());
         }
-        let embedder = Arc::new(Mutex::new(Self::try_new(config)?));
+        let embedder = Arc::new(Mutex::new(Self::try_new_with_options(
+            config,
+            show_download_progress,
+        )?));
         let _ = GLOBAL.set(embedder.clone());
         Ok(embedder)
     }
 
+    /// Warm bundled or cached MiniLM (downloads only when no bundled weights).
+    pub fn prefetch_model(
+        config: EmbeddingConfig,
+        show_download_progress: bool,
+    ) -> Result<(), EmbedderError> {
+        Self::warm_with_progress(config, show_download_progress)
+    }
+
     /// Load singleton and run one dummy query (cold-start amortization).
     pub fn warm(config: EmbeddingConfig) -> Result<(), EmbedderError> {
+        Self::warm_with_progress(config, false)
+    }
+
+    pub fn warm_with_progress(
+        config: EmbeddingConfig,
+        show_download_progress: bool,
+    ) -> Result<(), EmbedderError> {
         if !config.enabled {
             return Ok(());
         }
-        let arc = Self::lazy_global(config.clone())?;
+        let arc = Self::lazy_global_with_progress(config.clone(), show_download_progress)?;
         let mut embedder = arc.lock();
         let _ = embedder.embed_query("neuromesh warmup")?;
         drop(embedder);

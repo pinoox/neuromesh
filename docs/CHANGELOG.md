@@ -2,37 +2,19 @@
 
 All notable user-facing changes live here. The README stays a product guide, not a version diary.
 
-## Unreleased
+## 0.8.6 — 2026-08-30
 
-### MiniLM supplementary features (v0.8.5+)
+### MiniLM-first release
 
-- **Semantic prompt LRU cache** — MCP caches recent packet responses keyed by graph generation/digest + embedding model; near-duplicate prompts return instantly with fresh `packet_id` and `retrieval.cache_hit: true`.
-- **Optional-file cosine dedup** — drops redundant optional files when sidecar mean-vector cosine ≥ `optional_dedup_min_cosine` (default 0.93); skipped when ≤2 optionals; test/mock paths exempt.
-- **Module centroids (sidecar v3)** — index-time directory-level embedding clusters; small selector bonus; re-index required.
-- **Embed intent for General (opt-in)** — `embed_intent_for_general: false` by default; prototype phrases warmed at MCP startup when enabled.
-
-### Sketch enrichment + embed trim (v0.8.5+)
-
-- **Index-time sketches** — Tree-sitter extracts leading doc comment / docstring (TS, Rust, Python, PHP) into `doc_summary` on graph nodes; embedding passages include signature + doc (sidecar **v2** — re-index required).
-- **Embed seed cap** — `embeddings.embed_seed_cap` default **4**; ANN pool stays `ann_top_k: 16`; no reranker or extra ONNX session.
-- **No MCP latency change** — enrichment is index-only; hot path unchanged aside from fewer weak embedding seeds.
-
-### Embedding performance (v0.8.5+)
-
-- **Singleton embedder** — `Embedder::lazy_global` replaces per-query `try_new`; MCP background warm on startup; index warm after sidecar rebuild.
-- **Per-packet query cache** — one ONNX inference per `get_context_packet` (seed path + confidence gate share vector).
-- **Default model → MiniLM** — `minilm_multilingual_q`, 384-dim matryoshka; symmetric `query:` / `passage:` prefixes; Gemma remains opt-in quality tier.
-- **ONNX threads** — `embeddings.intra_threads` (default 4); override with `NEUROMESH_EMBED_THREADS`.
-- **CLI** — `neuromesh doctor --embed --bench` (p50/p95 warm latency).
-
-### Embedding-primary default (v0.8.5)
-
-- **Default seed engine** — `semantic_lite` with local **MiniLM multilingual Q** (`embeddings.enabled: true`). Prompt-only MCP/CLI — no client keywords required.
-- **Keyword assist gated** — `auto_extract_keywords` runs only when seed engine is `keywords`, `keywords_expanded`, or `hybrid`.
-- **Embedding confidence gate** — L1/L2 early exit blocked when resolved seeds have low prompt–sketch cosine; escalates to L2/L3 even on `partial`/`bounded`.
-- **Honest low-confidence signal** — new coverage claim `no_confident_match` when embedding recovery finds nothing above `min_cosine`.
-- **Metadata** — `retrieval.resolution_tier`, `retrieval.max_embedding_score`, per-seed `embedding_score`.
-- **CLI default feature** — `embeddings` compiled in by default (`cargo build -p neuromesh-cli`).
+- **One embedding model** — **Paraphrase MiniLM multilingual Q** (`minilm_multilingual_q`, 384-dim). Release tarballs include `models/minilm-multilingual-q/`; runtime loads via fastembed `UserDefinedEmbeddingModel` (HF download only as fallback).
+- **Zero-prerequisite install** — `install.sh` / `install.ps1` fetch binary + bundled model, add to PATH. No Rust or Cargo required.
+- **Semantic prompt LRU cache** — near-duplicate MCP prompts skip full activation; fresh `packet_id` + `retrieval.cache_hit: true`.
+- **Optional-file cosine dedup** — drops redundant optional files (default 0.93); test/mock paths exempt.
+- **Module centroids (sidecar v3)** — index-time directory clusters; re-index required.
+- **Embed intent for General (opt-in)** — `embed_intent_for_general: false` by default.
+- **Sketch enrichment** — leading doc comments in symbol passages (sidecar v2+); `embed_seed_cap: 4`.
+- **Singleton embedder** + per-packet query cache + MCP warm; env: `NEUROMESH_SEMANTIC_CACHE`, `NEUROMESH_OPTIONAL_DEDUP`.
+- **Docs & GitHub Pages** — v0.8.6, MiniLM-only messaging, binary-first install guide.
 
 ## 0.8.4 — 2026-08-30
 

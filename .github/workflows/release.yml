@@ -48,6 +48,9 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
+      - name: Fetch bundled MiniLM model
+        run: bash scripts/fetch-minilm-model.sh
+
       - name: Build release binaries
         run: cargo build --release --bin neuromesh --bin nmx --target ${{ matrix.target }} --features embeddings
 
@@ -58,11 +61,12 @@ jobs:
       - name: Package Artifact (Unix)
         if: matrix.os != 'windows-latest'
         run: |
-          mkdir -p dist
+          mkdir -p dist/models/minilm-multilingual-q
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/
+          cp -r crates/neuromesh-embed/models/minilm-multilingual-q/* dist/models/minilm-multilingual-q/
           ln -sf ${{ matrix.artifact_name }} dist/nmx
           cd dist
-          tar -czvf ../${{ matrix.asset_name }} ${{ matrix.artifact_name }} nmx
+          tar -czvf ../${{ matrix.asset_name }} neuromesh nmx models
           cd ..
           shasum -a 256 ${{ matrix.asset_name }} > ${{ matrix.asset_name }}.sha256
 
@@ -70,10 +74,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path dist -Force
+          New-Item -ItemType Directory -Path dist/models/minilm-multilingual-q -Force | Out-Null
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/nmx.exe
-          Compress-Archive -Path dist/neuromesh.exe,dist/nmx.exe -DestinationPath ${{ matrix.asset_name }} -Force
+          Copy-Item -Path crates/neuromesh-embed/models/minilm-multilingual-q/* -Destination dist/models/minilm-multilingual-q/ -Recurse -Force
+          Compress-Archive -Path dist/neuromesh.exe,dist/nmx.exe,dist/models -DestinationPath ${{ matrix.asset_name }} -Force
           Get-FileHash -Path ${{ matrix.asset_name }} -Algorithm SHA256 | ForEach-Object { $_.Hash + "  " + $_.Path } | Out-File "${{ matrix.asset_name }}.sha256" -Encoding ascii
 
       - name: Upload Artifacts to Workflow

@@ -122,7 +122,7 @@ fn handle_embeddings(value: Option<&str>, global: bool) -> Result<()> {
             Ok(())
         }
         Some(other) => Err(NeuroMeshError::Config(format!(
-            "invalid embeddings config: {other} (use: on, off, gemma300m_q4, minilm_multilingual_q)"
+            "invalid embeddings config: {other} (use: on, off, minilm_multilingual_q)"
         ))),
     }
 }
@@ -208,18 +208,18 @@ fn print_embeddings_status() -> Result<()> {
 fn print_embeddings_help() {
     println!(
         "\
-Usage: neuromesh config embeddings [on|off|MODEL] [--global]
+Usage: neuromesh config embeddings [on|off] [--global]
 
   neuromesh config embeddings              show effective embedding settings
-  neuromesh config embeddings on           enable L3 vector recovery (project)
+  neuromesh config embeddings on           enable MiniLM vector recovery (project)
   neuromesh config embeddings off          disable embeddings
-  neuromesh config embeddings gemma300m_q4 set quality-tier model (project)
 
-Models: minilm_multilingual_q (default), gemma300m_q4 (quality)
-Env    : NEUROMESH_EMBEDDINGS=1, NEUROMESH_EMBED_MODEL=minilm_multilingual_q, NEUROMESH_EMBED_THREADS=4
+Model  : minilm_multilingual_q (only — auto-download on first index)
+Env    : NEUROMESH_EMBEDDINGS=1, NEUROMESH_EMBED_THREADS=4
          NEUROMESH_SEMANTIC_CACHE=0, NEUROMESH_OPTIONAL_DEDUP=0.93
+Install: curl -fsSL …/install.sh | bash   (or install.ps1 on Windows)
 Doctor : neuromesh doctor --embed [--bench]
-Build  : cargo build -p neuromesh-cli (embeddings on by default)
+Build  : cargo build -p neuromesh-cli --features embeddings
 "
     );
 }

@@ -120,7 +120,7 @@ flowchart LR
   X --> W[expand_fold if needed]
 ```
 
-**Local embedding engine** (v0.8.5 default): the prompt is embedded once (MiniLM multilingual Q, singleton + per-packet cache), ANN-searches symbol sketches in `embeddings.bin`, then **graph-resolves** hits — no client keywords required. Alias/concept seeds still augment routing. Keyword assist (`auto_extract_keywords`) runs only when seed engine is `keywords_expanded`, `keywords`, or `hybrid`.
+**Local embedding engine** (v0.8.6): **MiniLM multilingual Q** only — the prompt is embedded once (singleton + per-packet cache + semantic LRU), ANN-searches symbol sketches in `embeddings.bin`, then **graph-resolves** hits — no client keywords required. Weights ship **bundled** in release tarballs (`models/minilm-multilingual-q/` via fastembed `UserDefinedEmbeddingModel`); source builds run `scripts/fetch-minilm-model.sh` once. Keyword assist (`auto_extract_keywords`) runs only when seed engine is `keywords_expanded`, `keywords`, or `hybrid`.
 
 1. **Read the task** as written. `handle_tool_call` survives; it is not lowercased into mush.  
 2. **Resolve on the mesh.** L1 uses embedding-primary seeds; L2/L3 escalate on critical gaps or **low embedding confidence** (prompt–sketch cosine below `min_cosine`).  
@@ -171,32 +171,49 @@ Seeds are never truncated to fake a small packet.
 
 ## Install
 
+**Recommended — pre-built binary (no Rust required).** One command downloads the latest release for your platform — **binary + bundled MiniLM weights** (~50–80 MB tarball) — installs to PATH, no separate model download. Then `neuromesh doctor` → `neuromesh connect` → `neuromesh index`.
+
 **macOS / Linux**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pinoox/neuromesh/main/install.sh | bash
 ```
 
-**Windows**
+**Windows (PowerShell)**
 
 ```powershell
 irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex
 ```
 
+Then:
+
 ```bash
-# From source (needs rustup 1.80+; distro rustc 1.75 cannot parse this Cargo.lock)
+neuromesh doctor          # verify binary + PATH
+neuromesh connect         # write MCP configs for Cursor / VS Code / Claude / …
+neuromesh index           # index workspace + download MiniLM sidecar (first run)
+```
+
+| Platform | Binary location |
+| :--- | :--- |
+| macOS / Linux | `~/.local/bin/neuromesh` |
+| Windows | `%LOCALAPPDATA%\Programs\neuromesh\neuromesh.exe` |
+
+Re-run the same install command to **update** — it overwrites the binary in place. Then `neuromesh -V` should show **v0.8.6** and restart your IDE so MCP picks up the new process.
+
+<details>
+<summary>Build from source (optional)</summary>
+
+```bash
+# Requires rustup 1.80+
 git clone https://github.com/pinoox/neuromesh.git
 cd neuromesh
-cargo build --release --bin neuromesh
+cargo build --release --bin neuromesh --features embeddings
 
-# Or Cargo
-cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh
+# Or Cargo install
+cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh --features embeddings
 ```
 
-```bash
-neuromesh doctor
-neuromesh connect    # write MCP configs (portable `neuromesh` command when on PATH)
-```
+</details>
 
 ### Update / uninstall
 
@@ -350,6 +367,6 @@ Index snapshot from that eval run: **340 files · 3,161 nodes · 6,795 edges · 
 | [MCP](docs/mcp.md) · [CLI](docs/cli.md) | Tools and commands |
 | [Quality](docs/quality.md) | Gold, eval, numbers |
 | [Contributing](docs/contributing.md) | Come build a solver or a language |
-| [Changelog](docs/CHANGELOG.md) | 0.8.3 |
+| [Changelog](docs/CHANGELOG.md) | 0.8.6 |
 
 MIT · [LICENSE](LICENSE)

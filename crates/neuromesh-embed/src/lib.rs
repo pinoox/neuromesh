@@ -1,8 +1,13 @@
+mod bundled_model;
 mod embedder;
 mod intent_prototypes;
 mod query_cache;
 mod search;
 mod semantic_packet_cache;
+
+pub use bundled_model::{
+    bundled_minilm_available, bundled_model_search_paths, resolve_bundled_minilm_dir,
+};
 
 pub use embedder::{
     format_document, format_document_for_model, format_document_gemma, format_document_minilm,

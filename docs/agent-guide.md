@@ -4,10 +4,10 @@
 
 | Step | What |
 | :--- | :--- |
-| 1 | Install / build `neuromesh`, then `neuromesh doctor` |
-| 2 | From your **app** repo: `neuromesh connect` (or `--print` and paste) |
+| 1 | **Install:** `curl -fsSL …/install.sh \| bash` (macOS/Linux) or `irm …/install.ps1 \| iex` (Windows) — pre-built binary, MiniLM built in |
+| 2 | `neuromesh doctor` then from your **app** repo: `neuromesh connect` (or `--print` and paste) |
 | 3 | Add the agent instructions below for your IDE |
-| 4 | Restart the IDE (or reload MCP) and smoke-test |
+| 4 | `neuromesh index`, restart IDE, smoke-test (MiniLM bundled in release) |
 
 Without step 3, tool lists may show NeuroMesh while the agent never calls it. That is expected: MCP ≠ rules.
 
@@ -24,7 +24,7 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 
 ## Default loop
 
-1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). **Default (v0.8.5):** local embedding engine resolves NL prompts internally — **do not** pass `keywords`/`expansion` unless the project uses `keywords_expanded`, `keywords`, or `hybrid` seed engine (or explicitly sets `auto_extract_keywords: true`). Optional: `path_hints` / `entity_types`.
+1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). **Default (v0.8.6):** local **MiniLM** embedding engine resolves NL prompts internally — **do not** pass `keywords`/`expansion` unless the project uses `keywords_expanded`, `keywords`, or `hybrid` seed engine (or explicitly sets `auto_extract_keywords: true`). Optional: `path_hints` / `entity_types`.
 2. If `coverage.claim` is `partial`, `no_seed_resolved`, or `no_confident_match`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `no_confident_match` means embedding found no symbol above threshold — functionality may be absent. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
 3. Check `retrieval.claim` and `retrieval.resolution_tier` / `retrieval.max_embedding_score` — distinguish exact lexical hits from embedding recovery. Use `retrieval.suggested_keywords` when present (lexical engines only).
 4. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).

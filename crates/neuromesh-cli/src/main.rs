@@ -66,6 +66,9 @@ fn main() -> Result<()> {
             let cap = commands::max_files_from_args(&args)?;
             return commands::doctor::execute(&args, cap);
         }
+        "embed" => {
+            return commands::embed::execute(&args);
+        }
         "smoke" => {
             return commands::smoke::execute();
         }
@@ -282,6 +285,7 @@ fn print_help() {
         "  eval       Gold-task recall / precision / fill budget (alias: evaluate, benchmark)"
     );
     println!("  doctor     Workspace root, scan, MCP/proxy/embed (`--mcp`, `--proxy`, `--embed`, `--bench`)");
+    println!("  embed      Warm bundled MiniLM (`embed prefetch`, `--quiet`)");
     println!("  init       Ensure NeuroMesh data directories exist");
     println!("  models     List configured / local AI models");
     println!("  version    Print version (-v, --version)");

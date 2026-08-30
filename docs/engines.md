@@ -2,7 +2,7 @@
 
 NeuroMesh separates **where structure comes from** (graph backend) from **how tasks pick starting symbols** (seed engine). Both are configurable from CLI, monitor Settings, or `nm.config.json`.
 
-**v0.8.5 recommendation:** keep **`native`** graph backend and **`semantic_lite`** seed engine (local embeddings on by default). Pass client `keywords`/`expansion` only when you switch to `keywords_expanded`, `keywords`, or `hybrid`. MCP stdio always uses **native** unless you set `proxy_cbm` explicitly.
+**v0.8.6 recommendation:** keep **`native`** graph backend and **`semantic_lite`** seed engine (local **MiniLM** embeddings on by default). Pass client `keywords`/`expansion` only when you switch to `keywords_expanded`, `keywords`, or `hybrid`. MCP stdio always uses **native** unless you set `proxy_cbm` explicitly.
 
 ## Graph backend
 
@@ -49,29 +49,22 @@ See [graph-proxy.md](graph-proxy.md) for architecture details.
 
 ---
 
-## Local embedding engine (default)
+## Local embedding engine (MiniLM)
 
-Multilingual vector seed resolution for natural-language prompts. **On by default** — the agent sends the task as written; the engine embeds the prompt once (singleton ONNX session + per-packet cache) and ANN-searches symbol sketches on the native graph.
+Multilingual vector seed resolution for natural-language prompts. **On by default** in release binaries — the agent sends the task as written; NeuroMesh embeds the prompt once (singleton ONNX + per-packet cache + semantic LRU) and ANN-searches symbol sketches on the native graph.
 
-### Profiles
-
-| Profile | Config | When |
-| :--- | :--- | :--- |
-| **Interactive (default)** | `minilm_multilingual_q`, singleton warm, `intra_threads: 4` | MCP / IDE daily use |
-| **Quality (offline)** | `gemma300m_q4`, re-index overnight | Higher NL quality; not for interactive hot path |
-| **Lexical legacy** | `keywords_expanded` + `embeddings.enabled: false` | Match v0.8.3 behavior |
-
-| Model | Role | Size (approx) |
-| :--- | :--- | :--- |
-| `minilm_multilingual_q` | **Default** — Paraphrase MiniLM L12 v2 Q, multilingual | ~50–80 MB download |
-| `gemma300m_q4` | Quality tier — EmbeddingGemma-300M Q4 | ~150–200 MB download |
+| Item | Value |
+| :--- | :--- |
+| **Model** | `minilm_multilingual_q` — Paraphrase MiniLM L12 v2 Q (multilingual) |
+| **Dimensions** | 384 (matryoshka) |
+| **Download** | Bundled in release (`models/minilm-multilingual-q/`); dev: `scripts/fetch-minilm-model.sh` |
+| **Install** | Pre-built binary via `install.sh` / `install.ps1` — no Rust required |
 
 ```bash
-neuromesh config embeddings off             # disable vector path
-neuromesh config embeddings gemma300m_q4    # quality tier (re-index required)
 neuromesh doctor --embed                    # sidecar + cold warm latency
 neuromesh doctor --embed --bench            # p50/p95 warm embed (20 queries)
-neuromesh index                             # writes embeddings.bin when enabled
+neuromesh index                             # writes embeddings.bin (sidecar v3)
+neuromesh config embeddings off              # disable vector path (lexical only)
 ```
 
 Index writes `embeddings.bin` beside `graph.bin` (**sidecar v3**). **Re-index after upgrade** — v3 adds directory **module centroids** (v2 added doc-enriched sketches). **Switching models also requires `neuromesh index`** (sidecar stores `model_id`).
@@ -89,7 +82,7 @@ Query path: embed prompt once per packet → ANN pool (`ann_top_k: 16`) → inse
 
 **Metadata:** `retrieval.resolution_tier` (`embedding_primary`, `L1_exact`, `L2_pattern`, `L3_semantic_recovery`), `retrieval.max_embedding_score`, `retrieval.cache_hit`, `coverage: no_confident_match` when nothing clears `min_cosine`.
 
-Env: `NEUROMESH_EMBEDDINGS=0` to disable, `NEUROMESH_EMBED_MODEL=minilm_multilingual_q|gemma300m_q4`, `NEUROMESH_EMBED_THREADS=4` (ONNX intra-op threads; useful on Intel hybrid CPUs), `NEUROMESH_SEMANTIC_CACHE=0`, `NEUROMESH_OPTIONAL_DEDUP=0.93|off`.
+Env: `NEUROMESH_EMBEDDINGS=0` to disable, `NEUROMESH_EMBED_THREADS=4` (ONNX intra-op threads; useful on Intel hybrid CPUs), `NEUROMESH_SEMANTIC_CACHE=0`, `NEUROMESH_OPTIONAL_DEDUP=0.93|off`.
 
 ---
 

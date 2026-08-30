@@ -2,6 +2,20 @@
 
 Binary: `neuromesh` (`neuromesh-cli` crate).
 
+## Install (recommended)
+
+Pre-built release binaries include MiniLM embeddings — no Rust toolchain required.
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/pinoox/neuromesh/main/install.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/pinoox/neuromesh/main/install.ps1 | iex
+```
+
+Then: `neuromesh doctor` → `neuromesh connect` → `neuromesh index`. MiniLM ships bundled in release tarballs; `neuromesh embed prefetch` only warms or fetches fallback weights.
+
 ```
 neuromesh mcp          # stdio MCP server (what the IDE launches)
 nmx mcp                # same binary, short alias
@@ -125,6 +139,7 @@ Monitor **Settings → Graph Backend / Seed Engine** saves `nm.config.json` and 
 neuromesh doctor
 neuromesh doctor --embed              # embedding sidecar + cold warm
 neuromesh doctor --embed --bench      # p50/p95 warm embed latency
+neuromesh embed prefetch              # warm bundled MiniLM (HF fallback if missing)
 neuromesh index
 neuromesh optimize -- "How does handle_tool_call extract intent?"
 neuromesh eval
