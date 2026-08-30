@@ -1,9 +1,13 @@
+use neuromesh_context::benchmark_suite::{
+    aggregate_cell_results, BenchmarkCellResult, ReleaseGateReport,
+};
 use neuromesh_context::gold::{
     evaluate_view, fixture_gold_cases, load_gold_tasks, packet_file_names, packet_paths,
 };
 use neuromesh_context::learning_eval::{
     compute_ranking_metrics, dose_response_rank, emitted_paths_from_view,
 };
+use neuromesh_context::retrieval::failure::classify_retrieval_failure;
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{OptimizationMode, ProjectId, Result};
 use neuromesh_graph::NeuralProjectGraph;
@@ -16,6 +20,8 @@ use std::time::Instant;
 
 pub fn execute(args: &[String]) -> Result<()> {
     let learning_mode = args.iter().any(|a| a == "--learning");
+    let release_gates = args.iter().any(|a| a == "--release-gates");
+    let calibrate = args.iter().any(|a| a == "--calibrate");
     let current_dir = neuromesh_index::assert_safe_workspace(&env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
@@ -37,7 +43,7 @@ pub fn execute(args: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    let graph = Arc::new(NeuralProjectGraph::new(project_id));
+    let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let index_started = Instant::now();
     graph.ingest_workspace(&scanned);
     let index_ms = index_started.elapsed().as_millis();
@@ -94,7 +100,11 @@ pub fn execute(args: &[String]) -> Result<()> {
             OptimizationMode::MaxQuality,
         ] {
             let started = Instant::now();
-            let view = activator.activate(&graph, &signature, mode);
+            let view = if mode == OptimizationMode::Balanced {
+                activator.activate_tiered(&graph, &signature, mode)
+            } else {
+                activator.activate(&graph, &signature, mode)
+            };
             let ms = started.elapsed().as_millis();
             let metrics = evaluate_view(task, &view, ms as u64);
             let files = packet_file_names(&view);
@@ -128,6 +138,100 @@ pub fn execute(args: &[String]) -> Result<()> {
     println!("Seeds always ship (a large target function can exceed the fill cap).");
     println!("WS tok = indexed workspace. Selected = raw tokens of packet files before fold. Packet = after fold.");
     println!("Grep = 0 when gold files are already in the packet (recall 1.0); 1 otherwise.");
+
+    if release_gates {
+        let mut cells = Vec::new();
+        for (i, task) in tasks.iter().enumerate() {
+            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let started = Instant::now();
+            let view = activator.activate_tiered(&graph, &signature, OptimizationMode::Balanced);
+            let ms = started.elapsed().as_millis() as u64;
+            let metrics = evaluate_view(task, &view, ms);
+            let claim = view
+                .retrieval
+                .as_ref()
+                .map(|r| r.claim.as_str())
+                .unwrap_or("unknown");
+            let level = view
+                .retrieval
+                .as_ref()
+                .map(|r| r.retrieval_level.clone())
+                .unwrap_or_else(|| "L1".into());
+            let critical = view
+                .retrieval
+                .as_ref()
+                .map(|r| r.critical_gaps.len())
+                .unwrap_or(0);
+            let failure = classify_retrieval_failure(
+                claim,
+                view.coverage
+                    .as_ref()
+                    .map(|c| c.seeds_hit.len())
+                    .unwrap_or(0),
+                critical,
+                view.over_budget,
+                &level,
+                None,
+            );
+            cells.push(BenchmarkCellResult {
+                benchmark: "A_regression".into(),
+                cell_id: task.id.clone(),
+                split: format!(
+                    "{:?}",
+                    neuromesh_context::benchmark_suite::split_for_cell(i, tasks.len())
+                ),
+                recall: metrics.recall,
+                precision: metrics.precision,
+                task_success: None,
+                claimed_sufficient: claim == "likely_sufficient",
+                tokens: metrics.packet_tokens,
+                latency_ms: ms,
+                retrieval_level: level.clone(),
+                failure_class: failure.as_str().to_string(),
+                l1_ms: view
+                    .retrieval
+                    .as_ref()
+                    .and_then(|r| r.latency_ms.get("L1").copied())
+                    .unwrap_or(ms),
+                l2_ms: view
+                    .retrieval
+                    .as_ref()
+                    .and_then(|r| r.latency_ms.get("L2").copied()),
+                l3_ms: view
+                    .retrieval
+                    .as_ref()
+                    .and_then(|r| r.latency_ms.get("L3").copied()),
+            });
+        }
+        let suite = aggregate_cell_results(&cells);
+        let report = ReleaseGateReport::evaluate(&suite);
+        println!(
+            "\nRelease gates (Benchmark A): {}",
+            if report.passed { "PASS" } else { "FAIL" }
+        );
+        println!("{}", serde_json::to_string_pretty(&report)?);
+
+        if calibrate {
+            use neuromesh_context::benchmark_suite::{split_for_cell, DataSplit};
+            use neuromesh_context::retrieval::calibration::calibrate_likely_threshold;
+
+            let dev_cells: Vec<_> = cells
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| split_for_cell(*i, cells.len()) == DataSplit::Dev)
+                .map(|(_, c)| c)
+                .collect();
+            let scores: Vec<f32> = dev_cells
+                .iter()
+                .map(|c| if c.claimed_sufficient { 0.75 } else { 0.5 })
+                .collect();
+            let recall: Vec<f32> = dev_cells.iter().map(|c| c.recall).collect();
+            let claimed: Vec<bool> = dev_cells.iter().map(|c| c.claimed_sufficient).collect();
+            let report = calibrate_likely_threshold(&scores, |_| true, &recall, &claimed);
+            println!("\nCalibration (dev split, n={}):", report.sample_count);
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
+    }
 
     let fixtures = current_dir.join("tests").join("fixtures");
     if fixtures.is_dir() {
@@ -187,6 +291,29 @@ pub fn execute(args: &[String]) -> Result<()> {
         }
     }
     println!();
+
+    neuromesh_observability::record_activity(neuromesh_observability::ActivityRecord {
+        request_id: neuromesh_observability::cli_request_id("eval"),
+        project_id: project_id.clone(),
+        mode: "eval".into(),
+        command: Some("eval".into()),
+        surface: neuromesh_observability::TelemetrySurface::Cli,
+        workspace_path: Some(current_dir.display().to_string()),
+        client_id: None,
+        tokens_before: workspace_tokens,
+        tokens_after: workspace_tokens,
+        token_reduction_pct: 0.0,
+        nodes_before: 0,
+        nodes_after: stats.total_nodes,
+        expansions_count: tasks.len(),
+        cache_hit: false,
+        provider: "neuromesh-cli".into(),
+        model: "eval".into(),
+        latency_ms: index_ms as u64,
+        success: true,
+        task_id: Some(format!("eval {} tasks", tasks.len())),
+    });
+
     Ok(())
 }
 

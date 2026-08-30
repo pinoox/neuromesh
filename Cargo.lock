@@ -237,7 +237,7 @@ checksum = "1ac70aa55017e108007fbaf5aa0f54b021c98f92ff8af59d42eda9da96e3dd4f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -330,7 +330,7 @@ checksum = "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -760,7 +760,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-api"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "futures-util",
@@ -768,6 +768,7 @@ dependencies = [
  "neuromesh-context",
  "neuromesh-core",
  "neuromesh-graph",
+ "neuromesh-graph-proxy",
  "neuromesh-index",
  "neuromesh-local-ai",
  "neuromesh-mcp",
@@ -787,7 +788,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-cache"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -800,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-cli"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "dirs",
@@ -809,6 +810,7 @@ dependencies = [
  "neuromesh-context",
  "neuromesh-core",
  "neuromesh-graph",
+ "neuromesh-graph-proxy",
  "neuromesh-index",
  "neuromesh-local-ai",
  "neuromesh-mcp",
@@ -827,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-context"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "neuromesh-core",
@@ -844,7 +846,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-core"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "dirs",
@@ -858,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-graph"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "bincode",
  "chrono",
@@ -873,8 +875,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "neuromesh-graph-proxy"
+version = "0.8.2"
+dependencies = [
+ "dirs",
+ "neuromesh-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "neuromesh-index"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "blake3",
  "chrono",
@@ -890,7 +906,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-local-ai"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "neuromesh-core",
  "parking_lot",
@@ -901,13 +917,14 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-mcp"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "neuromesh-cache",
  "neuromesh-context",
  "neuromesh-core",
  "neuromesh-graph",
+ "neuromesh-graph-proxy",
  "neuromesh-index",
  "neuromesh-memory",
  "neuromesh-observability",
@@ -924,7 +941,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-memory"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "dirs",
@@ -938,7 +955,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-observability"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "dirs",
@@ -953,7 +970,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-parser"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "neuromesh-core",
  "neuromesh-index",
@@ -974,11 +991,12 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-swift",
  "tree-sitter-typescript",
+ "unicode-normalization",
 ]
 
 [[package]]
 name = "neuromesh-provider"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "futures-util",
  "neuromesh-core",
@@ -991,7 +1009,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-router"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "neuromesh-context",
  "neuromesh-core",
@@ -1004,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "neuromesh-task"
-version = "0.7.17"
+version = "0.8.2"
 dependencies = [
  "neuromesh-core",
  "neuromesh-parser",
@@ -1079,7 +1097,7 @@ checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1396,7 +1414,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1440,6 +1458,16 @@ name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
+]
 
 [[package]]
 name = "slab"
@@ -1487,6 +1515,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6275cddf4610d1775e6d1fe9469b2e77d0f39fd98fb7450901b821e0c53649f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1503,7 +1542,7 @@ checksum = "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1536,7 +1575,7 @@ checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1550,6 +1589,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyvec"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f"
+dependencies = [
+ "tinyvec_macros",
+]
+
+[[package]]
+name = "tinyvec_macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
 name = "tokio"
 version = "1.52.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1559,8 +1613,21 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
+ "tokio-macros",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -1650,7 +1717,7 @@ checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1810,6 +1877,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 
 [[package]]
+name = "unicode-normalization"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
+dependencies = [
+ "tinyvec",
+]
+
+[[package]]
 name = "url"
 version = "2.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1918,7 +1994,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "wasm-bindgen-shared",
 ]
 
@@ -1984,7 +2060,7 @@ checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1995,7 +2071,7 @@ checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -2136,7 +2212,7 @@ checksum = "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -2157,7 +2233,7 @@ checksum = "11532158c46691caf0f2593ea8358fed6bbf68a0315e80aae9bd41fbade684a1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -2197,7 +2273,7 @@ checksum = "625dc425cab0dca6dc3c3319506e6593dcb08a9f387ea3b284dbd52a92c40555"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]

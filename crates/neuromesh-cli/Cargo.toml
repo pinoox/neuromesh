@@ -9,6 +9,10 @@ repository.workspace = true
 name = "neuromesh"
 path = "src/main.rs"
 
+[[bin]]
+name = "nmx"
+path = "src/main.rs"
+
 [dependencies]
 neuromesh-core = { path = "../neuromesh-core" }
 neuromesh-index = { path = "../neuromesh-index" }
@@ -22,6 +26,7 @@ neuromesh-router = { path = "../neuromesh-router" }
 neuromesh-provider = { path = "../neuromesh-provider" }
 neuromesh-api = { path = "../neuromesh-api" }
 neuromesh-mcp = { path = "../neuromesh-mcp" }
+neuromesh-graph-proxy = { path = "../neuromesh-graph-proxy" }
 neuromesh-local-ai = { path = "../neuromesh-local-ai" }
 neuromesh-observability = { path = "../neuromesh-observability" }
 tokio.workspace = true

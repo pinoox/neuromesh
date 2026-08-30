@@ -393,6 +393,32 @@ pub struct ActivatedNodeView {
     pub folded_symbols: Vec<String>,
 }
 
+/// Runtime retrieval estimate — a decision signal, not evaluation ground truth.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RetrievalMetadata {
+    pub retrieval_level: String,
+    pub sufficiency_score: f32,
+    pub confidence: f32,
+    pub claim: String,
+    #[serde(default)]
+    pub levels_attempted: Vec<String>,
+    #[serde(default)]
+    pub latency_ms: std::collections::HashMap<String, u64>,
+    /// Hard invariant: must always be false (no full-workspace fallback).
+    #[serde(default)]
+    pub full_workspace_fallback: bool,
+    #[serde(default)]
+    pub critical_gaps: Vec<String>,
+    #[serde(default)]
+    pub non_critical_gaps: Vec<String>,
+    #[serde(default)]
+    pub eligible_for_early_exit: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_action: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggested_keywords: Option<Vec<String>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextView {
     pub project_id: ProjectId,
@@ -446,12 +472,21 @@ pub struct ContextView {
     /// `seed_then_fill` or `physarum_seed_fill`.
     #[serde(default)]
     pub selection_method: String,
+    /// `brownfield` when symbol seeds resolved; `greenfield` when scaffold entry points were used.
+    #[serde(default = "default_task_scenario")]
+    pub task_scenario: String,
     /// Ranked file candidates (selected + runners-up) for before/after feedback comparison.
     #[serde(default)]
     pub rank_candidates: Vec<RankCandidateView>,
     /// Caller counts / dead-code hints for seeded symbols.
     #[serde(default)]
     pub structural_evidence: Vec<StructuralEvidence>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed_resolution_telemetry: Option<crate::SeedResolutionTelemetry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packet_header: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retrieval: Option<RetrievalMetadata>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -543,6 +578,26 @@ pub struct OptimizationMetadata {
     pub latency_ms: u64,
     pub success: bool,
     pub timestamp: DateTime<Utc>,
+    /// Canonical workspace root when known (MCP / CLI / monitor).
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+    /// Origin surface: `mcp`, `cli`, `monitor`, `openai`.
+    #[serde(default = "default_telemetry_surface")]
+    pub surface: String,
+    /// MCP client name from initialize (Cursor, VS Code, …).
+    #[serde(default)]
+    pub client_id: Option<String>,
+    /// Tool or CLI subcommand (`get_context`, `index`, `optimize`, …).
+    #[serde(default)]
+    pub command: Option<String>,
+}
+
+fn default_task_scenario() -> String {
+    "brownfield".into()
+}
+
+fn default_telemetry_surface() -> String {
+    "mcp".into()
 }
 
 #[cfg(test)]

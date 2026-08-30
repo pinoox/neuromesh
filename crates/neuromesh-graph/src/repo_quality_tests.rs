@@ -179,24 +179,25 @@ mod tests {
                 handle
                     .calls
                     .iter()
-                    .any(|c| c == "evaluate" || c == "activate"),
+                    .any(|c| c == "evaluate" || c == "activate" || c == "activate_tiered"),
                 "evaluate/activate missing: {:?}",
                 handle.calls
             );
             assert!(
                 ast.relationships.iter().any(|r| {
                     r.source_symbol == "handle_tool_call"
-                        && r.target_symbol == "activate"
+                        && (r.target_symbol == "activate" || r.target_symbol == "activate_tiered")
                         && r.receiver_hint.as_deref() == Some("field:activator")
                 }),
-                "self.activator.activate should be field-scoped"
+                "self.activator.activate(_tiered) should be field-scoped"
             );
         }
 
         let handle = graph.resolve_best("handle_tool_call").expect("resolve");
         let neighbors = graph.get_neighbor_views(&handle.id);
         let activate = neighbors.iter().find(|n| {
-            n.node.name == "activate" && n.edge.edge_type == neuromesh_core::EdgeType::Calls
+            (n.node.name == "activate" || n.node.name == "activate_tiered")
+                && n.edge.edge_type == neuromesh_core::EdgeType::Calls
         });
         if let Some(activate) = activate {
             let path = activate.node.file_path.to_string_lossy().replace('\\', "/");

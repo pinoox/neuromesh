@@ -210,10 +210,10 @@ impl PacketCacheError {
     pub fn message(self, packet_id: &str) -> String {
         match self {
             PacketCacheError::Unknown => {
-                format!("packet_id unknown: {packet_id} — call neuromesh_get_context again")
+                format!("packet_id unknown: {packet_id} — call get_context_packet again")
             }
             PacketCacheError::Expired => {
-                format!("packet_id expired: {packet_id} — call neuromesh_get_context again")
+                format!("packet_id expired: {packet_id} — call get_context_packet again")
             }
         }
     }

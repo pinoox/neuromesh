@@ -1,0 +1,10 @@
+{
+  "total": 3,
+  "search_mode": "bm25",
+  "cols": ["qn", "label", "file", "lines", "rank"],
+  "rows": [
+    ["express-corpus.__route__.GET /", "Route", "", "0-0", -12.1],
+    ["express-corpus.lib.application.use", "Function", "lib/application.js", "210-240", -18.6],
+    ["express-corpus.lib.express", "Function", "lib/express.js", "1-80", -15.3]
+  ]
+}

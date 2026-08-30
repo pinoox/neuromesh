@@ -1,4 +1,7 @@
-use crate::{NeuroMeshError, Result};
+use crate::{
+    GraphBackendId, GraphProxyConfig, NeuroMeshError, NmConfigOverlay, PacketHeaderConfig, Result,
+    SeedEngineId, SeedResolutionConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -159,6 +162,12 @@ pub struct Config {
     /// while `project_store` stays `managed`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trust_local: Vec<String>,
+    #[serde(default)]
+    pub seed_resolution: SeedResolutionConfig,
+    #[serde(default)]
+    pub packet_header: PacketHeaderConfig,
+    #[serde(default)]
+    pub graph_backend: GraphProxyConfig,
 }
 
 impl Default for Config {
@@ -174,6 +183,9 @@ impl Default for Config {
             max_files: None,
             project_store: crate::paths::ProjectStore::Managed,
             trust_local: Vec::new(),
+            seed_resolution: SeedResolutionConfig::default(),
+            packet_header: PacketHeaderConfig::default(),
+            graph_backend: GraphProxyConfig::default(),
         }
     }
 }
@@ -211,8 +223,33 @@ impl Config {
                     cfg.overlay_project(over);
                 }
             }
+            if let Some(overlay) = Self::read_nm_config(&ws) {
+                cfg.overlay_nm(overlay);
+            }
         }
         cfg
+    }
+
+    /// Workspace-root `nm.config.json` — merges only seed_resolution and packet_header.
+    fn read_nm_config(workspace: &Path) -> Option<NmConfigOverlay> {
+        let path = workspace.join("nm.config.json");
+        if !path.exists() {
+            return None;
+        }
+        let raw = fs::read_to_string(&path).ok()?;
+        serde_json::from_str(&raw).ok()
+    }
+
+    fn overlay_nm(&mut self, overlay: NmConfigOverlay) {
+        if let Some(sr) = overlay.seed_resolution {
+            self.seed_resolution = sr;
+        }
+        if let Some(ph) = overlay.packet_header {
+            self.packet_header = ph;
+        }
+        if let Some(gb) = overlay.graph_backend {
+            self.graph_backend = gb;
+        }
     }
 
     fn overlay_project(&mut self, other: Self) {
@@ -223,6 +260,9 @@ impl Config {
         self.provider = other.provider;
         self.local_ai = other.local_ai;
         self.thresholds = other.thresholds;
+        self.seed_resolution = other.seed_resolution;
+        self.packet_header = other.packet_header;
+        self.graph_backend = other.graph_backend;
     }
 
     fn read_file(path: &Path) -> Option<Self> {
@@ -241,6 +281,16 @@ impl Config {
                 Ok(None) => self.max_files = None,
                 Ok(Some(n)) => self.max_files = Some(n),
                 Err(_) => {}
+            }
+        }
+        if let Ok(raw) = std::env::var("NEUROMESH_SEED_ENGINE") {
+            if let Some(engine) = SeedEngineId::parse(&raw) {
+                self.seed_resolution.engine = engine;
+            }
+        }
+        if let Ok(raw) = std::env::var("NEUROMESH_GRAPH_BACKEND") {
+            if let Some(backend) = GraphBackendId::parse(&raw) {
+                self.graph_backend.backend = backend;
             }
         }
         self
@@ -271,8 +321,93 @@ impl Config {
         merged.port = self.port;
         merged.host = self.host.clone();
         merged.max_files = self.max_files;
+        merged.seed_resolution = self.seed_resolution.clone();
+        merged.packet_header = self.packet_header.clone();
         fs::write(&path, serde_json::to_string_pretty(&merged)?)?;
         Ok(path)
+    }
+
+    pub fn home_config_path() -> PathBuf {
+        crate::paths::neuromesh_home().join("config.json")
+    }
+
+    pub fn workspace_nm_config_path(workspace: &Path) -> PathBuf {
+        workspace.join("nm.config.json")
+    }
+
+    /// Persist `seed_resolution.engine` in `~/.neuromesh/config.json` (creates file if missing).
+    pub fn set_global_seed_engine(engine: SeedEngineId) -> Result<PathBuf> {
+        let path = Self::home_config_path();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut cfg = if path.exists() {
+            Self::read_file(&path).unwrap_or_default()
+        } else {
+            Self::default()
+        };
+        cfg.seed_resolution.engine = engine;
+        fs::write(&path, serde_json::to_string_pretty(&cfg)?)?;
+        Ok(path)
+    }
+
+    /// Persist `seed_resolution.engine` in `<workspace>/nm.config.json` (version-control friendly).
+    pub fn set_workspace_seed_engine(workspace: &Path, engine: SeedEngineId) -> Result<PathBuf> {
+        let path = Self::workspace_nm_config_path(workspace);
+        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
+        let mut seed = overlay.seed_resolution.take().unwrap_or_default();
+        seed.engine = engine;
+        overlay.seed_resolution = Some(seed);
+        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
+        Ok(path)
+    }
+
+    pub fn global_seed_engine() -> Option<SeedEngineId> {
+        let path = Self::home_config_path();
+        Self::read_file(&path).map(|c| c.seed_resolution.engine)
+    }
+
+    pub fn workspace_seed_engine(workspace: &Path) -> Option<SeedEngineId> {
+        Self::read_nm_config(workspace)
+            .and_then(|o| o.seed_resolution)
+            .map(|sr| sr.engine)
+    }
+
+    pub fn set_global_graph_backend(backend: GraphBackendId) -> Result<PathBuf> {
+        let path = Self::home_config_path();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut cfg = if path.exists() {
+            Self::read_file(&path).unwrap_or_default()
+        } else {
+            Self::default()
+        };
+        cfg.graph_backend.backend = backend;
+        fs::write(&path, serde_json::to_string_pretty(&cfg)?)?;
+        Ok(path)
+    }
+
+    pub fn set_workspace_graph_backend(
+        workspace: &Path,
+        backend: GraphBackendId,
+    ) -> Result<PathBuf> {
+        let path = Self::workspace_nm_config_path(workspace);
+        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
+        let mut gb = overlay.graph_backend.take().unwrap_or_default();
+        gb.backend = backend;
+        overlay.graph_backend = Some(gb);
+        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
+        Ok(path)
+    }
+
+    pub fn project_slot_config(workspace: &Path) -> Option<Self> {
+        let path = crate::paths::project_config_path(workspace);
+        if path.exists() {
+            Self::read_file(&path)
+        } else {
+            None
+        }
     }
 }
 

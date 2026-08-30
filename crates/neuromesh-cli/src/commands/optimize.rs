@@ -73,6 +73,29 @@ pub fn execute(task_prompt: Option<String>) -> Result<()> {
             println!("Seeds missed: {}", coverage.seeds_missed.join(", "));
         }
     }
+
+    neuromesh_observability::record_activity(neuromesh_observability::ActivityRecord {
+        request_id: neuromesh_observability::cli_request_id("optimize"),
+        project_id: graph.project_id(),
+        mode: "optimize".into(),
+        command: Some("optimize".into()),
+        surface: neuromesh_observability::TelemetrySurface::Cli,
+        workspace_path: Some(current_dir.display().to_string()),
+        client_id: None,
+        tokens_before: workspace_tokens,
+        tokens_after: view.active_tokens,
+        token_reduction_pct: reduction,
+        nodes_before: graph.stats().total_nodes,
+        nodes_after: view.active_nodes.len(),
+        expansions_count: 0,
+        cache_hit: false,
+        provider: "neuromesh-cli".into(),
+        model: "optimize".into(),
+        latency_ms: ms as u64,
+        success: true,
+        task_id: Some(prompt.clone()),
+    });
+
     println!();
     Ok(())
 }

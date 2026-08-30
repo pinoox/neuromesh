@@ -88,7 +88,9 @@ pub fn canonical_tool_name(name: &str) -> String {
         .or_else(|| trimmed.strip_prefix("neuromesh."))
         .unwrap_or(trimmed);
     match stripped {
-        "get_context" | "activate_context" | "context" => "neuromesh_get_context".into(),
+        "get_context_packet" | "get_context" | "activate_context" | "context" => {
+            "get_context_packet".into()
+        }
         "get_file_skeleton" | "file_skeleton" | "skeleton" => "neuromesh_get_file_skeleton".into(),
         "expand_fold" | "expand_context" | "expand" => "neuromesh_expand_fold".into(),
         "search_symbols" | "search_context" | "get_symbol" | "search" => {
@@ -112,7 +114,7 @@ pub fn canonical_tool_name(name: &str) -> String {
 }
 
 pub fn initialize_instructions() -> &'static str {
-    "Start every coding task with neuromesh_get_context. Pass the user prompt as task_description, prompt, or task. Default response is minimal (packet_id, files, coverage, tokens). If coverage is partial or no_seed_resolved, call neuromesh_search_symbols — do not treat a utility fallback file as the answer. Fetch diagnostics with neuromesh_explain_packet(packet_id). Expand folds with neuromesh_expand_fold (fold_id, node_id, or query). After a successful edit, call neuromesh_record_feedback with the nodes you touched."
+    "NeuroMesh MCP — agent loop: (1) get_context_packet with the user task; for natural-language or any non-English prompt extract 3–5 English code terms into keywords, 3–5 related concepts into expansion, and optional path/entity hints; (2) if coverage is partial/no_seed_resolved, neuromesh_search_symbols or neuromesh_expand_gap; (3) neuromesh_expand_fold only when you need a folded body; (4) neuromesh_trace / neuromesh_get_dependencies for callers and blast radius; (5) after a successful edit, neuromesh_record_feedback with touched nodes. Prefer these tools over reading whole files. neuromesh_get_context is deprecated — use get_context_packet."
 }
 
 pub fn tool_success(id: Option<Value>, val: &Value) -> Value {
@@ -182,10 +184,10 @@ mod tests {
 
     #[test]
     fn canonical_names() {
-        assert_eq!(canonical_tool_name("get_context"), "neuromesh_get_context");
+        assert_eq!(canonical_tool_name("get_context"), "get_context_packet");
         assert_eq!(
             canonical_tool_name("neuromesh_get_context"),
-            "neuromesh_get_context"
+            "get_context_packet"
         );
         assert_eq!(canonical_tool_name("search"), "neuromesh_search_symbols");
         assert_eq!(

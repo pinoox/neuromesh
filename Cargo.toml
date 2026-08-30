@@ -5,6 +5,7 @@ members = [
     "crates/neuromesh-index",
     "crates/neuromesh-parser",
     "crates/neuromesh-graph",
+    "crates/neuromesh-graph-proxy",
     "crates/neuromesh-task",
     "crates/neuromesh-context",
     "crates/neuromesh-memory",
@@ -20,7 +21,7 @@ members = [
 exclude = ["tests/fixtures/mini-axum"]
 
 [workspace.package]
-version = "0.7.17"
+version = "0.8.2"
 edition = "2021"
 rust-version = "1.80"
 authors = ["NeuroMesh Team <team@neuromesh.local>"]

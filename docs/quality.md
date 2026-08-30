@@ -2,17 +2,23 @@
 
 Claims in this project are supposed to come from commands you can run, not from a padded corpus.
 
-## Gold
+## Gold harness
 
-`tests/gold_tasks.toml` lists prompts and **path-qualified** gold files. Fixture repos live in `tests/fixtures/` (router, TS store including `require()` CJS + `tokens.json` CSS import, Vue/JS auth+permission-guard compound task with a `directive/permission` ranking thief and forbidden clipboard/profile decoys, **mini-shop** Vue 3 + Pinia + SCSS price-card / dead-code / checkout stepper, session, queue, string config, Python SMS, Kotlin SMS including a natural “received SMS stored” prompt, Dart SMS + Flutter widget, C# SMS, Next SMS route, Pinoox Pinx `get()->action()` plus `MainController::index` → Twig, Vue/PrimeVue `Dashboard.vue` + React `StatCard`, multi-app `apps/com_shop` vs `com_blog`, Laravel Eloquent + `Schema::create` migration + seeder/factory + SQL + JSON config plus route-only `POST /sms` prompts, FastAPI, Rails, Astro, Express route-only `POST /sms`, Nest, Angular, Gin, Axum, ASP.NET MapPost + Razor `@page`, SwiftUI, Remix/React Router, Ktor, LESS/SCSS/CSS badge tokens + SVG `smsInbox` icon, Zod-like schema core vs `packages/bench` + `locales/` + `v3/` + `v4/mini/` + json-schema decoys, plus a `z.infer` → `core.ts` type-alias task), including edit/refactor-style prompts — not only “where is this symbol”.
+Built-in and project-local **gold tasks** pair natural-language prompts with **path-qualified** expected files. Fixture workspaces cover representative stacks and task shapes — not only “where is this symbol”:
 
-Thresholds locked in tests:
+- Web: Vue/React components, auth guards, SCSS tokens, checkout flows, dead-code detection
+- Backend: Laravel Eloquent + migrations, FastAPI, Rails, Nest, Gin, Axum, ASP.NET, Ktor, Express routes
+- Mobile / cross-platform: Flutter widgets, SwiftUI, Next.js routes
+- Config & schema: JSON/env config, SQL, Zod-like type cores with benchmark/locale decoys
+- Refactor / edit-style prompts alongside trace-and-explain tasks
+
+Thresholds locked in CI:
 
 - recall ≥ **0.8**
-- precision ≥ **0.4** (a `forbidden_files` hit forces precision to 0)
-- missed seeds reported as `partial`, or `no_seed_resolved` when **every** identifier missed (empty packet, Grep immediately)
+- precision ≥ **0.4** (a forbidden gold file in the packet forces precision to 0)
+- missed seeds reported as `partial`, or `no_seed_resolved` when **every** identifier missed (empty packet → Grep immediately)
 - `expand_fold` restores a registered body without reading the disk
-- activation under **250 ms** in the debug gold test on this repo (non-Windows CI; cargo test is parallel; isolated release runs sit nearer 50 ms)
+- activation under **250 ms** in the debug gold test on the main repo (non-Windows CI; parallel `cargo test`; isolated release runs sit nearer 50 ms)
 - skeletonizer folds **bodies** from graph/tree-sitter spans; seed callees stay exons; fill caps stay 0 / 5k / 16k extra tokens
 - after skeletonization, the packet itself is capped (6k / 12k / 24k) by dropping optional files then reducing per-file exons; gold still measures **file-path** recall
 - each seed file keeps at most **4** open bodies (optional files **1**); the skeleton is a window (imports + enclosing type + top spans), not the whole file
@@ -26,26 +32,67 @@ cargo test -p neuromesh-context gold_harness_on_fixture_repos -- --nocapture
 neuromesh eval
 ```
 
-`neuromesh eval` prints **workspace / selected / packet** tokens, reduction vs both, recall, precision, **Grep still needed**, and latency. README numbers must come from that table — not from a padded corpus or a global 99% claim.
+`neuromesh eval` prints **workspace / selected / packet** tokens, reduction vs both, recall, precision, **Grep still needed**, and latency. Published numbers must come from that table — not from a padded corpus or a global 99% claim.
+
+## Tiered retrieval & release gates (v0.8.2)
+
+MCP and `neuromesh packet --json` use **single-pass** L1→L2→L3 escalation. L2 pattern expand and L3 semantic recovery run only when **critical gaps** remain after the sufficiency check.
+
+```bash
+neuromesh eval --release-gates              # multi-metric gate report
+neuromesh eval --release-gates --calibrate  # dev-split threshold tuning
+```
+
+Optional: run the multilingual MCP benchmark driver against any indexed Express (or similar) workspace and compare JSON summaries release-over-release.
+
+| Gate | Target |
+| :--- | :--- |
+| Assisted recall (holdout) | ≥ 55% |
+| L3 rate | ≤ 15% |
+| FSR proxy | &lt; 10% |
+| Full-workspace fallback | 0 |
+
+`false_sufficiency_rate` is **`null`** when no `task_success` labels exist (CLI eval without agent simulation). FSR **proxy** uses `likely_sufficient` + gold recall &lt; 0.5. **Proxy v0.8.2+** never emits fixed sufficiency/confidence scores — treat proxy `retrieval.claim` as conservative (`partial` / `bounded` only).
+
+## Multilingual MCP benchmark (v0.8.2)
+
+Holdout matrix used for native vs CBM proxy comparison: **60 cells** (10 languages × 6 Express-oriented tasks — routing, middleware, render, static, query parsing, sessions). Each cell runs cold + several warm repeats over MCP stdio with `get_context_packet`.
+
+Build a **release** binary before measuring; debug builds skew latency.
+
+| mode | recall | precision | no_seed | warm p50 |
+| :--- | ---: | ---: | ---: | ---: |
+| native assisted | **0.426** | **0.789** | 0/60 | ~35 ms |
+| native raw | 0.333 | 0.622 | 11/60 | ~48 ms |
+| proxy_cbm assisted | 0.578 | 0.504 | 0/60 | ~230 ms |
+| proxy_cbm raw | 0.448 | 0.311 | 4/60 | ~230 ms |
+
+**Interpretation**
+
+- **Native assisted** remains the recommended default: best precision and lowest warm latency.
+- **Proxy v0.8.2** gates: packets return files (not empty), assisted differs from raw, no phantom `unknown` paths, honest `retrieval` metadata.
+- **Native raw** still misses on NL middleware without client keywords (11/60 no-seed) — v0.8.3 target for alias/concept seed bridge on full corpora.
+
+Re-run the same driver with `NEUROMESH_GRAPH_BACKEND=native|proxy_cbm` and raw vs assisted keyword/expansion args to reproduce.
 
 ## Grep after get_context
 
-From `cargo run --release -p neuromesh-cli -- eval` on this workspace (2026-08-28 v0.7.17, balanced):
+From `neuromesh eval` on the NeuroMesh workspace (balanced, release):
 
 | Task | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `handle_tool_call_intent` | 650859 | 72428 | 17389 | 97.3% | 76.0% | 1.00 | 0.75 | **0** | **22** |
 | `physarum_usage` | 650859 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | **12** |
 
-Debug `neuromesh eval` on the same repo: activation ~157 ms / ~104 ms; full index ~2.3 s.
+Debug `neuromesh eval` on the same workspace: activation ~157 ms / ~104 ms; full index ~2.3 s.
 
-That is “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
+That measures “did the packet already hold the files a developer would open”, not a live multi-agent trial. Quote this table; do not invent a global 99% figure.
 
 ## Hot-path optimization (v0.7.17)
 
-Measured with `cargo run --release -p neuromesh-cli -- eval` and `mcp_driver.mjs` (25 warm repeats per prompt, 2026-08-28). Correctness unchanged: same recall/precision/coverage on all benchmark prompts.
+Measured with release `neuromesh eval` and an MCP stdio driver (25 warm repeats per prompt). Correctness unchanged: same recall/precision/coverage on benchmark prompts.
 
-### `neuromesh eval` latency (this repo, balanced)
+### `neuromesh eval` latency (main repo, balanced)
 
 | Task | Before ms | After ms |
 | :--- | ---: | ---: |
@@ -56,12 +103,12 @@ Measured with `cargo run --release -p neuromesh-cli -- eval` and `mcp_driver.mjs
 
 ### MCP stdio warm p50 (5 prompts summed)
 
-| Workspace | Before ms | After ms | Notes |
+| Corpus size | Before ms | After ms | Notes |
 | :--- | ---: | ---: | :--- |
-| Express (`test-project`) | 112 | ~140 | Run-to-run variance ±30 ms; files/coverage identical |
-| NeuroMesh (this repo) | 487 | **487** | Large-repo prompts (selector/registry/feedback) dominate |
+| Small (Express sample) | 112 | ~140 | Run-to-run variance ±30 ms; files/coverage identical |
+| Large (NeuroMesh repo) | 487 | **487** | Selector/registry/feedback prompts dominate |
 
-Driver: `benchmark/nm_vs_cbm/mcp_driver.mjs`. Artifacts: `mcp_before_*.json`, `mcp_after_*.json`.
+Compare before/after JSON artifacts from the same driver configuration when validating regressions.
 
 ## Learning → emission (v0.7.17)
 
@@ -79,29 +126,29 @@ cargo test -p neuromesh-context deterministic_packet_same_state
 cargo test -p neuromesh-context catastrophic_learning
 ```
 
-`neuromesh eval --learning` runs a dose-response sweep on `tests/fixtures/learning-causal/` and prints reinforcement → bonus → rank → emitted → MRR.
+`neuromesh eval --learning` runs a dose-response sweep on the learning-causal fixture and prints reinforcement → bonus → rank → emitted → MRR.
 
 `neuromesh_explain_packet` → `selection.candidates` includes `selected`, `emitted`, `drop_stage`, and `score_breakdown` (`utility_score`, `learned_score`, `negative_penalty`, `final_score`). Use these when `selected: true` but a file is missing from the packet.
 
 Configurable learning thresholds live in `Thresholds` (`penalized_suppression_threshold`, `learning_promotion_min_bonus`, `learning_relevance_cap_unrelated`, `learning_decay_half_life_days`, `max_learned_influence`) — see `neuromesh-core` config defaults.
 
-## Shop fixture (mini-shop)
+## Shop-style fixture (Vue + Pinia + SCSS)
 
-From the same `neuromesh eval` run (balanced, Vue 3 + Pinia + SCSS):
+From the same `neuromesh eval` run (balanced):
 
 | Task | Recall | Prec | Packet files (gold hit) |
 | :--- | ---: | ---: | :--- |
-| `price_card_scss` | 1.00 | 1.00 | tokens, mixins, ProductCard, `_priceCard.scss` |
+| `price_card_scss` | 1.00 | 1.00 | tokens, mixins, ProductCard, price-card SCSS |
 | `dead_code_gocart` | 1.00 | 1.00 | ui.js, App.vue, CartDrawer, Header |
-| `checkout_qty_stepper` | 1.00 | 0.40 | CheckoutView, cart.js (+ connector views) |
+| `checkout_qty_stepper` | 1.00 | 0.40 | CheckoutView, cart store (+ connector views) |
 
 ## Index snapshot
 
-From `cargo run --release -p neuromesh-cli -- eval` (2026-08-28 v0.7.17) on this repository:
+From release `neuromesh eval` on the NeuroMesh workspace:
 
 | Metric | Value |
 | :--- | ---: |
-| Files | 340 (`target/` ignored) |
+| Files | 340 (build artifacts ignored) |
 | Nodes | 3,161 |
 | Edges | 6,795 |
 | Workspace tokens | 650,859 |
@@ -112,9 +159,9 @@ Index file cap is **auto** by default (production sources first, tests last, cei
 
 ## Compact mesh: snapshot load and one-file reindex
 
-The mesh keeps a structural skeleton in RAM. File bodies are not stored in nodes and not written to the snapshot; source is read on demand when a packet is spliced. The snapshot is `graph.bin` (bincode); `graph.json` is still read once for migration.
+The mesh keeps a structural skeleton in RAM. File bodies are not stored in nodes and not written to the snapshot; source is read on demand when a packet is spliced. The snapshot is a binary graph blob; a legacy JSON migration path is read once when present.
 
-From `snapshot_load_and_single_file_reindex_beat_full_index` (release, 2026-08-28, this repo):
+From the snapshot load benchmark (release, NeuroMesh workspace):
 
 | Metric | Value |
 | :--- | ---: |
@@ -129,10 +176,10 @@ From `snapshot_load_and_single_file_reindex_beat_full_index` (release, 2026-08-2
 cargo test --release -p neuromesh-graph --lib snapshot_load_and_single_file_reindex -- --nocapture
 ```
 
-The walker compares size + mtime before reading, so an unchanged tree is a metadata walk with zero `read_to_string` calls (`metadata_walk_skips_unchanged_files`). `neuromesh index` prints `Unchanged skip` for those files. Live sync uses an OS watcher (`notify`, 200 ms debounce) instead of a full-tree poll.
+The walker compares size + mtime before reading, so an unchanged tree is a metadata walk with zero full-file reads. `neuromesh index` prints `Unchanged skip` for those files. Live sync uses an OS watcher (200 ms debounce) instead of a full-tree poll.
 
-Re-ingesting one file re-queues the **inbound** `Calls`/`Imports` edges that pointed at its symbols, so callers keep their edges without a full reindex (`reingest_file_relinks_inbound_calls`).
+Re-ingesting one file re-queues the **inbound** `Calls`/`Imports` edges that pointed at its symbols, so callers keep their edges without a full reindex.
 
-Fill caps: `max_savings` = 0 extra tokens, `balanced` = 5,000, `max_quality` = 16,000. Packet caps after skeletonization: 6,000 / 12,000 / 24,000. Reduction is versus **this workspace**, not a fake 25k dump.
+Fill caps: `max_savings` = 0 extra tokens, `balanced` = 5,000, `max_quality` = 16,000. Packet caps after skeletonization: 6,000 / 12,000 / 24,000. Reduction is versus **the indexed workspace**, not a fake fixed dump.
 
 Token savings from skeletonization are **per file and per task**. There is no universal 99% claim.

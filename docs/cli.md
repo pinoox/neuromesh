@@ -4,6 +4,7 @@ Binary: `neuromesh` (`neuromesh-cli` crate).
 
 ```
 neuromesh mcp          # stdio MCP server (what the IDE launches)
+nmx mcp                # same binary, short alias
 neuromesh monitor      # Web UI + SSE (default http://127.0.0.1:8765)
 neuromesh port         # show or persist the monitor port
 neuromesh index        # build the graph and seed project memory
@@ -12,10 +13,12 @@ neuromesh usage        # MCP token telemetry (`--all`, `--limit N`)
 neuromesh graph        # graph stats
 neuromesh memory       # project facts
 neuromesh optimize     # one prompt → print the packet
+neuromesh packet       # JSON packet for benchmarks (`--json`, `--engine`, `--keywords`)
 neuromesh eval         # gold recall / precision / fill on cwd and tests/fixtures
 neuromesh eval --learning   # dose-response learning benchmark (learning-causal fixture)
 neuromesh benchmark    # same as eval
 neuromesh store        # managed home vs trusted local `.neuromesh`
+neuromesh config       # seed engine + settings (global or nm.config.json)
 neuromesh connect      # write MCP configs (or `--print` snippets)
 neuromesh doctor       # workspace root, scan, skipped extensions, graph, port
 neuromesh version
@@ -23,7 +26,7 @@ neuromesh version
 
 ## Usage telemetry
 
-MCP tool calls (`neuromesh_get_context`, skeleton, search, expand, trace, stats, …) append to `~/.neuromesh/telemetry_history.json`. The MCP `initialize` handshake writes one `mcp_session` row per process. That file is the source of truth. The monitor UI reads the same file (and also accepts `POST /api/telemetry/record` when `neuromesh monitor` is running).
+MCP tool calls (`get_context_packet`, skeleton, search, expand, trace, stats, …) append to `~/.neuromesh/telemetry_history.json`. The MCP `initialize` handshake writes one `mcp_session` row per process. That file is the source of truth. The monitor UI reads the same file (and also accepts `POST /api/telemetry/record` when `neuromesh monitor` is running).
 
 ```bash
 neuromesh usage              # this project
@@ -63,6 +66,59 @@ Or in `~/.neuromesh/config.json`:
 
 `"project_store": "local"` is the old behavior for every workspace. `NEUROMESH_STORE=local` is a one-shot. Leftover in-repo `.neuromesh` folders are copied into the managed slot once, then ignored until you trust them.
 
+## Seed engine & config
+
+Seed resolution strategy controls how NeuroMesh picks symbol anchors before folding. Default engine: **`keywords_expanded`**. For natural-language prompts without client keywords, prefer **`semantic_lite`** or **`hybrid`**.
+
+| Layer | File | Scope |
+| :--- | :--- | :--- |
+| Global | `~/.neuromesh/config.json` | all workspaces |
+| Project | `nm.config.json` in repo root | commit-friendly per repo |
+| Managed slot | `~/.neuromesh/projects/…/config.json` | port / max-files / seed (via `neuromesh port`) |
+| Env | `NEUROMESH_SEED_ENGINE` | one-shot override |
+| MCP | `engine` param on `get_context_packet` | per call |
+
+```bash
+neuromesh config                              # effective settings for cwd
+neuromesh config seed-engine                  # show engine + override layers
+neuromesh config seed-engine semantic_lite     # write nm.config.json here
+neuromesh config seed-engine hybrid --global   # machine default
+```
+
+## Packet (JSON benchmark path)
+
+Same activation path as MCP `get_context_packet`, for scripts and CI:
+
+```bash
+neuromesh packet --json --query "Where is HTTPAdapter.send?"
+neuromesh packet --json --engine hybrid \
+  --keywords "Session,redirect" --expansion "retry,models" \
+  --query "How does redirect work?"
+```
+
+Stdout is one JSON object: coverage, files, tokens, `seed_resolution`, client signals. Human-readable output when `--json` is omitted.
+
+Example `nm.config.json` (copy from `nm.config.example.json`):
+
+```json
+{
+  "seed_resolution": { "engine": "semantic_lite" },
+  "packet_header": { "enabled": true }
+}
+```
+
+Engines: `off` · `keywords` · `keywords_expanded` · `semantic_lite` · `hybrid`
+
+Graph backend (`graph_backend.backend`): `native` (default) · `auto` · `proxy_cbm` · `proxy_graphify`. See [graph-proxy.md](graph-proxy.md).
+
+```bash
+neuromesh config graph-backend auto
+neuromesh doctor --proxy
+neuromesh doctor --proxy --probe    # live CBM connect + sample packet
+```
+
+Monitor **Settings → Graph Backend / Seed Engine** saves `nm.config.json` and reconnects the proxy. See [engines.md](engines.md).
+
 ## Everyday
 
 ```bash
@@ -71,25 +127,33 @@ neuromesh index
 neuromesh optimize -- "How does handle_tool_call extract intent?"
 neuromesh eval
 neuromesh eval --learning
+neuromesh eval --release-gates    # holdout gates (assisted ≥55%, L3 ≤15%, FSR <10%)
+neuromesh eval --calibrate        # dev/holdout calibration from test3 JSON
 ```
 
 `eval` scores `tests/gold_tasks.toml` if present, otherwise the builtin set. It also walks `tests/fixtures/*/gold_tasks.toml`.
 
 `eval --learning` indexes `tests/fixtures/learning-causal/`, sweeps reinforcement levels on `PromoCodeInput`, and prints bonus → rank → emitted → MRR. See [quality.md](quality.md#learning--emission-v0715).
 
+`eval --release-gates` runs the v0.8.2 holdout matrix (assisted recall, L3 rate, false-sufficiency proxy). `eval --calibrate` tunes sufficiency thresholds from benchmark JSON under `tests/fixtures/test3/`.
+
 The process uses the **current working directory** as the project. `neuromesh connect` writes that path into each client's MCP config so the IDE does not have to guess.
 
 ## Connect MCP clients
 
+Default is **portable** — one global install works for every project (workspace auto-detected). Use `nmx` anywhere you use `neuromesh`.
+
 ```bash
-neuromesh connect              # project files + globals for apps already installed
-neuromesh connect --print      # snippets only
-neuromesh connect --dry-run    # list target files
-neuromesh connect --project    # this repo only
-neuromesh connect --global     # also create user-level configs
+neuromesh connect --global --agent-rules   # recommended once per machine
+neuromesh connect --print                  # snippets only
+neuromesh connect --dry-run                # list target files
+neuromesh connect --project                # this repo only
+neuromesh connect --pinned                 # legacy: absolute binary + workspace pin
+neuromesh smoke                            # quick graph + telemetry check
+neuromesh doctor --mcp                     # MCP workspace env diagnostics
 ```
 
-Uses the absolute path of this `neuromesh` binary and `NEUROMESH_WORKSPACE`. See [mcp.md](mcp.md#connect).
+See [mcp.md](mcp.md#connect).
 
 ## Monitor port
 

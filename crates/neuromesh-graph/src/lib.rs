@@ -1,4 +1,5 @@
 pub mod activation;
+pub mod concept_index;
 pub mod edge;
 pub mod graph;
 mod intern;
@@ -14,6 +15,7 @@ mod quality_tests;
 mod repo_quality_tests;
 
 pub use activation::{SpreadingActivation, SpreadingActivationConfig};
+pub use concept_index::{ConceptId, ConceptIndex};
 pub use edge::{PheromoneConfig, PheromoneEngine};
 pub use graph::{
     node_learning_bonus, path_echoes_symbol, GraphStats, IndexState, NeuralProjectGraph,

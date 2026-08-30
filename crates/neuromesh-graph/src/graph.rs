@@ -1,4 +1,5 @@
 use crate::activation::{SpreadingActivation, SpreadingActivationConfig};
+use crate::concept_index::ConceptIndex;
 use crate::edge::{PheromoneConfig, PheromoneEngine};
 use crate::intern::{
     capture_inbound_pending, index_tokens, infer_workspace_root, insert_indexed_node,
@@ -756,6 +757,11 @@ impl NeuralProjectGraph {
             .into_iter()
             .filter_map(|hit| self.get_node(&hit.id))
             .collect()
+    }
+
+    /// Lookup symbol node ids for a code-derived concept id.
+    pub fn concept_nodes(&self, concept: &str) -> Vec<NodeId> {
+        self.inner.read().concept_index.lookup(concept).to_vec()
     }
 
     pub fn search_symbols(&self, query: &str, limit: usize) -> Vec<SearchHit> {
@@ -1647,6 +1653,7 @@ impl NeuralProjectGraph {
                 workspace_root: data.workspace_root.clone(),
                 parser_epoch: data.parser_epoch.max(GRAPH_PARSER_EPOCH),
                 applied_learning_episodes: data.applied_learning_episodes.clone(),
+                concept_index: data.concept_index.clone(),
             }
         };
         if snapshot_structurally_unchanged(path, &snapshot) {
@@ -1692,6 +1699,7 @@ impl NeuralProjectGraph {
                 workspace_root: None,
                 parser_epoch: 0,
                 applied_learning_episodes: HashSet::new(),
+                concept_index: ConceptIndex::default(),
             });
             return Ok(true);
         }
@@ -2596,12 +2604,16 @@ fn normalize_path_hint(value: &str) -> String {
 fn looks_like_file_path_hint(hint: &str) -> bool {
     let hint = hint.replace('\\', "/");
     let Some((_, ext)) = hint.rsplit_once('.') else {
-        return false;
+        return hint.contains('/');
     };
     !ext.is_empty()
         && ext.len() <= 8
         && ext.chars().all(|c| c.is_ascii_alphanumeric())
-        && (hint.contains('/') || ext.eq_ignore_ascii_case("twig"))
+        && (hint.contains('/')
+            || matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "twig" | "json" | "jsonc" | "php" | "xml" | "yaml" | "yml" | "toml"
+            ))
 }
 
 fn template_stem_hint(hint: &str, target_symbol: &str) -> bool {

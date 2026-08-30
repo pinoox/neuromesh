@@ -28,17 +28,20 @@ fn tool(name: &str, title: &str, description: &str, schema: Value, annotations: 
     })
 }
 
-/// MCP `tools/list` payload. `get_context` does not require a single key name —
-/// clients send `task_description`, `prompt`, or `task`.
+/// MCP `tools/list` payload. `get_context_packet` accepts `query`, `task_description`, `prompt`, or `task`.
 pub fn tools_list() -> Vec<Value> {
     vec![
         tool(
-            "neuromesh_get_context",
+            "get_context_packet",
             "Get evidence packet",
-            "Return a compact evidence packet by default: packet_id, coverage (claim: no_recorded_gap | bounded | partial | no_seed_resolved; covered, skipped, sidecar_files, unsure, packet_gaps), selected/packet tokens, skeletonized files with optional sidecar:true, fold ids without bodies, and missing seeds only when coverage is partial or no_seed_resolved. no_recorded_gap only when seeds resolve, gaps empty, no sidecars, and packet not budget-truncated. bounded means seeds resolved but connector/sidecar fill or budget cut applied. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as task_description, prompt, or task.",
+            "Return a compact evidence packet by default: packet_id, coverage (claim: no_recorded_gap | bounded | partial | no_seed_resolved; covered, skipped, sidecar_files, unsure, packet_gaps), selected/packet tokens, skeletonized files with optional sidecar:true, fold ids without bodies, and missing seeds only when coverage is partial or no_seed_resolved. no_recorded_gap only when seeds resolve, gaps empty, no sidecars, and packet not budget-truncated. bounded means seeds resolved but connector/sidecar fill or budget cut applied. mode controls file selection quality; response_detail controls metadata. Pass diagnostic on-demand via neuromesh_explain_packet. Never treats silence as completeness. Compound tasks seed each topical cluster independently; a named cluster with zero hits is partial, not no_recorded_gap. no_seed_resolved means every identifier missed — Grep immediately. Pass the user prompt as query, task_description, prompt, or task. If the user prompt is in natural language or any non-English language, extract 3–5 core English code terms into keywords, 3–5 related concepts into expansion, and optional path/entity hints.",
             json!({
                 "type": "object",
                 "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Primary user prompt (alias: task_description, prompt, task)"
+                    },
                     "task_description": {
                         "type": "string",
                         "description": "The user's prompt or coding task"
@@ -50,6 +53,36 @@ pub fn tools_list() -> Vec<Value> {
                     "task": {
                         "type": "string",
                         "description": "Alias for task_description"
+                    },
+                    "keywords": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "3–5 core English code terms from natural-language or non-English prompts"
+                    },
+                    "expansion": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "3–5 related concepts, synonyms, or lifecycle hooks"
+                    },
+                    "path_hints": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional glob path patterns (e.g. **/auth/**)"
+                    },
+                    "entity_types": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional AST entity hints (class, function, model, controller, …)"
+                    },
+                    "intent": {
+                        "type": "string",
+                        "enum": ["explain", "debug", "refactor", "general"],
+                        "description": "Client fold-density hint; separate from server task intent"
+                    },
+                    "engine": {
+                        "type": "string",
+                        "enum": ["off", "keywords", "keywords_expanded", "semantic_lite", "hybrid"],
+                        "description": "Per-call seed resolution engine override"
                     },
                     "mode": {
                         "type": "string",
@@ -92,7 +125,7 @@ pub fn tools_list() -> Vec<Value> {
         tool(
             "neuromesh_explain_packet",
             "Explain packet",
-            "On-demand diagnostic metadata for a packet_id from neuromesh_get_context (seeds, selection, budget, physarum, membrane). Does not return folded source bodies. Graph stats are included only when include contains graph. Expired or unknown packet_id is an error — call get_context again.",
+            "On-demand diagnostic metadata for a packet_id from get_context_packet (seeds, selection, budget, physarum, membrane). Does not return folded source bodies. Graph stats are included only when include contains graph. Expired or unknown packet_id is an error — call get_context_packet again.",
             json!({
                 "type": "object",
                 "properties": {
@@ -302,15 +335,19 @@ mod tests {
     use super::tools_list;
 
     #[test]
-    fn get_context_does_not_require_one_key() {
+    fn get_context_packet_schema_is_flexible() {
         let tools = tools_list();
         let ctx = tools
             .iter()
-            .find(|t| t["name"] == "neuromesh_get_context")
+            .find(|t| t["name"] == "get_context_packet")
             .unwrap();
         assert!(ctx["inputSchema"].get("required").is_none());
+        assert!(ctx["inputSchema"]["properties"].get("query").is_some());
         assert!(ctx["inputSchema"]["properties"].get("prompt").is_some());
         assert!(ctx["inputSchema"]["properties"].get("task").is_some());
+        assert!(ctx["inputSchema"]["properties"].get("keywords").is_some());
+        assert!(ctx["inputSchema"]["properties"].get("expansion").is_some());
+        assert!(ctx["inputSchema"]["properties"].get("engine").is_some());
         assert!(ctx["inputSchema"]["properties"]
             .get("response_detail")
             .is_some());

@@ -1683,6 +1683,7 @@ class Greeter {
             workspace_root: Some(dir.clone()),
             parser_epoch: 0,
             applied_learning_episodes: HashSet::new(),
+            concept_index: crate::concept_index::ConceptIndex::default(),
         };
         let bytes = bincode::serialize(&snapshot).expect("serialize");
         std::fs::write(&path, bytes).expect("write");

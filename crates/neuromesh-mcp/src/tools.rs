@@ -1,15 +1,19 @@
+use crate::graph_proxy::proxy_evidence_response;
 use crate::packet_cache::PacketDetailCache;
 use crate::response::{
     cache_and_build, collect_file_entries, collect_symbols, explain_packet,
     fold_descriptors_from_skeleton, ContextBuild, ResponseDetail,
 };
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
+use neuromesh_context::retrieval::infer_assisted_seed_signals;
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
-use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result};
+use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId};
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
+use neuromesh_graph_proxy::{GraphProxySession, ProxySearchContext};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_router::QualityGate;
-use neuromesh_task::TaskSignatureExtractor;
+use neuromesh_task::{normalize_keyword, TaskSignatureExtractor};
+use parking_lot::RwLock;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::path::Path;
@@ -25,12 +29,18 @@ pub struct McpToolHandler {
     working_memory: Arc<parking_lot::RwLock<WorkingMemory>>,
     mycelium: Arc<MyceliumCache>,
     packet_cache: PacketDetailCache,
+    client_id: RwLock<Option<String>>,
+    /// External graph MCP (CBM/Graphify). None = native only.
+    graph_proxy: RwLock<Option<Arc<tokio::sync::Mutex<GraphProxySession>>>>,
+    graph_proxy_fallback_native: RwLock<bool>,
+    graph_backend_label: RwLock<String>,
 }
 
 struct ToolTelemetry {
     prefix: &'static str,
     task_id: String,
     mode: String,
+    command: Option<String>,
     tokens_before: usize,
     tokens_after: usize,
     token_reduction_pct: f32,
@@ -47,6 +57,7 @@ impl ToolTelemetry {
             prefix,
             task_id: task_id.into(),
             mode: mode.into(),
+            command: None,
             tokens_before: 0,
             tokens_after: 0,
             token_reduction_pct: 0.0,
@@ -75,7 +86,53 @@ impl McpToolHandler {
             working_memory,
             mycelium: Arc::new(MyceliumCache::new(MyceliumConfig::default())),
             packet_cache: PacketDetailCache::new(),
+            client_id: RwLock::new(None),
+            graph_proxy: RwLock::new(None),
+            graph_proxy_fallback_native: RwLock::new(true),
+            graph_backend_label: RwLock::new("native".into()),
         }
+    }
+
+    /// Attach an external graph backend. Native graph remains loaded for fallback and other tools.
+    pub fn with_graph_proxy(
+        self,
+        session: GraphProxySession,
+        fallback_native: bool,
+        backend_label: impl Into<String>,
+    ) -> Self {
+        *self.graph_proxy.write() = Some(Arc::new(tokio::sync::Mutex::new(session)));
+        *self.graph_proxy_fallback_native.write() = fallback_native;
+        *self.graph_backend_label.write() = backend_label.into();
+        self
+    }
+
+    /// Hot-swap or attach graph proxy at runtime (monitor config changes).
+    pub async fn connect_graph_proxy(
+        &self,
+        session: GraphProxySession,
+        fallback_native: bool,
+        backend_label: impl Into<String>,
+    ) {
+        *self.graph_proxy.write() = Some(Arc::new(tokio::sync::Mutex::new(session)));
+        *self.graph_proxy_fallback_native.write() = fallback_native;
+        *self.graph_backend_label.write() = backend_label.into();
+    }
+
+    pub fn clear_graph_proxy(&self) {
+        *self.graph_proxy.write() = None;
+        *self.graph_backend_label.write() = "native".into();
+    }
+
+    pub fn graph_backend_label(&self) -> String {
+        self.graph_backend_label.read().clone()
+    }
+
+    pub fn graph_proxy_active(&self) -> bool {
+        self.graph_proxy.read().is_some()
+    }
+
+    pub fn set_client_id(&self, client: String) {
+        *self.client_id.write() = Some(client);
     }
 
     pub fn graph(&self) -> &Arc<NeuralProjectGraph> {
@@ -134,7 +191,7 @@ impl McpToolHandler {
     }
 
     fn emit_telemetry(&self, tel: ToolTelemetry) {
-        neuromesh_observability::record_global_telemetry(neuromesh_core::OptimizationMetadata {
+        neuromesh_observability::record_metadata(neuromesh_core::OptimizationMetadata {
             request_id: telemetry_request_id(tel.prefix),
             task_id: Some(tel.task_id),
             project_id: self.graph.project_id(),
@@ -151,6 +208,10 @@ impl McpToolHandler {
             latency_ms: tel.latency_ms,
             success: tel.success,
             timestamp: chrono::Utc::now(),
+            workspace_path: self.graph.workspace_root().map(|p| p.display().to_string()),
+            surface: "mcp".into(),
+            client_id: self.client_id.read().clone(),
+            command: tel.command,
         });
     }
 
@@ -196,15 +257,19 @@ impl McpToolHandler {
         }
         match name {
             // 1. Task-conditioned evidence packet (seed files + fill-budget connectors)
-            "neuromesh_get_context" | "activate_context" => {
+            "get_context_packet" | "neuromesh_get_context" | "activate_context" => {
+                if name != "get_context_packet" {
+                    warn_deprecated_get_context(name);
+                }
                 let start_time = std::time::Instant::now();
                 let task_desc = read_task_description(arguments)?;
                 let requested_mode = parse_optimization_mode(arguments.get("mode"))?;
                 self.wait_for_index()?;
                 let detail = ResponseDetail::parse(arguments["response_detail"].as_str());
 
-                let signature = TaskSignatureExtractor::extract(&task_desc);
-                let mut signature = signature;
+                let mut signature = TaskSignatureExtractor::extract(&task_desc);
+                apply_client_seed_signals(&mut signature, arguments);
+                apply_server_assisted_defaults(&mut signature, &task_desc);
                 if let Ok(episodes) = self
                     .memory_db
                     .find_similar_episodes(&self.graph.project_id(), &task_desc)
@@ -221,9 +286,49 @@ impl McpToolHandler {
                     }
                 }
                 let gate = QualityGate::evaluate(&signature, requested_mode);
-                let view = self
-                    .activator
-                    .activate(&self.graph, &signature, gate.effective_mode);
+
+                let proxy = self.graph_proxy.read().clone();
+                let fallback_native = *self.graph_proxy_fallback_native.read();
+                let backend_label = self.graph_backend_label();
+                if let Some(proxy) = proxy {
+                    let ctx = ProxySearchContext::from_task_signature(&signature);
+                    match proxy.lock().await.build_context_packet(&ctx, 8).await {
+                        Ok(proxy_packet) => {
+                            let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                            let value = proxy_evidence_response(
+                                &proxy_packet,
+                                &signature,
+                                &gate,
+                                detail,
+                                elapsed_ms,
+                                &backend_label,
+                            );
+                            self.emit_telemetry(ToolTelemetry {
+                                tokens_before: 0,
+                                tokens_after: proxy_packet.packet_tokens,
+                                token_reduction_pct: 0.0,
+                                nodes_after: proxy_packet.files.len(),
+                                latency_ms: elapsed_ms,
+                                ..ToolTelemetry::new(
+                                    "mcp-proxy",
+                                    task_desc.chars().take(50).collect::<String>(),
+                                    gate.effective_mode.to_string(),
+                                )
+                            });
+                            return Ok(value);
+                        }
+                        Err(e) if fallback_native => {
+                            tracing::warn!("graph proxy failed, using native graph: {e}");
+                        }
+                        Err(e) => {
+                            return Err(NeuroMeshError::Config(format!("graph proxy failed: {e}")));
+                        }
+                    }
+                }
+
+                let view =
+                    self.activator
+                        .activate_tiered(&self.graph, &signature, gate.effective_mode);
                 self.prefetch_mycelium(&view);
 
                 for active in &view.active_nodes {
@@ -329,12 +434,22 @@ impl McpToolHandler {
                     } else {
                         res.skeleton_code
                     };
+                    let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                    self.emit_telemetry(ToolTelemetry {
+                        tokens_before: res.original_tokens,
+                        tokens_after: res.skeleton_tokens.min(cap),
+                        token_reduction_pct: res.token_reduction_pct,
+                        nodes_after: 1,
+                        latency_ms: elapsed_ms,
+                        command: Some("expand_gap".into()),
+                        ..ToolTelemetry::new("mcp-gap", format!("Gap: {file_path}"), "expand_gap")
+                    });
                     Ok(json!({
                         "success": true,
                         "path": file_path,
                         "skeleton": skeleton,
                         "skeleton_tokens": res.skeleton_tokens.min(cap),
-                        "latency_ms": start_time.elapsed().as_millis(),
+                        "latency_ms": elapsed_ms,
                     }))
                 } else {
                     Ok(json!({ "success": false, "error": "file not found" }))
@@ -923,7 +1038,8 @@ fn read_task_description(arguments: &Value) -> Result<String> {
     .trim();
     if raw.is_empty() {
         Err(NeuroMeshError::Config(
-            "neuromesh_get_context requires a prompt (task_description, prompt, or task)".into(),
+            "get_context_packet requires a prompt (query, task_description, prompt, or task)"
+                .into(),
         ))
     } else {
         Ok(raw.to_string())
@@ -955,6 +1071,77 @@ fn read_string_list(arguments: &Value, key: &str) -> Vec<String> {
             .map(ToString::to_string)
             .collect(),
         _ => Vec::new(),
+    }
+}
+
+static DEPRECATED_GET_CONTEXT_WARNED: AtomicBool = AtomicBool::new(false);
+
+fn warn_deprecated_get_context(name: &str) {
+    if !DEPRECATED_GET_CONTEXT_WARNED.swap(true, Ordering::Relaxed) {
+        eprintln!("[neuromesh] tool {name} is deprecated; use get_context_packet");
+    }
+}
+
+fn push_unique_normalized(out: &mut Vec<String>, raw: &str) {
+    let normalized = normalize_keyword(raw);
+    if normalized.is_empty() {
+        return;
+    }
+    if !out
+        .iter()
+        .any(|existing| existing.eq_ignore_ascii_case(&normalized))
+    {
+        out.push(normalized);
+    }
+}
+
+fn apply_client_seed_signals(signature: &mut neuromesh_core::TaskSignature, arguments: &Value) {
+    for kw in read_string_list(arguments, "keywords") {
+        push_unique_normalized(&mut signature.client_keywords, &kw);
+    }
+    for term in read_string_list(arguments, "expansion") {
+        push_unique_normalized(&mut signature.client_expansion, &term);
+    }
+    for hint in read_string_list(arguments, "path_hints") {
+        let hint = hint.trim().replace('\\', "/");
+        if hint.is_empty() {
+            continue;
+        }
+        if !signature.client_path_hints.iter().any(|h| h == &hint) {
+            signature.client_path_hints.push(hint);
+        }
+    }
+    for et in read_string_list(arguments, "entity_types") {
+        let et = et.trim().to_lowercase();
+        if et.is_empty() {
+            continue;
+        }
+        if !signature.client_entity_types.iter().any(|e| e == &et) {
+            signature.client_entity_types.push(et);
+        }
+    }
+    if let Some(intent) = arguments.get("intent").and_then(Value::as_str) {
+        let intent = intent.trim();
+        if !intent.is_empty() {
+            signature.client_intent = Some(intent.to_string());
+        }
+    }
+    if let Some(engine) = arguments.get("engine").and_then(Value::as_str) {
+        signature.engine_override = SeedEngineId::parse(engine);
+    }
+}
+
+/// Native assisted by default: infer keywords/expansion when the client sends only the task text.
+fn apply_server_assisted_defaults(signature: &mut neuromesh_core::TaskSignature, prompt: &str) {
+    if !signature.client_keywords.is_empty() || !signature.client_expansion.is_empty() {
+        return;
+    }
+    let (keywords, expansion) = infer_assisted_seed_signals(prompt);
+    for kw in keywords {
+        push_unique_normalized(&mut signature.client_keywords, &kw);
+    }
+    for term in expansion {
+        push_unique_normalized(&mut signature.client_expansion, &term);
     }
 }
 

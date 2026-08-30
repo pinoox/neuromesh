@@ -6,6 +6,10 @@ use crate::packet_analysis::{
 };
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
+use crate::seed::{
+    run_seed_resolution, MicroHeaderGenerator, NearestAncestorManifestResolver, SeedBuffers,
+    SeedSink,
+};
 use crate::selector::{
     budget_mode_name, fill_budget, is_noise_path, packet_cap, path_sort_keys,
     seed_callee_exon_names, select, sort_key,
@@ -18,9 +22,9 @@ use crate::style_routing::{
 use crate::unified_score::compute_unified_file_score;
 use neuromesh_core::{
     decoy_allowed_for_prompt, hmvc_app_prefix, is_name_collision_decoy, is_schema_path,
-    prompt_targets_database, prompt_targets_types, ActivatedNodeView, ContextStatus, ContextView,
-    CoverageReport, EdgeConfidence, EdgeType, EmissionDropStage, NextAction, NodeId, NodeType,
-    OptimizationMode, SeedResolution, SkippedFile, TaskSignature, Thresholds,
+    prompt_targets_database, prompt_targets_types, ActivatedNodeView, Config, ContextStatus,
+    ContextView, CoverageReport, EdgeConfidence, EdgeType, EmissionDropStage, NextAction, NodeId,
+    NodeType, OptimizationMode, SeedResolution, SkippedFile, TaskSignature, Thresholds,
 };
 use neuromesh_graph::{path_echoes_symbol, NeuralProjectGraph};
 use neuromesh_task::{
@@ -145,6 +149,97 @@ impl ContextActivator {
         signature: &TaskSignature,
         mode: OptimizationMode,
     ) -> ContextView {
+        self.activate_with_hops(graph, signature, mode, 0)
+    }
+
+    /// Tier orchestrator entry: `hops_override` of 0 uses mode-derived hops.
+    pub fn activate_with_hops(
+        &self,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+        hops_override: u8,
+    ) -> ContextView {
+        self.activate_inner(graph, signature, mode, hops_override)
+    }
+
+    /// L1→L2→L3 cost-aware retrieval with conservative sufficiency early exit.
+    pub fn activate_tiered(
+        &self,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+    ) -> ContextView {
+        crate::retrieval::RetrievalOrchestrator::default().run(self, graph, signature, mode)
+    }
+
+    /// Single-pass incremental escalation entry (see `retrieval::escalate`).
+    pub fn activate_incremental(
+        &self,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+        phase: crate::retrieval::escalate::IncrementalPhase,
+        plan: &crate::retrieval::query_intent::QueryPlan,
+        prior: Option<ContextView>,
+    ) -> ContextView {
+        use crate::retrieval::concept_seeds::resolve_concept_seeds;
+        use crate::retrieval::escalate::IncrementalPhase;
+        use neuromesh_core::SeedEngineId;
+
+        match phase {
+            IncrementalPhase::L1 => {
+                let mut sig = signature.clone();
+                for (id, _score, _reason) in resolve_concept_seeds(graph, &sig, plan) {
+                    if let Some(node) = graph.get_node(&id) {
+                        let name = node.name.clone();
+                        if !sig.identifiers.iter().any(|i| i == &name) {
+                            sig.identifiers.push(name);
+                        }
+                    }
+                }
+                self.activate_with_hops(graph, &sig, mode, 1)
+            }
+            IncrementalPhase::L2 { extra_files, hops } => {
+                let base =
+                    prior.unwrap_or_else(|| self.activate_with_hops(graph, signature, mode, hops));
+                let extended = self.activate_with_hops(graph, signature, mode, hops);
+                let mut merged = merge_context_views(base, extended);
+                for file_id in extra_files {
+                    include_file_hint(graph, &mut merged, &file_id);
+                }
+                merged
+            }
+            IncrementalPhase::L3 {
+                max_recovery_seeds,
+                hops,
+            } => {
+                let base = prior.expect("L3 incremental phase requires prior view");
+                let mut sig = signature.clone();
+                sig.engine_override = Some(SeedEngineId::SemanticLite);
+                let recovery = self.activate_with_hops(graph, &sig, mode, hops);
+                let mut merged = merge_context_views(base, recovery);
+                cap_semantic_recovery_seeds(&mut merged, max_recovery_seeds);
+                merged
+            }
+        }
+    }
+
+    /// Resolved seed node ids from a context view.
+    pub fn seed_node_ids(&self, view: &ContextView) -> HashSet<NodeId> {
+        view.seeds
+            .iter()
+            .filter_map(|s| s.resolved_id.clone())
+            .collect()
+    }
+
+    fn activate_inner(
+        &self,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+        hops_override: u8,
+    ) -> ContextView {
         self.registry.begin_activate(&graph.project_id());
 
         let is_critical = signature.requires_conservative_mode();
@@ -157,7 +252,9 @@ impl ContextActivator {
         let prompt = signature.raw_prompt.as_str();
         let call_graph_task = prompt_is_call_graph_task(prompt);
 
-        let hops = if call_graph_task {
+        let hops: usize = if hops_override > 0 {
+            hops_override as usize
+        } else if call_graph_task {
             1
         } else {
             match effective_mode {
@@ -170,84 +267,63 @@ impl ContextActivator {
         let mut seed_energies: HashMap<NodeId, f32> = HashMap::new();
         let mut seed_reasons: HashMap<NodeId, String> = HashMap::new();
 
-        let mut queries: Vec<(String, f32, &str)> = Vec::new();
-        for ident in &signature.identifiers {
-            queries.push((ident.clone(), 1.0, "identifier"));
-        }
-        if !signature.entity.is_empty()
-            && signature.entity != "Workspace"
-            && !signature
-                .identifiers
-                .iter()
-                .any(|id| id == &signature.entity)
-        {
-            queries.push((signature.entity.clone(), 1.0, "entity"));
-        }
-        for hint in &signature.file_hints {
-            queries.push((hint.clone(), 0.95, "file"));
-        }
-        for concept in &signature.related_concepts {
-            if concept.len() < 4 {
-                continue;
-            }
-            let lower = concept.to_lowercase();
-            if lower == "layout" || lower == "breakpoints" || lower == "state" {
-                continue;
-            }
-            queries.push((concept.clone(), 0.82, "concept"));
-        }
+        let app_config = Config::load();
+        let seed_config = app_config.seed_resolution.clone();
+        let header_config = app_config.packet_header.clone();
 
-        if queries.is_empty() {
-            for token in signature.raw_prompt.split_whitespace().take(8) {
-                let clean = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
-                if clean.len() < 5 || is_prompt_stopword(clean) {
-                    continue;
-                }
-                queries.push((clean.to_string(), 0.55, "token"));
-            }
-        }
+        let mut buffers = SeedBuffers {
+            resolutions: &mut seed_resolutions,
+            energies: &mut seed_energies,
+            reasons: &mut seed_reasons,
+        };
 
-        {
-            let mut sink = SeedSink {
-                resolutions: &mut seed_resolutions,
-                energies: &mut seed_energies,
-                reasons: &mut seed_reasons,
-            };
-            for (query, energy, reason) in queries {
-                sink.push(graph, prompt, query, energy, reason);
-            }
-        }
-
-        seed_uncovered_clusters(
-            graph,
-            signature,
-            &mut seed_resolutions,
-            &mut seed_energies,
-            &mut seed_reasons,
+        let mut sig_for_seeds = signature.clone();
+        crate::retrieval::alias::inject_alias_expansion(
+            &mut sig_for_seeds.related_concepts,
+            prompt,
         );
-        if seed_energies.is_empty() && !is_style_task(signature) {
-            let mut sink = SeedSink {
-                resolutions: &mut seed_resolutions,
-                energies: &mut seed_energies,
-                reasons: &mut seed_reasons,
-            };
-            for token in signature.raw_prompt.split_whitespace().take(8) {
-                let clean = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
-                if clean.len() < 5 || is_prompt_stopword(clean) {
-                    continue;
-                }
-                sink.push(graph, prompt, clean.to_string(), 0.55, "token");
-            }
-        }
+
+        let mut seed_result = run_seed_resolution(
+            graph,
+            &sig_for_seeds,
+            prompt,
+            &seed_config,
+            &mut buffers,
+            resolve_seed_query,
+            is_style_task(signature),
+        );
+
+        let scaffold_used = seed_result.scaffold_used;
+
         {
-            let mut sink = SeedSink {
-                resolutions: &mut seed_resolutions,
-                energies: &mut seed_energies,
-                reasons: &mut seed_reasons,
-            };
+            let mut sink = SeedSink::new(
+                buffers.resolutions,
+                buffers.energies,
+                buffers.reasons,
+                resolve_seed_query,
+            );
             inject_style_seeds(graph, prompt, signature, &mut sink);
             inject_view_component_seeds(graph, prompt, signature, &mut sink);
         }
+
+        let seed_paths: Vec<String> = seed_energies
+            .keys()
+            .filter_map(|id| graph.get_node(id))
+            .map(|n| n.file_path.to_string_lossy().replace('\\', "/"))
+            .collect();
+        let mut manifest = NearestAncestorManifestResolver::new(graph);
+        let stack_line = manifest.stack_line(&seed_paths);
+        seed_result.packet_header = MicroHeaderGenerator::generate(
+            graph,
+            &header_config,
+            stack_line.as_deref(),
+            &seed_resolutions,
+            &seed_energies,
+            header_config.max_call_chain_depth,
+        );
+        let seed_resolution_telemetry = seed_result.telemetry.clone();
+        let packet_header = seed_result.packet_header.clone();
+
         mark_equivalent_file_hits(graph, &mut seed_resolutions, &mut seed_energies);
         cohere_ambiguous_seeds_to_app(graph, &mut seed_resolutions, &mut seed_energies, prompt);
 
@@ -789,7 +865,7 @@ impl ContextActivator {
             .take(40)
             .collect();
 
-        let next_actions = build_next_actions(
+        let mut next_actions = build_next_actions(
             graph,
             &active_nodes,
             &included,
@@ -797,6 +873,13 @@ impl ContextActivator {
             &all_folds,
             &unresolved,
         );
+        if scaffold_used {
+            next_actions.push(NextAction {
+                tool: "neuromesh_get_architecture".into(),
+                query: String::new(),
+                why: "greenfield scaffold — review framework entry points and conventions".into(),
+            });
+        }
 
         let selected_set: HashSet<NodeId> = selection
             .required
@@ -855,51 +938,89 @@ impl ContextActivator {
                 })
                 .collect(),
             structural_evidence,
+            task_scenario: if scaffold_used {
+                "greenfield".to_string()
+            } else {
+                "brownfield".to_string()
+            },
+            seed_resolution_telemetry: Some(seed_resolution_telemetry),
+            packet_header,
+            retrieval: None,
         };
         *self.last_packet.lock() = Some(PacketSnapshot::from_view(&view));
         view
     }
 }
 
-pub(crate) struct SeedSink<'a> {
-    resolutions: &'a mut Vec<SeedResolution>,
-    energies: &'a mut HashMap<NodeId, f32>,
-    reasons: &'a mut HashMap<NodeId, String>,
+/// Drop fuzzy NL seeds that block greenfield scaffold routing (Create intent, no keywords).
+/// Keeps proven file hints and exact symbol hits so brownfield Create tasks are unchanged.
+pub(crate) fn prune_weak_greenfield_seeds_inner(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    buffers: &mut SeedBuffers<'_, '_, '_>,
+) {
+    prune_weak_greenfield_seeds_legacy(
+        graph,
+        signature,
+        buffers.resolutions,
+        buffers.energies,
+        buffers.reasons,
+    );
 }
 
-impl SeedSink<'_> {
-    pub(crate) fn push(
-        &mut self,
-        graph: &NeuralProjectGraph,
-        prompt: &str,
-        query: String,
-        energy: f32,
-        reason: &str,
-    ) {
-        if self.resolutions.iter().any(|s| s.query == query) {
-            return;
-        }
-        if let Some((id, conf)) = resolve_seed_query(graph, &query, prompt) {
-            self.energies
-                .entry(id.clone())
-                .and_modify(|e| *e = (*e).max(energy))
-                .or_insert(energy);
-            self.reasons
-                .entry(id.clone())
-                .or_insert_with(|| format!("{reason}:{query}"));
-            self.resolutions.push(SeedResolution {
-                query,
-                resolved_id: Some(id),
-                confidence: conf,
-            });
-        } else {
-            self.resolutions.push(SeedResolution {
-                query,
-                resolved_id: None,
-                confidence: 0.0,
-            });
+fn prune_weak_greenfield_seeds_legacy(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    seed_resolutions: &mut Vec<SeedResolution>,
+    seed_energies: &mut HashMap<NodeId, f32>,
+    seed_reasons: &mut HashMap<NodeId, String>,
+) {
+    let resolution_conf = |id: &NodeId| -> f32 {
+        seed_resolutions
+            .iter()
+            .find(|s| s.resolved_id.as_ref() == Some(id))
+            .map(|s| s.confidence)
+            .unwrap_or(0.0)
+    };
+    let query_for = |id: &NodeId| -> Option<&str> {
+        seed_resolutions
+            .iter()
+            .find(|s| s.resolved_id.as_ref() == Some(id))
+            .map(|s| s.query.as_str())
+    };
+    let keep: HashSet<NodeId> = seed_energies
+        .keys()
+        .filter(|id| {
+            let reason = seed_reasons.get(*id).map(String::as_str).unwrap_or("");
+            if reason.starts_with("file:") {
+                return true;
+            }
+            if !reason.starts_with("identifier:") || resolution_conf(id) < 1.0 {
+                return false;
+            }
+            let Some(query) = query_for(id) else {
+                return false;
+            };
+            if query.eq_ignore_ascii_case(signature.technology.as_str()) {
+                return false;
+            }
+            graph
+                .resolve_best(query)
+                .is_some_and(|node| node.name == query && node.id == **id)
+        })
+        .cloned()
+        .collect();
+    for id in seed_energies.keys().cloned().collect::<Vec<_>>() {
+        if !keep.contains(&id) {
+            seed_energies.remove(&id);
+            seed_reasons.remove(&id);
         }
     }
+    seed_resolutions.retain(|s| {
+        s.resolved_id
+            .as_ref()
+            .is_none_or(|id| seed_energies.contains_key(id))
+    });
 }
 
 fn cluster_terms_covered(
@@ -992,7 +1113,81 @@ fn resolve_dotted_member(
     None
 }
 
-fn resolve_seed_query(
+fn merge_context_views(base: ContextView, extension: ContextView) -> ContextView {
+    let mut merged = base;
+    for node in extension.active_nodes {
+        if !merged
+            .active_nodes
+            .iter()
+            .any(|n| n.node.id == node.node.id)
+        {
+            merged.active_nodes.push(node);
+        }
+    }
+    merged.active_tokens = merged.active_nodes.iter().map(|n| n.node.token_cost).sum();
+    for seed in extension.seeds {
+        if !merged.seeds.iter().any(|s| s.query == seed.query) {
+            merged.seeds.push(seed);
+        }
+    }
+    if extension.seed_call_coverage > merged.seed_call_coverage {
+        merged.seed_call_coverage = extension.seed_call_coverage;
+    }
+    if let Some(cov) = extension.coverage {
+        merged.coverage = Some(cov);
+    }
+    merged
+}
+
+fn include_file_hint(graph: &NeuralProjectGraph, view: &mut ContextView, file_id: &NodeId) {
+    if view.active_nodes.iter().any(|n| n.node.id == *file_id) {
+        return;
+    }
+    let Some(node) = graph.get_node(file_id) else {
+        return;
+    };
+    if node.node_type != NodeType::File {
+        return;
+    }
+    view.active_nodes.push(ActivatedNodeView {
+        node: node.clone(),
+        activation_score: 0.75,
+        status: ContextStatus::Active,
+        expansion_reason: Some("pattern_expand".into()),
+        sidecar: true,
+        folded_symbols: Vec::new(),
+    });
+    view.active_tokens = view.active_nodes.iter().map(|n| n.node.token_cost).sum();
+}
+
+fn cap_semantic_recovery_seeds(view: &mut ContextView, max: u8) {
+    let is_semantic = view
+        .seed_resolution_telemetry
+        .as_ref()
+        .is_some_and(|t| t.engine == "semantic_lite");
+    if !is_semantic {
+        return;
+    }
+    let mut ranked: Vec<(usize, f32)> = view
+        .seeds
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.resolved_id.is_some())
+        .map(|(i, s)| (i, s.confidence))
+        .collect();
+    if ranked.len() <= max as usize {
+        return;
+    }
+    ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    for (idx, _) in ranked.into_iter().skip(max as usize) {
+        if let Some(seed) = view.seeds.get_mut(idx) {
+            seed.resolved_id = None;
+            seed.confidence = 0.0;
+        }
+    }
+}
+
+pub(crate) fn resolve_seed_query(
     graph: &NeuralProjectGraph,
     query: &str,
     prompt: &str,
@@ -1140,13 +1335,39 @@ fn cohere_ambiguous_seeds_to_app(
             prefixes.insert(prefix);
         }
     }
-    if prefixes.len() != 1 {
+    if prefixes.is_empty() {
         return;
     }
-    let prefix = prefixes.into_iter().next().expect("checked len");
+    let prefix = if prefixes.len() == 1 {
+        prefixes.into_iter().next().expect("checked len")
+    } else {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        for seed in seeds.iter() {
+            if seed.confidence < 0.9 {
+                continue;
+            }
+            let Some(id) = seed.resolved_id.as_ref() else {
+                continue;
+            };
+            if let Some(p) = graph
+                .get_node(id)
+                .and_then(|node| hmvc_app_prefix(&node.file_path))
+            {
+                *counts.entry(p).or_default() += 1;
+            }
+        }
+        counts
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(p, _)| p)
+            .unwrap_or_else(|| prefixes.into_iter().next().expect("non-empty"))
+    };
     let prefix_slash = format!("{prefix}/");
     for seed in seeds.iter_mut() {
-        if seed.confidence >= 0.9 {
+        let stem = seed.query.rsplit(':').next().unwrap_or(seed.query.as_str());
+        let short_ambiguous =
+            stem.len() <= 5 || stem.chars().all(|c| c.is_ascii_lowercase() || c == '_');
+        if seed.confidence >= 0.9 && !short_ambiguous {
             continue;
         }
         let Some(id) = seed.resolved_id.clone() else {
@@ -1159,7 +1380,7 @@ fn cohere_ambiguous_seeds_to_app(
         if path.contains(&prefix_slash) {
             continue;
         }
-        let hits = graph.search_symbols(&seed.query, 16);
+        let hits = graph.search_symbols(stem, 16);
         let Some(hit) = hits.into_iter().find(|hit| {
             if !seed_path_allowed(graph, &hit.id, prompt) {
                 return false;
@@ -1177,7 +1398,7 @@ fn cohere_ambiguous_seeds_to_app(
                 .rsplit(['.', ':'])
                 .next()
                 .unwrap_or(hit.name.as_str());
-            name.eq_ignore_ascii_case(&seed.query)
+            name.eq_ignore_ascii_case(stem)
         }) else {
             continue;
         };
@@ -1259,7 +1480,21 @@ fn locked_seed_hmvc_prefix(graph: &NeuralProjectGraph, seeds: &HashSet<NodeId>) 
 /// When a compound task names a second topic that identifier extraction skipped
 /// (lowercase "router permission guard"), try those nouns as seeds. A cluster
 /// with zero hits is recorded as a miss so coverage cannot claim no_recorded_gap.
-fn seed_uncovered_clusters(
+pub(crate) fn seed_uncovered_clusters_inner(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    buffers: &mut SeedBuffers<'_, '_, '_>,
+) {
+    seed_uncovered_clusters_legacy(
+        graph,
+        signature,
+        buffers.resolutions,
+        buffers.energies,
+        buffers.reasons,
+    );
+}
+
+fn seed_uncovered_clusters_legacy(
     graph: &NeuralProjectGraph,
     signature: &TaskSignature,
     seed_resolutions: &mut Vec<SeedResolution>,
@@ -1345,6 +1580,13 @@ fn resolve_cluster_noun_seeds(
     noun: &str,
     sibling_nouns: &[String],
 ) -> Vec<(NodeId, f32)> {
+    let hits = graph.search_symbols(noun, 8);
+    if let Some(hit) = hits
+        .iter()
+        .find(|hit| hit.name.eq_ignore_ascii_case(noun) && hit.node_type != NodeType::File)
+    {
+        return vec![(hit.id.clone(), (hit.score / 100.0).clamp(0.5, 1.0))];
+    }
     if let Some(hit) = resolve_file_path_noun(graph, noun) {
         return vec![hit];
     }
@@ -3736,6 +3978,30 @@ module.exports = function middlewareInit(app) {
     }
 
     #[test]
+    fn fa_middleware_nl_resolves_without_client_keywords() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("express-fa-mw"));
+        ingest_mini_express_app(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "لوله‌ی میان‌افزارها را توضیح بده و اینکه next() چطور کار می‌کند.",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        assert_ne!(
+            coverage.claim, "no_seed_resolved",
+            "FA middleware NL must seed via alias bridge, coverage={coverage:?}"
+        );
+        assert!(
+            !view.active_nodes.is_empty(),
+            "expected files for FA middleware without client keywords"
+        );
+    }
+
+    #[test]
     fn call_graph_task_caps_optional_files() {
         let graph = NeuralProjectGraph::new(ProjectId::new("loader-trace"));
         ingest_js(
@@ -3786,6 +4052,156 @@ export function boot() { const l = new Loader(); l.init(); }
         assert!(
             !files.iter().any(|p| p.contains("WizardListCommand")),
             "unrelated wizard files must not leak, files={files:?}"
+        );
+    }
+
+    fn ingest_php(graph: &NeuralProjectGraph, rel: &str, src: &str) {
+        ingest_lang(graph, rel, src, SourceLanguage::PHP);
+    }
+
+    fn ingest_laravel_skeleton(graph: &NeuralProjectGraph) {
+        ingest_php(
+            graph,
+            "routes/web.php",
+            "<?php\nuse Illuminate\\Support\\Facades\\Route;\nRoute::get('/', fn () => view('welcome'));\n",
+        );
+        ingest_php(
+            graph,
+            "bootstrap/app.php",
+            "<?php\nuse Illuminate\\Foundation\\Application;\nreturn Application::configure(basePath: dirname(__DIR__))->create();\n",
+        );
+        ingest_php(
+            graph,
+            "app/Models/User.php",
+            "<?php\nnamespace App\\Models;\nuse Illuminate\\Foundation\\Auth\\User as Authenticatable;\nclass User extends Authenticatable {}\n",
+        );
+        ingest_php(
+            graph,
+            "app/Http/Controllers/Controller.php",
+            "<?php\nnamespace App\\Http\\Controllers;\nabstract class Controller {}\n",
+        );
+        ingest_lang(
+            graph,
+            "composer.json",
+            r#"{"name":"laravel/laravel","keywords":["laravel","framework"]}"#,
+            SourceLanguage::JSON,
+        );
+        graph.finalize_links();
+    }
+
+    #[test]
+    fn no_keywords_identical_on_brownfield_prompt() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let tools = r#"
+use neuromesh_task::TaskSignatureExtractor;
+pub fn handle_tool_call() {
+    let signature = TaskSignatureExtractor::extract("demo");
+}
+"#;
+        let sig = r#"
+pub struct TaskSignatureExtractor;
+impl TaskSignatureExtractor {
+    pub fn extract(prompt: &str) -> String { prompt.into() }
+}
+"#;
+        graph.ingest_file(
+            &indexed("crates/neuromesh-mcp/src/tools.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("tools.rs"),
+                tools,
+                SourceLanguage::Rust,
+            ),
+            Some(tools),
+        );
+        graph.ingest_file(
+            &indexed("crates/neuromesh-task/src/signature.rs"),
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("signature.rs"),
+                sig,
+                SourceLanguage::Rust,
+            ),
+            Some(sig),
+        );
+        graph.finalize_links();
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let signature =
+            TaskSignatureExtractor::extract("How does handle_tool_call extract task intent?");
+        assert!(signature.client_keywords.is_empty());
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(view.active_tokens > 0);
+        assert_eq!(view.task_scenario, "brownfield");
+        assert_ne!(
+            view.coverage.as_ref().map(|c| c.claim.as_str()),
+            Some("no_seed_resolved")
+        );
+    }
+
+    #[test]
+    fn client_keywords_seed_non_english_prompt() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_laravel_skeleton(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let mut signature = TaskSignatureExtractor::extract("مدل کاربر را به migration وصل کن");
+        signature.client_keywords = vec!["User".into(), "migration".into()];
+        signature.technology = "Laravel".into();
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(view.active_tokens > 0);
+        assert!(
+            view.seeds.iter().any(|s| {
+                (s.query.eq_ignore_ascii_case("User")
+                    || s.query.eq_ignore_ascii_case("client_keyword:User"))
+                    && s.resolved_id.is_some()
+            }),
+            "seeds = {:?}",
+            view.seeds
+        );
+        assert_eq!(view.task_scenario, "brownfield");
+    }
+
+    #[test]
+    fn scaffold_greenfield_laravel_design_without_keywords() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_laravel_skeleton(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let mut signature = TaskSignatureExtractor::extract(
+            "Design the product catalog domain for products, categories, and Laravel models.",
+        );
+        signature.engine_override = Some(neuromesh_core::SeedEngineId::SemanticLite);
+        assert!(signature.client_keywords.is_empty());
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(view.active_tokens > 0);
+        assert_eq!(view.task_scenario, "greenfield");
+        let files = packet_paths(&view);
+        assert!(
+            files.iter().any(|p| p.contains("web.php")),
+            "scaffold should emit routes entry point, files={files:?}"
+        );
+        assert!(
+            files.iter().any(|p| p.contains("composer.json")),
+            "scaffold should emit stack manifest, files={files:?}"
+        );
+    }
+
+    #[test]
+    fn noisy_client_keywords_do_not_force_low_quality_seeds() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("shop"));
+        ingest_laravel_skeleton(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let mut signature =
+            TaskSignatureExtractor::extract("Design something completely unrelated.");
+        signature.client_keywords = vec!["xyzzy_not_a_symbol".into(), "qwerty_not_a_symbol".into()];
+        signature.technology = "Laravel".into();
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        assert!(
+            view.seeds
+                .iter()
+                .all(|s| s.resolved_id.is_none() || !s.query.contains("xyzzy")),
+            "noise must not resolve, seeds={:?}",
+            view.seeds
         );
     }
 }

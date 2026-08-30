@@ -7,11 +7,21 @@ The names come from living tissue — [nature.md](nature.md) — so contributors
 ```
 Prompt
   │
+  ├─ graph_backend = proxy_cbm? ──► CBM search_graph + snippets (v0.8.2)
+  │                                      │
+  └─ native (default) ◄──────────────────┘ fallback_native
+      │
+      ▼
+QueryPlan (intent + concepts) — v0.8.2
+  │
   ▼
-Identifiers, paths, intent
+Identifiers, paths, alias expansion, alias code seeds (middleware/routing NL)
   │
   ▼
 Unique / import-aware / impl-aware resolve
+  │
+  ▼
+Tiered retrieval (L1 → L2 patterns → L3 recovery)
   │
   ▼
 Seed files always ship (skeletonized)
@@ -31,6 +41,35 @@ Evidence packet → MCP client
   └─ expand_fold restores a body from the registry
 ```
 
+## Tiered retrieval (v0.8.2)
+
+**North star:** MSC via graph — no embedding in L1/L2; embedding optional L3 only.
+
+```
+Query → QueryUnderstanding → QueryPlan (intent + concepts)
+  → symbol/alias/concept seeds → L1 fast match → sufficiency
+  → (critical gaps only) L2 pattern expand → L3 semantic recovery (max 2 seeds)
+  → MSC packet or controlled partial
+```
+
+| Tier | Engine | Hops | When |
+| :--- | :--- | ---: | :--- |
+| **L1** | `keywords_expanded` + concept index | 1 | Always; early exit when sufficient |
+| **L2** | Pattern templates (`trace_routing`, `trace_middleware`, …) | 1 | Critical gaps only |
+| **L3** | `semantic_lite` recovery seeds | 2 | Still critical after L2; max 2 seeds |
+
+Single-pass escalation (`escalate.rs`) — no triple full re-activate per query. Runtime metadata on every MCP detail level (`retrieval_level`, `claim`, `critical_gaps`, `suggested_keywords`).
+
+**Concept index** (`neuromesh-graph/concept_index.rs`): built at ingest from naming heuristics (`*Middleware`, `*Router`, `auth*`, `*Session`, …). Static alias clusters map NL → concept; code index maps concept → symbols.
+
+**Sufficiency** is conservative: `likely_sufficient` requires high task-role coverage, dependency coverage, and zero critical gaps. Default when uncertain: `partial`. FSR proxy in `neuromesh eval --release-gates`. Proxy packets (`retrieval_level: "proxy"`) never stamp fixed scores — confidence/sufficiency are computed from matched vs expected keywords (cap ~0.45).
+
+## Graph proxy (optional, v0.8.2)
+
+When `graph_backend` is `proxy_cbm` or `auto` finds CBM, only **`get_context_packet`** uses the external MCP server. NeuroMesh forwards the full task context (`query` + `semantic_query` from keywords/expansion), parses CBM `{cols, rows}` JSON, filters empty-file Route hits, and shapes honest `retrieval` metadata. Other tools (`search_symbols`, `trace`, `expand_fold`) always use the native graph. **`native` remains the default** — test3 Express benchmark: native assisted beats proxy on precision (~0.79 vs ~0.50) and latency (~35 ms vs ~230 ms warm p50).
+
+See [graph-proxy.md](graph-proxy.md) and crate `neuromesh-graph-proxy`.
+
 ## Guarantees
 
 1. **Structural honesty.** Import and call edges exist when the target resolves uniquely (same file, imported files, same crate, impl/field, or a single global definition). Several hits in one file are not a fake `Proven` edge. Failures stay `Likely` or unresolved — they are not dropped silently and they are not exploded into every namesake.
@@ -46,11 +85,12 @@ Evidence packet → MCP client
 | Crate | Role |
 | :--- | :--- |
 | `neuromesh-parser` | Language registry, tree-sitter queries, regex fallbacks, prompt anchors |
-| `neuromesh-graph` | Neural mesh: ingest, search, trace, Physarum, STDP synapses |
+| `neuromesh-graph` | Neural mesh: ingest, search, trace, Physarum, STDP synapses, **concept index** |
 | `neuromesh-task` | Intent + identifier extraction |
-| `neuromesh-context` | Genetic splice (skeletonizer), fold registry, gold harness |
+| `neuromesh-context` | Genetic splice (skeletonizer), fold registry, **tiered retrieval** (`retrieval/`), gold harness |
 | `neuromesh-index` | Walker, hashes, language from path |
 | `neuromesh-memory` | Project facts from manifests and docs |
+| `neuromesh-graph-proxy` | External graph backends (CBM/Graphify) via MCP stdio — proxy packet + honest metadata |
 | `neuromesh-mcp` | MCP JSON-RPC 2.0 over stdio |
 | `neuromesh-cli` | `mcp`, `monitor`, `index`, `eval`, `doctor`, `connect` |
 | `neuromesh-router` | Osmotic QualityGate (mode vs critical tasks) |

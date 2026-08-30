@@ -11,23 +11,71 @@ pub struct LaunchSpec {
 }
 
 impl LaunchSpec {
-    pub fn mcp_servers_entry(&self) -> Value {
+    /// Portable MCP config on PATH; workspace auto-detected per IDE project.
+    pub fn simple() -> Self {
+        Self {
+            command: invoke_command_name(),
+            args: vec!["mcp".into()],
+            cwd: String::new(),
+            env: BTreeMap::new(),
+        }
+    }
+
+    pub fn opencode_entry(&self) -> Value {
+        let mut command = Vec::with_capacity(1 + self.args.len());
+        command.push(self.command.clone());
+        command.extend(self.args.iter().cloned());
         json!({
-            "command": self.command,
-            "args": self.args,
-            "cwd": self.cwd,
-            "env": self.env,
+            "type": "local",
+            "command": command,
+            "enabled": true,
         })
     }
 
-    pub fn vscode_entry(&self) -> Value {
+    pub fn mimo_entry(&self) -> Value {
         json!({
+            "command": self.command,
+            "args": self.args,
+            "enabled": true,
+        })
+    }
+
+    pub fn zed_entry(&self) -> Value {
+        json!({
+            "source": "custom",
+            "command": self.command,
+            "args": self.args,
+        })
+    }
+
+    pub fn mcp_servers_entry(&self) -> Value {
+        let mut entry = json!({
             "type": "stdio",
             "command": self.command,
             "args": self.args,
-            "cwd": self.cwd,
-            "env": self.env,
-        })
+        });
+        if !self.cwd.is_empty() {
+            entry["cwd"] = json!(self.cwd);
+        }
+        if !self.env.is_empty() {
+            entry["env"] = json!(self.env);
+        }
+        entry
+    }
+
+    pub fn vscode_entry(&self) -> Value {
+        let mut entry = json!({
+            "type": "stdio",
+            "command": self.command,
+            "args": self.args,
+        });
+        if !self.cwd.is_empty() {
+            entry["cwd"] = json!(self.cwd);
+        }
+        if !self.env.is_empty() {
+            entry["env"] = json!(self.env);
+        }
+        entry
     }
 
     pub fn kilo_entry(&self) -> Value {
@@ -45,7 +93,9 @@ impl LaunchSpec {
         let mut out = String::from("[mcp_servers.neuromesh]\n");
         out.push_str(&format!("command = {}\n", toml_string(&self.command)));
         out.push_str(&format!("args = [{}]\n", toml_string_array(&self.args)));
-        out.push_str(&format!("cwd = {}\n", toml_string(&self.cwd)));
+        if !self.cwd.is_empty() {
+            out.push_str(&format!("cwd = {}\n", toml_string(&self.cwd)));
+        }
         if !self.env.is_empty() {
             out.push_str("\n[mcp_servers.neuromesh.env]\n");
             for (k, v) in &self.env {
@@ -75,6 +125,32 @@ pub fn upsert_kilo_mcp(root: &mut Value, name: &str, entry: Value) {
     let obj = ensure_object(root);
     let mcp = obj.entry("mcp").or_insert_with(|| json!({}));
     ensure_object(mcp).insert(name.to_string(), entry);
+}
+
+pub fn upsert_opencode_mcp(root: &mut Value, name: &str, entry: Value) {
+    let obj = ensure_object(root);
+    let mcp = obj.entry("mcp").or_insert_with(|| json!({}));
+    ensure_object(mcp).insert(name.to_string(), entry);
+}
+
+pub fn upsert_mimo_server(root: &mut Value, name: &str, entry: Value) {
+    let obj = ensure_object(root);
+    let servers = obj.entry("mcpServers").or_insert_with(|| json!({}));
+    ensure_object(servers).insert(name.to_string(), entry);
+}
+
+pub fn upsert_zed_context_servers(root: &mut Value, name: &str, entry: Value) {
+    let obj = ensure_object(root);
+    let servers = obj.entry("context_servers").or_insert_with(|| json!({}));
+    ensure_object(servers).insert(name.to_string(), entry);
+}
+
+/// CLI binary name (`neuromesh` or alias `nmx`) for portable MCP configs.
+pub fn invoke_command_name() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| "neuromesh".into())
 }
 
 pub fn upsert_toml_table(src: &str, table: &str, body: &str) -> String {
@@ -232,6 +308,47 @@ mod tests {
             cwd: "/tmp/proj".into(),
             env,
         }
+    }
+
+    #[test]
+    fn simple_spec_omits_cwd_and_env() {
+        let entry = LaunchSpec::simple().mcp_servers_entry();
+        assert_eq!(entry["type"], "stdio");
+        assert!(entry["command"].as_str().is_some());
+        assert_eq!(entry["args"], json!(["mcp"]));
+        assert!(entry.get("cwd").is_none());
+        assert!(entry.get("env").is_none());
+    }
+
+    #[test]
+    fn mimo_entry_uses_mcp_servers_list() {
+        let spec = LaunchSpec::simple();
+        let entry = spec.mimo_entry();
+        assert_eq!(entry["command"], spec.command);
+        assert_eq!(entry["args"], json!(["mcp"]));
+    }
+
+    #[test]
+    fn zed_entry_uses_context_servers_shape() {
+        let spec = LaunchSpec::simple();
+        let entry = spec.zed_entry();
+        assert_eq!(entry["source"], "custom");
+        assert_eq!(entry["command"], spec.command);
+        assert_eq!(entry["args"], json!(["mcp"]));
+    }
+
+    #[test]
+    fn opencode_entry_uses_command_array() {
+        let spec = LaunchSpec {
+            command: "nmx".into(),
+            args: vec!["mcp".into()],
+            cwd: String::new(),
+            env: BTreeMap::new(),
+        };
+        let entry = spec.opencode_entry();
+        assert_eq!(entry["type"], "local");
+        assert_eq!(entry["command"], json!(["nmx", "mcp"]));
+        assert_eq!(entry["enabled"], true);
     }
 
     #[test]

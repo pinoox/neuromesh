@@ -16,6 +16,7 @@ neuromesh-task = { path = "../neuromesh-task" }
 neuromesh-router = { path = "../neuromesh-router" }
 neuromesh-observability = { path = "../neuromesh-observability" }
 neuromesh-cache = { path = "../neuromesh-cache" }
+neuromesh-graph-proxy = { path = "../neuromesh-graph-proxy" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

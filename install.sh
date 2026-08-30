@@ -93,8 +93,9 @@ mkdir -p "${INSTALL_DIR}"
 tar -xzf "${TEMP_DIR}/neuromesh.${EXT}" -C "${TEMP_DIR}"
 chmod +x "${TEMP_DIR}/${BINARY_NAME}"
 mv "${TEMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+ln -sf "${BINARY_NAME}" "${INSTALL_DIR}/nmx"
 
-printf "\n${GREEN}${BOLD}✓ NeuroMesh binary installed successfully to: ${INSTALL_DIR}/${BINARY_NAME}${NC}\n"
+printf "\n${GREEN}${BOLD}✓ NeuroMesh installed: ${INSTALL_DIR}/${BINARY_NAME} (alias: nmx)${NC}\n"
 
 # 4. PATH Configuration check
 if [[ ":$PATH:" != *":${INSTALL_DIR}:"* ]]; then

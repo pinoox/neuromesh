@@ -77,6 +77,20 @@ fn is_false(v: &bool) -> bool {
 }
 
 #[derive(Serialize)]
+struct MinimalRetrieval {
+    retrieval_level: String,
+    claim: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sufficiency_score: Option<f32>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    critical_gaps: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next_action: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    suggested_keywords: Vec<String>,
+}
+
+#[derive(Serialize)]
 struct MinimalContextResponse {
     packet_id: String,
     coverage: String,
@@ -86,13 +100,16 @@ struct MinimalContextResponse {
     missing: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     next: Option<MinimalNext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retrieval: Option<MinimalRetrieval>,
 }
 
 pub fn collect_file_entries(
     view: &ContextView,
     registry: &ReversibleContextRegistry,
 ) -> Vec<FileEntry> {
-    view.active_nodes
+    let mut entries: Vec<FileEntry> = view
+        .active_nodes
         .iter()
         .filter(|n| n.node.node_type == NodeType::File)
         .map(|n| {
@@ -109,7 +126,15 @@ pub fn collect_file_entries(
                 folds,
             }
         })
-        .collect()
+        .collect();
+    if let Some(header) = view.packet_header.as_ref() {
+        if let Some(first) = entries.first_mut() {
+            if !first.code.starts_with("@nm:") {
+                first.code = format!("{header}\n{}", first.code);
+            }
+        }
+    }
+    entries
 }
 
 fn folds_for_path(
@@ -187,6 +212,90 @@ pub struct ContextBuild<'a> {
 }
 
 impl ContextBuild<'_> {
+    fn seed_resolution_block(&self) -> Option<Value> {
+        self.view.seed_resolution_telemetry.as_ref().map(|t| {
+            json!({
+                "engine": t.engine,
+                "seeds_count": t.seeds_count,
+                "monorepo_packages": t.monorepo_packages,
+                "latency_ms": t.latency_ms,
+            })
+        })
+    }
+
+    fn task_metadata(&self) -> Value {
+        let mut task = json!({
+            "intent": self.signature.intent,
+            "entity": self.signature.entity,
+            "identifiers": self.signature.identifiers,
+            "file_hints": self.signature.file_hints,
+            "client_keywords": self.signature.client_keywords,
+            "client_keywords_used": self.client_keywords_used(),
+            "client_expansion": self.signature.client_expansion,
+            "client_path_hints": self.signature.client_path_hints,
+            "client_entity_types": self.signature.client_entity_types,
+            "client_intent": self.signature.client_intent,
+            "scenario": self.view.task_scenario,
+            "confidence": self.signature.confidence,
+        });
+        if let Some(seed_resolution) = self.seed_resolution_block() {
+            task["seed_resolution"] = seed_resolution;
+        }
+        if let Some(header) = self.view.packet_header.as_ref() {
+            task["packet_header"] = json!(header);
+        }
+        task
+    }
+
+    fn retrieval_block(&self) -> Option<Value> {
+        self.view.retrieval.as_ref().map(|r| {
+            json!({
+                "retrieval_level": r.retrieval_level,
+                "sufficiency_score": r.sufficiency_score,
+                "confidence": r.confidence,
+                "claim": r.claim,
+                "levels_attempted": r.levels_attempted,
+                "latency_ms": r.latency_ms,
+                "full_workspace_fallback": r.full_workspace_fallback,
+                "critical_gaps": r.critical_gaps,
+                "non_critical_gaps": r.non_critical_gaps,
+                "eligible_for_early_exit": r.eligible_for_early_exit,
+                "next_action": r.next_action,
+                "suggested_keywords": r.suggested_keywords,
+            })
+        })
+    }
+
+    fn compact_retrieval(&self) -> Option<MinimalRetrieval> {
+        self.view.retrieval.as_ref().map(|r| MinimalRetrieval {
+            retrieval_level: r.retrieval_level.clone(),
+            claim: r.claim.clone(),
+            sufficiency_score: Some(r.sufficiency_score),
+            critical_gaps: r.critical_gaps.clone(),
+            next_action: r.next_action.clone(),
+            suggested_keywords: r.suggested_keywords.clone().unwrap_or_default(),
+        })
+    }
+
+    fn client_keywords_used(&self) -> Vec<String> {
+        if self.signature.client_keywords.is_empty() {
+            return Vec::new();
+        }
+        self.view
+            .seeds
+            .iter()
+            .filter(|s| {
+                s.resolved_id.is_some()
+                    && self
+                        .signature
+                        .client_keywords
+                        .iter()
+                        .any(|kw| kw.eq_ignore_ascii_case(&s.query))
+            })
+            .map(|s| s.query.clone())
+            .collect()
+    }
+
     pub fn to_details(&self) -> PacketDetails {
         PacketDetails {
             packet_id: self.packet_id.clone(),
@@ -271,7 +380,12 @@ impl ContextBuild<'_> {
         let missing = self.missing_seeds();
         let next = if self.needs_search() && !missing.is_empty() {
             Some(MinimalNext {
-                tool: "neuromesh_search_symbols".into(),
+                tool: self
+                    .view
+                    .retrieval
+                    .as_ref()
+                    .and_then(|r| r.next_action.clone())
+                    .unwrap_or_else(|| "neuromesh_search_symbols".into()),
                 queries: missing.clone(),
             })
         } else {
@@ -306,6 +420,7 @@ impl ContextBuild<'_> {
                 None
             },
             next,
+            retrieval: self.compact_retrieval(),
         })
         .unwrap_or(Value::Null)
     }
@@ -370,15 +485,15 @@ impl ContextBuild<'_> {
         if !self.view.structural_evidence.is_empty() {
             packet["structural_evidence"] = json!(self.view.structural_evidence);
         }
+        if let Some(header) = self.view.packet_header.as_ref() {
+            packet["packet_header"] = json!(header);
+        }
+        if let Some(retrieval) = self.retrieval_block() {
+            packet["retrieval"] = retrieval;
+        }
         json!({
             "packet_id": self.packet_id,
-            "task": {
-                "intent": self.signature.intent,
-                "entity": self.signature.entity,
-                "identifiers": self.signature.identifiers,
-                "file_hints": self.signature.file_hints,
-                "confidence": self.signature.confidence,
-            },
+            "task": self.task_metadata(),
             "effective_mode": format!("{:?}", self.gate.effective_mode),
             "latency_ms": self.elapsed_ms,
             "evidence_packet": packet,
@@ -386,58 +501,56 @@ impl ContextBuild<'_> {
     }
 
     fn diagnostic(&self) -> Value {
+        let mut evidence = json!({
+            "index": self.index_meta,
+            "seeds": self.view.seeds,
+            "files": self.files.iter().map(|f| {
+                json!({
+                    "path": f.path,
+                    "skeleton": f.code,
+                    "tokens": f.tokens,
+                    "why": f.why,
+                    "sidecar": f.sidecar,
+                    "line_range": f.line_range,
+                    "folded_symbols": f.folded_symbols,
+                    "folds": f.folds.iter().map(|d| d.fold_id.clone()).collect::<Vec<_>>(),
+                })
+            }).collect::<Vec<_>>(),
+            "symbols": self.symbols,
+            "unresolved": self.view.unresolved,
+            "coverage": self.view.coverage,
+            "fold_ids": self.view.fold_ids,
+            "next_actions": self.view.next_actions,
+            "budget": {
+                "used": self.view.budget_used,
+                "cap": self.view.budget_cap,
+                "mode": self.view.budget_mode,
+                "seed_tokens": self.view.budget_seed_tokens,
+                "fill_used": self.view.budget_fill_used,
+                "fill_cap": self.view.budget_fill_cap,
+                "over_budget": self.view.over_budget,
+            },
+            "inactive_hints": self.view.inactive_descriptors,
+            "workspace_tokens": self.workspace_tokens,
+            "selected_raw_tokens": self.selected_raw,
+            "active_tokens": self.packet_tokens,
+            "reduction_vs_workspace_pct": format!("{:.1}%", self.vs_workspace),
+            "reduction_vs_selected_pct": format!("{:.1}%", self.vs_selected),
+            "seed_call_coverage": self.view.seed_call_coverage,
+            "physarum_used": self.view.physarum_used,
+            "physarum_ms": self.view.physarum_ms,
+            "selection_method": self.view.selection_method,
+        });
+        if let Some(retrieval) = self.retrieval_block() {
+            evidence["retrieval"] = retrieval;
+        }
         json!({
             "packet_id": self.packet_id,
-            "task": {
-                "intent": self.signature.intent,
-                "entity": self.signature.entity,
-                "identifiers": self.signature.identifiers,
-                "file_hints": self.signature.file_hints,
-                "confidence": self.signature.confidence,
-            },
+            "task": self.task_metadata(),
             "membrane_state": self.gate.membrane_state,
             "effective_mode": format!("{:?}", self.gate.effective_mode),
             "latency_ms": self.elapsed_ms,
-            "evidence_packet": {
-                "index": self.index_meta,
-                "seeds": self.view.seeds,
-                "files": self.files.iter().map(|f| {
-                    json!({
-                        "path": f.path,
-                        "skeleton": f.code,
-                        "tokens": f.tokens,
-                        "why": f.why,
-                        "sidecar": f.sidecar,
-                        "line_range": f.line_range,
-                        "folded_symbols": f.folded_symbols,
-                        "folds": f.folds.iter().map(|d| d.fold_id.clone()).collect::<Vec<_>>(),
-                    })
-                }).collect::<Vec<_>>(),
-                "symbols": self.symbols,
-                "unresolved": self.view.unresolved,
-                "coverage": self.view.coverage,
-                "fold_ids": self.view.fold_ids,
-                "next_actions": self.view.next_actions,
-                "budget": {
-                    "used": self.view.budget_used,
-                    "cap": self.view.budget_cap,
-                    "mode": self.view.budget_mode,
-                    "seed_tokens": self.view.budget_seed_tokens,
-                    "fill_used": self.view.budget_fill_used,
-                    "fill_cap": self.view.budget_fill_cap,
-                    "over_budget": self.view.over_budget,
-                },
-                "inactive_hints": self.view.inactive_descriptors,
-                "workspace_tokens": self.workspace_tokens,
-                "selected_raw_tokens": self.selected_raw,
-                "active_tokens": self.packet_tokens,
-                "reduction_vs_workspace_pct": format!("{:.1}%", self.vs_workspace),
-                "reduction_vs_selected_pct": format!("{:.1}%", self.vs_selected),
-                "seed_call_coverage": self.view.seed_call_coverage,
-                "physarum_used": self.view.physarum_used,
-                "physarum_ms": self.view.physarum_ms,
-                "selection_method": self.view.selection_method,
-            }
+            "evidence_packet": evidence,
         })
     }
 }

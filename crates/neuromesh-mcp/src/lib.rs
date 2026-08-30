@@ -1,4 +1,5 @@
 pub mod descriptors;
+pub mod graph_proxy;
 pub mod learning;
 pub mod packet_cache;
 pub mod protocol;

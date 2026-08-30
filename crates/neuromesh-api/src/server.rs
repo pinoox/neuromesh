@@ -1,3 +1,4 @@
+use crate::routes::engines::{parse_graph_backend, parse_seed_engine};
 use crate::state::AppState;
 use neuromesh_core::{project_data_dir, NodeId, OptimizationMode, ProjectId, Result};
 use neuromesh_index::ProjectWalker;
@@ -180,6 +181,7 @@ impl HttpServer {
                         "total_tokens_before": total_tokens_before,
                         "total_tokens_after": total_tokens_after,
                         "overall_reduction_pct": overall_reduction_pct,
+                        "mean_reduction_pct": usage.mean_reduction_pct,
                         "cache_hits": project_history.iter().filter(|m| m.cache_hit).count(),
                         "cache_hit_rate": if total_requests > 0 { (project_history.iter().filter(|m| m.cache_hit).count() as f64 / total_requests as f64) * 100.0 } else { 0.0 },
                         "total_expansions": project_history.iter().map(|m| m.expansions_count).sum::<usize>(),
@@ -664,6 +666,10 @@ impl HttpServer {
             }
 
             ("POST", "/api/config") => {
+                let persist = body_json["persist"].as_bool().unwrap_or(true);
+                let mut graph_backend = None;
+                let mut seed_engine = None;
+
                 if let Some(mode_str) = body_json["mode"].as_str() {
                     let new_mode = match mode_str {
                         "max_quality" => OptimizationMode::MaxQuality,
@@ -672,9 +678,89 @@ impl HttpServer {
                     };
                     state.config.write().mode = new_mode;
                 }
+                if let Some(raw) = body_json["graph_backend"].as_str() {
+                    if let Some(backend) = parse_graph_backend(raw) {
+                        graph_backend = Some(backend);
+                    }
+                }
+                if let Some(raw) = body_json["seed_engine"].as_str() {
+                    if let Some(engine) = parse_seed_engine(raw) {
+                        seed_engine = Some(engine);
+                    }
+                }
+                if graph_backend.is_some() || seed_engine.is_some() {
+                    if let Err(e) =
+                        state.update_engine_settings(graph_backend, seed_engine, persist)
+                    {
+                        Self::send_json(
+                            &mut stream,
+                            500,
+                            &json!({ "success": false, "error": e.to_string() }),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                }
+                if let Some(backend) = graph_backend {
+                    let gb = state.config.read().graph_backend.clone();
+                    let ws = state.workspace();
+                    state.apply_graph_backend(&gb, &ws).await;
+                    state.log(
+                        "INFO",
+                        "CONFIG",
+                        &format!(
+                            "Graph backend set to {} (persist={persist})",
+                            backend.as_str()
+                        ),
+                    );
+                }
+                if let Some(engine) = seed_engine {
+                    state.log(
+                        "INFO",
+                        "CONFIG",
+                        &format!("Seed engine set to {} (persist={persist})", engine.as_str()),
+                    );
+                }
                 let cfg = state.config.read().clone();
-                Self::send_json(&mut stream, 200, &json!({ "success": true, "config": cfg }))
-                    .await?;
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({
+                        "success": true,
+                        "config": cfg,
+                        "graph_backend_active": state.mcp_handler.graph_backend_label(),
+                        "graph_proxy_connected": state.mcp_handler.graph_proxy_active(),
+                    }),
+                )
+                .await?;
+            }
+
+            ("GET", "/api/engines") | ("GET", "/api/graph-proxy") => {
+                let resp = crate::routes::engines::engines_status(&state);
+                Self::send_json(&mut stream, 200, &resp).await?;
+            }
+
+            ("POST", "/api/graph-proxy/probe") | ("POST", "/api/engines/probe") => {
+                match state.probe_graph_proxy().await {
+                    Ok(report) => {
+                        state.log(
+                            if report.connected { "SUCCESS" } else { "WARN" },
+                            "GRAPH",
+                            &format!(
+                                "Graph proxy probe: connected={} files={} coverage={}",
+                                report.connected,
+                                report.sample_files,
+                                report.coverage.as_deref().unwrap_or("—")
+                            ),
+                        );
+                        Self::send_json(&mut stream, 200, &serde_json::to_value(report).unwrap())
+                            .await?;
+                    }
+                    Err(e) => {
+                        Self::send_json(&mut stream, 500, &json!({ "error": e.to_string() }))
+                            .await?;
+                    }
+                }
             }
 
             // Neural Project Graph Data (for 2D visualizer)
@@ -757,6 +843,7 @@ impl HttpServer {
 
             // Expand folded intron by fold_id (session registry) or inactive node
             ("POST", "/api/expand") | ("POST", "/v1/expand") => {
+                let expand_start = std::time::Instant::now();
                 let node_id = body_json["node_id"]
                     .as_str()
                     .or_else(|| body_json["fold_id"].as_str())
@@ -787,6 +874,13 @@ impl HttpServer {
                         "restored_tokens": fold.restored_tokens,
                         "reason": reason
                     });
+                    record_monitor_expand(
+                        &state,
+                        "expand_fold",
+                        fold.restored_tokens,
+                        fold.restored_tokens,
+                        expand_start.elapsed().as_millis() as u64,
+                    );
                     Self::send_json(&mut stream, 200, &resp).await?;
                 } else if let Some((view, audit)) = state
                     .expansion_engine
@@ -806,6 +900,13 @@ impl HttpServer {
                         "expanded_node": view,
                         "audit": audit
                     });
+                    record_monitor_expand(
+                        &state,
+                        "expand",
+                        audit.added_tokens,
+                        audit.added_tokens,
+                        expand_start.elapsed().as_millis() as u64,
+                    );
                     Self::send_json(&mut stream, 200, &resp).await?;
                 } else {
                     let resp = json!({
@@ -1008,6 +1109,7 @@ impl HttpServer {
                             "total_tokens_saved": usage.total_tokens_saved,
                             "total_raw_tokens": usage.total_tokens_before,
                             "overall_reduction_pct": usage.overall_reduction_pct,
+                            "mean_reduction_pct": usage.mean_reduction_pct,
                             "average_latency_ms": usage.average_latency_ms,
                             "cache_hit_rate": usage.cache_hit_rate,
                             "cache_hits": usage.cache_hits
@@ -1096,4 +1198,40 @@ impl HttpServer {
             .windows(needle.len())
             .position(|window| window == needle)
     }
+}
+
+fn record_monitor_expand(
+    state: &AppState,
+    command: &str,
+    before: usize,
+    after: usize,
+    latency_ms: u64,
+) {
+    let ws = state.workspace_path.read().display().to_string();
+    let pct = if before > 0 {
+        ((before.saturating_sub(after)) as f32 / before as f32) * 100.0
+    } else {
+        0.0
+    };
+    neuromesh_observability::record_activity(neuromesh_observability::ActivityRecord {
+        request_id: format!("mon-{command}-{}", uuid::Uuid::new_v4()),
+        project_id: state.graph.project_id(),
+        mode: command.into(),
+        command: Some(command.into()),
+        surface: neuromesh_observability::TelemetrySurface::Monitor,
+        workspace_path: Some(ws),
+        client_id: Some("monitor-ui".into()),
+        tokens_before: before,
+        tokens_after: after,
+        token_reduction_pct: pct,
+        nodes_before: state.graph.stats().total_nodes,
+        nodes_after: 1,
+        expansions_count: 1,
+        cache_hit: false,
+        provider: "neuromesh-monitor".into(),
+        model: "expand".into(),
+        latency_ms,
+        success: true,
+        task_id: Some(command.into()),
+    });
 }

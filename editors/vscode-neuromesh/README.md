@@ -2,7 +2,9 @@
 
 Sidebar mesh stats, a packet inspector, fold CodeLens, and the galaxy UI — talking to a running `neuromesh monitor`.
 
-The agent loop in the editor matches 0.7.17: **get_context → expand_fold** (or **expand_gap** for `packet_gaps`). Grep (`search_symbols`) when coverage is `partial` or `no_seed_resolved`. After a good edit, **record_feedback**; use **get_node_weights** to verify learning deltas.
+The agent loop in the editor matches **0.8.2**: **get_context_packet → expand_fold** (or **expand_gap** for `packet_gaps`). Check `retrieval.claim` and `coverage.claim`. Grep (`search_symbols`) when coverage is `partial` or `no_seed_resolved`. After a good edit, **record_feedback**; use **get_node_weights** to verify learning deltas.
+
+Optional **graph backend** (`native` default, `auto` / `proxy_cbm` for CBM sidecar): only `get_context_packet` uses the proxy; other tools stay native. See [docs/graph-proxy.md](../../docs/graph-proxy.md).
 
 ## Install
 

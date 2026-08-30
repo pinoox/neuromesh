@@ -1,8 +1,9 @@
 mod merge;
 
 use merge::{
-    load_json_object, load_text, upsert_kilo_mcp, upsert_mcp_servers, upsert_toml_table,
-    upsert_vscode_servers, write_pretty_json, write_text, LaunchSpec,
+    load_json_object, load_text, upsert_kilo_mcp, upsert_mcp_servers, upsert_mimo_server,
+    upsert_opencode_mcp, upsert_toml_table, upsert_vscode_servers, upsert_zed_context_servers,
+    write_pretty_json, write_text, LaunchSpec,
 };
 use neuromesh_core::Result;
 use std::collections::BTreeMap;
@@ -13,6 +14,8 @@ struct Flags {
     dry_run: bool,
     project_only: bool,
     force_global: bool,
+    pinned: bool,
+    agent_rules: bool,
     help: bool,
 }
 
@@ -21,6 +24,9 @@ enum Kind {
     Vscode,
     Kilo,
     CodexToml,
+    OpenCode,
+    Mimo,
+    Zed,
 }
 
 struct Target {
@@ -37,7 +43,7 @@ pub fn execute(args: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    let spec = launch_spec()?;
+    let spec = launch_spec(flags.pinned)?;
     print_banner();
     if flags.print_only {
         print_snippets(&spec);
@@ -88,6 +94,16 @@ pub fn execute(args: &[String]) -> Result<()> {
             Err(e) => failed.push(format!("{} ({}): {e}", target.path.display(), target.label)),
         }
     }
+    if flags.agent_rules {
+        if flags.dry_run {
+            wrote.push(".cursor/rules/neuromesh.mdc (agent rule) [dry-run]".into());
+        } else {
+            match install_agent_rules() {
+                Ok(path) => wrote.push(format!("{} (Cursor agent rule)", path.display())),
+                Err(e) => failed.push(format!("agent rule: {e}")),
+            }
+        }
+    }
 
     println!("Binary    : {}", spec.command);
     println!("Workspace : {}", spec.cwd);
@@ -124,6 +140,8 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
         dry_run: false,
         project_only: false,
         force_global: false,
+        pinned: false,
+        agent_rules: false,
         help: false,
     };
     for a in args {
@@ -132,6 +150,8 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
             "--dry-run" | "--dry" => flags.dry_run = true,
             "--project" => flags.project_only = true,
             "--global" | "--user" => flags.force_global = true,
+            "--pinned" => flags.pinned = true,
+            "--agent-rules" | "--rules" => flags.agent_rules = true,
             "--help" | "-h" => flags.help = true,
             other if other.starts_with('-') => {
                 return Err(neuromesh_core::NeuroMeshError::Config(format!(
@@ -168,23 +188,34 @@ fn print_help() {
         "\
 Usage: neuromesh connect [OPTIONS]
 
-Install NeuroMesh as a local MCP stdio server. Uses the absolute path of this
-binary and the current workspace — no PATH setup, no extra packages.
+Install NeuroMesh as a local MCP stdio server. Default config is portable:
+`neuromesh mcp` on PATH with automatic workspace detection per IDE project.
+Use `--pinned` to write an absolute binary path and pin the current workspace.
 
   neuromesh connect              write project configs + globals for installed apps
   neuromesh connect --print      print snippets only (do not write)
   neuromesh connect --dry-run    show target files without writing
   neuromesh connect --project    project files only
   neuromesh connect --global     also create user-level configs (Cursor, Codex, …)
+  neuromesh connect --pinned     absolute binary + workspace args (legacy)
+  neuromesh connect --agent-rules copy .cursor/rules/neuromesh.mdc into this repo
 
 Project files: .cursor .vscode .agents .codex .kilo .trae .mcp.json .minimax
-Globals (when the app is present, or with --global): Cursor, Claude Desktop,
-Codex, Antigravity/Gemini, Windsurf, Trae, Kilo Code, Cline/Roo.
+               opencode.json .mimo-code.json .idea/mcp.json
+Globals: Cursor, Claude Desktop, Codex, Antigravity/Gemini, Windsurf, Trae,
+         Kilo Code, Cline/Roo, OpenCode, MiMo CLI, Zed.
 "
     );
 }
 
-fn launch_spec() -> Result<LaunchSpec> {
+fn launch_spec(pinned: bool) -> Result<LaunchSpec> {
+    if pinned {
+        return launch_spec_pinned();
+    }
+    Ok(LaunchSpec::simple())
+}
+
+fn launch_spec_pinned() -> Result<LaunchSpec> {
     let command = resolve_binary()?.to_string_lossy().into_owned();
     let workspace = neuromesh_index::assert_safe_workspace(
         &neuromesh_index::ProjectWalker::discover_workspace(
@@ -215,12 +246,8 @@ fn resolve_binary() -> Result<PathBuf> {
     Ok(exe)
 }
 
-fn binary_name() -> &'static str {
-    if cfg!(windows) {
-        "neuromesh.exe"
-    } else {
-        "neuromesh"
-    }
+fn binary_name() -> String {
+    merge::invoke_command_name()
 }
 
 fn is_ephemeral_build(path: &Path) -> bool {
@@ -335,6 +362,30 @@ fn all_targets() -> Vec<Target> {
             kind: Kind::McpServers,
             global: false,
         },
+        Target {
+            label: "OpenCode",
+            path: ws.join("opencode.json"),
+            kind: Kind::OpenCode,
+            global: false,
+        },
+        Target {
+            label: "OpenCode (dot dir)",
+            path: ws.join(".opencode").join("opencode.jsonc"),
+            kind: Kind::OpenCode,
+            global: false,
+        },
+        Target {
+            label: "MiMo CLI",
+            path: ws.join(".mimo-code.json"),
+            kind: Kind::Mimo,
+            global: false,
+        },
+        Target {
+            label: "JetBrains",
+            path: ws.join(".idea").join("mcp.json"),
+            kind: Kind::McpServers,
+            global: false,
+        },
     ];
     targets.extend(global_targets());
     targets
@@ -393,6 +444,24 @@ fn global_targets() -> Vec<Target> {
             label: "Kilo Code (user)",
             path: config.join("kilo").join("kilo.jsonc"),
             kind: Kind::Kilo,
+            global: true,
+        },
+        Target {
+            label: "OpenCode (user)",
+            path: config.join("opencode").join("opencode.jsonc"),
+            kind: Kind::OpenCode,
+            global: true,
+        },
+        Target {
+            label: "MiMo CLI (user)",
+            path: home.join(".mimo-code").join("config.json"),
+            kind: Kind::Mimo,
+            global: true,
+        },
+        Target {
+            label: "Zed",
+            path: config.join("zed").join("settings.json"),
+            kind: Kind::Zed,
             global: true,
         },
     ];
@@ -459,6 +528,18 @@ fn app_present(path: &Path) -> bool {
         && parent.parent().is_some_and(|p| p.exists())
 }
 
+fn install_agent_rules() -> std::result::Result<PathBuf, String> {
+    let ws = neuromesh_index::ProjectWalker::discover_workspace(
+        &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    );
+    let dest_dir = ws.join(".cursor").join("rules");
+    std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+    let dest = dest_dir.join("neuromesh.mdc");
+    let body = include_str!("../../../../../docs/agent-rule.mdc");
+    std::fs::write(&dest, body).map_err(|e| e.to_string())?;
+    Ok(dest)
+}
+
 fn write_target(target: &Target, spec: &LaunchSpec) -> std::result::Result<(), String> {
     match target.kind {
         Kind::McpServers => {
@@ -481,6 +562,21 @@ fn write_target(target: &Target, spec: &LaunchSpec) -> std::result::Result<(), S
             let body = upsert_toml_table(&existing, "mcp_servers.neuromesh", &spec.toml_block());
             write_text(&target.path, &body)
         }
+        Kind::OpenCode => {
+            let mut root = load_json_object(&target.path)?;
+            upsert_opencode_mcp(&mut root, "neuromesh", spec.opencode_entry());
+            write_pretty_json(&target.path, &root)
+        }
+        Kind::Mimo => {
+            let mut root = load_json_object(&target.path)?;
+            upsert_mimo_server(&mut root, "neuromesh", spec.mimo_entry());
+            write_pretty_json(&target.path, &root)
+        }
+        Kind::Zed => {
+            let mut root = load_json_object(&target.path)?;
+            upsert_zed_context_servers(&mut root, "neuromesh", spec.zed_entry());
+            write_pretty_json(&target.path, &root)
+        }
     }
 }
 
@@ -498,16 +594,37 @@ fn print_snippets(spec: &LaunchSpec) {
     }))
     .unwrap_or_default();
 
+    let opencode = serde_json::to_string_pretty(&serde_json::json!({
+        "mcp": { "neuromesh": spec.opencode_entry() }
+    }))
+    .unwrap_or_default();
+    let mimo = serde_json::to_string_pretty(&serde_json::json!({
+        "mcpServers": { "neuromesh": spec.mimo_entry() }
+    }))
+    .unwrap_or_default();
+    let zed = serde_json::to_string_pretty(&serde_json::json!({
+        "context_servers": { "neuromesh": spec.zed_entry() }
+    }))
+    .unwrap_or_default();
+
     println!("Cursor / Claude / Trae / Antigravity / MiniMax / Windsurf — mcpServers:\n{json}\n");
     println!("VS Code / Copilot — .vscode/mcp.json:\n{vscode}\n");
     println!("Kilo Code — kilo.jsonc `mcp` (command array, environment):\n{kilo}\n");
+    println!("OpenCode — opencode.json / opencode.jsonc:\n{opencode}\n");
+    println!("MiMo CLI — .mimo-code.json:\n{mimo}\n");
+    println!("Zed — settings.json `context_servers`:\n{zed}\n");
     println!(
         "Codex — ~/.codex/config.toml or .codex/config.toml:\n{}",
         spec.toml_block()
     );
     println!(
-        "claude mcp add neuromesh -- {} mcp {}\n",
-        spec.command, spec.cwd
+        "claude mcp add neuromesh -- {} mcp{}\n",
+        spec.command,
+        if spec.args.len() > 1 {
+            format!(" {}", spec.args[1..].join(" "))
+        } else {
+            String::new()
+        }
     );
 }
 
@@ -521,6 +638,10 @@ mod tests {
         assert!(f.print_only && f.project_only && !f.force_global);
         let f = parse_flags(&["--global".into(), "--dry-run".into()]).unwrap();
         assert!(f.force_global && f.dry_run);
+        let f = parse_flags(&["--pinned".into()]).unwrap();
+        assert!(f.pinned);
+        let f = parse_flags(&["--agent-rules".into()]).unwrap();
+        assert!(f.agent_rules);
         assert!(parse_flags(&["--nope".into()]).is_err());
     }
 

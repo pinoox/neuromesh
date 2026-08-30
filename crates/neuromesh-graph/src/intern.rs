@@ -319,6 +319,7 @@ impl MeshStore {
     }
 }
 
+use crate::concept_index::ConceptIndex;
 use crate::query::tokenize;
 use neuromesh_core::{EdgeType, NodeType, UnresolvedRef};
 use neuromesh_index::{FileFingerprint, IndexedFile};
@@ -360,6 +361,7 @@ pub(crate) struct GraphData {
     pub source_overlay: HashMap<String, String>,
     pub parser_epoch: u32,
     pub applied_learning_episodes: HashSet<String>,
+    pub concept_index: ConceptIndex,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -384,6 +386,8 @@ pub(crate) struct GraphSnapshot {
     pub parser_epoch: u32,
     #[serde(default)]
     pub applied_learning_episodes: HashSet<String>,
+    #[serde(default)]
+    pub concept_index: ConceptIndex,
 }
 
 #[derive(Deserialize)]
@@ -423,6 +427,9 @@ pub(crate) fn insert_indexed_node(data: &mut GraphData, node: ContextNode) {
     data.file_to_nodes.entry(path).or_default().push(id.clone());
     index_name_keys(data, &id, node_type, &name);
     index_tokens(data, &id, &name);
+    if node_type != NodeType::File && node_type != NodeType::Api {
+        data.concept_index.register_symbol(id.clone(), &name);
+    }
     if let Some(parent) = parent {
         let key = format!("{}::{}", parent.to_lowercase(), name.to_lowercase());
         data.impl_index.entry(key).or_default().push(id);
@@ -555,6 +562,7 @@ pub(crate) fn rebuild_indexes(data: &mut GraphData) {
     data.path_index.clear();
     data.token_to_nodes.clear();
     data.impl_index.clear();
+    data.concept_index = ConceptIndex::default();
     let nodes = data.mesh.snapshot_nodes();
     for node in nodes {
         let id = node.id.clone();
@@ -565,6 +573,9 @@ pub(crate) fn rebuild_indexes(data: &mut GraphData) {
             .push(id.clone());
         index_name_keys(data, &id, node.node_type, &node.name);
         index_tokens(data, &id, &node.name);
+        if node.node_type != NodeType::File && node.node_type != NodeType::Api {
+            data.concept_index.register_symbol(id.clone(), &node.name);
+        }
         if let Some(parent) = &node.parent {
             let key = format!("{}::{}", parent.to_lowercase(), node.name.to_lowercase());
             data.impl_index.entry(key).or_default().push(id);
