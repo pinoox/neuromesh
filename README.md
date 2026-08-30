@@ -68,22 +68,18 @@ The agent still sees the *shape* of the file — signatures, imports, neighbors 
 
 ---
 
-## Inspired by living systems
+## Why it feels different
 
 
-| Nature                    | In the engine                        | For the agent                                                                 |
-| ------------------------- | ------------------------------------ | ----------------------------------------------------------------------------- |
-| **DNA supercoiling**      | Genetic skeletonizer                 | Fold unused bodies; keep the map of the file                                  |
-| **Physarum (slime mold)** | Steiner / shortest connecting tissue | Don’t flood the prompt — grow the cheapest path between seeds                 |
-| **Synapses & STDP**       | Pheromone edges + `record_feedback`  | Paths you actually edited get stronger next time                              |
-| **Cell membrane**         | QualityGate                          | Tight by default; auth / payment tasks open the membrane                      |
-| **Mycelium**              | Hyphal prefetch                      | Warm the next hop before the second tool call                                 |
-| **Neural mesh**           | Project graph in RAM                 | Files, functions, `Imports`, `Calls` — a nervous system, not a bag of strings |
+| What you get | What it means for you |
+| ------------ | --------------------- |
+| **Smart folding** | Relevant functions stay open; everything else collapses to one-line markers you can expand on demand. |
+| **Shortest path routing** | Only the files your task needs — not the whole repo neighborhood. |
+| **Learns from your edits** | Call `record_feedback` after a good fix; similar tasks route faster next time. |
+| **Safety modes** | Balanced by default; auth and payment tasks automatically get more context. |
+| **Live code graph** | Your repo indexed in RAM — functions, imports, and calls, not shredded text chunks. |
 
-
-**A graph in RAM, a short path, the rest dormant.** After seeds resolve, Physarum grows tubes between them (under 20ms). Fill respects the token cap. `record_feedback` is how synapses change the next packet.
-
-Full metaphor map and crate wiring: **[docs/nature.md](docs/nature.md)**
+Curious about the biology metaphor? **[docs/nature.md](docs/nature.md)**
 
 ---
 
@@ -170,19 +166,19 @@ Teach every IDE: [docs/agent-guide.md](docs/agent-guide.md) · Cursor template: 
 
 ## 3D Neural Galaxy
 
-`neuromesh monitor` is the live mesh: subsystems as a constellation, then the file graph, then the symbols inside a module.
+`neuromesh monitor` is a live map of **your** project: packages at a glance, then the file graph, then symbols inside a module.
 
 ![Macro constellation of project subsystems in the 3D Neural Galaxy](docs/assets/galaxy-constellation.jpg)
 
-Constellation — crates and subsystems
+Constellation — packages and subsystems
 
 ![3D Neural Galaxy file graph with Physarum slime tubes](docs/assets/galaxy-3d.jpg)
 
-3D galaxy — files and synapses; Play slime grows Physarum tubes
+3D galaxy — files and call/import links
 
 ![Module zoom showing Core files and function symbols](docs/assets/galaxy-module.jpg)
 
-Module zoom — files and AST symbols in one crate
+Module zoom — files and symbols in one area of your codebase
 
 Default URL: [http://127.0.0.1:8765](http://127.0.0.1:8765) · `neuromesh monitor` · port: `neuromesh port`
 
@@ -210,8 +206,8 @@ Full reference: [docs/mcp.md](docs/mcp.md).
 neuromesh index              # refresh graph after large changes
 neuromesh status             # node / edge counts
 neuromesh monitor            # 3D graph UI (see above)
-neuromesh eval               # token savings + recall on gold tasks
 neuromesh doctor --engine    # show retrieval preset
+neuromesh config engine hybrid   # opt in to semantic search (needs embed install)
 ```
 
 Command reference: [docs/cli.md](docs/cli.md).
@@ -226,33 +222,31 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, Ruby, and more
 
 ## What we actually measured
 
-Not a universal “99.6%” — that number was never a warranty. Savings are **per task**, after folding. Re-run on your repo: `neuromesh eval`.
+Savings are **per task**, after folding — not a marketing average. Run `neuromesh eval` on your own repo to see your numbers.
 
-On this repo (release **v0.9.0**, 650,859 workspace tokens):
+Example from a **650k-token monorepo** (release **v0.9.0**, default `engine: fast`):
 
-| Task | Mode | WS tok | Selected | Packet | vs WS | vs selected | Recall | Prec | Grep | ms |
-| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `handle_tool_call_intent` | balanced | 650859 | 72428 | 17389 | 97.3% | 76.0% | 1.00 | 0.75 | **0** | 22 |
-| `physarum_usage` | balanced | 650859 | 19625 | 4080 | 99.4% | 79.2% | 1.00 | 0.50 | **0** | 12 |
+| Task (plain language) | Mode | Full repo | Before fold | Packet sent | Saved vs repo | Extra greps | ms |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fix the MCP tool handler | balanced | 650,859 | 72,428 | 17,389 | **97.3%** | **0** | 22 |
+| Trace graph routing code | balanced | 650,859 | 19,625 | 4,080 | **99.4%** | **0** | 12 |
 
-`Selected` = raw token count before fold. `Packet` = after fold. `Grep` = 0 when every gold file is already in the packet.
-
-Index snapshot from that run: **340 files · 3,161 nodes · 6,795 edges · 552 ms** (release). Full gates and multilingual holdout: [docs/quality.md](docs/quality.md).
+Index on that project: **340 files · 552 ms**. Methodology and multilingual holdout: [docs/quality.md](docs/quality.md).
 
 ---
 
 ## Documentation
 
 
-| Doc                                    | For                                              |
+| Doc                                    | Start here when you want to…                     |
 | -------------------------------------- | ------------------------------------------------ |
+| [Agent guide](docs/agent-guide.md)     | Wire Cursor / VS Code / Claude to use NeuroMesh  |
+| [MCP tools](docs/mcp.md)               | See what each tool returns                       |
+| [CLI](docs/cli.md)                     | Commands for install, index, connect, monitor    |
+| [Configuration](docs/configuration.md) | Switch engines, proxy, advanced tuning           |
+| [Engines](docs/engines.md)             | `fast` vs `hybrid` vs `deep` in one page         |
 | [Docs index](docs/README.md)           | Full map                                         |
-| [Living systems](docs/nature.md)       | DNA, Physarum, STDP — mapped to crates           |
-| [Agent guide](docs/agent-guide.md)     | Teach Cursor / VS Code / Claude to use NeuroMesh |
-| [MCP tools](docs/mcp.md)               | Tool inputs and packet shape                     |
-| [Configuration](docs/configuration.md) | Engines, proxy, advanced tuning                  |
-| [Quality](docs/quality.md)             | Benchmarks and release gates                     |
-| [Changelog](docs/CHANGELOG.md)         | v0.9.0                                           |
+| [Changelog](docs/CHANGELOG.md)         | What changed in v0.9.0                           |
 
 
 MIT · [LICENSE](LICENSE)
