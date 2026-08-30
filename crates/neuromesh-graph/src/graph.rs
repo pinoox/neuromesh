@@ -127,7 +127,7 @@ struct DerivedIndexes {
 pub struct NeuralProjectGraph {
     project_id: Arc<RwLock<ProjectId>>,
     inner: Arc<RwLock<GraphData>>,
-    embedding_index: Arc<RwLock<EmbeddingIndex>>,
+    embedding_index: Arc<RwLock<Arc<EmbeddingIndex>>>,
     derived: Arc<RwLock<DerivedIndexes>>,
     pheromone_engine: Arc<PheromoneEngine>,
     activation_engine: Arc<SpreadingActivation>,
@@ -141,7 +141,7 @@ impl NeuralProjectGraph {
         Self {
             project_id: Arc::new(RwLock::new(project_id)),
             inner: Arc::new(RwLock::new(GraphData::default())),
-            embedding_index: Arc::new(RwLock::new(EmbeddingIndex::default())),
+            embedding_index: Arc::new(RwLock::new(Arc::new(EmbeddingIndex::default()))),
             derived: Arc::new(RwLock::new(DerivedIndexes::default())),
             pheromone_engine: Arc::new(PheromoneEngine::new(PheromoneConfig::default())),
             activation_engine: Arc::new(SpreadingActivation::new(
@@ -1418,17 +1418,17 @@ impl NeuralProjectGraph {
     }
 
     pub fn install_embedding_index(&self, index: EmbeddingIndex) {
-        *self.embedding_index.write() = index;
+        *self.embedding_index.write() = Arc::new(index);
     }
 
-    pub fn embedding_index(&self) -> EmbeddingIndex {
-        self.embedding_index.read().clone()
+    pub fn embedding_index(&self) -> Arc<EmbeddingIndex> {
+        Arc::clone(&*self.embedding_index.read())
     }
 
     pub fn load_embedding_sidecar(&self, workspace: &Path) -> neuromesh_core::Result<bool> {
         let path = neuromesh_core::embeddings_path(workspace);
         if let Some(sidecar) = crate::embeddings::load_sidecar(&path)? {
-            *self.embedding_index.write() = EmbeddingIndex::from_sidecar(sidecar);
+            *self.embedding_index.write() = Arc::new(EmbeddingIndex::from_sidecar(sidecar));
             return Ok(true);
         }
         Ok(false)
@@ -1568,8 +1568,10 @@ impl NeuralProjectGraph {
                 #[cfg(feature = "embeddings")]
                 {
                     let emb = neuromesh_core::Config::load().embeddings;
-                    if emb.enabled && emb.index_on_build {
-                        let _ = crate::embeddings::maybe_rebuild_embeddings(self, workspace, &emb);
+                    if emb.enabled {
+                        let _ = crate::embeddings::refresh_embeddings_after_index(
+                            self, workspace, &emb,
+                        );
                     }
                 }
                 self.mark_index_ready();

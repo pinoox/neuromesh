@@ -56,7 +56,11 @@ fn run_off(
     sink: &mut SeedSink<'_, '_, '_>,
 ) -> bool {
     push_anchor_queries(graph, signature, prompt, sink);
-    crate::activator::seed_uncovered_clusters_inner(graph, signature, &mut sink.buffers_mut());
+    crate::activator::seed_uncovered_clusters_if_compound(
+        graph,
+        signature,
+        &mut sink.buffers_mut(),
+    );
     false
 }
 
@@ -68,7 +72,11 @@ fn run_keywords(
     sink: &mut SeedSink<'_, '_, '_>,
 ) -> bool {
     push_anchor_queries(graph, signature, prompt, sink);
-    crate::activator::seed_uncovered_clusters_inner(graph, signature, &mut sink.buffers_mut());
+    crate::activator::seed_uncovered_clusters_if_compound(
+        graph,
+        signature,
+        &mut sink.buffers_mut(),
+    );
     push_client_keywords(graph, signature, prompt, config, sink);
     false
 }
@@ -81,7 +89,11 @@ fn run_keywords_expanded(
     sink: &mut SeedSink<'_, '_, '_>,
 ) -> bool {
     push_anchor_queries(graph, signature, prompt, sink);
-    crate::activator::seed_uncovered_clusters_inner(graph, signature, &mut sink.buffers_mut());
+    crate::activator::seed_uncovered_clusters_if_compound(
+        graph,
+        signature,
+        &mut sink.buffers_mut(),
+    );
     push_client_keywords(graph, signature, prompt, config, sink);
     push_client_expansion(graph, signature, prompt, config, sink);
     push_path_hint_seeds(graph, signature, prompt, config, sink);
@@ -98,7 +110,11 @@ fn run_semantic_lite(
     is_style: bool,
 ) -> (bool, bool) {
     push_anchor_queries(graph, signature, prompt, sink);
-    crate::activator::seed_uncovered_clusters_inner(graph, signature, &mut sink.buffers_mut());
+    crate::activator::seed_uncovered_clusters_if_compound(
+        graph,
+        signature,
+        &mut sink.buffers_mut(),
+    );
 
     #[cfg(feature = "embeddings")]
     let embedding_used = if !is_style {
@@ -143,7 +159,11 @@ fn run_hybrid(
     is_style: bool,
 ) -> (bool, bool) {
     push_anchor_queries(graph, signature, prompt, sink);
-    crate::activator::seed_uncovered_clusters_inner(graph, signature, &mut sink.buffers_mut());
+    crate::activator::seed_uncovered_clusters_if_compound(
+        graph,
+        signature,
+        &mut sink.buffers_mut(),
+    );
 
     #[cfg(feature = "embeddings")]
     let embedding_used = if !is_style {

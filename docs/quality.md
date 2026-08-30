@@ -89,7 +89,7 @@ Index-time symbol sketches include signature + leading doc comment (`doc_summary
 
 ### Embedding performance (v0.8.6)
 
-Singleton ONNX session (no re-init per packet), per-packet query cache, MCP/index warm-up, default **MiniLM multilingual Q** (384-dim), ONNX `intra_threads` default 4.
+Singleton ONNX session (no re-init per packet), per-packet query cache, MCP/index warm-up, default **MiniLM multilingual Q** (384-dim), ONNX `intra_threads` default 2, graph-first index with `neuromesh embed rebuild`.
 
 ```bash
 neuromesh doctor --embed --bench   # cold warm + p50/p95 over 20 cached queries

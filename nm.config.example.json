@@ -2,7 +2,7 @@
   "embeddings": {
     "enabled": true,
     "model": "minilm_multilingual_q",
-    "index_on_build": true
+    "index_on_build": false
   },
   "seed_resolution": {
     "max_keywords": 8,

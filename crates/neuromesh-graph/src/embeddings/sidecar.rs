@@ -1,7 +1,7 @@
 use neuromesh_core::NodeId;
 use serde::{Deserialize, Serialize};
 
-pub const SIDECAR_VERSION: u32 = 3;
+pub const SIDECAR_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModuleCentroid {
@@ -21,6 +21,9 @@ pub struct EmbeddingSidecar {
     pub vectors: Vec<f32>,
     #[serde(default)]
     pub module_centroids: Vec<ModuleCentroid>,
+    /// Per-symbol passage hash for incremental rebuild (v4+).
+    #[serde(default)]
+    pub content_hashes: Vec<String>,
 }
 
 impl EmbeddingSidecar {
@@ -42,6 +45,7 @@ pub struct EmbeddingIndex {
     pub node_ids: Vec<NodeId>,
     pub vectors: Vec<f32>,
     pub module_centroids: Vec<ModuleCentroid>,
+    pub content_hashes: Vec<String>,
 }
 
 impl EmbeddingIndex {
@@ -54,6 +58,7 @@ impl EmbeddingIndex {
             node_ids: sidecar.node_ids,
             vectors: sidecar.vectors,
             module_centroids: sidecar.module_centroids,
+            content_hashes: sidecar.content_hashes,
         }
     }
 
@@ -132,6 +137,7 @@ mod tests {
             node_ids: vec![NodeId::new("a"), NodeId::new("b")],
             vectors: vec![1.0, 0.0, 0.0, 1.0],
             module_centroids: Vec::new(),
+            content_hashes: vec![],
         };
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("embeddings.bin");

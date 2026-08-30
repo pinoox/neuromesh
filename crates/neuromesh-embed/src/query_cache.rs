@@ -3,8 +3,10 @@
 use crate::{Embedder, EmbedderError};
 use neuromesh_core::{EmbeddingConfig, EmbeddingModelId};
 use parking_lot::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 static PACKET_CACHE: Mutex<Option<PacketCacheState>> = Mutex::new(None);
+static PACKET_CACHE_DEPTH: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 struct CacheKey {
@@ -18,14 +20,20 @@ struct PacketCacheState {
     vector: Vec<f32>,
 }
 
-/// Start a new packet scope (call once per `get_context_packet` / tiered activation).
+/// Enter a packet scope (nested calls preserve the cached query vector).
 pub fn packet_cache_begin() {
-    *PACKET_CACHE.lock() = None;
+    let depth = PACKET_CACHE_DEPTH.fetch_add(1, Ordering::Relaxed);
+    if depth == 0 {
+        *PACKET_CACHE.lock() = None;
+    }
 }
 
-/// Clear packet scope after activation completes.
+/// Leave a packet scope; clear cache when the outermost scope ends.
 pub fn packet_cache_end() {
-    *PACKET_CACHE.lock() = None;
+    let depth = PACKET_CACHE_DEPTH.fetch_sub(1, Ordering::Relaxed);
+    if depth == 1 {
+        *PACKET_CACHE.lock() = None;
+    }
 }
 
 /// Embed `prompt` once per packet scope; subsequent calls return the cached vector.

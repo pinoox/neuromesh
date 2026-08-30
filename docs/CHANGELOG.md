@@ -4,6 +4,14 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### Embed-primary performance (graph-first index)
+
+- **Graph-first index** — `index_on_build: false` by default; `neuromesh index` builds the AST graph quickly; run `neuromesh embed rebuild` (or MCP background build) for NL routing sidecar.
+- **Incremental sidecar v4** — per-symbol `content_hash`; re-index after a single-file edit re-embeds only changed symbols.
+- **Query RAM** — `Arc<EmbeddingIndex>` removes full matrix clone per packet; nested packet cache avoids double ONNX on cache miss.
+- **Lean defaults** — `intra_threads: 2`, optional dedup and module centroids off on `balanced`; both enabled in `max_quality` mode only.
+- **Slim hot path** — defer episodic lookup and mycelium prefetch unless `max_quality`; skip concept seeds when embedding sidecar is loaded; fix L2 double activation.
+
 ## 0.8.6 — 2026-08-30
 
 ### MiniLM-first release

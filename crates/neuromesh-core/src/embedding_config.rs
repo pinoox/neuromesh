@@ -47,7 +47,7 @@ pub struct EmbeddingConfig {
     pub embed_seed_cap: usize,
     pub min_cosine: f32,
     pub index_on_build: bool,
-    /// ONNX Runtime intra-op threads (`None` = all cores). Default 4 for laptop hybrid CPUs.
+    /// ONNX Runtime intra-op threads (`None` = all cores). Default 2 for lower ORT RAM.
     pub intra_threads: Option<usize>,
     /// MCP semantic prompt LRU cache (near-duplicate prompts).
     pub semantic_cache_enabled: bool,
@@ -73,13 +73,13 @@ impl Default for EmbeddingConfig {
             ann_top_k: 16,
             embed_seed_cap: 4,
             min_cosine: 0.45,
-            index_on_build: true,
-            intra_threads: Some(4),
+            index_on_build: false,
+            intra_threads: Some(2),
             semantic_cache_enabled: true,
             semantic_cache_entries: 16,
             semantic_cache_min_cosine: 0.96,
-            optional_dedup_min_cosine: Some(0.93),
-            module_cluster_enabled: true,
+            optional_dedup_min_cosine: None,
+            module_cluster_enabled: false,
             embed_intent_for_general: false,
             recovery_min_cosine: 0.38,
         }

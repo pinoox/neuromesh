@@ -50,8 +50,7 @@ pub fn execute(args: &[String]) -> Result<()> {
     {
         let emb = neuromesh_core::Config::load().embeddings;
         if emb.enabled {
-            let _ = neuromesh_graph::maybe_rebuild_embeddings(&graph, &current_dir, &emb);
-            let _ = neuromesh_embed::Embedder::warm(emb);
+            let _ = neuromesh_graph::rebuild_embeddings_for_workspace(&graph, &current_dir, &emb);
         }
     }
     let index_ms = index_started.elapsed().as_millis();

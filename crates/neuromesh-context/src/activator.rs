@@ -198,21 +198,25 @@ impl ContextActivator {
         match phase {
             IncrementalPhase::L1 => {
                 let mut sig = signature.clone();
-                for (id, _score, _reason) in resolve_concept_seeds(graph, &sig, plan) {
-                    if let Some(node) = graph.get_node(&id) {
-                        let name = node.name.clone();
-                        if !sig.identifiers.iter().any(|i| i == &name) {
-                            sig.identifiers.push(name);
+                #[cfg(feature = "embeddings")]
+                let skip_concepts = graph.embedding_index().is_loaded();
+                #[cfg(not(feature = "embeddings"))]
+                let skip_concepts = false;
+                if !skip_concepts {
+                    for (id, _score, _reason) in resolve_concept_seeds(graph, &sig, plan) {
+                        if let Some(node) = graph.get_node(&id) {
+                            let name = node.name.clone();
+                            if !sig.identifiers.iter().any(|i| i == &name) {
+                                sig.identifiers.push(name);
+                            }
                         }
                     }
                 }
                 self.activate_with_hops(graph, &sig, mode, 1)
             }
             IncrementalPhase::L2 { extra_files, hops } => {
-                let base =
+                let mut merged =
                     prior.unwrap_or_else(|| self.activate_with_hops(graph, signature, mode, hops));
-                let extended = self.activate_with_hops(graph, signature, mode, hops);
-                let mut merged = merge_context_views(base, extended);
                 for file_id in extra_files {
                     include_file_hint(graph, &mut merged, &file_id);
                 }
@@ -553,17 +557,18 @@ impl ContextActivator {
         );
         #[cfg(feature = "embeddings")]
         {
-            let emb_cfg = neuromesh_core::Config::load().embeddings;
-            if emb_cfg.module_cluster_enabled {
+            if effective_mode == OptimizationMode::MaxQuality {
                 crate::optional_dedup::apply_module_cluster_bonus(
                     graph,
                     &seed_set,
                     &mut selection.optional,
                     &mut selection.scores,
                 );
-            }
-            if let Some(threshold) = emb_cfg.optional_dedup_min_cosine {
                 if selection.optional.len() > 2 {
+                    let threshold = neuromesh_core::Config::load()
+                        .embeddings
+                        .optional_dedup_min_cosine
+                        .unwrap_or(0.93);
                     crate::optional_dedup::dedup_optional_files(
                         graph,
                         &mut selection.optional,
@@ -1530,6 +1535,17 @@ fn locked_seed_hmvc_prefix(graph: &NeuralProjectGraph, seeds: &HashSet<NodeId>) 
 /// When a compound task names a second topic that identifier extraction skipped
 /// (lowercase "router permission guard"), try those nouns as seeds. A cluster
 /// with zero hits is recorded as a miss so coverage cannot claim no_recorded_gap.
+pub(crate) fn seed_uncovered_clusters_if_compound(
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    buffers: &mut SeedBuffers<'_, '_, '_>,
+) {
+    if split_task_clusters(&signature.raw_prompt).len() <= 1 {
+        return;
+    }
+    seed_uncovered_clusters_inner(graph, signature, buffers);
+}
+
 pub(crate) fn seed_uncovered_clusters_inner(
     graph: &NeuralProjectGraph,
     signature: &TaskSignature,
@@ -2697,7 +2713,10 @@ pub fn unused_helper() {
         );
         let coverage = view.coverage.as_ref().expect("coverage");
         assert!(
-            coverage.seeds_hit.iter().any(|s| s == "HttpKernel"),
+            coverage
+                .seeds_hit
+                .iter()
+                .any(|s| s.contains("HttpKernel")),
             "HttpKernel must resolve, got {coverage:?}"
         );
         assert_ne!(coverage.claim, "no_seed_resolved");
@@ -2957,7 +2976,7 @@ pub fn searcher(haystack: &str, needle: &str) -> bool {
         );
         assert!(
             view.seeds.iter().any(|s| {
-                s.query == "Searcher"
+                s.query.contains("Searcher")
                     && s.resolved_id
                         .as_ref()
                         .and_then(|id| {

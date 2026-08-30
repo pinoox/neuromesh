@@ -100,7 +100,10 @@ mod seed_engine_tests {
         assert!(cfg.enabled);
         assert_eq!(cfg.model.as_str(), "minilm_multilingual_q");
         assert_eq!(cfg.matryoshka_dim, 384);
-        assert_eq!(cfg.intra_threads, Some(4));
+        assert_eq!(cfg.intra_threads, Some(2));
+        assert!(!cfg.index_on_build);
+        assert!(cfg.optional_dedup_min_cosine.is_none());
+        assert!(!cfg.module_cluster_enabled);
         assert_eq!(cfg.embed_seed_cap, 4);
         assert!((cfg.recovery_min_cosine - 0.38).abs() < f32::EPSILON);
     }

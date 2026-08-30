@@ -97,6 +97,7 @@ try {
 Write-Host "`nQuick start:" -ForegroundColor Green
 Write-Host "  1. neuromesh doctor       verify install" -ForegroundColor White
 Write-Host "  2. neuromesh connect      wire Cursor / VS Code / Claude MCP" -ForegroundColor White
-Write-Host "  3. neuromesh index        index your repo" -ForegroundColor White
-Write-Host "  4. neuromesh monitor      3D galaxy UI -> http://127.0.0.1:8765" -ForegroundColor White
+Write-Host "  3. neuromesh index        index your repo (graph)" -ForegroundColor White
+Write-Host "  4. neuromesh embed rebuild  NL routing sidecar (once)" -ForegroundColor White
+Write-Host "  5. neuromesh monitor      3D galaxy UI -> http://127.0.0.1:8765" -ForegroundColor White
 Write-Host "`nRestart your terminal/IDE for PATH changes.`n" -ForegroundColor Gray

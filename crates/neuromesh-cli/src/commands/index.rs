@@ -91,7 +91,14 @@ pub fn execute(cap: FileCapArg) -> Result<(Arc<NeuralProjectGraph>, Arc<MemoryDa
         let emb = neuromesh_core::Config::load().embeddings;
         if emb.enabled && emb.index_on_build {
             let _ = neuromesh_graph::maybe_rebuild_embeddings(&graph, &current_dir, &emb);
-            let _ = neuromesh_embed::Embedder::warm(emb.clone());
+        } else if emb.enabled && !emb.index_on_build {
+            let sidecar = neuromesh_core::embeddings_path(&current_dir);
+            if sidecar.exists() {
+                let _ = graph.load_embedding_sidecar(&current_dir);
+            }
+            println!(
+                "Embeddings   : run `neuromesh embed rebuild` for NL routing (graph-first index)"
+            );
         }
     }
 

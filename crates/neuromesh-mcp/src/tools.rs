@@ -284,17 +284,19 @@ impl McpToolHandler {
                 let auto_extract = read_auto_extract_keywords(arguments);
                 let server_inferred =
                     apply_server_assisted_defaults(&mut signature, &task_desc, auto_extract);
-                if let Ok(episodes) = self
-                    .memory_db
-                    .find_similar_episodes(&self.graph.project_id(), &task_desc)
-                {
-                    for ep in episodes.into_iter().filter(|e| e.success).take(3) {
-                        for name in &ep.successful_path {
-                            if name.len() < 3 {
-                                continue;
-                            }
-                            if !signature.identifiers.iter().any(|i| i == name) {
-                                signature.identifiers.push(name.clone());
+                if requested_mode == neuromesh_core::OptimizationMode::MaxQuality {
+                    if let Ok(episodes) = self
+                        .memory_db
+                        .find_similar_episodes(&self.graph.project_id(), &task_desc)
+                    {
+                        for ep in episodes.into_iter().filter(|e| e.success).take(3) {
+                            for name in &ep.successful_path {
+                                if name.len() < 3 {
+                                    continue;
+                                }
+                                if !signature.identifiers.iter().any(|i| i == name) {
+                                    signature.identifiers.push(name.clone());
+                                }
                             }
                         }
                     }
@@ -386,14 +388,23 @@ impl McpToolHandler {
                                 ));
                             }
                         }
-                        packet_cache_end();
+                        // Keep packet_cache scope open through activate_tiered (nested begin/end).
                     }
                 }
 
                 let view =
                     self.activator
                         .activate_tiered(&self.graph, &signature, gate.effective_mode);
-                self.prefetch_mycelium(&view);
+                #[cfg(feature = "embeddings")]
+                {
+                    let emb_cfg = Config::load().embeddings;
+                    if emb_cfg.enabled && emb_cfg.semantic_cache_enabled {
+                        packet_cache_end();
+                    }
+                }
+                if gate.effective_mode == neuromesh_core::OptimizationMode::MaxQuality {
+                    self.prefetch_mycelium(&view);
+                }
 
                 for active in &view.active_nodes {
                     self.graph
@@ -1326,7 +1337,10 @@ mod tests {
         );
         let idle = handler.biomimetic_report();
         assert_eq!(idle["mycelial_prefetching"].as_str(), Some("idle"));
-        let args = json!({ "task_description": "How does start_job enqueue_job?" });
+        let args = json!({
+            "task_description": "How does start_job enqueue_job?",
+            "mode": "max_quality"
+        });
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             handler

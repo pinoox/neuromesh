@@ -10,4 +10,7 @@ pub use sidecar::{
 pub use sketch::{node_type_label, symbol_sketch};
 
 #[cfg(feature = "embeddings")]
-pub use build::{graph_digest, maybe_rebuild_embeddings, rebuild_embeddings};
+pub use build::{
+    graph_digest, maybe_rebuild_embeddings, rebuild_embeddings, rebuild_embeddings_for_workspace,
+    refresh_embeddings_after_index,
+};

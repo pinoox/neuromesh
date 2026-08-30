@@ -10,11 +10,12 @@ NeuroMesh separates **where structure comes from** (graph backend) from **how ta
 | **Embeddings** | **ON** + **bundled MiniLM** | Nothing — prompt-only; weights in release tarball |
 | **Seed assist** | Embed-primary | **Do not** pass client `keywords`/`expansion` |
 
-Install → `neuromesh index` → `get_context_packet(prompt)`. Works in any language the model supports.
+Install → `neuromesh index` → `neuromesh embed rebuild` → `get_context_packet(prompt)`. Graph index is fast; embedding sidecar builds once (incremental on later edits).
 
 ```bash
 neuromesh doctor --embed              # sidecar + bundled model path
 neuromesh doctor --embed --bench      # p50/p95 warm embed latency
+neuromesh embed rebuild               # build/refresh embeddings.bin after graph index
 neuromesh embed prefetch              # warm bundled weights (install does this)
 ```
 
@@ -38,11 +39,12 @@ Query path: embed prompt once → ANN on `embeddings.bin` → graph-resolve → 
 | Feature | Config | Default |
 | :--- | :--- | :--- |
 | Semantic prompt cache | `semantic_cache_*` | on, 16 entries, 0.96 cosine |
-| Optional-file dedup | `optional_dedup_min_cosine` | 0.93 |
-| Module centroids | `module_cluster_enabled` | on (sidecar v3) |
+| Optional-file dedup | `optional_dedup_min_cosine` | off (`max_quality` uses 0.93) |
+| Module centroids | `module_cluster_enabled` | off at index (`max_quality` applies bonus when present) |
+| Graph-first index | `index_on_build` | **false** — run `neuromesh embed rebuild` |
 | L3 recovery floor | `recovery_min_cosine` | 0.38 (primary `min_cosine` 0.45) |
 
-Env: `NEUROMESH_EMBEDDINGS=0` disables vectors; `NEUROMESH_EMBED_THREADS=4`; `NEUROMESH_SEMANTIC_CACHE=0`.
+Env: `NEUROMESH_EMBEDDINGS=0` disables vectors; `NEUROMESH_EMBED_THREADS=2`; `NEUROMESH_SEMANTIC_CACHE=0`.
 
 ---
 

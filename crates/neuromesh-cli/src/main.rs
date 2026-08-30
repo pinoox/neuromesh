@@ -189,9 +189,24 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             #[cfg(feature = "embeddings")]
             if cfg.embeddings.enabled {
                 let emb = cfg.embeddings.clone();
+                let graph_bg = graph.clone();
+                let dir_bg = current_dir.clone();
                 std::thread::spawn(move || {
-                    if let Err(e) = neuromesh_embed::Embedder::warm(emb) {
-                        eprintln!("NeuroMesh embed warm-up: {e}");
+                    let sidecar = neuromesh_core::embeddings_path(&dir_bg);
+                    if sidecar.exists() {
+                        if let Err(e) = neuromesh_embed::Embedder::warm(emb) {
+                            eprintln!("NeuroMesh embed warm-up: {e}");
+                        }
+                        let _ = graph_bg.load_embedding_sidecar(&dir_bg);
+                    } else {
+                        eprintln!(
+                            "NeuroMesh: building embeddings in background (lexical fallback until ready)…"
+                        );
+                        if let Err(e) = neuromesh_graph::rebuild_embeddings_for_workspace(
+                            &graph_bg, &dir_bg, &emb,
+                        ) {
+                            eprintln!("NeuroMesh embed rebuild: {e}");
+                        }
                     }
                 });
             }
