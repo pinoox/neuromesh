@@ -65,6 +65,11 @@ impl RetrievalOrchestrator {
             next_action,
             suggested_keywords,
             embedding_used: view.embedding_used,
+            resolution_tier: crate::retrieval::embedding_confidence::dominant_resolution_tier(
+                &view.seeds,
+            ),
+            max_embedding_score:
+                crate::retrieval::embedding_confidence::max_embedding_score_from_seeds(&view.seeds),
         });
 
         view

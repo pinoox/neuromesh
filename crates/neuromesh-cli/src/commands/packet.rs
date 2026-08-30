@@ -372,7 +372,7 @@ fn apply_client_signals(signature: &mut TaskSignature, args: &PacketArgs) {
     }
     signature.engine_override = args.engine;
     let prompt = args.query.as_deref().unwrap_or("");
-    let enabled = Config::load().seed_resolution.auto_extract_keywords;
+    let enabled = Config::load().seed_resolution.effective_auto_extract();
     apply_auto_extract_keywords(signature, prompt, enabled);
 }
 

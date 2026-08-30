@@ -2,11 +2,12 @@
 
 use crate::activator::ContextActivator;
 use crate::retrieval::budget::RetrievalBudget;
+use crate::retrieval::embedding_confidence::{is_embedding_reason, low_embedding_confidence};
 use crate::retrieval::patterns::pattern_expand;
 use crate::retrieval::query_intent::QueryPlan;
 use crate::retrieval::sufficiency::{SufficiencyEstimate, SufficiencyEstimator};
 use crate::retrieval::tier::RetrievalTier;
-use neuromesh_core::{ContextView, OptimizationMode, TaskSignature};
+use neuromesh_core::{Config, ContextView, OptimizationMode, TaskSignature};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_task::normalize_unicode;
 use std::collections::HashMap;
@@ -29,14 +30,16 @@ pub fn run_incremental(
     estimator: &SufficiencyEstimator,
 ) -> EscalationResult {
     let plan = QueryPlan::from_signature(signature);
+    let configured_engine = Config::load().seed_resolution.engine;
+    let embedding_config = Config::load().embeddings.clone();
     let mut levels_attempted: Vec<String> = Vec::new();
     let mut latency_ms: HashMap<String, u64> = HashMap::new();
 
-    // L1: fast match, 1 hop, concept + alias seeds
+    // L1: configured seed engine (embedding-primary by default), 1 hop
     let l1_start = Instant::now();
     let mut sig = signature.clone();
     sig.raw_prompt = normalize_unicode(&sig.raw_prompt);
-    sig.engine_override = Some(RetrievalTier::L1.seed_engine());
+    sig.engine_override = Some(RetrievalTier::L1.seed_engine(configured_engine));
     let mut view = activator.activate_incremental(
         graph,
         &sig,
@@ -55,10 +58,15 @@ pub fn run_incremental(
     let mut final_tier = RetrievalTier::L1;
 
     let l1_budget = budget.for_tier(RetrievalTier::L1);
-    if est.eligible_for_early_exit
-        && view.active_tokens <= l1_budget.selected_tokens
-        && est.critical_gaps.is_empty()
-    {
+    if can_early_exit(
+        &est,
+        &view,
+        l1_budget,
+        activator,
+        graph,
+        signature,
+        &embedding_config,
+    ) {
         return EscalationResult {
             view,
             final_tier,
@@ -68,12 +76,12 @@ pub fn run_incremental(
         };
     }
 
-    // L2: pattern expand + 2 hops — only when critical gaps remain
-    if !est.critical_gaps.is_empty() {
+    // L2: pattern expand + 2 hops — critical gaps or low embedding confidence
+    if should_escalate_to_l2(&est, &view, activator, graph, signature, &embedding_config) {
         let l2_start = Instant::now();
         let seed_ids = activator.seed_node_ids(&view);
         let pattern_files = pattern_expand(graph, &seed_ids, plan.intent);
-        sig.engine_override = Some(RetrievalTier::L2.seed_engine());
+        sig.engine_override = Some(RetrievalTier::L2.seed_engine(configured_engine));
         view = activator.activate_incremental(
             graph,
             &sig,
@@ -94,10 +102,15 @@ pub fn run_incremental(
         est = estimator.estimate(&view, signature);
 
         let l2_budget = budget.for_tier(RetrievalTier::L2);
-        if est.eligible_for_early_exit
-            && view.active_tokens <= l2_budget.selected_tokens
-            && est.critical_gaps.is_empty()
-        {
+        if can_early_exit(
+            &est,
+            &view,
+            l2_budget,
+            activator,
+            graph,
+            signature,
+            &embedding_config,
+        ) {
             return EscalationResult {
                 view,
                 final_tier,
@@ -108,10 +121,10 @@ pub fn run_incremental(
         }
     }
 
-    // L3: bounded semantic recovery (max 2 seeds) — only when still critical
-    if !est.critical_gaps.is_empty() {
+    // L3: bounded semantic recovery (max 2 seeds)
+    if should_escalate_to_l3(&est, &view, activator, graph, signature, &embedding_config) {
         let l3_start = Instant::now();
-        sig.engine_override = Some(RetrievalTier::L3.seed_engine());
+        sig.engine_override = Some(RetrievalTier::L3.seed_engine(configured_engine));
         view = activator.activate_incremental(
             graph,
             &sig,
@@ -139,6 +152,95 @@ pub fn run_incremental(
         latency_ms,
         estimate: est,
     }
+}
+
+fn can_early_exit(
+    est: &SufficiencyEstimate,
+    view: &ContextView,
+    tier_budget: &crate::retrieval::budget::TierBudget,
+    activator: &ContextActivator,
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    embedding_config: &neuromesh_core::EmbeddingConfig,
+) -> bool {
+    est.eligible_for_early_exit
+        && view.active_tokens <= tier_budget.selected_tokens
+        && est.critical_gaps.is_empty()
+        && !needs_embedding_escalation(
+            view,
+            activator,
+            graph,
+            &signature.raw_prompt,
+            embedding_config,
+        )
+}
+
+fn should_escalate_to_l2(
+    est: &SufficiencyEstimate,
+    view: &ContextView,
+    activator: &ContextActivator,
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    embedding_config: &neuromesh_core::EmbeddingConfig,
+) -> bool {
+    !est.critical_gaps.is_empty()
+        || needs_embedding_escalation(
+            view,
+            activator,
+            graph,
+            &signature.raw_prompt,
+            embedding_config,
+        )
+}
+
+fn should_escalate_to_l3(
+    est: &SufficiencyEstimate,
+    view: &ContextView,
+    activator: &ContextActivator,
+    graph: &NeuralProjectGraph,
+    signature: &TaskSignature,
+    embedding_config: &neuromesh_core::EmbeddingConfig,
+) -> bool {
+    !est.critical_gaps.is_empty()
+        || needs_embedding_escalation(
+            view,
+            activator,
+            graph,
+            &signature.raw_prompt,
+            embedding_config,
+        )
+}
+
+/// Escalate when embeddings are on but resolved seeds align poorly with the prompt,
+/// unless a strong lexical seed already matched.
+fn needs_embedding_escalation(
+    view: &ContextView,
+    activator: &ContextActivator,
+    graph: &NeuralProjectGraph,
+    prompt: &str,
+    embedding_config: &neuromesh_core::EmbeddingConfig,
+) -> bool {
+    if !embedding_config.enabled {
+        return false;
+    }
+    let resolved: Vec<_> = view
+        .seeds
+        .iter()
+        .filter(|s| s.resolved_id.is_some())
+        .collect();
+    if resolved.is_empty() {
+        return false;
+    }
+    let has_strong_lexical = resolved.iter().any(|s| {
+        !is_embedding_reason(&s.query)
+            && !s.query.starts_with("semantic_embed:")
+            && s.confidence >= 0.6
+    });
+    if has_strong_lexical {
+        return false;
+    }
+    let seed_ids: Vec<_> = activator.seed_node_ids(view).into_iter().collect();
+    low_embedding_confidence(graph, prompt, embedding_config, &seed_ids)
 }
 
 #[derive(Debug, Clone)]

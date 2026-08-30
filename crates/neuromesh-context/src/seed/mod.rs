@@ -72,7 +72,13 @@ pub fn run_seed_resolution(
         if sink.resolved_count() == 0 {
             let plan = QueryPlan::from_signature(signature);
             for (node_id, score, reason) in resolve_concept_seeds(graph, signature, &plan) {
-                sink.insert(node_id, score, reason);
+                sink.insert(
+                    node_id,
+                    score,
+                    reason,
+                    Some(crate::retrieval::embedding_confidence::TIER_L1_EXACT),
+                    None,
+                );
             }
         }
 

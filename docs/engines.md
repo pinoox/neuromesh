@@ -2,7 +2,7 @@
 
 NeuroMesh separates **where structure comes from** (graph backend) from **how tasks pick starting symbols** (seed engine). Both are configurable from CLI, monitor Settings, or `nm.config.json`.
 
-**v0.8.3 recommendation:** keep **`native`** graph backend and **`keywords_expanded`** (or `hybrid`) seed engine. MCP stdio always uses **native + server-side assisted** keywords unless you set `proxy_cbm` explicitly. Use `auto` in monitor only when you want CBM sidecar detection.
+**v0.8.5 recommendation:** keep **`native`** graph backend and **`semantic_lite`** seed engine (local embeddings on by default). Pass client `keywords`/`expansion` only when you switch to `keywords_expanded`, `keywords`, or `hybrid`. MCP stdio always uses **native** unless you set `proxy_cbm` explicitly.
 
 ## Graph backend
 
@@ -49,9 +49,9 @@ See [graph-proxy.md](graph-proxy.md) for architecture details.
 
 ---
 
-## Embedding engine (L3, optional)
+## Local embedding engine (default)
 
-Multilingual vector recovery for NL prompts that still miss after L1/L2. **Off by default** — enable when you need stronger greenfield / cross-language seed recovery without delegating to CBM.
+Multilingual vector seed resolution for natural-language prompts. **On by default** — the agent sends the task as written; the engine embeds the prompt and ANN-searches symbol sketches on the native graph.
 
 | Model | Role | Size (approx) |
 | :--- | :--- | :--- |
@@ -59,27 +59,36 @@ Multilingual vector recovery for NL prompts that still miss after L1/L2. **Off b
 | `minilm_multilingual_q` | Ultra-light fallback | ~80–120 MB |
 
 ```bash
-neuromesh config embeddings on              # nm.config.json
+neuromesh config embeddings off             # disable vector path
 neuromesh config embeddings gemma300m_q4    # pick model
 neuromesh doctor --embed                    # sidecar + sample latency
-cargo build -p neuromesh-cli --features embeddings
+neuromesh index                             # writes embeddings.bin when enabled
 ```
 
-Build with **`embeddings` feature** compiled in. Index writes `embeddings.bin` beside `graph.bin` when `index_on_build: true`. Query path embeds the prompt once and ANN-searches symbol sketches — results still pass through native graph resolve.
+Index writes `embeddings.bin` beside `graph.bin`. Query path embeds the prompt once, ANN-searches sketches, then **graph-resolves** hits (no raw file dump). Lexical keyword fallback runs only when embeddings are disabled or the sidecar is missing.
 
-Env: `NEUROMESH_EMBEDDINGS=1`, `NEUROMESH_EMBED_MODEL=gemma300m_q4`
+**Metadata:** `retrieval.resolution_tier` (`embedding_primary`, `L1_exact`, `L2_pattern`, `L3_semantic_recovery`), `retrieval.max_embedding_score`, `coverage: no_confident_match` when nothing clears `min_cosine`.
 
-Compared to CBM's bundled **`nomic-embed-code`** (code-PL similarity), Gemma Q4 targets **spoken-language** queries — the job NeuroMesh L3 actually needs.
+Env: `NEUROMESH_EMBEDDINGS=0` to disable, `NEUROMESH_EMBED_MODEL=gemma300m_q4`
 
 ---
 
+## Seed resolution engine
+
 | Value | Role |
 | :--- | :--- |
+| `semantic_lite` | **Default** — embedding-primary + graph resolve |
 | `off` | Disable seed resolution |
-| `keywords` | Literal keyword match |
-| `keywords_expanded` | Expanded keywords (**default**) |
-| `semantic_lite` | Lightweight semantic hints |
+| `keywords` | Literal keyword match (client/server keywords recommended) |
+| `keywords_expanded` | Expanded keywords + aliases |
 | `hybrid` | Keywords + semantic-lite passes |
+
+### When to pass keywords
+
+| Engine | Agent should pass `keywords`/`expansion`? |
+| :--- | :--- |
+| `semantic_lite` (default) | **No** — prompt only |
+| `keywords` / `keywords_expanded` / `hybrid` | **Yes** (or enable `auto_extract_keywords`) |
 
 ### CLI
 
@@ -93,7 +102,7 @@ Environment: `NEUROMESH_SEED_ENGINE=hybrid`
 
 ### Monitor
 
-**Settings → Seed Resolution Engine** — Keywords+ / Hybrid / Semantic Lite. Saved to `nm.config.json`; takes effect on the next `get_context` call (no restart).
+**Settings → Seed Resolution Engine** — Semantic Lite / Keywords+ / Hybrid. Saved to `nm.config.json`; takes effect on the next `get_context` call (no restart).
 
 ### Layering
 
@@ -106,25 +115,29 @@ Environment: `NEUROMESH_SEED_ENGINE=hybrid`
 
 ## Quick recipes
 
+**Lexical / assisted mode (prior v0.8.3 behavior)**
+
+```json
+{
+  "seed_resolution": {
+    "engine": "keywords_expanded",
+    "auto_extract_keywords": true
+  },
+  "embeddings": { "enabled": false }
+}
+```
+
 **Try CBM without changing defaults globally**
 
 ```bash
 NEUROMESH_GRAPH_BACKEND=auto neuromesh mcp
 ```
 
-**Project uses CBM when available, native otherwise**
-
-```json
-{
-  "graph_backend": { "backend": "auto", "fallback_native": true },
-  "seed_resolution": { "engine": "hybrid" }
-}
-```
-
 **Verify install**
 
 ```bash
+neuromesh doctor --embed
 neuromesh doctor --proxy --probe
 ```
 
-Expected: `Status : connected`, CBM tools listed, sample packet (0+ files depending on query and index).
+Expected: embedding sidecar fresh after index; CBM probe `Status : connected` when configured.

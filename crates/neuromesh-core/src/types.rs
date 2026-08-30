@@ -227,6 +227,12 @@ pub struct SeedResolution {
     pub query: String,
     pub resolved_id: Option<NodeId>,
     pub confidence: f32,
+    /// How this seed was resolved: `L1_exact`, `L2_pattern`, `L3_semantic_recovery`, `embedding_primary`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution_tier: Option<String>,
+    /// Cosine similarity when resolved via embedding (L3 / embedding engine).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding_score: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -419,6 +425,12 @@ pub struct RetrievalMetadata {
     pub suggested_keywords: Option<Vec<String>>,
     #[serde(default)]
     pub embedding_used: bool,
+    /// Dominant resolution tier for this packet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution_tier: Option<String>,
+    /// Best embedding cosine among resolved seeds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_embedding_score: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -637,6 +649,8 @@ mod tests {
             query: "CheckoutView".into(),
             resolved_id: Some(NodeId::new("file:checkout")),
             confidence: 1.0,
+            resolution_tier: None,
+            embedding_score: None,
         }];
         let report = CoverageReport::from_seeds_with_gaps(
             &seeds,

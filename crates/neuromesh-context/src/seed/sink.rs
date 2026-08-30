@@ -2,6 +2,19 @@ use neuromesh_core::{NodeId, SeedResolution};
 use neuromesh_graph::NeuralProjectGraph;
 use std::collections::HashMap;
 
+fn tier_for_reason(reason: &str) -> Option<&'static str> {
+    use crate::retrieval::embedding_confidence::{TIER_EMBEDDING_PRIMARY, TIER_L1_EXACT};
+    match reason {
+        "identifier" | "entity" | "file" | "client_keyword" | "alias_code" => Some(TIER_L1_EXACT),
+        "client_expansion" | "path_hint" | "entity_type" | "token" | "style_hint"
+        | "style_component" | "style_partial" | "style_mixin" | "style_token"
+        | "view_component" => Some(TIER_L1_EXACT),
+        r if r.starts_with("fallback:") => Some(TIER_L1_EXACT),
+        r if r.starts_with("semantic_embed") => Some(TIER_EMBEDDING_PRIMARY),
+        _ => None,
+    }
+}
+
 pub struct SeedBuffers<'res, 'eng, 'rsn> {
     pub resolutions: &'res mut Vec<SeedResolution>,
     pub energies: &'eng mut HashMap<NodeId, f32>,
@@ -72,17 +85,32 @@ impl<'res, 'eng, 'rsn> SeedSink<'res, 'eng, 'rsn> {
                     id = hit.id;
                 }
             }
-            self.insert(id, energy.max(conf), format!("{reason}:{query}"));
+            self.insert(
+                id,
+                energy.max(conf),
+                format!("{reason}:{query}"),
+                tier_for_reason(reason),
+                None,
+            );
         } else {
             self.resolutions.push(SeedResolution {
                 query,
                 resolved_id: None,
                 confidence: 0.0,
+                resolution_tier: None,
+                embedding_score: None,
             });
         }
     }
 
-    pub fn insert(&mut self, id: NodeId, energy: f32, reason: String) {
+    pub fn insert(
+        &mut self,
+        id: NodeId,
+        energy: f32,
+        reason: String,
+        resolution_tier: Option<&str>,
+        embedding_score: Option<f32>,
+    ) {
         self.energies
             .entry(id.clone())
             .and_modify(|e| *e = (*e).max(energy))
@@ -97,6 +125,8 @@ impl<'res, 'eng, 'rsn> SeedSink<'res, 'eng, 'rsn> {
                 query: reason,
                 resolved_id: Some(id),
                 confidence: energy,
+                resolution_tier: resolution_tier.map(str::to_string),
+                embedding_score,
             });
         }
     }

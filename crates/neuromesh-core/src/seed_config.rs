@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 pub enum SeedEngineId {
     Off,
     Keywords,
-    #[default]
     KeywordsExpanded,
+    #[default]
     SemanticLite,
     Hybrid,
 }
@@ -47,6 +47,11 @@ impl SeedEngineId {
     pub fn help_line() -> &'static str {
         "off | keywords | keywords_expanded | semantic_lite | hybrid"
     }
+
+    /// Lexical engines expect client or server-inferred keywords/expansion.
+    pub fn uses_lexical_assist(self) -> bool {
+        matches!(self, Self::Keywords | Self::KeywordsExpanded | Self::Hybrid)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,16 +90,23 @@ pub struct SeedResolutionConfig {
     pub auto_extract_keywords: bool,
 }
 
+impl SeedResolutionConfig {
+    /// Server/client keyword assist runs only for lexical seed engines.
+    pub fn effective_auto_extract(&self) -> bool {
+        self.engine.uses_lexical_assist() && self.auto_extract_keywords
+    }
+}
+
 impl Default for SeedResolutionConfig {
     fn default() -> Self {
         Self {
-            engine: SeedEngineId::KeywordsExpanded,
+            engine: SeedEngineId::SemanticLite,
             max_keywords: 8,
             max_expansion: 8,
             max_resolved_seeds: 5,
             min_seed_score_threshold: 0.3,
             weights: SeedSignalWeights::default(),
-            auto_extract_keywords: true,
+            auto_extract_keywords: false,
         }
     }
 }

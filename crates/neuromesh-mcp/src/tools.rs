@@ -1146,10 +1146,11 @@ fn apply_server_assisted_defaults(
 }
 
 fn read_auto_extract_keywords(arguments: &Value) -> bool {
+    let config = Config::load();
     if let Some(v) = arguments.get("auto_extract_keywords") {
-        return read_bool(v, Config::load().seed_resolution.auto_extract_keywords);
+        return read_bool(v, config.seed_resolution.effective_auto_extract());
     }
-    Config::load().seed_resolution.auto_extract_keywords
+    config.seed_resolution.effective_auto_extract()
 }
 
 /// Proxy CBM search uses extracted terms — reuse server infer when client fields are sparse.

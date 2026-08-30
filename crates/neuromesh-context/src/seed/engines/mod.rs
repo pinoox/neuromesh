@@ -112,10 +112,14 @@ fn run_semantic_lite(
         false
     };
 
-    if sink.resolved_count() == 0 && !is_style {
+    let embedding_available = embedding_config.enabled
+        && cfg!(feature = "embeddings")
+        && graph.embedding_index().is_loaded();
+
+    if sink.resolved_count() == 0 && !is_style && !embedding_available {
         token_fallback_seeds(graph, signature, prompt, sink);
     }
-    if sink.resolved_count() == 0 && !is_style {
+    if sink.resolved_count() == 0 && !is_style && !embedding_available {
         push_client_keywords(graph, signature, prompt, config, sink);
         push_client_expansion(graph, signature, prompt, config, sink);
         push_path_hint_seeds(graph, signature, prompt, config, sink);

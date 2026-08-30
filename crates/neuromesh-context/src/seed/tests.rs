@@ -39,13 +39,20 @@ mod seed_engine_tests {
     }
 
     #[test]
-    fn keywords_expanded_engine_is_default() {
+    fn semantic_lite_engine_is_default() {
         let config = SeedResolutionConfig::default();
         let sig = TaskSignature::new("demo");
-        assert_eq!(
-            resolve_engine_id(&sig, &config),
-            SeedEngineId::KeywordsExpanded
-        );
+        assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::SemanticLite);
+    }
+
+    #[test]
+    fn lexical_engines_require_auto_extract_when_enabled() {
+        let mut config = SeedResolutionConfig::default();
+        config.engine = SeedEngineId::KeywordsExpanded;
+        config.auto_extract_keywords = true;
+        assert!(config.effective_auto_extract());
+        config.engine = SeedEngineId::SemanticLite;
+        assert!(!config.effective_auto_extract());
     }
 
     #[test]
@@ -86,9 +93,9 @@ mod seed_engine_tests {
     }
 
     #[test]
-    fn embedding_config_defaults_disabled() {
+    fn embedding_config_defaults_enabled() {
         let cfg = EmbeddingConfig::default();
-        assert!(!cfg.enabled);
+        assert!(cfg.enabled);
         assert_eq!(cfg.model.as_str(), "gemma300m_q4");
     }
 

@@ -18,10 +18,9 @@ impl RetrievalTier {
         }
     }
 
-    pub fn seed_engine(self) -> SeedEngineId {
+    pub fn seed_engine(self, configured: SeedEngineId) -> SeedEngineId {
         match self {
-            Self::L1 => SeedEngineId::KeywordsExpanded,
-            Self::L2 => SeedEngineId::KeywordsExpanded,
+            Self::L1 | Self::L2 => configured,
             Self::L3 => SeedEngineId::SemanticLite,
         }
     }

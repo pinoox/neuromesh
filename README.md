@@ -120,12 +120,12 @@ flowchart LR
   X --> W[expand_fold if needed]
 ```
 
-**Intent → Concept → Graph** (v0.8.3): the prompt is normalized to a `QueryPlan` (routing, middleware, auth, …), static alias clusters map NL terms to concepts (including FA/AR middleware → `app.use` / `next`), and a code-derived **concept index** turns concepts into symbol seeds — no embedding in L1/L2. Raw MCP calls auto-extract keywords server-side (`auto_extract_keywords=true` default).
+**Local embedding engine** (v0.8.5 default): the prompt is embedded once (EmbeddingGemma Q4, 100+ languages), ANN-searches symbol sketches in `embeddings.bin`, then **graph-resolves** hits — no client keywords required. Alias/concept seeds still augment routing. Keyword assist (`auto_extract_keywords`) runs only when seed engine is `keywords_expanded`, `keywords`, or `hybrid`.
 
 1. **Read the task** as written. `handle_tool_call` survives; it is not lowercased into mush.  
-2. **Resolve on the mesh.** Single-pass L1→L2→L3 escalation only when **critical gaps** remain (not every query hits L3).  
+2. **Resolve on the mesh.** L1 uses embedding-primary seeds; L2/L3 escalate on critical gaps or **low embedding confidence** (prompt–sketch cosine below `min_cosine`).  
 3. **Ship seeds, grow the tube, fill the rest.** Seeds always ship. Physarum connects two+ seeds under 20ms. Fill respects a real budget (`balanced` = 5k extra tokens; L1 selected cap **2k**).  
-4. **Splice + sufficiency.** Bodies fold to markers. Check `retrieval.claim` (`insufficient` | `partial` | `likely_sufficient`) — a decision signal, not ground truth.
+4. **Splice + sufficiency.** Bodies fold to markers. Check `retrieval.claim`, `retrieval.resolution_tier`, and `coverage.claim` (`no_confident_match` when embedding finds nothing above threshold).
 
 Tell the agent ([full install guide](docs/agent-guide.md)):
 
@@ -137,11 +137,12 @@ get_context_packet(query / task_description / prompt / task)
   → neuromesh_record_feedback after a good edit
 ```
 
-**Seed engine** (how symbols are resolved before folding): default `keywords_expanded`; use `semantic_lite` for NL-heavy repos without client keywords:
+**Seed engine** (how symbols are resolved before folding): default **`semantic_lite`** + local embeddings (prompt-only). Switch to lexical mode when you want client/server keywords:
 
 ```bash
-neuromesh config seed-engine semantic_lite          # this repo (nm.config.json)
-neuromesh config seed-engine keywords_expanded --global
+neuromesh config seed-engine keywords_expanded   # lexical + auto_extract
+neuromesh config seed-engine semantic_lite         # default (embedding-primary)
+neuromesh doctor --embed                           # verify sidecar + model
 ```
 
 **Graph backend** (optional external index via [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)): default **`native`** (recommended — faster and more precise). `auto` or `proxy_cbm` delegates `get_context_packet` to CBM while folding and other tools stay native:

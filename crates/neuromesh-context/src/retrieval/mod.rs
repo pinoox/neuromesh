@@ -4,6 +4,7 @@ pub mod alias;
 pub mod budget;
 pub mod calibration;
 pub mod concept_seeds;
+pub mod embedding_confidence;
 pub mod escalate;
 pub mod failure;
 pub mod gap;
@@ -20,6 +21,11 @@ pub use alias::{alias_seed_queries, expand_aliases, AliasEntry};
 pub use budget::RetrievalBudget;
 pub use calibration::{CalibrationReport, EvalSuiteMetrics};
 pub use concept_seeds::resolve_concept_seeds;
+pub use embedding_confidence::{
+    is_embedding_reason, is_lexical_reason, low_embedding_confidence, max_seed_embedding_score,
+    parse_embedding_score, TIER_EMBEDDING_PRIMARY, TIER_L1_EXACT, TIER_L2_PATTERN,
+    TIER_L3_SEMANTIC,
+};
 pub use escalate::{run_incremental, EscalationResult, IncrementalPhase};
 pub use failure::FailureClass;
 pub use gap::{classify_gaps, ClassifiedGap, GapSeverity};

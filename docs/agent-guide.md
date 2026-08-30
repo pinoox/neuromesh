@@ -24,9 +24,9 @@ This workspace has the NeuroMesh MCP server. Prefer it for **reading and explori
 
 ## Default loop
 
-1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). The server **auto-extracts** English `keywords` and `expansion` by default (v0.8.3+); pass them only to override. Optional: `path_hints` / `entity_types`. Set `auto_extract_keywords: false` for raw semantics.
-2. If `coverage.claim` is `partial` or `no_seed_resolved`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
-3. Check `retrieval.claim` (`insufficient` | `partial` | `likely_sufficient`) — this is a **decision signal**, not ground truth. Prefer acting on `partial` over assuming sufficiency. Use `retrieval.suggested_keywords` when present.
+1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). **Default (v0.8.5):** local embedding engine resolves NL prompts internally — **do not** pass `keywords`/`expansion` unless the project uses `keywords_expanded`, `keywords`, or `hybrid` seed engine (or explicitly sets `auto_extract_keywords: true`). Optional: `path_hints` / `entity_types`.
+2. If `coverage.claim` is `partial`, `no_seed_resolved`, or `no_confident_match`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `no_confident_match` means embedding found no symbol above threshold — functionality may be absent. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
+3. Check `retrieval.claim` and `retrieval.resolution_tier` / `retrieval.max_embedding_score` — distinguish exact lexical hits from embedding recovery. Use `retrieval.suggested_keywords` when present (lexical engines only).
 4. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
 5. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
 6. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched. Use `neuromesh_get_node_weights` before/after to verify learning deltas when debugging routing.
@@ -55,9 +55,11 @@ Default is **`native`** (built-in graph + tiered retrieval). **`proxy_cbm`** / *
 - Expanding every fold “just in case”
 - Skipping `neuromesh_record_feedback` after a good edit (no STDP learning for the next packet)
 
-## Multilingual prompts (keywords / expansion)
+## Multilingual prompts
 
-For non-English or vague prompts, pass English **code terms** in `keywords` and related concepts in `expansion`:
+**Default (`semantic_lite` + embeddings):** pass the prompt in any language — the embedding model handles NL→symbol recovery. No keyword table required.
+
+**Lexical engines only** (`keywords_expanded` / `keywords` / `hybrid`): pass English **code terms** in `keywords` and related concepts in `expansion`, or enable `auto_extract_keywords`:
 
 | Language | Example prompt fragment | Suggested keywords |
 | :--- | :--- | :--- |
@@ -69,8 +71,6 @@ For non-English or vague prompts, pass English **code terms** in `keywords` and 
 | Japanese (JA) | ルーティング | `router`, `route`, `handler` |
 | Russian (RU) | маршрутизация | `router`, `route`, `middleware` |
 | Turkish (TR) | yönlendirme | `router`, `redirect`, `route` |
-
-NeuroMesh L1 expands aliases internally, but **assisted mode** (keywords) remains higher recall on holdout benchmarks.
 ```
 
 Keep one copy in the repo (for example `AGENTS.md`) and point each IDE at it, or duplicate into the client-specific paths below. Prefer **one** shared `AGENTS.md` when several tools share the same git root.

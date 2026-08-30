@@ -7,8 +7,8 @@ use crate::packet_analysis::{
 use crate::registry::ReversibleContextRegistry;
 use crate::scoring::{ActivationScorer, ScoringWeights};
 use crate::seed::{
-    run_seed_resolution, MicroHeaderGenerator, NearestAncestorManifestResolver, SeedBuffers,
-    SeedSink,
+    resolve_engine_id, run_seed_resolution, MicroHeaderGenerator, NearestAncestorManifestResolver,
+    SeedBuffers, SeedSink,
 };
 use crate::selector::{
     budget_mode_name, fill_budget, is_noise_path, packet_cap, path_sort_keys,
@@ -108,7 +108,10 @@ impl PacketSnapshot {
             budget_mode: view.budget_mode.clone(),
             seed_call_coverage: view.seed_call_coverage,
             next_action_count: view.next_actions.len(),
-            grep_needed: matches!(claim.as_str(), "partial" | "no_seed_resolved"),
+            grep_needed: matches!(
+                claim.as_str(),
+                "partial" | "no_seed_resolved" | "no_confident_match"
+            ),
             file_paths: files.into_iter().take(12).collect(),
         }
     }
@@ -847,7 +850,7 @@ impl ContextActivator {
         let semantic_cov = semantic_style_coverage(&selected_paths, signature);
         let budget_truncated =
             packet_truncated || fill_used > fill_cap || active_tokens > packet_limit;
-        let coverage = enrich_coverage(
+        let mut coverage = enrich_coverage(
             &seed_resolutions,
             packet_gaps,
             unsure,
@@ -857,6 +860,18 @@ impl ContextActivator {
             sidecar_files,
             budget_truncated,
         );
+        if let Some(override_claim) =
+            crate::retrieval::embedding_confidence::confidence_coverage_override(
+                &seed_resolutions,
+                &seed_reasons,
+                &embedding_config,
+                resolve_engine_id(&sig_for_seeds, &seed_config),
+            )
+        {
+            coverage.claim = override_claim.to_string();
+            coverage.seeds_hit.clear();
+            coverage.covered.clear();
+        }
         let structural_evidence = build_structural_evidence(graph, &seed_set);
         let unresolved: Vec<_> = graph
             .unresolved_refs()
@@ -1554,6 +1569,8 @@ fn seed_uncovered_clusters_legacy(
                     query: noun.clone(),
                     resolved_id: Some(id),
                     confidence: conf,
+                    resolution_tier: None,
+                    embedding_score: None,
                 });
             }
         }
@@ -1573,6 +1590,8 @@ fn seed_uncovered_clusters_legacy(
                     query: miss,
                     resolved_id: None,
                     confidence: 0.0,
+                    resolution_tier: None,
+                    embedding_score: None,
                 });
             }
         }
@@ -1839,12 +1858,19 @@ fn build_next_actions(
     unresolved: &[neuromesh_core::UnresolvedRef],
 ) -> Vec<NextAction> {
     let mut actions = Vec::new();
-    let needs_search = coverage.claim == "partial" || coverage.claim == "no_seed_resolved";
+    let needs_search = matches!(
+        coverage.claim.as_str(),
+        "partial" | "no_seed_resolved" | "no_confident_match"
+    );
     if needs_search {
-        let why = if coverage.claim == "no_seed_resolved" {
-            "no seed resolved — Grep this identifier; do not trust an empty or utility packet"
-        } else {
-            "coverage is partial — Grep/search this missed seed"
+        let why = match coverage.claim.as_str() {
+            "no_seed_resolved" => {
+                "no seed resolved — Grep this identifier; do not trust an empty or utility packet"
+            }
+            "no_confident_match" => {
+                "no confident embedding match — functionality may be absent; Grep before assuming relevance"
+            }
+            _ => "coverage is partial — Grep/search this missed seed",
         };
         for missed in &coverage.seeds_missed {
             actions.push(NextAction {

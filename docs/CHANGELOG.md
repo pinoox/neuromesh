@@ -4,6 +4,15 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### Embedding-primary default (v0.8.5)
+
+- **Default seed engine** — `semantic_lite` with local **EmbeddingGemma Q4** (`embeddings.enabled: true`). Prompt-only MCP/CLI — no client keywords required.
+- **Keyword assist gated** — `auto_extract_keywords` runs only when seed engine is `keywords`, `keywords_expanded`, or `hybrid`.
+- **Embedding confidence gate** — L1/L2 early exit blocked when resolved seeds have low prompt–sketch cosine; escalates to L2/L3 even on `partial`/`bounded`.
+- **Honest low-confidence signal** — new coverage claim `no_confident_match` when embedding recovery finds nothing above `min_cosine`.
+- **Metadata** — `retrieval.resolution_tier`, `retrieval.max_embedding_score`, per-seed `embedding_score`.
+- **CLI default feature** — `embeddings` compiled in by default (`cargo build -p neuromesh-cli`).
+
 ## 0.8.4 — 2026-08-30
 
 ### L3 local embedding engine (optional)

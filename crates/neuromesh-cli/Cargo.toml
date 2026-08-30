@@ -39,7 +39,7 @@ parking_lot.workspace = true
 dirs.workspace = true
 
 [features]
-default = []
+default = ["embeddings"]
 embeddings = [
     "dep:neuromesh-embed",
     "neuromesh-graph/embeddings",

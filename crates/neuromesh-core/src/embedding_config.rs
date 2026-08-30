@@ -43,7 +43,7 @@ pub struct EmbeddingConfig {
 impl Default for EmbeddingConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             model: EmbeddingModelId::Gemma300mQ4,
             matryoshka_dim: 256,
             ann_top_k: 16,

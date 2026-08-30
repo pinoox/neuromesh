@@ -1,5 +1,6 @@
 //! L3 vector recovery via precomputed symbol embeddings.
 
+use crate::retrieval::embedding_confidence::TIER_EMBEDDING_PRIMARY;
 use crate::seed::ranker::{signal_weight, SignalKind};
 use crate::seed::sink::SeedSink;
 use neuromesh_core::{EmbeddingConfig, SeedResolutionConfig};
@@ -53,6 +54,8 @@ pub fn push_embedding_seeds(
             node_id.clone(),
             energy * decay,
             format!("semantic_embed:{score:.3}"),
+            Some(TIER_EMBEDDING_PRIMARY),
+            Some(*score),
         );
     }
     true

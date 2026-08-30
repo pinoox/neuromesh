@@ -267,6 +267,8 @@ impl ContextBuild<'_> {
                 "next_action": r.next_action,
                 "suggested_keywords": r.suggested_keywords,
                 "embedding_used": r.embedding_used,
+                "resolution_tier": r.resolution_tier,
+                "max_embedding_score": r.max_embedding_score,
             })
         })
     }
