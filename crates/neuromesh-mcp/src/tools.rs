@@ -8,7 +8,7 @@ use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
 use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId};
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
-use neuromesh_graph_proxy::GraphProxySession;
+use neuromesh_graph_proxy::{GraphProxySession, ProxySearchContext};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
 use neuromesh_router::QualityGate;
 use neuromesh_task::{normalize_keyword, TaskSignatureExtractor};
@@ -289,7 +289,8 @@ impl McpToolHandler {
                 let fallback_native = *self.graph_proxy_fallback_native.read();
                 let backend_label = self.graph_backend_label();
                 if let Some(proxy) = proxy {
-                    match proxy.lock().await.build_context_packet(&task_desc, 8).await {
+                    let ctx = ProxySearchContext::from_task_signature(&signature);
+                    match proxy.lock().await.build_context_packet(&ctx, 8).await {
                         Ok(proxy_packet) => {
                             let elapsed_ms = start_time.elapsed().as_millis() as u64;
                             let value = proxy_evidence_response(

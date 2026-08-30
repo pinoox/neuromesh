@@ -11,7 +11,10 @@ mod resolve;
 pub use cbm::CbmGraphProxy;
 pub use detect::{detect_proxy_launch_specs, DetectReport, DetectedProxy};
 pub use mcp_client::McpStdioClient;
-pub use packet::{ProxyContextFile, ProxyContextPacket};
+pub use packet::{
+    compute_retrieval_hints, ProxyContextFile, ProxyContextPacket, ProxyRetrievalHints,
+    ProxySearchContext,
+};
 pub use probe::{probe_graph_proxy, ProbeReport};
 pub use resolve::resolve_launch_spec;
 
@@ -63,11 +66,11 @@ impl GraphProxySession {
 
     pub async fn build_context_packet(
         &mut self,
-        task: &str,
+        ctx: &ProxySearchContext,
         limit: u32,
     ) -> neuromesh_core::Result<ProxyContextPacket> {
         match &mut self.inner {
-            ProxyBackend::Cbm(cbm) => cbm.build_packet(&self.project, task, limit).await,
+            ProxyBackend::Cbm(cbm) => cbm.build_packet(&self.project, ctx, limit).await,
         }
     }
 

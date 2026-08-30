@@ -80,7 +80,14 @@ impl QueryIntent {
 
 pub fn classify_intent(signature: &TaskSignature) -> QueryIntent {
     let lower = signature.raw_prompt.to_lowercase();
-    if lower.contains("middleware") || lower.contains("pipeline") || lower.contains("میان") {
+    if lower.contains("middleware")
+        || lower.contains("pipeline")
+        || lower.contains("میان")
+        || lower.contains("لوله")
+        || lower.contains("خط أنابيب")
+        || lower.contains("خط انابيب")
+        || lower.contains("next()")
+    {
         return QueryIntent::TraceMiddleware;
     }
     if lower.contains("redirect")

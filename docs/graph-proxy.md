@@ -56,7 +56,9 @@ Index the repo in CBM first (`index_repository`). Verify with `neuromesh doctor 
 
 ## Runtime
 
-On `neuromesh mcp`, if a proxy resolves:
+- **Assisted mode** — MCP `keywords` and `expansion` are forwarded to CBM (`query` + `semantic_query`); assisted ≠ raw on proxy.
+- **Honest metadata** — Proxy packets use computed confidence/sufficiency (cap ~0.45), not fixed 0.55/0.65.
+- **Route filtering** — Empty-file Route hits are dropped (no phantom `unknown` paths).
 
 1. NeuroMesh spawns the external MCP process (stdio)
 2. `get_context_packet` calls `search_graph` + `get_code_snippet` on CBM

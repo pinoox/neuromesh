@@ -3978,6 +3978,30 @@ module.exports = function middlewareInit(app) {
     }
 
     #[test]
+    fn fa_middleware_nl_resolves_without_client_keywords() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("express-fa-mw"));
+        ingest_mini_express_app(&graph);
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let view = activator.activate(
+            &graph,
+            &TaskSignatureExtractor::extract(
+                "لوله‌ی میان‌افزارها را توضیح بده و اینکه next() چطور کار می‌کند.",
+            ),
+            OptimizationMode::Balanced,
+        );
+        let coverage = view.coverage.as_ref().expect("coverage");
+        assert_ne!(
+            coverage.claim, "no_seed_resolved",
+            "FA middleware NL must seed via alias bridge, coverage={coverage:?}"
+        );
+        assert!(
+            !view.active_nodes.is_empty(),
+            "expected files for FA middleware without client keywords"
+        );
+    }
+
+    #[test]
     fn call_graph_task_caps_optional_files() {
         let graph = NeuralProjectGraph::new(ProjectId::new("loader-trace"));
         ingest_js(

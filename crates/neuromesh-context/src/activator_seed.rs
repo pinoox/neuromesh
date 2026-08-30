@@ -33,7 +33,8 @@ pub(crate) fn push_anchor_queries(
         sink.push(graph, prompt, hint.clone(), 0.95, "file");
     }
     for concept in &signature.related_concepts {
-        if concept.len() < 4 {
+        let is_code = concept.contains('.') || concept.contains('(');
+        if !is_code && concept.len() < 4 {
             continue;
         }
         if signature
@@ -50,7 +51,23 @@ pub(crate) fn push_anchor_queries(
         if concept.eq_ignore_ascii_case(signature.technology.as_str()) {
             continue;
         }
-        sink.push(graph, prompt, concept.clone(), 0.82, "concept");
+        sink.push(
+            graph,
+            prompt,
+            concept.clone(),
+            if is_code { 0.88 } else { 0.82 },
+            if is_code { "alias_code" } else { "concept" },
+        );
+    }
+    for term in crate::retrieval::alias::alias_seed_queries(prompt) {
+        if signature
+            .identifiers
+            .iter()
+            .any(|id| id.eq_ignore_ascii_case(&term))
+        {
+            continue;
+        }
+        sink.push(graph, prompt, term, 0.92, "alias_code");
     }
     if sink.resolved_count() == 0 && sink.resolutions().is_empty() {
         for token in signature.raw_prompt.split_whitespace().take(8) {

@@ -26,24 +26,36 @@ pub fn proxy_evidence_response(
         })
         .collect();
 
+    let hints = &packet.retrieval;
+    let seeds_missed: Vec<&str> = hints.missed_terms.iter().map(String::as_str).collect();
+
     let retrieval = json!({
         "retrieval_level": "proxy",
         "claim": packet.coverage,
-        "confidence": if packet.files.is_empty() { 0.2 } else { 0.65 },
-        "sufficiency_score": if packet.files.is_empty() { 0.0 } else { 0.55 },
+        "confidence": hints.confidence,
+        "sufficiency_score": hints.sufficiency_score,
+        "critical_gaps": hints.critical_gaps,
+        "suggested_keywords": hints.suggested_keywords,
         "levels_attempted": ["proxy"],
         "graph_backend": backend_label,
         "provider": packet.provider,
-        "next_action": if packet.coverage == "no_seed_resolved" {
+        "next_action": if packet.coverage == "no_seed_resolved"
+            || !hints.suggested_keywords.is_empty()
+        {
             Value::String("neuromesh_search_symbols".into())
         } else {
             Value::Null
         },
     });
 
+    let coverage = json!({
+        "claim": packet.coverage,
+        "seeds_missed": seeds_missed,
+    });
+
     let evidence = json!({
         "files": files,
-        "coverage": { "claim": packet.coverage },
+        "coverage": coverage,
         "retrieval": retrieval,
         "active_tokens": packet.packet_tokens,
         "workspace_tokens": 0,

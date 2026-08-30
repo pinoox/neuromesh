@@ -27,9 +27,18 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
         terms: &[
             "middleware",
             "pipeline",
+            "next()",
+            "next",
             "میان‌افزار",
+            "میان افزار",
+            "لوله",
+            "لوله‌ی",
+            "خط أنابيب",
+            "خط انابيب",
             "中间件",
             "middleware",
+            "araabiler",
+            "zwischen",
         ],
     },
     AliasEntry {
@@ -111,6 +120,16 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
     },
 ];
 
+/// Concrete code symbols to seed when an alias cluster matches (NL → code bridge).
+static ALIAS_CODE_SEEDS: &[(&str, &[&str])] = &[
+    ("middleware", &["app.use", "next", "use"]),
+    ("routing", &["Router", "route", "app"]),
+    ("render", &["res.render", "render", "view"]),
+    ("static", &["express.static", "static"]),
+    ("auth", &["session", "cookie", "auth"]),
+    ("database", &["req.query", "query"]),
+];
+
 /// Canonical concept ids from static alias clusters (NL → concept).
 pub fn canonical_concepts() -> &'static [&'static str] {
     &[
@@ -130,7 +149,7 @@ pub fn canonical_concepts() -> &'static [&'static str] {
 /// Expand prompt tokens with English code terms from minimal alias clusters.
 pub fn expand_aliases(prompt: &str) -> Vec<String> {
     let lower = prompt.to_lowercase();
-    let mut out = Vec::new();
+    let mut out: Vec<String> = Vec::new();
     for cluster in ALIAS_CLUSTERS {
         if cluster
             .terms
@@ -152,9 +171,45 @@ pub fn expand_aliases(prompt: &str) -> Vec<String> {
     out
 }
 
+/// Code-oriented seed queries derived from matched alias clusters (for raw NL prompts).
+pub fn alias_seed_queries(prompt: &str) -> Vec<String> {
+    let lower = prompt.to_lowercase();
+    let mut out: Vec<String> = Vec::new();
+    for cluster in ALIAS_CLUSTERS {
+        let matched = cluster
+            .terms
+            .iter()
+            .any(|t| lower.contains(&t.to_lowercase()));
+        if !matched {
+            continue;
+        }
+        for (concept, seeds) in ALIAS_CODE_SEEDS {
+            if cluster.concept != *concept {
+                continue;
+            }
+            // NL→code bridge only where lexical miss is common (middleware/routing prompts).
+            if !matches!(*concept, "middleware" | "routing") {
+                continue;
+            }
+            for seed in *seeds {
+                if !out.iter().any(|x| x.eq_ignore_ascii_case(seed)) {
+                    out.push((*seed).to_string());
+                }
+            }
+        }
+    }
+    out.truncate(8);
+    out
+}
+
 /// Inject alias-expanded terms into signature related_concepts (L1 internal expansion).
 pub fn inject_alias_expansion(related: &mut Vec<String>, prompt: &str) {
     for term in expand_aliases(prompt) {
+        if !related.iter().any(|r| r.eq_ignore_ascii_case(&term)) {
+            related.push(term);
+        }
+    }
+    for term in alias_seed_queries(prompt) {
         if !related.iter().any(|r| r.eq_ignore_ascii_case(&term)) {
             related.push(term);
         }
@@ -169,5 +224,14 @@ mod tests {
     fn fa_routing_expands() {
         let terms = expand_aliases("مسیردهی و router را توضیح بده");
         assert!(terms.iter().any(|t| t == "routing" || t == "route"));
+    }
+
+    #[test]
+    fn fa_middleware_yields_code_seeds() {
+        let seeds = alias_seed_queries(
+            "لوله‌ی میان‌افزارها (middleware pipeline) را توضیح بده و اینکه next() چطور کار می‌کند.",
+        );
+        assert!(seeds.iter().any(|s| s == "app.use"));
+        assert!(seeds.iter().any(|s| s == "next"));
     }
 }

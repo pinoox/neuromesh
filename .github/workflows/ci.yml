@@ -31,3 +31,6 @@ jobs:
 
       - name: Run Automated Unit & Integration Tests
         run: cargo test --all --verbose
+
+      - name: Graph proxy fixture tests
+        run: cargo test -p neuromesh-graph-proxy --verbose

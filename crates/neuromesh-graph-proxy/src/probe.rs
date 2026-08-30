@@ -1,4 +1,4 @@
-use crate::{resolve_for_workspace, GraphProxySession};
+use crate::{resolve_for_workspace, GraphProxySession, ProxySearchContext};
 use neuromesh_core::{GraphProxyConfig, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -34,10 +34,18 @@ pub async fn probe_graph_proxy(config: &GraphProxyConfig, workspace: &Path) -> R
     match GraphProxySession::connect(spec, workspace).await {
         Ok(mut session) => {
             let tools = session.probe_tools().await.unwrap_or_default();
-            match session
-                .build_context_packet("smoke probe: main entry points", 5)
-                .await
-            {
+            let ctx = ProxySearchContext {
+                raw_prompt: "Router middleware app.use next pipeline".into(),
+                client_keywords: vec![
+                    "Router".into(),
+                    "middleware".into(),
+                    "app.use".into(),
+                    "next".into(),
+                ],
+                client_expansion: vec!["pipeline".into()],
+                ..Default::default()
+            };
+            match session.build_context_packet(&ctx, 5).await {
                 Ok(packet) => Ok(ProbeReport {
                     connected: true,
                     provider: Some(provider),

@@ -4,6 +4,26 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.8.2 — 2026-08-30
+
+### CBM proxy stabilization (hotfix)
+
+- **B1** — Parse CBM `search_graph` `{cols, rows}` JSON (stock v0.8.1 returned 0 files on every proxy query).
+- **B2** — Forward `keywords`, `expansion`, and identifiers to CBM via enriched `query` + `semantic_query`.
+- **B3** — Honest proxy retrieval metadata (no fixed 0.55/0.65); `critical_gaps`, `suggested_keywords`, conservative confidence.
+- **B4** — Drop phantom `Route` hits with empty `file` (no more `path: unknown` inflation).
+- **Fix** — Keep MCP child process alive (`McpStdioClient` holds `Child` handle).
+- **Tests** — `parse_cbm_cols_rows`, Route filter, frozen Express fixture under `neuromesh-graph-proxy/tests/fixtures/`.
+
+### Native NL → seed (middleware)
+
+- **`alias_seed_queries`** — NL middleware/routing prompts inject code seeds (`app.use`, `next`, …) without client keywords.
+- Expanded FA/AR middleware alias terms; `TraceMiddleware` intent detects `لوله`, `خط أنابيب`, `next()`.
+
+## 0.8.1 — 2026-08-29 (graph proxy + monitor)
+
 ### Graph proxy (CBM / Graphify)
 
 - **`graph_backend` config** — `native` (default), `auto`, `proxy_cbm`, `proxy_graphify` in `Config` / `nm.config.json`. Env: `NEUROMESH_GRAPH_BACKEND`.
@@ -13,10 +33,6 @@ All notable user-facing changes live here. The README stays a product guide, not
 - **Monitor** — Settings cards for graph backend + seed engine; `/api/engines`, `/api/graph-proxy/probe`; hot reconnect on save.
 - **CBM project match** — `list_projects` + `root_path` → workspace (e.g. `neuromesh-repo` for `C:/projects/neuromesh`).
 - **Docs** — [graph-proxy.md](graph-proxy.md), [engines.md](engines.md).
-
-Nothing else yet.
-
-## 0.8.1 — 2026-08-29
 
 Concept graph retrieval: **Intent → Concept → Graph** without embedding in L1/L2.
 

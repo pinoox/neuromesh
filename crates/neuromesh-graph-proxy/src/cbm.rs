@@ -1,5 +1,7 @@
 use crate::mcp_client::{tool_structured, tool_text, McpStdioClientHandle};
-use crate::packet::{ProxyContextFile, ProxyContextPacket};
+use crate::packet::{
+    compute_retrieval_hints, ProxyContextFile, ProxyContextPacket, ProxySearchContext,
+};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::path::Path;
@@ -85,23 +87,16 @@ impl CbmGraphProxy {
     pub async fn build_packet(
         &self,
         project: &str,
-        task: &str,
+        ctx: &ProxySearchContext,
         limit: u32,
     ) -> neuromesh_core::Result<ProxyContextPacket> {
-        let search = self
-            .client
-            .call_tool(
-                "search_graph",
-                json!({
-                    "project": project,
-                    "query": task,
-                    "limit": limit,
-                    "format": "json"
-                }),
-            )
-            .await?;
+        let search_args = build_search_request(project, ctx, limit);
+        let search = self.client.call_tool("search_graph", search_args).await?;
 
-        let hits = parse_search_hits(&search);
+        let hits: Vec<SearchHit> = parse_search_hits(&search)
+            .into_iter()
+            .filter(should_emit_hit)
+            .collect();
         let mut files = Vec::new();
         let mut seen_paths = HashSet::new();
         let mut symbols_found = 0usize;
@@ -139,13 +134,15 @@ impl CbmGraphProxy {
         };
 
         let packet_tokens = files.iter().map(|f| f.tokens).sum();
+        let retrieval = compute_retrieval_hints(ctx, &files);
         Ok(ProxyContextPacket {
-            task: task.to_string(),
+            task: ctx.raw_prompt.clone(),
             provider: "cbm".into(),
             coverage: coverage.into(),
             files,
             packet_tokens,
             symbols_found,
+            retrieval,
         })
     }
 
@@ -163,6 +160,50 @@ impl CbmGraphProxy {
             .await?;
         Ok(tool_text(&result))
     }
+}
+
+fn build_search_request(project: &str, ctx: &ProxySearchContext, limit: u32) -> Value {
+    let mut query_parts = vec![ctx.raw_prompt.clone()];
+    query_parts.extend(ctx.identifiers.iter().cloned());
+    query_parts.extend(ctx.client_keywords.iter().cloned());
+    let query = query_parts.join(" ");
+
+    let mut args = json!({
+        "project": project,
+        "query": query,
+        "limit": limit,
+        "format": "json"
+    });
+
+    if !ctx.client_expansion.is_empty() {
+        args["semantic_query"] = json!(ctx.client_expansion);
+    }
+
+    if !ctx.path_hints.is_empty() {
+        if let Some(first) = ctx.path_hints.first() {
+            args["file_pattern"] = json!(first);
+        }
+    }
+
+    args
+}
+
+/// Skip Route nodes and other hits with no resolvable file path (phantom `unknown` files).
+fn should_emit_hit(hit: &SearchHit) -> bool {
+    if hit.path.is_empty() || hit.path == "unknown" {
+        return false;
+    }
+    if hit.label.eq_ignore_ascii_case("Route") {
+        return false;
+    }
+    if hit
+        .qualified_name
+        .as_ref()
+        .is_some_and(|q| q.contains("__route__"))
+    {
+        return false;
+    }
+    true
 }
 
 struct SearchHit {
@@ -204,6 +245,47 @@ fn parse_structured_search(value: &Value) -> Vec<SearchHit> {
         if let Some(results) = value.get("results").and_then(|r| r.as_array()) {
             for row in results {
                 if let Some(hit) = row_from_json(row, "unknown", "") {
+                    out.push(hit);
+                }
+            }
+        }
+    }
+    if out.is_empty() {
+        if let (Some(cols), Some(rows)) = (
+            value.get("cols").and_then(|c| c.as_array()),
+            value.get("rows").and_then(|r| r.as_array()),
+        ) {
+            let colmap: Vec<&str> = cols.iter().filter_map(|c| c.as_str()).collect();
+            let idx = |name: &str| colmap.iter().position(|c| *c == name);
+            for row in rows {
+                let cells: Vec<&Value> = row
+                    .as_array()
+                    .map(|a| a.iter().collect())
+                    .unwrap_or_default();
+                let cell = |name: &str| {
+                    idx(name)
+                        .and_then(|i| cells.get(i))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                };
+                let name = cell("qn");
+                let qn = if name.is_empty() { cell("name") } else { name };
+                if qn.is_empty() {
+                    continue;
+                }
+                let path = cell("file");
+                let label = if cell("label").is_empty() {
+                    "Symbol".to_string()
+                } else {
+                    cell("label").to_string()
+                };
+                let hit = SearchHit {
+                    path: path.replace('\\', "/"),
+                    label: label.clone(),
+                    qualified_name: Some(qn.into()),
+                    summary: format!("{label} {qn}"),
+                };
+                if should_emit_hit(&hit) {
                     out.push(hit);
                 }
             }
@@ -389,5 +471,67 @@ mod tests {
             Path::new(r"C:\projects\neuromesh"),
             Some("C:/projects/neuromesh")
         ));
+    }
+
+    #[test]
+    fn parse_cbm_cols_rows() {
+        let value = serde_json::json!({
+            "total": 2,
+            "search_mode": "bm25",
+            "cols": ["qn", "label", "file", "lines", "rank"],
+            "rows": [
+                ["express-corpus.lib.response.redirect", "Function", "lib/response.js", "819-870", -18.6],
+                ["express-corpus.test.res.location.testRedirect", "Function", "test/res.location.js", "153-182", -15.3]
+            ]
+        });
+        let hits = parse_structured_search(&value);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].path, "lib/response.js");
+        assert_eq!(
+            hits[0].qualified_name.as_deref(),
+            Some("express-corpus.lib.response.redirect")
+        );
+        assert_eq!(hits[1].path, "test/res.location.js");
+    }
+
+    #[test]
+    fn skips_phantom_route_without_file() {
+        let value = serde_json::json!({
+            "cols": ["qn", "label", "file", "lines", "rank"],
+            "rows": [
+                ["express-corpus.__route__.GET /", "Route", "", "0-0", -12.1],
+                ["express-corpus.lib.application.use", "Function", "lib/application.js", "210-240", -18.6]
+            ]
+        });
+        let hits = parse_structured_search(&value);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].path, "lib/application.js");
+    }
+
+    #[test]
+    fn build_search_request_includes_keywords_and_semantic() {
+        let ctx = ProxySearchContext {
+            raw_prompt: "Explain middleware".into(),
+            client_keywords: vec!["app.use".into(), "next".into()],
+            client_expansion: vec!["pipeline".into(), "middleware".into()],
+            ..Default::default()
+        };
+        let args = build_search_request("express-corpus", &ctx, 8);
+        assert!(args["query"].as_str().unwrap().contains("app.use"));
+        assert_eq!(args["semantic_query"].as_array().map(|a| a.len()), Some(2));
+    }
+
+    #[test]
+    fn fixture_express_search_parses_without_phantom_routes() {
+        let raw = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/cbm_search_express.json"
+        ))
+        .expect("fixture");
+        let value: serde_json::Value = serde_json::from_str(&raw).expect("json");
+        let hits = parse_structured_search(&value);
+        assert_eq!(hits.len(), 2, "Route row with empty file must be dropped");
+        assert!(hits.iter().all(|h| !h.path.is_empty()));
+        assert!(hits.iter().any(|h| h.path.contains("application.js")));
     }
 }
