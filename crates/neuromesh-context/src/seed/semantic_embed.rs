@@ -17,7 +17,7 @@ pub fn push_embedding_seeds(
     seed_config: &SeedResolutionConfig,
     sink: &mut SeedSink<'_, '_, '_>,
 ) -> bool {
-    if !embedding_config.enabled {
+    if !embedding_config.enabled && !graph.embedding_index().is_loaded() {
         return false;
     }
     let index = graph.embedding_index();
@@ -133,11 +133,24 @@ fn hierarchical_ann_hits(
     );
     let coarse_files = file_ids_from_coarse_hits(graph, index, &coarse);
 
-    let file_hits = index.file_ann_search(
+    let file_hits_raw = index.file_ann_search(
         query,
-        embedding_config.file_ann_top_k.max(1),
+        embedding_config.file_ann_top_k.max(1) * 2,
         embedding_config.file_min_cosine,
     );
+
+    let file_min = embedding_config.file_min_cosine;
+    let top_k = embedding_config.file_ann_top_k.max(1);
+    let mut file_hits =
+        neuromesh_graph::rerank_file_hits(graph, prompt, file_hits_raw, file_min, top_k);
+
+    for (id, score) in neuromesh_graph::stem_union_file_hits(graph, prompt, file_min, &file_hits) {
+        if !file_hits.iter().any(|(fid, _)| fid == &id) {
+            file_hits.push((id, score));
+        }
+    }
+    file_hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    file_hits.truncate(top_k);
 
     let mut lazy_file_ids: Vec<NodeId> = file_hits.iter().map(|(id, _)| id.clone()).collect();
     for file_id in coarse_files {

@@ -1,6 +1,7 @@
 //! Single-pass incremental L1→L2→L3 escalation without full re-activation.
 
 use crate::activator::ContextActivator;
+use crate::retrieval::alias::prompt_has_alias_cluster_match;
 use crate::retrieval::budget::RetrievalBudget;
 use crate::retrieval::embedding_confidence::{is_embedding_reason, low_embedding_confidence};
 use crate::retrieval::patterns::pattern_expand;
@@ -55,6 +56,8 @@ pub fn run_incremental(
     } else {
         embedding_config.effective_enabled()
     };
+    let sidecar_loaded = graph.embedding_index().is_loaded();
+    let embeddings_active = embeddings_enabled || sidecar_loaded;
     #[cfg(feature = "embeddings")]
     let plan = crate::retrieval::query_intent_embed::from_signature_with_embeddings(
         signature,
@@ -72,7 +75,8 @@ pub fn run_incremental(
     sig.engine_override = Some(RetrievalTier::L1.seed_engine(
         configured_engine,
         retrieval_engine,
-        embeddings_enabled,
+        embeddings_active,
+        sidecar_loaded,
     ));
     let mut view = activator.activate_incremental(
         graph,
@@ -118,7 +122,8 @@ pub fn run_incremental(
         sig.engine_override = Some(RetrievalTier::L2.seed_engine(
             configured_engine,
             retrieval_engine,
-            embeddings_enabled,
+            embeddings_active,
+            sidecar_loaded,
         ));
         view = activator.activate_incremental(
             graph,
@@ -160,12 +165,21 @@ pub fn run_incremental(
     }
 
     // L3: bounded semantic recovery (max 2 seeds)
-    if should_escalate_to_l3(&est, &view, activator, graph, signature, &embedding_config) {
+    if should_escalate_to_l3(
+        &est,
+        &view,
+        activator,
+        graph,
+        signature,
+        &embedding_config,
+        retrieval_engine,
+    ) {
         let l3_start = Instant::now();
         sig.engine_override = Some(RetrievalTier::L3.seed_engine(
             configured_engine,
             retrieval_engine,
-            embeddings_enabled,
+            embeddings_active,
+            sidecar_loaded,
         ));
         sig.embed_min_cosine_override = Some(embedding_config.recovery_min_cosine);
         view = activator.activate_incremental(
@@ -243,7 +257,13 @@ fn should_escalate_to_l3(
     graph: &NeuralProjectGraph,
     signature: &TaskSignature,
     embedding_config: &neuromesh_core::EmbeddingConfig,
+    retrieval_engine: neuromesh_core::RetrievalEngine,
 ) -> bool {
+    if retrieval_engine == neuromesh_core::RetrievalEngine::Fast
+        && prompt_has_alias_cluster_match(&signature.raw_prompt)
+    {
+        return false;
+    }
     !est.critical_gaps.is_empty()
         || needs_embedding_escalation(
             view,
@@ -263,7 +283,8 @@ fn needs_embedding_escalation(
     prompt: &str,
     embedding_config: &neuromesh_core::EmbeddingConfig,
 ) -> bool {
-    if !embedding_config.enabled {
+    let sidecar_loaded = graph.embedding_index().is_loaded();
+    if !embedding_config.enabled && !sidecar_loaded {
         return false;
     }
     let resolved: Vec<_> = view

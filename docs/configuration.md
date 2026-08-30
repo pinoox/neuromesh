@@ -10,7 +10,7 @@ For install and the daily agent loop, start with the [README](../README.md). Thi
 
 | `engine` | Index | Query | RAM (typical) | Use when |
 | :--- | :--- | :--- | :--- | :--- |
-| **`fast`** (default) | graph only | server-assisted keywords + graph | <80 MB | Most repos; instant index |
+| **`fast`** (default) | graph + optional lean sidecar | server-assisted keywords + graph; L3 embed rare (non-fa) | ~19 MB idle (no ORT) | Most repos; instant query |
 | **`hybrid`** | graph + hierarchical v6 | file ANN → lazy symbols + graph | ~250 MB | Obfuscated naming, multilingual NL |
 | **`deep`** | graph + **all symbols** | flat symbol ANN + dedup + centroids | ~450 MB | Large refactors, max recall |
 
@@ -55,7 +55,7 @@ When `engine` is `hybrid` or `deep`:
 | Item | Value |
 | :--- | :--- |
 | **Model** | `minilm_multilingual_q` — Paraphrase MiniLM L12 v2 Q |
-| **Dimensions** | 384 |
+| **Dimensions** | hybrid: **256** (matryoshka sidecar); deep: **384** |
 | **Weights** | Bundled in release (`models/minilm-multilingual-q/`) |
 
 ### Hybrid — hierarchical sidecar (v6)
@@ -66,9 +66,21 @@ When `engine` is `hybrid` or `deep`:
 
 Cold `neuromesh embed rebuild` embeds **one passage per file** (~250 MiniLM passes). Symbol vectors are **lazy**: first query that hits a file batch-embeds up to 32 symbols per file (128 total cap) and persists incrementally.
 
-Query flow: **coarse pool file union** → **file ANN** (top **8**, min cosine 0.30) → **lazy symbol embed** → **symbol subset ANN** + coarse pool → full-ANN fallback.
+Query flow: **coarse pool file union** → **file ANN** (top **8**, min cosine 0.30) → **rerank** (lib boost, stem match) → **lazy symbol embed** → **symbol subset ANN** + coarse pool → full-ANN fallback.
 
-**Agent contract:** hybrid/deep are **prompt-only** — MCP ignores client `keywords` / `expansion` / `auto_extract_keywords`. MiniLM handles multilingual NL directly.
+**RAM note:** hybrid/deep idle ~**630 MB** is dominated by the **ONNX session/arena**, not sidecar vectors. `matryoshka_dim=256` shrinks `embeddings.bin` only — it does **not** reduce ORT session RAM.
+
+**Agent contract:** hybrid/deep are **prompt-only** — MCP ignores client `keywords` / `expansion` / `auto_extract_keywords`. Server-side alias gap-fill runs when embed scores are weak. MiniLM handles multilingual NL directly.
+
+### Fast — lean sidecar + optional L3 embed
+
+| Item | Value |
+| :--- | :--- |
+| **Index** | `index_on_build: true`, hierarchical file tier only (no warm ONNX at index) |
+| **Query** | lexical L1 default; L3 semantic recovery only for hard **non-Farsi** NL when sidecar loaded |
+| **Farsi** | alias cluster bridge only — L3 embed skipped when Persian clusters match |
+
+**ORT retention:** first L3 embed loads ONNX (~600 MB) for the MCP session lifetime; RAM may not return to ~19 MB until MCP restart. See `retrieval.ort_session_active` in packet JSON.
 
 ### Deep — full symbol sidecar
 

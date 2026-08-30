@@ -4,6 +4,18 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+### Retrieval phase 2 (test6 team)
+
+- **Farsi lexical (J)** — Persian terms in plugin/validation/errors/content_type clusters; `alias_code_seeds_for_prompt` bridge; pure-Farsi server-assisted inference.
+- **Embed tier prune (A)** — `is_embed_tier_noise_path` skips docs/types/md from file ANN index.
+- **File ANN rerank (B)** — lib boost + stem match + G.3 cosine floor guards; generic stem union at query time.
+- **Passage quality (C)** — lib implementation titles; error-handler symbol boost; types penalty in passages.
+- **Hybrid matryoshka 256 (E)** — sidecar size only; ORT session RAM unchanged (~630 MB idle documented).
+- **Precision (F)** — `.d.ts` seed penalty when lib stem in prompt; MCP precision ≥15% holdout gate.
+- **Fast L3 (H)** — lean hierarchical sidecar at index (`index_on_build`); L3 embed for hard non-fa NL; fa skips L3 when alias clusters match.
+- **Hybrid lexical fallback (I)** — sufficiency-guarded `alias_gap_fill` when embed scores weak.
+- **MCP telemetry** — `retrieval.embedding_used`, `resolution_tier`, `ort_session_active` in minimal JSON.
+
 ### Retrieval optimization (test6 follow-up)
 
 - **Hybrid preset** — `file_ann_top_k: 8`, `file_min_cosine: 0.30`, optional-file dedup 0.90; coarse-first lazy embed (32 symbols/file, 128 total).

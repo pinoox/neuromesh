@@ -83,8 +83,16 @@ pub fn infer_assisted_seed_signals(prompt: &str) -> (Vec<String>, Vec<String>) {
     merge_keywords(&mut keywords, intent_kw);
     merge_expansion(&mut expansion, intent_exp);
 
-    // 2. Alias code seeds for every matched concept
+    // 2. Alias code seeds for every matched concept (incl. pure-Farsi via cluster bridge)
     merge_keywords(&mut keywords, alias_code_seeds_for_prompt(prompt));
+    for concept in expand_aliases(prompt) {
+        if canonical_concepts()
+            .iter()
+            .any(|c| concept.eq_ignore_ascii_case(c))
+        {
+            merge_expansion(&mut expansion, std::iter::once(concept.as_str()));
+        }
+    }
 
     // 3. Embedded code tokens (symbol-like only)
     merge_keywords(&mut keywords, filtered_embedded_tokens(prompt));
@@ -211,5 +219,15 @@ mod tests {
             })
             .count();
         assert!(hits >= 2, "keywords={kw:?} expansion={exp:?}");
+    }
+
+    #[test]
+    fn infer_plugin_from_fa_prompt() {
+        let (kw, exp) = infer_assisted_seed_signals("پلاگین‌ها چگونه درون‌کاشت و کپسوله‌سازی می‌شوند؟");
+        assert!(
+            kw.iter()
+                .any(|k| k.contains("plugin-utils") || k == "register"),
+            "keywords={kw:?} expansion={exp:?}"
+        );
     }
 }

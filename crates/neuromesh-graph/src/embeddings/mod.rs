@@ -11,6 +11,8 @@ mod coarse;
 #[cfg(feature = "embeddings")]
 mod file_passage;
 #[cfg(feature = "embeddings")]
+mod file_rerank;
+#[cfg(feature = "embeddings")]
 mod lazy_symbols;
 #[cfg(feature = "embeddings")]
 mod sidecar_lock;
@@ -29,6 +31,9 @@ pub use build::{
 
 #[cfg(feature = "embeddings")]
 pub use coarse::coarse_candidate_indices;
+
+#[cfg(feature = "embeddings")]
+pub use file_rerank::{concept_stem_patterns, rerank_file_hits, stem_union_file_hits};
 
 #[cfg(feature = "embeddings")]
 pub use lazy_symbols::{lazy_embed_symbols_for_files, sidecar_tier_stats};

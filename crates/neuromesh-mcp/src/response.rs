@@ -90,6 +90,12 @@ struct MinimalRetrieval {
     suggested_keywords: Vec<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     cache_hit: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    embedding_used: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resolution_tier: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    ort_session_active: bool,
 }
 
 #[derive(Serialize)]
@@ -272,6 +278,7 @@ impl ContextBuild<'_> {
                 "resolution_tier": r.resolution_tier,
                 "max_embedding_score": r.max_embedding_score,
                 "cache_hit": r.cache_hit,
+                "ort_session_active": r.ort_session_active,
             })
         })
     }
@@ -285,6 +292,9 @@ impl ContextBuild<'_> {
             next_action: r.next_action.clone(),
             suggested_keywords: r.suggested_keywords.clone().unwrap_or_default(),
             cache_hit: r.cache_hit,
+            embedding_used: r.embedding_used,
+            resolution_tier: r.resolution_tier.clone(),
+            ort_session_active: r.ort_session_active,
         })
     }
 

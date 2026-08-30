@@ -434,6 +434,9 @@ pub struct RetrievalMetadata {
     /// Best embedding cosine among resolved seeds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_embedding_score: Option<f32>,
+    /// True when ONNX embedder singleton is loaded (session retained until MCP restart).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub ort_session_active: bool,
     /// True when MCP returned a semantically cached packet (near-duplicate prompt).
     #[serde(default, skip_serializing_if = "is_false")]
     pub cache_hit: bool,

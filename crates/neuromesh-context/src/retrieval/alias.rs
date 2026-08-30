@@ -81,7 +81,6 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "احراز",
             "ورود",
             "توکن",
-            "اعتبارسنجی",
             "认证",
             "authentification",
         ],
@@ -219,6 +218,8 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "tipo de contenido",
             "parseur",
             "parsing",
+            "نوع محتوا",
+            "پارسر",
         ],
     },
     AliasEntry {
@@ -233,6 +234,11 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "Plugin",
             "complemento",
             "plug-in",
+            "پلاگین",
+            "درون‌کاشت",
+            "درون کاشت",
+            "کپسوله‌سازی",
+            "کپسوله سازی",
         ],
     },
     AliasEntry {
@@ -247,6 +253,10 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "Validierung",
             "validación",
             "валид",
+            "اعتبارسنجی",
+            "راستی‌آزمایی",
+            "راستی آزمایی",
+            "شِما",
         ],
     },
     AliasEntry {
@@ -259,6 +269,9 @@ static ALIAS_CLUSTERS: &[AliasEntry] = &[
             "Fehlerbehandlung",
             "gestion des erreurs",
             "错误处理",
+            "خطا",
+            "خطایاب",
+            "مدیریت خطا",
         ],
     },
 ];
@@ -335,6 +348,17 @@ pub fn canonical_concepts() -> &'static [&'static str] {
         "validation",
         "errors",
     ]
+}
+
+/// True when any static alias cluster term matches the prompt (NL bridge active).
+pub fn prompt_has_alias_cluster_match(prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    ALIAS_CLUSTERS.iter().any(|cluster| {
+        cluster
+            .terms
+            .iter()
+            .any(|t| lower.contains(&t.to_lowercase()))
+    })
 }
 
 /// Expand prompt tokens with English code terms from minimal alias clusters.
@@ -449,5 +473,31 @@ mod tests {
         assert!(seeds
             .iter()
             .any(|s| s.contains("contentType") || s.contains("Parser")));
+    }
+
+    #[test]
+    fn fa_plugin_alias_seeds() {
+        let seeds = alias_code_seeds_for_prompt("پلاگین‌ها چگونه درون‌کاشت و کپسوله‌سازی می‌شوند؟");
+        assert!(seeds.iter().any(|s| s.contains("plugin-utils")));
+        assert!(seeds.iter().any(|s| s.eq_ignore_ascii_case("register")));
+    }
+
+    #[test]
+    fn fa_validation_alias_seeds() {
+        let seeds = alias_code_seeds_for_prompt("اعتبارسنجی JSON schema چگونه کار می‌کند؟");
+        assert!(seeds
+            .iter()
+            .any(|s| s.contains("validation") || s.contains("schema")));
+    }
+
+    #[test]
+    fn fa_errors_alias_seeds() {
+        let seeds = alias_code_seeds_for_prompt("مدیریت خطا و error handler کجاست؟");
+        assert!(seeds.iter().any(|s| s.contains("error-handler")));
+    }
+
+    #[test]
+    fn prompt_has_alias_cluster_match_fa() {
+        assert!(prompt_has_alias_cluster_match("پلاگین encapsulation"));
     }
 }

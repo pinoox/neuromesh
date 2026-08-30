@@ -52,10 +52,13 @@ impl RetrievalEngine {
         match self {
             Self::Fast => {
                 emb.enabled = false;
-                emb.index_on_build = false;
+                emb.index_on_build = true;
+                emb.hierarchical_index = true;
                 emb.two_stage_enabled = false;
                 emb.optional_dedup_min_cosine = None;
                 emb.module_cluster_enabled = false;
+                emb.file_ann_top_k = 8;
+                emb.file_min_cosine = 0.30;
                 seed.engine = SeedEngineId::KeywordsExpanded;
                 seed.auto_extract_keywords = true;
                 *mode = OptimizationMode::Balanced;
@@ -68,6 +71,7 @@ impl RetrievalEngine {
                 emb.coarse_pool_max = 400;
                 emb.file_ann_top_k = 8;
                 emb.file_min_cosine = 0.30;
+                emb.matryoshka_dim = 256;
                 emb.optional_dedup_min_cosine = Some(0.90);
                 emb.module_cluster_enabled = false;
                 if emb.intra_threads.is_none() {
@@ -101,10 +105,14 @@ impl RetrievalEngine {
         self,
         configured: SeedEngineId,
         embeddings_enabled: bool,
+        sidecar_loaded: bool,
     ) -> SeedEngineId {
         match self {
+            Self::Fast if sidecar_loaded => SeedEngineId::SemanticLite,
             Self::Fast => SeedEngineId::KeywordsExpanded,
-            Self::Hybrid | Self::Deep if embeddings_enabled => SeedEngineId::SemanticLite,
+            Self::Hybrid | Self::Deep if embeddings_enabled || sidecar_loaded => {
+                SeedEngineId::SemanticLite
+            }
             Self::Hybrid | Self::Deep => configured,
         }
     }
@@ -127,6 +135,8 @@ mod tests {
         let mut emb = EmbeddingConfig::default();
         RetrievalEngine::Fast.apply_preset(&mut mode, &mut seed, &mut emb);
         assert!(!emb.enabled);
+        assert!(emb.index_on_build);
+        assert!(emb.hierarchical_index);
         assert_eq!(seed.engine, SeedEngineId::KeywordsExpanded);
         assert!(seed.auto_extract_keywords);
         assert_eq!(mode, OptimizationMode::Balanced);
@@ -143,6 +153,7 @@ mod tests {
         assert!(emb.hierarchical_index);
         assert_eq!(emb.file_ann_top_k, 8);
         assert!((emb.file_min_cosine - 0.30).abs() < f32::EPSILON);
+        assert_eq!(emb.matryoshka_dim, 256);
         assert_eq!(emb.optional_dedup_min_cosine, Some(0.90));
         assert_eq!(seed.engine, SeedEngineId::SemanticLite);
         assert!(!seed.auto_extract_keywords);

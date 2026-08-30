@@ -86,6 +86,7 @@ impl RetrievalOrchestrator {
             max_embedding_score:
                 crate::retrieval::embedding_confidence::max_embedding_score_from_seeds(&view.seeds),
             cache_hit: false,
+            ort_session_active: ort_session_active(),
         });
 
         view
@@ -177,4 +178,15 @@ fn suggest_keywords(signature: &TaskSignature, view: &ContextView) -> Vec<String
     }
     out.truncate(8);
     out
+}
+
+fn ort_session_active() -> bool {
+    #[cfg(feature = "embeddings")]
+    {
+        neuromesh_embed::Embedder::is_global_loaded()
+    }
+    #[cfg(not(feature = "embeddings"))]
+    {
+        false
+    }
 }

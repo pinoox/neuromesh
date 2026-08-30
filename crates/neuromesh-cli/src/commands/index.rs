@@ -99,7 +99,7 @@ pub fn execute(
     #[cfg(feature = "embeddings")]
     {
         let emb = cfg.embeddings.clone();
-        if emb.enabled && emb.index_on_build {
+        if emb.index_on_build {
             let _ = neuromesh_graph::maybe_rebuild_embeddings(&graph, &current_dir, &emb);
         } else if emb.enabled {
             let sidecar = neuromesh_core::embeddings_path(&current_dir);

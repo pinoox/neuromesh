@@ -25,7 +25,16 @@ pub fn passage_hash(text: &str) -> String {
 pub fn symbol_passage_for_node(node: &ContextNode, model: EmbeddingModelId) -> Option<String> {
     if model == EmbeddingModelId::MiniLmMultilingualQ {
         let path = node.file_path.to_string_lossy().replace('\\', "/");
-        let title = format!("{}::{}", path, node.name);
+        let stem = node
+            .file_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        let title = if stem.is_empty() {
+            format!("{}::{}", path, node.name)
+        } else {
+            format!("{path}::{stem}::{}", node.name)
+        };
         let sig = node.signature.as_deref().unwrap_or("");
         Some(format_document_for_model(
             model,
@@ -212,7 +221,10 @@ fn rebuild_hierarchical(
         })
         .unwrap_or_default();
 
-    for (file_id, _path) in graph.file_node_paths() {
+    for (file_id, path) in graph.file_node_paths() {
+        if neuromesh_core::is_embed_tier_noise_path(&path) {
+            continue;
+        }
         let Some(file_node) = graph.get_node(&file_id) else {
             continue;
         };
@@ -395,6 +407,9 @@ fn rebuild_flat_symbols(
         .unwrap_or_default();
 
     for node in graph.get_all_nodes() {
+        if neuromesh_core::is_embed_tier_noise_path(&node.file_path) {
+            continue;
+        }
         let Some(text) = symbol_passage_for_node(&node, config.model) else {
             continue;
         };
@@ -530,7 +545,7 @@ pub fn maybe_rebuild_embeddings(
     workspace: &Path,
     config: &EmbeddingConfig,
 ) -> neuromesh_core::Result<()> {
-    if !config.enabled || !config.index_on_build {
+    if !config.index_on_build {
         return Ok(());
     }
     let path = neuromesh_core::embeddings_path(workspace);
@@ -579,7 +594,7 @@ pub fn refresh_embeddings_after_index(
     workspace: &Path,
     config: &EmbeddingConfig,
 ) -> neuromesh_core::Result<()> {
-    if !config.enabled {
+    if !config.enabled && !config.index_on_build {
         return Ok(());
     }
     let path = neuromesh_core::embeddings_path(workspace);

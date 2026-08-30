@@ -112,6 +112,7 @@ mod seed_engine_tests {
         RetrievalEngine::Hybrid.apply_preset(&mut mode, &mut seed, &mut emb);
         assert_eq!(emb.file_ann_top_k, 8);
         assert!((emb.file_min_cosine - 0.30).abs() < f32::EPSILON);
+        assert_eq!(emb.matryoshka_dim, 256);
         assert!(!seed.auto_extract_keywords);
         assert_eq!(seed.engine, SeedEngineId::SemanticLite);
     }

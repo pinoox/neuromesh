@@ -1,6 +1,6 @@
 use crate::activator_seed::{
-    prune_weak_greenfield_seeds, push_anchor_queries, push_client_expansion, push_client_keywords,
-    push_path_hint_seeds, token_fallback_seeds,
+    prune_weak_greenfield_seeds, push_alias_lexical_gap_fill, push_anchor_queries,
+    push_client_expansion, push_client_keywords, push_path_hint_seeds, token_fallback_seeds,
 };
 use crate::scaffold_routing::inject_scaffold_seeds;
 use crate::seed::sink::SeedSink;
@@ -128,7 +128,11 @@ fn run_semantic_lite(
         false
     };
 
-    let embedding_available = embedding_config.enabled
+    if embedding_config.enabled {
+        push_alias_lexical_gap_fill(graph, prompt, config, embedding_config, sink);
+    }
+
+    let embedding_available = (embedding_config.enabled || graph.embedding_index().is_loaded())
         && cfg!(feature = "embeddings")
         && graph.embedding_index().is_loaded();
 

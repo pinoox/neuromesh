@@ -228,10 +228,13 @@ impl ContextActivator {
                 let base = prior.expect("L3 incremental phase requires prior view");
                 let mut sig = signature.clone();
                 let cfg = neuromesh_core::Config::load();
+                let sidecar_loaded = graph.embedding_index().is_loaded();
+                let embeddings_active = cfg.embeddings.effective_enabled() || sidecar_loaded;
                 sig.engine_override = Some(crate::retrieval::tier::RetrievalTier::L3.seed_engine(
                     cfg.seed_resolution.engine,
                     cfg.retrieval.engine,
-                    cfg.embeddings.effective_enabled(),
+                    embeddings_active,
+                    sidecar_loaded,
                 ));
                 let recovery = self.activate_with_hops(graph, &sig, mode, hops);
                 let mut merged = merge_context_views(base, recovery);
@@ -1980,10 +1983,31 @@ fn boost_path_stem_seed_energies(
     seed_energies: &mut HashMap<NodeId, f32>,
 ) {
     let prompt_l = prompt.to_lowercase();
+    let prompt_has_lib_stem = graph
+        .file_node_paths()
+        .into_iter()
+        .filter(|(_, p)| {
+            let l = p.to_string_lossy().replace('\\', "/").to_lowercase();
+            l.contains("/lib/") || l.contains("/src/")
+        })
+        .any(|(_, p)| {
+            p.file_stem()
+                .and_then(|s| s.to_str())
+                .is_some_and(|stem| stem.len() >= 4 && prompt_l.contains(&stem.to_lowercase()))
+        });
     for (id, energy) in seed_energies.iter_mut() {
         let Some(node) = graph.get_node(id) else {
             continue;
         };
+        let path_l = node
+            .file_path
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_lowercase();
+        if prompt_has_lib_stem && (path_l.contains("/types/") || path_l.ends_with(".d.ts")) {
+            *energy *= 0.80;
+            continue;
+        }
         let stem = node
             .file_path
             .file_stem()

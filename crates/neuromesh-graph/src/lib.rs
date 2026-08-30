@@ -20,9 +20,9 @@ pub use concept_index::{ConceptId, ConceptIndex};
 pub use edge::{PheromoneConfig, PheromoneEngine};
 #[cfg(feature = "embeddings")]
 pub use embeddings::{
-    coarse_candidate_indices, graph_digest, lazy_embed_symbols_for_files, maybe_rebuild_embeddings,
-    rebuild_embeddings, rebuild_embeddings_for_workspace, refresh_embeddings_after_index,
-    sidecar_tier_stats,
+    coarse_candidate_indices, concept_stem_patterns, graph_digest, lazy_embed_symbols_for_files,
+    maybe_rebuild_embeddings, rebuild_embeddings, rebuild_embeddings_for_workspace,
+    refresh_embeddings_after_index, rerank_file_hits, sidecar_tier_stats, stem_union_file_hits,
 };
 pub use embeddings::{load_sidecar, EmbeddingIndex, EmbeddingSidecar};
 pub use graph::{

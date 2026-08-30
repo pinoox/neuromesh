@@ -101,10 +101,9 @@ impl ReleaseGateReport {
         metrics: &EvalSuiteMetrics,
     ) -> Self {
         let (recall_min, no_seed_max) = match engine {
-            neuromesh_core::RetrievalEngine::Fast => (0.41_f32, 1usize),
-            neuromesh_core::RetrievalEngine::Hybrid | neuromesh_core::RetrievalEngine::Deep => {
-                (0.45_f32, 0usize)
-            }
+            neuromesh_core::RetrievalEngine::Fast => (0.57_f32, 1usize),
+            neuromesh_core::RetrievalEngine::Hybrid => (0.60_f32, 0usize),
+            neuromesh_core::RetrievalEngine::Deep => (0.62_f32, 0usize),
         };
         let embed_primary_min = if engine == neuromesh_core::RetrievalEngine::Fast {
             0.0_f32
@@ -116,6 +115,7 @@ impl ReleaseGateReport {
         } else {
             1.0_f32
         };
+        let mcp_precision_min = 0.15_f32;
         let checklist = vec![
             ("fastify_recall_min".into(), metrics.recall >= recall_min),
             (
@@ -126,6 +126,10 @@ impl ReleaseGateReport {
                 "fastify_embed_primary_band".into(),
                 metrics.embedding_primary_rate >= embed_primary_min
                     && metrics.embedding_primary_rate <= embed_primary_max,
+            ),
+            (
+                "mcp_precision_min".into(),
+                metrics.precision >= mcp_precision_min,
             ),
             (
                 "no_full_workspace_fallback".into(),
@@ -379,7 +383,8 @@ mod tests {
     #[test]
     fn fastify_holdout_gate_thresholds() {
         let metrics = EvalSuiteMetrics {
-            recall: 0.42,
+            recall: 0.58,
+            precision: 0.16,
             no_seed_count: 1,
             embedding_primary_rate: 0.08,
             full_workspace_fallback_count: 0,
@@ -393,7 +398,8 @@ mod tests {
             .passed
         );
         let hybrid_metrics = EvalSuiteMetrics {
-            recall: 0.46,
+            recall: 0.61,
+            precision: 0.16,
             no_seed_count: 0,
             embedding_primary_rate: 0.42,
             full_workspace_fallback_count: 0,

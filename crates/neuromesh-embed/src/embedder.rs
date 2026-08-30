@@ -153,6 +153,10 @@ impl Embedder {
         Ok(Self { model, config })
     }
 
+    pub fn is_global_loaded() -> bool {
+        GLOBAL.get().is_some()
+    }
+
     pub fn lazy_global(config: EmbeddingConfig) -> Result<Arc<Mutex<Self>>, EmbedderError> {
         Self::lazy_global_with_progress(config, false)
     }
@@ -179,6 +183,9 @@ impl Embedder {
             config,
             show_download_progress,
         )?));
+        tracing::warn!(
+            "ONNX embedder loaded (~600 MB retained until MCP restart); matryoshka does not reduce session RAM"
+        );
         let _ = GLOBAL.set(embedder.clone());
         Ok(embedder)
     }

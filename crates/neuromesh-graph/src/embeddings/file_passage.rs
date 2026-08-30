@@ -38,7 +38,9 @@ pub fn file_passage(
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_string();
-    let title = if stem.is_empty() {
+    let title = if path.contains("/lib/") && !stem.is_empty() {
+        format!("lib/{stem} implementation {path}")
+    } else if stem.is_empty() {
         path.clone()
     } else {
         format!("{path} [{stem}]")
@@ -134,6 +136,11 @@ fn truncate_signature_line(line: &str) -> String {
 }
 
 fn symbol_score(graph: &NeuralProjectGraph, node: &ContextNode, file_stem: &str) -> f32 {
+    let path_l = node
+        .file_path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_lowercase();
     let mut score = match node.node_type {
         NodeType::Function | NodeType::Class | NodeType::Component => 10.0,
         NodeType::Api => 9.0,
@@ -141,6 +148,18 @@ fn symbol_score(graph: &NeuralProjectGraph, node: &ContextNode, file_stem: &str)
         NodeType::Test => 2.0,
         _ => 4.0,
     };
+    if path_l.contains("/types/") || path_l.ends_with(".d.ts") {
+        score *= 0.45;
+    }
+    if file_stem.starts_with("error-") || file_stem.contains("error") {
+        let name_l = node.name.to_lowercase();
+        if matches!(
+            name_l.as_str(),
+            "seterrorhandler" | "serializeerror" | "errorhandler"
+        ) {
+            score += 6.0;
+        }
+    }
     if !file_stem.is_empty() {
         let name_l = node.name.to_lowercase();
         let stem_l = file_stem.to_lowercase();
