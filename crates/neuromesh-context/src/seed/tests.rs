@@ -106,6 +106,8 @@ mod seed_engine_tests {
         assert!(!cfg.module_cluster_enabled);
         assert_eq!(cfg.embed_seed_cap, 4);
         assert!((cfg.recovery_min_cosine - 0.38).abs() < f32::EPSILON);
+        assert!(cfg.two_stage_enabled);
+        assert_eq!(cfg.coarse_pool_max, 400);
     }
 
     #[test]

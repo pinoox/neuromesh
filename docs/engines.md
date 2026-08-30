@@ -42,9 +42,11 @@ Query path: embed prompt once → ANN on `embeddings.bin` → graph-resolve → 
 | Optional-file dedup | `optional_dedup_min_cosine` | off (`max_quality` uses 0.93) |
 | Module centroids | `module_cluster_enabled` | off at index (`max_quality` applies bonus when present) |
 | Graph-first index | `index_on_build` | **false** — run `neuromesh embed rebuild` |
+| Two-stage ANN | `two_stage_enabled` / `coarse_pool_max` | on / 400 (union coarse pool, full-scan fallback) |
+| Sidecar format | v5 Int8 | 4× smaller than v4 f32 |
 | L3 recovery floor | `recovery_min_cosine` | 0.38 (primary `min_cosine` 0.45) |
 
-Env: `NEUROMESH_EMBEDDINGS=0` disables vectors; `NEUROMESH_EMBED_THREADS=2`; `NEUROMESH_SEMANTIC_CACHE=0`.
+Env: `NEUROMESH_EMBEDDINGS=0` disables vectors; `NEUROMESH_EMBED_THREADS=2`; `NEUROMESH_EMBED_INDEX_BATCH=128`; `NEUROMESH_SEMANTIC_CACHE=0`.
 
 ---
 

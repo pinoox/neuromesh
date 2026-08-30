@@ -18,6 +18,7 @@ tracing.workspace = true
 parking_lot.workspace = true
 rayon.workspace = true
 sha2 = "0.10"
+simsimd = { version = "6.4", default-features = false }
 
 [features]
 default = []
@@ -25,3 +26,8 @@ embeddings = ["dep:neuromesh-embed"]
 
 [dev-dependencies]
 tempfile = "3.24"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "ann_search"
+harness = false

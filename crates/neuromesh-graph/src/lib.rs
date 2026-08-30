@@ -20,8 +20,8 @@ pub use concept_index::{ConceptId, ConceptIndex};
 pub use edge::{PheromoneConfig, PheromoneEngine};
 #[cfg(feature = "embeddings")]
 pub use embeddings::{
-    graph_digest, maybe_rebuild_embeddings, rebuild_embeddings, rebuild_embeddings_for_workspace,
-    refresh_embeddings_after_index,
+    coarse_candidate_indices, graph_digest, maybe_rebuild_embeddings, rebuild_embeddings,
+    rebuild_embeddings_for_workspace, refresh_embeddings_after_index,
 };
 pub use embeddings::{load_sidecar, EmbeddingIndex, EmbeddingSidecar};
 pub use graph::{

@@ -12,6 +12,14 @@ All notable user-facing changes live here. The README stays a product guide, not
 - **Lean defaults** — `intra_threads: 2`, optional dedup and module centroids off on `balanced`; both enabled in `max_quality` mode only.
 - **Slim hot path** — defer episodic lookup and mycelium prefetch unless `max_quality`; skip concept seeds when embedding sidecar is loaded; fix L2 double activation.
 
+### Phase A ANN performance
+
+- **SIMD ANN** — `simsimd` dot product in `ann_search` (full and subset scans).
+- **Sidecar v5 Int8** — 4× smaller `embeddings.bin`; rank-correlation gate ≥ 0.99 vs f32 in tests.
+- **Two-stage recall-safe retrieval** — lexical/graph coarse pool (200–500) before fine ANN; full-scan fallback when subset misses.
+- **Embed rebuild batch** — default batch 128 (`NEUROMESH_EMBED_INDEX_BATCH`, max 256).
+- **Criterion bench** — `cargo bench -p neuromesh-graph ann_search` (informational in CI).
+
 ## 0.8.6 — 2026-08-30
 
 ### MiniLM-first release

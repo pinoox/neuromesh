@@ -42,6 +42,11 @@ jobs:
         run: |
           ./target/release/neuromesh eval --release-gates | tee release_gates_output.txt
 
+      - name: ANN SIMD benchmark (informational)
+        continue-on-error: true
+        run: |
+          cargo bench -p neuromesh-graph ann_search -- --noplot | tee ann_bench_output.txt
+
       - name: Publish Benchmark Summary
         run: |
           echo "## Benchmark v0.8.6 — bundled MiniLM embed-primary" >> $GITHUB_STEP_SUMMARY
@@ -61,5 +66,12 @@ jobs:
             echo "### Release gates (informational — holdout matrix)" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             tail -n 30 release_gates_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f ann_bench_output.txt ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ANN bench (\`cargo bench -p neuromesh-graph ann_search\`)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 20 ann_bench_output.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi

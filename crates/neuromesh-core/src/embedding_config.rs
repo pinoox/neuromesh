@@ -61,6 +61,10 @@ pub struct EmbeddingConfig {
     pub embed_intent_for_general: bool,
     /// Lower cosine floor for L3 recovery pass only (primary seeds use `min_cosine`).
     pub recovery_min_cosine: f32,
+    /// Lexical/graph coarse pool before ANN (recall-safe two-stage).
+    pub two_stage_enabled: bool,
+    /// Max coarse candidates before fine ANN (clamped 200–500).
+    pub coarse_pool_max: usize,
 }
 
 impl Default for EmbeddingConfig {
@@ -82,6 +86,8 @@ impl Default for EmbeddingConfig {
             module_cluster_enabled: false,
             embed_intent_for_general: false,
             recovery_min_cosine: 0.38,
+            two_stage_enabled: true,
+            coarse_pool_max: 400,
         }
     }
 }

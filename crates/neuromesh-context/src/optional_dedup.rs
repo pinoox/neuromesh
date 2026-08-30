@@ -43,12 +43,11 @@ fn file_mean_vector(graph: &NeuralProjectGraph, file_id: &NodeId) -> Option<Vec<
         if node.file_path != file_path || node.node_type == NodeType::File {
             continue;
         }
-        let start = i * dim;
-        let end = start + dim;
-        if end > index.vectors.len() {
+        let mut slice_buf = vec![0.0f32; dim];
+        if !index.dequant_symbol(i, &mut slice_buf) {
             continue;
         }
-        for (j, v) in index.vectors[start..end].iter().enumerate() {
+        for (j, v) in slice_buf.iter().enumerate() {
             sum[j] += v;
         }
         count += 1;

@@ -5,6 +5,7 @@ use crate::seed::ranker::{signal_weight, SignalKind};
 use crate::seed::sink::SeedSink;
 use neuromesh_core::{EmbeddingConfig, SeedResolutionConfig, TaskSignature};
 use neuromesh_embed::embed_query_cached;
+use neuromesh_graph::coarse_candidate_indices;
 use neuromesh_graph::NeuralProjectGraph;
 
 pub fn push_embedding_seeds(
@@ -35,7 +36,26 @@ pub fn push_embedding_seeds(
         .embed_min_cosine_override
         .unwrap_or(embedding_config.min_cosine);
 
-    let hits = index.ann_search(&query, embedding_config.ann_top_k, min_cosine);
+    let n = index.node_ids.len();
+    let pool = coarse_candidate_indices(
+        graph,
+        &index,
+        signature,
+        prompt,
+        embedding_config.coarse_pool_max,
+    );
+    let use_subset = embedding_config.two_stage_enabled && pool.len() >= 64 && pool.len() >= n / 20;
+
+    let mut hits = if use_subset {
+        index.ann_search_subset(&query, &pool, embedding_config.ann_top_k, min_cosine)
+    } else {
+        index.ann_search(&query, embedding_config.ann_top_k, min_cosine)
+    };
+
+    if hits.is_empty() && use_subset {
+        hits = index.ann_search(&query, embedding_config.ann_top_k, min_cosine);
+    }
+
     if hits.is_empty() {
         return false;
     }

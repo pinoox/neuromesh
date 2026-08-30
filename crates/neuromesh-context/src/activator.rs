@@ -2713,10 +2713,7 @@ pub fn unused_helper() {
         );
         let coverage = view.coverage.as_ref().expect("coverage");
         assert!(
-            coverage
-                .seeds_hit
-                .iter()
-                .any(|s| s.contains("HttpKernel")),
+            coverage.seeds_hit.iter().any(|s| s.contains("HttpKernel")),
             "HttpKernel must resolve, got {coverage:?}"
         );
         assert_ne!(coverage.claim, "no_seed_resolved");
