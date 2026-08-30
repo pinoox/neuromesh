@@ -181,7 +181,7 @@ pub fn ensure_minilm_for_engine(_args: &[String], engine: RetrievalEngine) -> Re
     )))
 }
 
-#[cfg(feature = "embeddings")]
+#[cfg(all(test, feature = "embeddings"))]
 mod install_prompt_tests {
     use super::{confirms_install, wants_auto_install};
 
