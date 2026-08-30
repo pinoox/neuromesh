@@ -55,6 +55,18 @@ fn concepts_for_symbol(name: &str) -> Vec<ConceptId> {
     if lower.contains("model") || lower.contains("schema") {
         push("database");
     }
+    if lower.contains("valid") || lower.contains("schema") {
+        push("validation");
+    }
+    if lower.contains("plugin") || lower.contains("encapsul") {
+        push("plugin");
+    }
+    if lower.contains("contenttype") || lower.contains("content-type") || lower.contains("parser") {
+        push("content_type");
+    }
+    if lower.contains("error") && (lower.contains("handler") || lower.contains("serial")) {
+        push("errors");
+    }
     out
 }
 

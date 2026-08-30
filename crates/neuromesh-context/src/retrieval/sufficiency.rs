@@ -286,6 +286,7 @@ mod tests {
             seed_resolution_telemetry: None,
             packet_header: None,
             retrieval: None,
+            embedding_used: false,
         };
         let sig = TaskSignature::new("find something");
         let est = SufficiencyEstimator::default().estimate(&view, &sig);

@@ -1,4 +1,4 @@
-use crate::GraphProxyConfig;
+use crate::{GraphProxyConfig, RetrievalConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 pub enum SeedEngineId {
     Off,
     Keywords,
-    #[default]
     KeywordsExpanded,
+    #[default]
     SemanticLite,
     Hybrid,
 }
@@ -47,6 +47,11 @@ impl SeedEngineId {
     pub fn help_line() -> &'static str {
         "off | keywords | keywords_expanded | semantic_lite | hybrid"
     }
+
+    /// Lexical engines expect client or server-inferred keywords/expansion.
+    pub fn uses_lexical_assist(self) -> bool {
+        matches!(self, Self::Keywords | Self::KeywordsExpanded | Self::Hybrid)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +61,7 @@ pub struct SeedSignalWeights {
     pub expansion_match: f32,
     pub path_hint_bonus: f32,
     pub entity_type_bonus: f32,
+    pub semantic_embed_match: f32,
 }
 
 impl Default for SeedSignalWeights {
@@ -66,6 +72,7 @@ impl Default for SeedSignalWeights {
             expansion_match: 0.5,
             path_hint_bonus: 0.3,
             entity_type_bonus: 0.2,
+            semantic_embed_match: 0.75,
         }
     }
 }
@@ -79,17 +86,27 @@ pub struct SeedResolutionConfig {
     pub max_resolved_seeds: usize,
     pub min_seed_score_threshold: f32,
     pub weights: SeedSignalWeights,
+    /// When true, MCP/CLI infer keywords/expansion from the prompt when the client omits them.
+    pub auto_extract_keywords: bool,
+}
+
+impl SeedResolutionConfig {
+    /// Server/client keyword assist runs only for lexical seed engines.
+    pub fn effective_auto_extract(&self) -> bool {
+        self.engine.uses_lexical_assist() && self.auto_extract_keywords
+    }
 }
 
 impl Default for SeedResolutionConfig {
     fn default() -> Self {
         Self {
-            engine: SeedEngineId::KeywordsExpanded,
+            engine: SeedEngineId::SemanticLite,
             max_keywords: 8,
             max_expansion: 8,
             max_resolved_seeds: 5,
             min_seed_score_threshold: 0.3,
             weights: SeedSignalWeights::default(),
+            auto_extract_keywords: false,
         }
     }
 }
@@ -128,9 +145,9 @@ pub struct SeedResolutionTelemetry {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NmConfigOverlay {
     #[serde(default)]
-    pub seed_resolution: Option<SeedResolutionConfig>,
-    #[serde(default)]
     pub packet_header: Option<PacketHeaderConfig>,
     #[serde(default)]
     pub graph_backend: Option<GraphProxyConfig>,
+    #[serde(default)]
+    pub retrieval: Option<RetrievalConfig>,
 }

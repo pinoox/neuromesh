@@ -536,6 +536,16 @@ pub fn fixture_gold_cases() -> Vec<(&'static str, GoldTask)> {
             },
         ),
         (
+            "mini-fastify",
+            GoldTask {
+                id: "validation_schema".into(),
+                prompt: "How does JSON schema validation work?".into(),
+                gold_files: vec!["lib/validation.js".into()],
+                expect_seeds_missed: false,
+                forbidden_files: Vec::new(),
+            },
+        ),
+        (
             "mini-nest",
             GoldTask {
                 id: "sms_store".into(),
@@ -727,14 +737,14 @@ pub fn load_gold_tasks(path: &Path) -> Vec<GoldTask> {
 }
 
 pub fn signature_for_gold_task(task: &GoldTask) -> neuromesh_core::TaskSignature {
-    use neuromesh_core::SeedEngineId;
+    use neuromesh_core::{RetrievalEngine, SeedEngineId};
     use neuromesh_task::TaskSignatureExtractor;
     let mut signature = TaskSignatureExtractor::extract(&task.prompt);
     if task.id == "shop_keywords_user" {
         signature.client_keywords = vec!["SmsMessage".into(), "create_sms_messages".into()];
-        signature.engine_override = Some(SeedEngineId::KeywordsExpanded);
+        signature.retrieval_engine_override = Some(RetrievalEngine::Fast);
     } else if task.id == "shop_design_catalog" {
-        signature.engine_override = Some(SeedEngineId::SemanticLite);
+        signature.retrieval_engine_override = Some(RetrievalEngine::Hybrid);
     } else {
         signature.engine_override = Some(SeedEngineId::Off);
     }

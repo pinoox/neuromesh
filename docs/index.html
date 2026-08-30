@@ -127,9 +127,9 @@
           </div>
           <div class="hero-badge-row">
             <a href="https://github.com/pinoox/neuromesh/releases/latest" class="badge" target="_blank" rel="noopener">
-              <span class="badge-dot green"></span> <span data-i18n="hero.badgeRelease">v0.8.2 — ready to use</span>
+              <span class="badge-dot green"></span> <span data-i18n="hero.badgeRelease">v0.9.0 — zero-embed fast engine · instant index</span>
             </a>
-            <span class="badge">Rust 1.80+</span>
+            <span class="badge">MiniLM Q</span>
             <span class="badge">MCP stdio</span>
             <span class="badge">MIT License</span>
           </div>
@@ -612,7 +612,7 @@
         <div class="section-label reveal" style="justify-content: center;" data-i18n="stats.label">Real numbers</div>
         <h2 class="reveal" data-i18n="stats.title">Measured on a large Rust workspace</h2>
         <p class="lead reveal" style="margin: 0 auto 8px;" data-i18n-html="stats.lead">Token savings are <em>per task</em>, after folding — not a marketing average. Run <code>neuromesh eval</code> on your repo.</p>
-        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">v0.8.2 · up to ~97% fewer tokens vs dumping the whole workspace</p>
+        <p style="color: var(--fg-subtle); font-size: 0.875rem;" class="reveal" data-i18n="stats.sub">v0.9.0 · graph-first retrieval · up to ~97% fewer tokens vs full workspace dump</p>
 
         <div class="stats-row">
           <div class="stat-box reveal">
@@ -660,13 +660,13 @@
       <div class="container">
         <div class="section-label reveal" data-i18n="engines.label">Tune it</div>
         <h2 class="reveal" data-i18n="engines.title">Two knobs. Sensible defaults.</h2>
-        <p class="lead reveal" data-i18n="engines.lead">Start with the built-in graph — it is faster and more precise for daily coding. Optional: plug in an external code graph (CBM) for <code>get_context_packet</code> only; folding and trace stay local.</p>
+        <p class="lead reveal" data-i18n="engines.lead">v0.9.0 ships with <strong>engine: fast</strong> — instant graph index, no ONNX warm. Install, index, pass your prompt — done.</p>
 
         <div class="feature-grid reveal" style="margin-top: 2rem;">
           <div class="feature-card">
             <div class="feature-icon">🌿</div>
             <h3 data-i18n="engines.graphTitle">Where context comes from</h3>
-            <p data-i18n="engines.graphDesc"><code>native</code> (default) · <code>auto</code> · <code>proxy_cbm</code>. Auto picks up CBM if your IDE already has it. Change in Settings or one CLI command.</p>
+            <p data-i18n="engines.graphDesc"><code>native</code> (default) · <code>auto</code> · <code>proxy_cbm</code>.</p>
             <div class="code-block" style="margin-top: 1rem;">
               <pre>neuromesh config graph-backend auto
 neuromesh doctor --proxy --probe</pre>
@@ -675,15 +675,15 @@ neuromesh doctor --proxy --probe</pre>
           <div class="feature-card">
             <div class="feature-icon">🔑</div>
             <h3 data-i18n="engines.seedTitle">How prompts find symbols</h3>
-            <p data-i18n="engines.seedDesc"><code>keywords_expanded</code> (default) works great for mixed NL + code. Try <code>hybrid</code> for vague prompts without client keywords.</p>
+            <p data-i18n="engines.seedDesc"><strong>Default: bundled MiniLM embed</strong> — no client keywords. Custom lexical via <code>nm.config.json</code>.</p>
             <div class="code-block" style="margin-top: 1rem;">
-              <pre>neuromesh config seed-engine hybrid
-neuromesh monitor  # Settings UI</pre>
+              <pre>neuromesh doctor --embed
+# bundled MiniLM — prompt-only get_context_packet</pre>
             </div>
           </div>
         </div>
         <p class="reveal" style="margin-top: 1.25rem; font-size: 0.9rem; color: var(--text-secondary);">
-          <a href="engines.md" data-i18n="engines.docsLink">Full setup guide →</a>
+          <a href="configuration.md" data-i18n="engines.docsLink">Full setup guide →</a>
         </p>
       </div>
     </section>
@@ -730,7 +730,7 @@ neuromesh monitor  # Settings UI</pre>
             </div>
             <pre>git clone https://github.com/pinoox/neuromesh.git
 cd neuromesh
-cargo build --release --bin neuromesh</pre>
+cargo build --release --bin neuromesh --features embeddings</pre>
           </div>
         </div>
 
@@ -738,19 +738,20 @@ cargo build --release --bin neuromesh</pre>
           <div class="code-block">
             <div class="code-block-header">
               <span data-i18n="install.cargoInstall">Cargo install</span>
-              <button class="copy-btn" data-copy="cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh" data-i18n="ui.copy">Copy</button>
+              <button class="copy-btn" data-copy="cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh --features embeddings" data-i18n="ui.copy">Copy</button>
             </div>
-            <pre>cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh</pre>
+            <pre>cargo install --git https://github.com/pinoox/neuromesh.git neuromesh-cli --bin neuromesh --features embeddings</pre>
           </div>
         </div>
 
         <div class="code-block reveal" style="margin-top: 16px;">
           <div class="code-block-header">
             <span data-i18n="install.after">After install</span>
-            <button class="copy-btn" data-copy="neuromesh doctor&#10;neuromesh connect" data-i18n="ui.copy">Copy</button>
+            <button class="copy-btn" data-copy="neuromesh doctor&#10;neuromesh connect&#10;neuromesh index" data-i18n="ui.copy">Copy</button>
           </div>
           <pre>neuromesh doctor
-neuromesh connect    # write MCP configs for this repo</pre>
+neuromesh connect    # wire MCP for Cursor / VS Code / Claude
+neuromesh index      # MiniLM bundled — no extra download</pre>
         </div>
       </div>
     </section>

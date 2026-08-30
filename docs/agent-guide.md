@@ -4,10 +4,10 @@
 
 | Step | What |
 | :--- | :--- |
-| 1 | Install / build `neuromesh`, then `neuromesh doctor` |
-| 2 | From your **app** repo: `neuromesh connect` (or `--print` and paste) |
+| 1 | **Install:** `curl -fsSL …/install.sh \| bash` (macOS/Linux) or `irm …/install.ps1 \| iex` (Windows) |
+| 2 | `neuromesh doctor` then from your **app** repo: `neuromesh connect --global --agent-rules` |
 | 3 | Add the agent instructions below for your IDE |
-| 4 | Restart the IDE (or reload MCP) and smoke-test |
+| 4 | `neuromesh index`, restart IDE, smoke-test |
 
 Without step 3, tool lists may show NeuroMesh while the agent never calls it. That is expected: MCP ≠ rules.
 
@@ -15,63 +15,48 @@ Without step 3, tool lists may show NeuroMesh while the agent never calls it. Th
 
 ## Universal instructions (any client)
 
-Paste this body into whatever “project instructions / rules / AGENTS” file your tool supports. Cursor users can instead copy [agent-rule.mdc](agent-rule.mdc) (same content + `alwaysApply` frontmatter).
+Paste this body into whatever “project instructions / rules / AGENTS” file your tool supports. Cursor users: `neuromesh connect --agent-rules` copies [agent-rule.mdc](agent-rule.mdc) (same content + `alwaysApply`).
 
 ```markdown
 # NeuroMesh context
 
-This workspace has the NeuroMesh MCP server. Prefer it for **reading and exploring** code so the agent gets folded skeletons and targeted symbols instead of multi-thousand-line files.
+Prefer NeuroMesh MCP for **reading and exploring** code — folded skeletons and targeted symbols, not multi-thousand-line dumps.
 
-## Default loop
+## Default loop (v0.9.0 — zero-embed fast engine)
 
-1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). For natural-language or non-English prompts, pass `keywords`, `expansion`, and optional `path_hints` / `entity_types`.
-2. If `coverage.claim` is `partial` or `no_seed_resolved`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
-3. Check `retrieval.claim` (`insufficient` | `partial` | `likely_sufficient`) — this is a **decision signal**, not ground truth. Prefer acting on `partial` over assuming sufficiency. Use `retrieval.suggested_keywords` when present.
-4. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
-5. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
-6. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched. Use `neuromesh_get_node_weights` before/after to verify learning deltas when debugging routing.
-7. If feedback should have changed the packet but `files[]` looks the same, call `neuromesh_explain_packet` and inspect `selection.candidates` for `emitted`, `drop_stage`, and `score_breakdown`.
+**Default:** `retrieval.engine: fast` — graph index + query-side lexical expansion. **No ONNX** at index or MCP startup. Pass the task as written only — **no** `keywords` / `expansion`.
 
-Do not treat a utility fallback file as the answer when coverage says seeds missed or `packet_gaps` is non-empty.
+1. `get_context_packet` with the task as written (`query` / `task_description` / `prompt` / `task`). Optional: `path_hints` / `entity_types`.
+2. Check `retrieval.resolution_tier` — expect **`lexical_primary`** or graph-assisted seeds (not `embedding_primary` unless repo set `engine: hybrid`).
+3. If `coverage.claim` is `partial`, `no_seed_resolved`, or `no_confident_match`, follow `packet_gaps` / `next`.
+4. `neuromesh_expand_fold` / `neuromesh_expand_gap` as needed; `neuromesh_trace` for callers.
+5. `neuromesh_record_feedback` after a successful edit.
 
-## Graph backend (optional, v0.8.2)
+## Engine presets (opt-in in nm.config.json)
 
-Default is **`native`** (built-in graph + tiered retrieval). **`proxy_cbm`** / **`auto`** delegate only `get_context_packet` to [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp); folding, `search_symbols`, and `trace` stay native.
-
-- Prefer **native** for precision and speed unless CBM is already your indexed sidecar.
-- When `retrieval.retrieval_level` is `"proxy"`, treat `claim` as conservative (`partial` / `bounded` / `no_seed_resolved`) — never assume `likely_sufficient`.
-- Verify CBM: `neuromesh doctor --proxy --probe`. Config: [engines.md](engines.md), [graph-proxy.md](graph-proxy.md).
-
-## When not to force NeuroMesh
-
-- Small, already-known paths (a few dozen lines) for a precise edit
-- Applying patches / writing files (use normal editor tools; NeuroMesh does not replace them)
-- Config, lockfiles, generated assets, or binary-ish content
-- After NeuroMesh already reported incomplete coverage and you need a targeted Grep/Read on the gap
+| `engine` | Agent behavior |
+| :--- | :--- |
+| **`fast` (default)** | Prompt only — zero-embed |
+| **`hybrid`** | Prompt only — MiniLM sidecar |
+| **`deep`** | Prompt only — max quality + dedup |
+| **CBM proxy** | Conservative proxy claims; native for trace/fold |
 
 ## Anti-patterns
 
-- Opening large whole source files into context when a packet or skeleton is enough
-- Expanding every fold “just in case”
-- Skipping `neuromesh_record_feedback` after a good edit (no STDP learning for the next packet)
-
-## Multilingual prompts (keywords / expansion)
-
-For non-English or vague prompts, pass English **code terms** in `keywords` and related concepts in `expansion`:
-
-| Language | Example prompt fragment | Suggested keywords |
-| :--- | :--- | :--- |
-| Persian (FA) | مسیردهی و middleware | `router`, `route`, `middleware`, `app.use` |
-| Spanish (ES) | enrutamiento y redirect | `router`, `redirect`, `response` |
-| Arabic (AR) | المصادقة والجلسة | `auth`, `session`, `cookie` |
-| German (DE) | Routing und Middleware | `router`, `middleware`, `route` |
-| Chinese (ZH) | 路由和中间件 | `router`, `middleware`, `route` |
-| Japanese (JA) | ルーティング | `router`, `route`, `handler` |
-| Russian (RU) | маршрутизация | `router`, `route`, `middleware` |
-| Turkish (TR) | yönlendirme | `router`, `redirect`, `route` |
-
-NeuroMesh L1 expands aliases internally, but **assisted mode** (keywords) remains higher recall on holdout benchmarks.
+- Sending keywords on default **fast** installs
+- Whole-file reads when a packet suffices
+- Skipping `record_feedback`
 ```
+
+Keep one copy in the repo (for example `AGENTS.md`) and point each IDE at it.
+
+---
+
+## Multilingual prompts
+
+**Default (fast engine):** pass the prompt in any language — server-assisted concept expansion and graph traversal recover symbol seeds. No keyword table.
+
+**Hybrid/deep engines:** same prompt-only workflow; MiniLM sidecar adds embedding-primary recall. Do **not** send `keywords`, `expansion`, or `auto_extract_keywords` — MCP ignores them on embed-primary engines.
 
 Keep one copy in the repo (for example `AGENTS.md`) and point each IDE at it, or duplicate into the client-specific paths below. Prefer **one** shared `AGENTS.md` when several tools share the same git root.
 

@@ -1,4 +1,4 @@
-use neuromesh_core::{Config, GraphBackendId, Result};
+use neuromesh_core::{Config, GraphBackendId, Result, RetrievalEngine};
 use neuromesh_graph_proxy::{detect_proxy_launch_specs, probe_graph_proxy};
 use neuromesh_index::ProjectWalker;
 use std::env;
@@ -9,6 +9,8 @@ use super::{configured_walker, print_file_cap, snapshot, FileCapArg};
 pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
     let mcp_diag = args.iter().any(|a| a == "--mcp");
     let proxy_diag = args.iter().any(|a| a == "--proxy" || a == "--probe");
+    let embed_diag = args.iter().any(|a| a == "--embed");
+    let embed_bench = args.iter().any(|a| a == "--bench");
     let probe_live = args.iter().any(|a| a == "--probe");
     println!("\nNeuroMesh doctor");
     println!(
@@ -25,7 +27,24 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
             .unwrap_or_else(|| "neuromesh".into())
     );
 
+    let engine_diag = args.iter().any(|a| a == "--engine");
     let cfg = Config::load();
+    println!(
+        "Retrieval engine : {} (seed={}, embed={})",
+        cfg.retrieval.engine.as_str(),
+        cfg.seed_resolution.engine.as_str(),
+        if cfg.embeddings.enabled { "on" } else { "off" }
+    );
+    if engine_diag {
+        println!("  Mode preset    : {:?}", cfg.mode);
+        println!(
+            "  Auto keywords  : {}",
+            cfg.seed_resolution.auto_extract_keywords
+        );
+        if cfg.retrieval.engine == RetrievalEngine::Fast {
+            println!("  ONNX at MCP    : skipped (zero-embed fast engine)");
+        }
+    }
     println!(
         "Graph backend  : {} (fallback_native={})",
         cfg.graph_backend.backend.as_str(),
@@ -126,6 +145,85 @@ pub fn execute(args: &[String], cap: FileCapArg) -> Result<()> {
                 }
             }
         }
+    }
+
+    if embed_diag && cfg.embeddings.enabled {
+        let emb = cfg.embeddings.clone();
+        println!("\nEmbedding engine");
+        println!(
+            "  Config         : {} ({}, dim {}, threads {:?})",
+            if emb.enabled { "enabled" } else { "disabled" },
+            emb.model.as_str(),
+            emb.matryoshka_dim,
+            emb.intra_threads
+        );
+        #[cfg(not(feature = "embeddings"))]
+        println!("  Binary         : embeddings feature not compiled");
+        #[cfg(feature = "embeddings")]
+        {
+            let sidecar = neuromesh_core::embeddings_path(&root);
+            if sidecar.exists() {
+                println!("  Sidecar        : {} (present)", sidecar.display());
+                if let Ok(Some(sc)) = neuromesh_graph::load_sidecar(&sidecar) {
+                    println!(
+                        "  Vectors        : {} symbols × {} dims (gen {}, sidecar v{})",
+                        sc.node_ids.len(),
+                        sc.dim,
+                        sc.graph_generation,
+                        sc.version
+                    );
+                    if !sc.module_centroids.is_empty() {
+                        println!(
+                            "  Module clusters: {} directory centroids",
+                            sc.module_centroids.len()
+                        );
+                    }
+                }
+            } else {
+                println!("  Sidecar        : missing (run neuromesh index with embeddings on)");
+            }
+            if emb.enabled {
+                let cold_start = std::time::Instant::now();
+                match neuromesh_embed::Embedder::warm(emb.clone()) {
+                    Ok(()) => {
+                        println!(
+                            "  Warm load      : ok ({} ms, singleton)",
+                            cold_start.elapsed().as_millis()
+                        );
+                        let sample_start = std::time::Instant::now();
+                        match neuromesh_embed::embed_query_cached(&emb, "doctor probe middleware") {
+                            Ok(vec) => println!(
+                                "  Sample embed   : ok ({} dims, {} ms cached path)",
+                                vec.len(),
+                                sample_start.elapsed().as_millis()
+                            ),
+                            Err(e) => println!("  Sample embed   : failed ({e})"),
+                        }
+                    }
+                    Err(e) => println!("  Model load     : failed ({e})"),
+                }
+                if embed_bench {
+                    const N: usize = 20;
+                    let mut samples = Vec::with_capacity(N);
+                    for i in 0..N {
+                        neuromesh_embed::packet_cache_begin();
+                        let t0 = std::time::Instant::now();
+                        let _ = neuromesh_embed::embed_query_cached(
+                            &emb,
+                            &format!("bench probe middleware route {i}"),
+                        );
+                        samples.push(t0.elapsed().as_millis() as u64);
+                        neuromesh_embed::packet_cache_end();
+                    }
+                    samples.sort_unstable();
+                    let p50 = samples[samples.len() / 2];
+                    let p95 = samples[(samples.len() * 95) / 100];
+                    println!("  Bench ({N} queries) : p50 {p50} ms, p95 {p95} ms");
+                }
+            }
+        }
+    } else if embed_diag {
+        println!("\nEmbedding engine : disabled (engine=fast — `neuromesh config engine hybrid`)");
     }
 
     if mcp_diag {

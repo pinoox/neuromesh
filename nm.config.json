@@ -1,6 +1,7 @@
 {
-  "seed_resolution": null,
-  "packet_header": null,
+  "retrieval": {
+    "engine": "fast"
+  },
   "graph_backend": {
     "backend": "native",
     "fallback_native": true

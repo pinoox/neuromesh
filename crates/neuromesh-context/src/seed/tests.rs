@@ -4,7 +4,10 @@ mod seed_engine_tests {
     use crate::seed::ranker::{signal_weight, SignalKind};
     use crate::seed::sink::SeedBuffers;
     use crate::seed::{resolve_engine_id, run_seed_resolution};
-    use neuromesh_core::{ProjectId, SeedEngineId, SeedResolutionConfig, TaskSignature};
+    use neuromesh_core::{
+        EmbeddingConfig, OptimizationMode, ProjectId, RetrievalEngine, SeedEngineId,
+        SeedResolutionConfig, TaskSignature,
+    };
     use neuromesh_graph::NeuralProjectGraph;
     use neuromesh_task::TaskSignatureExtractor;
     use std::collections::HashMap;
@@ -37,13 +40,22 @@ mod seed_engine_tests {
     }
 
     #[test]
-    fn keywords_expanded_engine_is_default() {
+    fn semantic_lite_engine_is_default() {
         let config = SeedResolutionConfig::default();
         let sig = TaskSignature::new("demo");
-        assert_eq!(
-            resolve_engine_id(&sig, &config),
-            SeedEngineId::KeywordsExpanded
-        );
+        assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::SemanticLite);
+    }
+
+    #[test]
+    fn lexical_engines_require_auto_extract_when_enabled() {
+        let mut config = SeedResolutionConfig {
+            engine: SeedEngineId::KeywordsExpanded,
+            auto_extract_keywords: true,
+            ..Default::default()
+        };
+        assert!(config.effective_auto_extract());
+        config.engine = SeedEngineId::SemanticLite;
+        assert!(!config.effective_auto_extract());
     }
 
     #[test]
@@ -67,6 +79,7 @@ mod seed_engine_tests {
             &sig,
             &sig.raw_prompt,
             &config,
+            &EmbeddingConfig::default(),
             &mut buffers,
             resolve_seed_query,
             false,
@@ -75,10 +88,68 @@ mod seed_engine_tests {
     }
 
     #[test]
-    fn engine_override_wins_over_config() {
+    fn retrieval_override_applies_preset() {
         let config = SeedResolutionConfig::default();
         let mut sig = TaskSignature::new("demo");
-        sig.engine_override = Some(SeedEngineId::Hybrid);
-        assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::Hybrid);
+        sig.retrieval_engine_override = Some(neuromesh_core::RetrievalEngine::Hybrid);
+        assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::SemanticLite);
+    }
+
+    #[test]
+    fn internal_engine_override_wins_over_retrieval() {
+        let config = SeedResolutionConfig::default();
+        let mut sig = TaskSignature::new("demo");
+        sig.retrieval_engine_override = Some(neuromesh_core::RetrievalEngine::Fast);
+        sig.engine_override = Some(SeedEngineId::Off);
+        assert_eq!(resolve_engine_id(&sig, &config), SeedEngineId::Off);
+    }
+
+    #[test]
+    fn hybrid_preset_file_ann_and_no_auto_extract() {
+        let mut mode = OptimizationMode::Balanced;
+        let mut seed = SeedResolutionConfig::default();
+        let mut emb = EmbeddingConfig::default();
+        RetrievalEngine::Hybrid.apply_preset(&mut mode, &mut seed, &mut emb);
+        assert_eq!(emb.file_ann_top_k, 8);
+        assert!((emb.file_min_cosine - 0.30).abs() < f32::EPSILON);
+        assert_eq!(emb.matryoshka_dim, 256);
+        assert!(!seed.auto_extract_keywords);
+        assert_eq!(seed.engine, SeedEngineId::SemanticLite);
+    }
+
+    #[test]
+    fn embedding_config_defaults_minilm_enabled() {
+        let cfg = EmbeddingConfig::default();
+        assert!(cfg.enabled);
+        assert_eq!(cfg.model.as_str(), "minilm_multilingual_q");
+        assert_eq!(cfg.matryoshka_dim, 384);
+        assert_eq!(cfg.intra_threads, Some(2));
+        assert!(!cfg.index_on_build);
+        assert!(cfg.optional_dedup_min_cosine.is_none());
+        assert!(!cfg.module_cluster_enabled);
+        assert_eq!(cfg.embed_seed_cap, 4);
+        assert!((cfg.recovery_min_cosine - 0.38).abs() < f32::EPSILON);
+        assert!(cfg.two_stage_enabled);
+        assert_eq!(cfg.coarse_pool_max, 400);
+        assert!(!cfg.hierarchical_index);
+        assert_eq!(cfg.file_ann_top_k, 4);
+    }
+
+    #[test]
+    fn hybrid_engine_uses_lexical_assist_when_enabled() {
+        let mut config = SeedResolutionConfig {
+            engine: SeedEngineId::Hybrid,
+            auto_extract_keywords: true,
+            ..Default::default()
+        };
+        assert!(config.effective_auto_extract());
+        config.auto_extract_keywords = false;
+        assert!(!config.effective_auto_extract());
+    }
+
+    #[test]
+    fn seed_weights_include_semantic_embed() {
+        let cfg = SeedResolutionConfig::default();
+        assert!(cfg.weights.semantic_embed_match > 0.0);
     }
 }

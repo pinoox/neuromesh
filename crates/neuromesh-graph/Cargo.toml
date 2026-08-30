@@ -9,6 +9,7 @@ repository.workspace = true
 neuromesh-core = { path = "../neuromesh-core" }
 neuromesh-index = { path = "../neuromesh-index" }
 neuromesh-parser = { path = "../neuromesh-parser" }
+neuromesh-embed = { path = "../neuromesh-embed", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 bincode.workspace = true
@@ -16,3 +17,17 @@ chrono.workspace = true
 tracing.workspace = true
 parking_lot.workspace = true
 rayon.workspace = true
+sha2 = "0.10"
+simsimd = { version = "6.4", default-features = false }
+
+[features]
+default = []
+embeddings = ["dep:neuromesh-embed"]
+
+[dev-dependencies]
+tempfile = "3.24"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "ann_search"
+harness = false

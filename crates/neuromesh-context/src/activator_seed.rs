@@ -80,6 +80,39 @@ pub(crate) fn push_anchor_queries(
     }
 }
 
+pub(crate) fn push_alias_lexical_gap_fill(
+    graph: &NeuralProjectGraph,
+    prompt: &str,
+    config: &SeedResolutionConfig,
+    embedding_config: &neuromesh_core::EmbeddingConfig,
+    sink: &mut SeedSink<'_, '_, '_>,
+) {
+    let max_embed = sink
+        .resolutions()
+        .iter()
+        .filter_map(|s| s.embedding_score)
+        .fold(0.0f32, f32::max);
+    let weak_embed = max_embed < embedding_config.min_cosine;
+    if !weak_embed && sink.resolved_count() > 0 {
+        return;
+    }
+    let mut added = 0usize;
+    for seed in crate::retrieval::alias::alias_code_seeds_for_prompt(prompt) {
+        if added >= config.max_resolved_seeds {
+            break;
+        }
+        if sink.resolutions().iter().any(|s| s.query == seed) {
+            continue;
+        }
+        let before = sink.resolved_count();
+        let energy = signal_weight(config, SignalKind::Keyword, added);
+        sink.push(graph, prompt, seed, energy * 0.85, "alias_gap_fill");
+        if sink.resolved_count() > before {
+            added += 1;
+        }
+    }
+}
+
 pub(crate) fn push_client_keywords(
     graph: &NeuralProjectGraph,
     signature: &TaskSignature,

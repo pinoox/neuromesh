@@ -1,13 +1,21 @@
 use crate::graph_proxy::proxy_evidence_response;
 use crate::packet_cache::PacketDetailCache;
 use crate::response::{
-    cache_and_build, collect_file_entries, collect_symbols, explain_packet,
-    fold_descriptors_from_skeleton, ContextBuild, ResponseDetail,
+    apply_semantic_cache_hit, cache_and_build, collect_file_entries, collect_symbols,
+    explain_packet, fold_descriptors_from_skeleton, ContextBuild, ResponseDetail,
 };
+#[cfg(feature = "embeddings")]
+use crate::semantic_cache::McpSemanticCache;
 use neuromesh_cache::{MyceliumCache, MyceliumConfig, MyceliumStats};
-use neuromesh_context::retrieval::infer_assisted_seed_signals;
+use neuromesh_context::retrieval::apply_auto_extract_keywords;
 use neuromesh_context::{CodeSkeletonizer, ContextActivator, ExpansionEngine};
-use neuromesh_core::{NeuroMeshError, NodeId, OptimizationMode, Result, SeedEngineId};
+use neuromesh_core::{
+    Config, NeuroMeshError, NodeId, OptimizationMode, Result, RetrievalEngine, TaskSignature,
+};
+#[cfg(feature = "embeddings")]
+use neuromesh_embed::{embed_query_cached, packet_cache_begin, packet_cache_end, SemanticCacheKey};
+#[cfg(feature = "embeddings")]
+use neuromesh_graph::graph_digest;
 use neuromesh_graph::{IndexState, NeuralProjectGraph};
 use neuromesh_graph_proxy::{GraphProxySession, ProxySearchContext};
 use neuromesh_memory::{MemoryDatabase, WorkingMemory};
@@ -29,6 +37,8 @@ pub struct McpToolHandler {
     working_memory: Arc<parking_lot::RwLock<WorkingMemory>>,
     mycelium: Arc<MyceliumCache>,
     packet_cache: PacketDetailCache,
+    #[cfg(feature = "embeddings")]
+    semantic_cache: McpSemanticCache,
     client_id: RwLock<Option<String>>,
     /// External graph MCP (CBM/Graphify). None = native only.
     graph_proxy: RwLock<Option<Arc<tokio::sync::Mutex<GraphProxySession>>>>,
@@ -86,6 +96,8 @@ impl McpToolHandler {
             working_memory,
             mycelium: Arc::new(MyceliumCache::new(MyceliumConfig::default())),
             packet_cache: PacketDetailCache::new(),
+            #[cfg(feature = "embeddings")]
+            semantic_cache: McpSemanticCache::default(),
             client_id: RwLock::new(None),
             graph_proxy: RwLock::new(None),
             graph_proxy_fallback_native: RwLock::new(true),
@@ -268,19 +280,32 @@ impl McpToolHandler {
                 let detail = ResponseDetail::parse(arguments["response_detail"].as_str());
 
                 let mut signature = TaskSignatureExtractor::extract(&task_desc);
+                let retrieval_engine = effective_retrieval_engine(&signature);
                 apply_client_seed_signals(&mut signature, arguments);
-                apply_server_assisted_defaults(&mut signature, &task_desc);
-                if let Ok(episodes) = self
-                    .memory_db
-                    .find_similar_episodes(&self.graph.project_id(), &task_desc)
-                {
-                    for ep in episodes.into_iter().filter(|e| e.success).take(3) {
-                        for name in &ep.successful_path {
-                            if name.len() < 3 {
-                                continue;
-                            }
-                            if !signature.identifiers.iter().any(|i| i == name) {
-                                signature.identifiers.push(name.clone());
+                neuromesh_context::retrieval::apply_client_keyword_alias_bridge(&mut signature);
+                if is_embed_primary_engine(retrieval_engine) {
+                    strip_embed_primary_client_signals(&mut signature);
+                }
+                let auto_extract = if is_embed_primary_engine(retrieval_engine) {
+                    false
+                } else {
+                    read_auto_extract_keywords(arguments)
+                };
+                let server_inferred =
+                    apply_server_assisted_defaults(&mut signature, &task_desc, auto_extract);
+                if requested_mode == neuromesh_core::OptimizationMode::MaxQuality {
+                    if let Ok(episodes) = self
+                        .memory_db
+                        .find_similar_episodes(&self.graph.project_id(), &task_desc)
+                    {
+                        for ep in episodes.into_iter().filter(|e| e.success).take(3) {
+                            for name in &ep.successful_path {
+                                if name.len() < 3 {
+                                    continue;
+                                }
+                                if !signature.identifiers.iter().any(|i| i == name) {
+                                    signature.identifiers.push(name.clone());
+                                }
                             }
                         }
                     }
@@ -291,7 +316,7 @@ impl McpToolHandler {
                 let fallback_native = *self.graph_proxy_fallback_native.read();
                 let backend_label = self.graph_backend_label();
                 if let Some(proxy) = proxy {
-                    let ctx = ProxySearchContext::from_task_signature(&signature);
+                    let ctx = build_proxy_search_context(&signature);
                     match proxy.lock().await.build_context_packet(&ctx, 8).await {
                         Ok(proxy_packet) => {
                             let elapsed_ms = start_time.elapsed().as_millis() as u64;
@@ -326,10 +351,69 @@ impl McpToolHandler {
                     }
                 }
 
+                #[cfg(feature = "embeddings")]
+                let mut semantic_query_vec: Option<Vec<f32>> = None;
+                #[cfg(feature = "embeddings")]
+                {
+                    let emb_cfg = Config::load().embeddings;
+                    if emb_cfg.enabled && emb_cfg.semantic_cache_enabled {
+                        packet_cache_begin();
+                        if let Ok(query_vec) = embed_query_cached(&emb_cfg, &task_desc) {
+                            semantic_query_vec = Some(query_vec.clone());
+                            let cache_key = SemanticCacheKey {
+                                graph_generation: self.graph.generation(),
+                                graph_digest: graph_digest(&self.graph),
+                                model: emb_cfg.model,
+                                dim: emb_cfg.matryoshka_dim,
+                                project_id: self.graph.project_id().0.clone(),
+                            };
+                            if let Some(hit) = self.semantic_cache.lookup(
+                                &cache_key,
+                                &query_vec,
+                                emb_cfg.semantic_cache_min_cosine,
+                            ) {
+                                packet_cache_end();
+                                let new_id = PacketDetailCache::new_packet_id();
+                                let elapsed_ms = start_time.elapsed().as_millis() as u64;
+                                self.emit_telemetry(ToolTelemetry {
+                                    tokens_before: hit.details.workspace_tokens,
+                                    tokens_after: hit.details.tokens_packet,
+                                    token_reduction_pct: 0.0,
+                                    nodes_after: hit.details.files.len(),
+                                    latency_ms: elapsed_ms,
+                                    cache_hit: true,
+                                    ..ToolTelemetry::new(
+                                        "mcp",
+                                        task_desc.chars().take(50).collect::<String>(),
+                                        hit.details.effective_mode.clone(),
+                                    )
+                                });
+                                return Ok(apply_semantic_cache_hit(
+                                    &self.packet_cache,
+                                    &self.graph.project_id().0,
+                                    hit.response,
+                                    hit.details,
+                                    new_id,
+                                ));
+                            }
+                        }
+                        // Keep packet_cache scope open through activate_tiered (nested begin/end).
+                    }
+                }
+
                 let view =
                     self.activator
                         .activate_tiered(&self.graph, &signature, gate.effective_mode);
-                self.prefetch_mycelium(&view);
+                #[cfg(feature = "embeddings")]
+                {
+                    let emb_cfg = Config::load().embeddings;
+                    if emb_cfg.enabled && emb_cfg.semantic_cache_enabled {
+                        packet_cache_end();
+                    }
+                }
+                if gate.effective_mode == neuromesh_core::OptimizationMode::MaxQuality {
+                    self.prefetch_mycelium(&view);
+                }
 
                 for active in &view.active_nodes {
                     self.graph
@@ -374,6 +458,7 @@ impl McpToolHandler {
                     vs_selected,
                     elapsed_ms,
                     index_meta: self.graph.index_meta(),
+                    server_inferred_keywords: server_inferred,
                 };
 
                 self.emit_telemetry(ToolTelemetry {
@@ -389,12 +474,41 @@ impl McpToolHandler {
                     )
                 });
 
-                Ok(cache_and_build(
-                    &self.packet_cache,
-                    &self.graph.project_id().0,
-                    &build,
-                    detail,
-                ))
+                Ok({
+                    let value = cache_and_build(
+                        &self.packet_cache,
+                        &self.graph.project_id().0,
+                        &build,
+                        detail,
+                    );
+                    #[cfg(feature = "embeddings")]
+                    {
+                        let emb_cfg = Config::load().embeddings;
+                        if emb_cfg.enabled && emb_cfg.semantic_cache_enabled {
+                            if let Some(query_vec) = semantic_query_vec
+                                .or_else(|| embed_query_cached(&emb_cfg, &task_desc).ok())
+                            {
+                                let cache_key = SemanticCacheKey {
+                                    graph_generation: self.graph.generation(),
+                                    graph_digest: graph_digest(&self.graph),
+                                    model: emb_cfg.model,
+                                    dim: emb_cfg.matryoshka_dim,
+                                    project_id: self.graph.project_id().0.clone(),
+                                };
+                                let details = build.to_details();
+                                self.semantic_cache.insert(
+                                    emb_cfg.semantic_cache_entries,
+                                    cache_key,
+                                    query_vec,
+                                    value.clone(),
+                                    details,
+                                    detail,
+                                );
+                            }
+                        }
+                    }
+                    value
+                })
             }
 
             // 2b. Expand a packet gap file (cheap skeleton, no blind Grep)
@@ -1095,6 +1209,22 @@ fn push_unique_normalized(out: &mut Vec<String>, raw: &str) {
     }
 }
 
+fn effective_retrieval_engine(signature: &TaskSignature) -> RetrievalEngine {
+    signature
+        .retrieval_engine_override
+        .unwrap_or_else(|| Config::load().retrieval.engine)
+}
+
+fn is_embed_primary_engine(engine: RetrievalEngine) -> bool {
+    matches!(engine, RetrievalEngine::Hybrid | RetrievalEngine::Deep)
+}
+
+/// hybrid/deep: prompt-only — ignore client keywords/expansion (MiniLM handles NL).
+fn strip_embed_primary_client_signals(signature: &mut TaskSignature) {
+    signature.client_keywords.clear();
+    signature.client_expansion.clear();
+}
+
 fn apply_client_seed_signals(signature: &mut neuromesh_core::TaskSignature, arguments: &Value) {
     for kw in read_string_list(arguments, "keywords") {
         push_unique_normalized(&mut signature.client_keywords, &kw);
@@ -1127,22 +1257,50 @@ fn apply_client_seed_signals(signature: &mut neuromesh_core::TaskSignature, argu
         }
     }
     if let Some(engine) = arguments.get("engine").and_then(Value::as_str) {
-        signature.engine_override = SeedEngineId::parse(engine);
+        signature.retrieval_engine_override = RetrievalEngine::parse(engine);
     }
 }
 
-/// Native assisted by default: infer keywords/expansion when the client sends only the task text.
-fn apply_server_assisted_defaults(signature: &mut neuromesh_core::TaskSignature, prompt: &str) {
-    if !signature.client_keywords.is_empty() || !signature.client_expansion.is_empty() {
-        return;
+/// Native assisted by default: infer keywords/expansion (FILL-ONLY-MISSING dedupe).
+fn apply_server_assisted_defaults(
+    signature: &mut neuromesh_core::TaskSignature,
+    prompt: &str,
+    enabled: bool,
+) -> bool {
+    apply_auto_extract_keywords(signature, prompt, enabled)
+}
+
+fn read_auto_extract_keywords(arguments: &Value) -> bool {
+    let config = Config::load();
+    if let Some(v) = arguments.get("auto_extract_keywords") {
+        return read_bool(v, config.seed_resolution.effective_auto_extract());
     }
-    let (keywords, expansion) = infer_assisted_seed_signals(prompt);
-    for kw in keywords {
-        push_unique_normalized(&mut signature.client_keywords, &kw);
+    config.seed_resolution.effective_auto_extract()
+}
+
+/// Proxy CBM search uses extracted terms — reuse server infer when client fields are sparse.
+fn build_proxy_search_context(signature: &TaskSignature) -> ProxySearchContext {
+    use neuromesh_context::retrieval::infer_assisted_seed_signals;
+    use neuromesh_task::{is_prompt_stopword, normalize_prompt_tokens};
+
+    let mut ctx = ProxySearchContext::from_task_signature(signature);
+    if signature.client_keywords.is_empty() && signature.client_expansion.is_empty() {
+        let (kw, exp) = infer_assisted_seed_signals(&signature.raw_prompt);
+        for k in kw {
+            push_unique_normalized(&mut ctx.client_keywords, &k);
+        }
+        for e in exp {
+            push_unique_normalized(&mut ctx.client_expansion, &e);
+        }
     }
-    for term in expansion {
-        push_unique_normalized(&mut signature.client_expansion, &term);
+    for token in normalize_prompt_tokens(&signature.raw_prompt) {
+        if token.len() < 4 || is_prompt_stopword(&token.to_lowercase()) {
+            continue;
+        }
+        push_unique_normalized(&mut ctx.client_keywords, &token);
     }
+    ctx.client_keywords.truncate(12);
+    ctx
 }
 
 fn telemetry_request_id(prefix: &str) -> String {
@@ -1204,7 +1362,10 @@ mod tests {
         );
         let idle = handler.biomimetic_report();
         assert_eq!(idle["mycelial_prefetching"].as_str(), Some("idle"));
-        let args = json!({ "task_description": "How does start_job enqueue_job?" });
+        let args = json!({
+            "task_description": "How does start_job enqueue_job?",
+            "mode": "max_quality"
+        });
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             handler

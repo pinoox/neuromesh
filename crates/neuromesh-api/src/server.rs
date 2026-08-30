@@ -1,4 +1,4 @@
-use crate::routes::engines::{parse_graph_backend, parse_seed_engine};
+use crate::routes::engines::{parse_graph_backend, parse_retrieval_engine};
 use crate::state::AppState;
 use neuromesh_core::{project_data_dir, NodeId, OptimizationMode, ProjectId, Result};
 use neuromesh_index::ProjectWalker;
@@ -668,7 +668,7 @@ impl HttpServer {
             ("POST", "/api/config") => {
                 let persist = body_json["persist"].as_bool().unwrap_or(true);
                 let mut graph_backend = None;
-                let mut seed_engine = None;
+                let mut retrieval_engine = None;
 
                 if let Some(mode_str) = body_json["mode"].as_str() {
                     let new_mode = match mode_str {
@@ -683,14 +683,14 @@ impl HttpServer {
                         graph_backend = Some(backend);
                     }
                 }
-                if let Some(raw) = body_json["seed_engine"].as_str() {
-                    if let Some(engine) = parse_seed_engine(raw) {
-                        seed_engine = Some(engine);
+                if let Some(raw) = body_json["retrieval_engine"].as_str() {
+                    if let Some(engine) = parse_retrieval_engine(raw) {
+                        retrieval_engine = Some(engine);
                     }
                 }
-                if graph_backend.is_some() || seed_engine.is_some() {
+                if graph_backend.is_some() || retrieval_engine.is_some() {
                     if let Err(e) =
-                        state.update_engine_settings(graph_backend, seed_engine, persist)
+                        state.update_engine_settings(graph_backend, retrieval_engine, persist)
                     {
                         Self::send_json(
                             &mut stream,
@@ -714,11 +714,14 @@ impl HttpServer {
                         ),
                     );
                 }
-                if let Some(engine) = seed_engine {
+                if let Some(engine) = retrieval_engine {
                     state.log(
                         "INFO",
                         "CONFIG",
-                        &format!("Seed engine set to {} (persist={persist})", engine.as_str()),
+                        &format!(
+                            "Retrieval engine set to {} (persist={persist})",
+                            engine.as_str()
+                        ),
                     );
                 }
                 let cfg = state.config.read().clone();

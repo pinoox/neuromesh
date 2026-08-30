@@ -1,6 +1,7 @@
 use crate::activation::{SpreadingActivation, SpreadingActivationConfig};
 use crate::concept_index::ConceptIndex;
 use crate::edge::{PheromoneConfig, PheromoneEngine};
+use crate::embeddings::EmbeddingIndex;
 use crate::intern::{
     capture_inbound_pending, index_tokens, infer_workspace_root, insert_indexed_node,
     normalize_path_key, rebuild_indexes, remove_file_nodes_locked, GraphData, GraphSnapshot,
@@ -126,6 +127,7 @@ struct DerivedIndexes {
 pub struct NeuralProjectGraph {
     project_id: Arc<RwLock<ProjectId>>,
     inner: Arc<RwLock<GraphData>>,
+    embedding_index: Arc<RwLock<Arc<EmbeddingIndex>>>,
     derived: Arc<RwLock<DerivedIndexes>>,
     pheromone_engine: Arc<PheromoneEngine>,
     activation_engine: Arc<SpreadingActivation>,
@@ -139,6 +141,7 @@ impl NeuralProjectGraph {
         Self {
             project_id: Arc::new(RwLock::new(project_id)),
             inner: Arc::new(RwLock::new(GraphData::default())),
+            embedding_index: Arc::new(RwLock::new(Arc::new(EmbeddingIndex::default()))),
             derived: Arc::new(RwLock::new(DerivedIndexes::default())),
             pheromone_engine: Arc::new(PheromoneEngine::new(PheromoneConfig::default())),
             activation_engine: Arc::new(SpreadingActivation::new(
@@ -268,6 +271,7 @@ impl NeuralProjectGraph {
             node_type,
             symbol_name.to_string(),
             signature,
+            None,
             line_range,
             token_cost,
             parent.clone(),
@@ -356,6 +360,7 @@ impl NeuralProjectGraph {
                     sym.symbol_type,
                     sym.name.clone(),
                     sym.signature.clone(),
+                    sym.docstring.clone(),
                     sym.line_range.clone(),
                     token_cost,
                     sym.parent.clone(),
@@ -377,6 +382,7 @@ impl NeuralProjectGraph {
                     NodeType::StyleToken,
                     token.clone(),
                     Some(format!("Token: {token}")),
+                    None,
                     1..2,
                     5,
                     None,
@@ -1403,6 +1409,31 @@ impl NeuralProjectGraph {
             .is_some_and(|stored| stored == hash)
     }
 
+    pub fn generation(&self) -> u64 {
+        self.inner.read().generation
+    }
+
+    pub fn file_hashes(&self) -> HashMap<String, String> {
+        self.inner.read().file_hashes.clone()
+    }
+
+    pub fn install_embedding_index(&self, index: EmbeddingIndex) {
+        *self.embedding_index.write() = Arc::new(index);
+    }
+
+    pub fn embedding_index(&self) -> Arc<EmbeddingIndex> {
+        Arc::clone(&*self.embedding_index.read())
+    }
+
+    pub fn load_embedding_sidecar(&self, workspace: &Path) -> neuromesh_core::Result<bool> {
+        let path = neuromesh_core::embeddings_path(workspace);
+        if let Some(sidecar) = crate::embeddings::load_sidecar(&path)? {
+            *self.embedding_index.write() = Arc::new(EmbeddingIndex::from_sidecar(sidecar));
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     pub fn remove_file_nodes(&self, path: &Path) {
         let mut data = self.inner.write();
         remove_file_nodes_locked(&mut data, path);
@@ -1434,6 +1465,7 @@ impl NeuralProjectGraph {
         if loaded && self.stats().total_nodes > 0 {
             self.mark_index_ready();
         }
+        let _ = self.load_embedding_sidecar(workspace);
         loaded
     }
 
@@ -1533,6 +1565,16 @@ impl NeuralProjectGraph {
                 self.ingest_scan_report(&report);
                 self.inner.write().parser_epoch = GRAPH_PARSER_EPOCH;
                 let _ = self.save_persisted(workspace);
+                #[cfg(feature = "embeddings")]
+                {
+                    let emb = neuromesh_core::Config::load().embeddings;
+                    let sidecar_path = neuromesh_core::embeddings_path(workspace);
+                    if emb.enabled || emb.index_on_build || sidecar_path.exists() {
+                        let _ = crate::embeddings::refresh_embeddings_after_index(
+                            self, workspace, &emb,
+                        );
+                    }
+                }
                 self.mark_index_ready();
             }
             Err(_) => self.mark_index_failed(),

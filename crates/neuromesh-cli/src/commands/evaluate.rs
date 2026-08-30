@@ -7,9 +7,10 @@ use neuromesh_context::gold::{
 use neuromesh_context::learning_eval::{
     compute_ranking_metrics, dose_response_rank, emitted_paths_from_view,
 };
-use neuromesh_context::retrieval::failure::classify_retrieval_failure;
+use neuromesh_context::retrieval::apply_auto_extract_keywords;
+use neuromesh_context::retrieval::failure::{classify_retrieval_failure, FailureClass};
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
-use neuromesh_core::{OptimizationMode, ProjectId, Result};
+use neuromesh_core::{OptimizationMode, ProjectId, Result, RetrievalEngine, TaskSignature};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_index::ProjectWalker;
 use neuromesh_task::TaskSignatureExtractor;
@@ -18,10 +19,25 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
+fn prepare_eval_signature(prompt: &str, engine: RetrievalEngine) -> TaskSignature {
+    let mut signature = TaskSignatureExtractor::extract(prompt);
+    if engine == RetrievalEngine::Fast {
+        let enabled = neuromesh_core::Config::load()
+            .seed_resolution
+            .effective_auto_extract();
+        apply_auto_extract_keywords(&mut signature, prompt, enabled);
+    }
+    signature
+}
+
 pub fn execute(args: &[String]) -> Result<()> {
     let learning_mode = args.iter().any(|a| a == "--learning");
     let release_gates = args.iter().any(|a| a == "--release-gates");
     let calibrate = args.iter().any(|a| a == "--calibrate");
+    if let Some(engine) = eval_engine_from_args(args) {
+        std::env::set_var("NEUROMESH_ENGINE", engine.as_str());
+    }
+    let eval_cfg = neuromesh_core::Config::load();
     let current_dir = neuromesh_index::assert_safe_workspace(&env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
@@ -46,6 +62,16 @@ pub fn execute(args: &[String]) -> Result<()> {
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     let index_started = Instant::now();
     graph.ingest_workspace(&scanned);
+    #[cfg(feature = "embeddings")]
+    {
+        if eval_cfg.embeddings.enabled {
+            let _ = neuromesh_graph::rebuild_embeddings_for_workspace(
+                &graph,
+                &current_dir,
+                &eval_cfg.embeddings,
+            );
+        }
+    }
     let index_ms = index_started.elapsed().as_millis();
     let stats = graph.stats();
     let workspace_tokens = graph.total_tokens().max(1);
@@ -93,7 +119,7 @@ pub fn execute(args: &[String]) -> Result<()> {
     println!("{}", "-".repeat(118));
 
     for task in &tasks {
-        let signature = TaskSignatureExtractor::extract(&task.prompt);
+        let signature = prepare_eval_signature(&task.prompt, eval_cfg.retrieval.engine);
         for mode in [
             OptimizationMode::MaxSavings,
             OptimizationMode::Balanced,
@@ -142,7 +168,7 @@ pub fn execute(args: &[String]) -> Result<()> {
     if release_gates {
         let mut cells = Vec::new();
         for (i, task) in tasks.iter().enumerate() {
-            let signature = TaskSignatureExtractor::extract(&task.prompt);
+            let signature = prepare_eval_signature(&task.prompt, eval_cfg.retrieval.engine);
             let started = Instant::now();
             let view = activator.activate_tiered(&graph, &signature, OptimizationMode::Balanced);
             let ms = started.elapsed().as_millis() as u64;
@@ -173,6 +199,20 @@ pub fn execute(args: &[String]) -> Result<()> {
                 &level,
                 None,
             );
+            let embedding_primary = view
+                .retrieval
+                .as_ref()
+                .and_then(|r| r.resolution_tier.as_deref())
+                .is_some_and(|t| t == "embedding_primary")
+                || view
+                    .retrieval
+                    .as_ref()
+                    .map(|r| r.embedding_used)
+                    .unwrap_or(false);
+            let no_seed = claim == "no_seed_resolved"
+                || claim == "no_confident_match"
+                || failure == FailureClass::NoSeed
+                || metrics.recall == 0.0;
             cells.push(BenchmarkCellResult {
                 benchmark: "A_regression".into(),
                 cell_id: task.id.clone(),
@@ -201,12 +241,15 @@ pub fn execute(args: &[String]) -> Result<()> {
                     .retrieval
                     .as_ref()
                     .and_then(|r| r.latency_ms.get("L3").copied()),
+                no_seed,
+                embedding_primary,
             });
         }
         let suite = aggregate_cell_results(&cells);
-        let report = ReleaseGateReport::evaluate(&suite);
+        let report = ReleaseGateReport::evaluate_for_engine(eval_cfg.retrieval.engine, &suite);
         println!(
-            "\nRelease gates (Benchmark A): {}",
+            "\nRelease gates (Benchmark A, engine={}): {}",
+            eval_cfg.retrieval.engine.as_str(),
             if report.passed { "PASS" } else { "FAIL" }
         );
         println!("{}", serde_json::to_string_pretty(&report)?);
@@ -273,7 +316,7 @@ pub fn execute(args: &[String]) -> Result<()> {
                         .collect()
                 };
                 for task in tasks {
-                    let signature = TaskSignatureExtractor::extract(&task.prompt);
+                    let signature = prepare_eval_signature(&task.prompt, eval_cfg.retrieval.engine);
                     let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
                     let metrics = evaluate_view(&task, &view, 0);
                     println!(
@@ -382,4 +425,18 @@ fn execute_learning_eval(
     });
     let _ = graph;
     Ok(())
+}
+
+fn eval_engine_from_args(args: &[String]) -> Option<RetrievalEngine> {
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--engine" {
+            if let Some(raw) = args.get(i + 1) {
+                return RetrievalEngine::parse(raw);
+            }
+        }
+        if let Some(raw) = arg.strip_prefix("--engine=") {
+            return RetrievalEngine::parse(raw);
+        }
+    }
+    None
 }

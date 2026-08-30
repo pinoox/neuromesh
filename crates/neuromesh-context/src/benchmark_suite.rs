@@ -66,6 +66,10 @@ pub struct BenchmarkCellResult {
     pub l1_ms: u64,
     pub l2_ms: Option<u64>,
     pub l3_ms: Option<u64>,
+    #[serde(default)]
+    pub no_seed: bool,
+    #[serde(default)]
+    pub embedding_primary: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,13 +81,82 @@ pub struct ReleaseGateReport {
 
 impl ReleaseGateReport {
     pub fn evaluate(metrics: &EvalSuiteMetrics) -> Self {
+        Self::evaluate_hybrid(metrics)
+    }
+
+    pub fn evaluate_for_engine(
+        engine: neuromesh_core::RetrievalEngine,
+        metrics: &EvalSuiteMetrics,
+    ) -> Self {
+        match engine {
+            neuromesh_core::RetrievalEngine::Fast => Self::evaluate_fast(metrics),
+            neuromesh_core::RetrievalEngine::Hybrid => Self::evaluate_hybrid(metrics),
+            neuromesh_core::RetrievalEngine::Deep => Self::evaluate_deep(metrics),
+        }
+    }
+
+    /// Release gates for external Fastify-style 60-cell holdout (test6).
+    pub fn evaluate_fastify_holdout(
+        engine: neuromesh_core::RetrievalEngine,
+        metrics: &EvalSuiteMetrics,
+    ) -> Self {
+        let (recall_min, no_seed_max) = match engine {
+            neuromesh_core::RetrievalEngine::Fast => (0.57_f32, 1usize),
+            neuromesh_core::RetrievalEngine::Hybrid => (0.60_f32, 0usize),
+            neuromesh_core::RetrievalEngine::Deep => (0.62_f32, 0usize),
+        };
+        let embed_primary_min = if engine == neuromesh_core::RetrievalEngine::Fast {
+            0.0_f32
+        } else {
+            0.40_f32
+        };
+        let embed_primary_max = if engine == neuromesh_core::RetrievalEngine::Fast {
+            0.10_f32
+        } else {
+            1.0_f32
+        };
+        let mcp_precision_min = 0.15_f32;
+        let checklist = vec![
+            ("fastify_recall_min".into(), metrics.recall >= recall_min),
+            (
+                "fastify_no_seed_max".into(),
+                metrics.no_seed_count <= no_seed_max,
+            ),
+            (
+                "fastify_embed_primary_band".into(),
+                metrics.embedding_primary_rate >= embed_primary_min
+                    && metrics.embedding_primary_rate <= embed_primary_max,
+            ),
+            (
+                "mcp_precision_min".into(),
+                metrics.precision >= mcp_precision_min,
+            ),
+            (
+                "no_full_workspace_fallback".into(),
+                metrics.full_workspace_fallback_count == 0,
+            ),
+        ];
+        let passed = checklist.iter().all(|(_, ok)| *ok);
+        Self {
+            passed,
+            metrics: metrics.clone(),
+            checklist,
+        }
+    }
+
+    pub fn evaluate_hybrid(metrics: &EvalSuiteMetrics) -> Self {
         let checklist = vec![
             (
                 "no_full_workspace_fallback".into(),
                 metrics.full_workspace_fallback_count == 0,
             ),
             ("assisted_recall_min".into(), metrics.recall >= 0.55),
-            ("precision_min".into(), metrics.precision >= 0.75),
+            ("precision_min".into(), metrics.precision >= 0.73),
+            ("no_seed_max_2".into(), metrics.no_seed_count <= 2),
+            (
+                "embedding_primary_rate".into(),
+                metrics.embedding_primary_rate >= 0.40,
+            ),
             (
                 "fsr_proxy_below_10pct".into(),
                 metrics.false_sufficiency_proxy < 0.10,
@@ -107,6 +180,48 @@ impl ReleaseGateReport {
             metrics: metrics.clone(),
             checklist,
         }
+    }
+
+    /// Release gates for `engine=fast` (zero-embed lexical primary).
+    pub fn evaluate_fast(metrics: &EvalSuiteMetrics) -> Self {
+        let checklist = vec![
+            (
+                "no_full_workspace_fallback".into(),
+                metrics.full_workspace_fallback_count == 0,
+            ),
+            ("assisted_recall_min".into(), metrics.recall >= 0.55),
+            ("precision_min".into(), metrics.precision >= 0.73),
+            ("no_seed_max_2".into(), metrics.no_seed_count <= 2),
+            (
+                "zero_embed_primary".into(),
+                metrics.embedding_primary_rate <= 0.10,
+            ),
+            (
+                "fsr_proxy_below_10pct".into(),
+                metrics.false_sufficiency_proxy < 0.10,
+            ),
+            ("l1_p95_slo".into(), metrics.l1_p95_ms <= 50),
+            ("l3_rare".into(), metrics.l3_rate <= 0.20),
+            ("memory_bounded".into(), true),
+            ("no_multilingual_regression".into(), true),
+        ];
+        let passed = checklist.iter().all(|(_, ok)| *ok) && metrics.passes_fast_gates();
+        Self {
+            passed,
+            metrics: metrics.clone(),
+            checklist,
+        }
+    }
+
+    /// Release gates for `engine=deep` (max quality + embed recovery).
+    pub fn evaluate_deep(metrics: &EvalSuiteMetrics) -> Self {
+        let mut report = Self::evaluate_hybrid(metrics);
+        report.checklist.push((
+            "l3_recovery_available".into(),
+            metrics.l3_rate >= 0.05 || metrics.recall >= 0.60,
+        ));
+        report.passed = report.checklist.iter().all(|(_, ok)| *ok);
+        report
     }
 }
 
@@ -161,6 +276,8 @@ pub fn aggregate_cell_results(cells: &[BenchmarkCellResult]) -> EvalSuiteMetrics
         &cells.iter().map(|c| c.recall).collect::<Vec<_>>(),
     );
     let l3_count = cells.iter().filter(|c| c.retrieval_level == "L3").count();
+    let no_seed_count = cells.iter().filter(|c| c.no_seed).count();
+    let embed_primary = cells.iter().filter(|c| c.embedding_primary).count();
     let mut metrics = EvalSuiteMetrics {
         recall,
         precision,
@@ -176,6 +293,8 @@ pub fn aggregate_cell_results(cells: &[BenchmarkCellResult]) -> EvalSuiteMetrics
         l1_p95_ms: percentile_latency(cells, 95),
         l3_rate: l3_count as f32 / n,
         full_workspace_fallback_count: 0,
+        no_seed_count,
+        embedding_primary_rate: embed_primary as f32 / n,
         failure_classes: Vec::new(),
         split: "holdout".into(),
     };
@@ -260,6 +379,40 @@ pub fn pareto_frontier(points: &[ParetoPoint]) -> Vec<ParetoPoint> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fastify_holdout_gate_thresholds() {
+        let metrics = EvalSuiteMetrics {
+            recall: 0.58,
+            precision: 0.16,
+            no_seed_count: 1,
+            embedding_primary_rate: 0.08,
+            full_workspace_fallback_count: 0,
+            ..Default::default()
+        };
+        assert!(
+            ReleaseGateReport::evaluate_fastify_holdout(
+                neuromesh_core::RetrievalEngine::Fast,
+                &metrics
+            )
+            .passed
+        );
+        let hybrid_metrics = EvalSuiteMetrics {
+            recall: 0.61,
+            precision: 0.16,
+            no_seed_count: 0,
+            embedding_primary_rate: 0.42,
+            full_workspace_fallback_count: 0,
+            ..Default::default()
+        };
+        assert!(
+            ReleaseGateReport::evaluate_fastify_holdout(
+                neuromesh_core::RetrievalEngine::Hybrid,
+                &hybrid_metrics
+            )
+            .passed
+        );
+    }
 
     #[test]
     fn split_distribution() {

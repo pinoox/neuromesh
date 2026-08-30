@@ -8,6 +8,8 @@ pub mod fold;
 pub mod genetic_optimizer;
 pub mod gold;
 pub mod learning_eval;
+#[cfg(feature = "embeddings")]
+pub mod optional_dedup;
 pub mod packet_analysis;
 pub mod registry;
 pub mod retrieval;
@@ -31,8 +33,8 @@ pub use genetic_optimizer::{ContextChromosome, GeneticContextOptimizer};
 pub use learning_eval::{compute_ranking_metrics, mrr, ndcg_at_k, RankingMetrics};
 pub use registry::ReversibleContextRegistry;
 pub use retrieval::{
-    CalibrationReport, EvalSuiteMetrics, FailureClass, ImpactRetrievalResult,
-    RetrievalOrchestrator, RetrievalTier,
+    apply_auto_extract_keywords, infer_assisted_seed_signals, CalibrationReport, EvalSuiteMetrics,
+    FailureClass, ImpactRetrievalResult, RetrievalOrchestrator, RetrievalTier,
 };
 pub use scoring::{ActivationScorer, ScoringWeights};
 pub use selector::{fill_budget, packet_cap, select, token_budget, Selection};

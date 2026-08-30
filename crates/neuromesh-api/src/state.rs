@@ -1,6 +1,6 @@
 use neuromesh_cache::{SemanticCache, ToolCache};
 use neuromesh_context::{ContextActivator, ExpansionEngine, ReversibleContextRegistry};
-use neuromesh_core::{Config, GraphBackendId, SeedEngineId};
+use neuromesh_core::{Config, GraphBackendId};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_graph_proxy::{probe_graph_proxy, resolve_for_workspace, GraphProxySession};
 use neuromesh_local_ai::LocalAiEngine;
@@ -214,7 +214,7 @@ impl AppState {
     pub fn update_engine_settings(
         &self,
         graph_backend: Option<GraphBackendId>,
-        seed_engine: Option<SeedEngineId>,
+        retrieval_engine: Option<neuromesh_core::RetrievalEngine>,
         persist: bool,
     ) -> neuromesh_core::Result<()> {
         {
@@ -222,8 +222,9 @@ impl AppState {
             if let Some(backend) = graph_backend {
                 cfg.graph_backend.backend = backend;
             }
-            if let Some(engine) = seed_engine {
-                cfg.seed_resolution.engine = engine;
+            if let Some(engine) = retrieval_engine {
+                cfg.retrieval.engine = engine;
+                cfg.apply_retrieval_preset();
             }
         }
         if persist {
@@ -231,8 +232,8 @@ impl AppState {
             if let Some(backend) = graph_backend {
                 Config::set_workspace_graph_backend(&ws, backend)?;
             }
-            if let Some(engine) = seed_engine {
-                Config::set_workspace_seed_engine(&ws, engine)?;
+            if let Some(engine) = retrieval_engine {
+                Config::set_workspace_retrieval_engine(&ws, engine)?;
             }
         }
         Ok(())

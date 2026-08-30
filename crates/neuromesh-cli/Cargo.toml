@@ -9,10 +9,6 @@ repository.workspace = true
 name = "neuromesh"
 path = "src/main.rs"
 
-[[bin]]
-name = "nmx"
-path = "src/main.rs"
-
 [dependencies]
 neuromesh-core = { path = "../neuromesh-core" }
 neuromesh-index = { path = "../neuromesh-index" }
@@ -29,6 +25,7 @@ neuromesh-mcp = { path = "../neuromesh-mcp" }
 neuromesh-graph-proxy = { path = "../neuromesh-graph-proxy" }
 neuromesh-local-ai = { path = "../neuromesh-local-ai" }
 neuromesh-observability = { path = "../neuromesh-observability" }
+neuromesh-embed = { path = "../neuromesh-embed", optional = true }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -36,3 +33,12 @@ tracing.workspace = true
 chrono.workspace = true
 parking_lot.workspace = true
 dirs.workspace = true
+
+[features]
+default = ["embeddings"]
+embeddings = [
+    "dep:neuromesh-embed",
+    "neuromesh-graph/embeddings",
+    "neuromesh-context/embeddings",
+    "neuromesh-mcp/embeddings",
+]

@@ -66,6 +66,9 @@ fn main() -> Result<()> {
             let cap = commands::max_files_from_args(&args)?;
             return commands::doctor::execute(&args, cap);
         }
+        "embed" => {
+            return commands::embed::execute(&args);
+        }
         "smoke" => {
             return commands::smoke::execute();
         }
@@ -111,7 +114,7 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
     match command {
         "index" => {
             let cap = commands::max_files_from_args(args)?;
-            let _ = commands::index::execute(cap)?;
+            let _ = commands::index::execute(cap, args)?;
         }
         "start" => {
             eprintln!(
@@ -182,6 +185,33 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
 
             let cap = commands::max_files_from_args(args)?;
             let _ = graph.load_persisted(&current_dir);
+            let cfg = Config::load();
+            #[cfg(feature = "embeddings")]
+            if cfg.retrieval.engine != neuromesh_core::RetrievalEngine::Fast
+                && cfg.embeddings.enabled
+            {
+                let emb = cfg.embeddings.clone();
+                let graph_bg = graph.clone();
+                let dir_bg = current_dir.clone();
+                std::thread::spawn(move || {
+                    let sidecar = neuromesh_core::embeddings_path(&dir_bg);
+                    if sidecar.exists() {
+                        if let Err(e) = neuromesh_embed::Embedder::warm(emb) {
+                            eprintln!("NeuroMesh embed warm-up: {e}");
+                        }
+                        let _ = graph_bg.load_embedding_sidecar(&dir_bg);
+                    } else {
+                        eprintln!(
+                            "NeuroMesh: building embeddings in background (lexical fallback until ready)…"
+                        );
+                        if let Err(e) = neuromesh_graph::rebuild_embeddings_for_workspace(
+                            &graph_bg, &dir_bg, &emb,
+                        ) {
+                            eprintln!("NeuroMesh embed rebuild: {e}");
+                        }
+                    }
+                });
+            }
             let _ = neuromesh_mcp::warmup_project_learning(
                 memory_db.as_ref(),
                 graph.as_ref(),
@@ -259,7 +289,7 @@ fn print_help() {
     println!("  smoke      Quick get_context + graph/telemetry check");
     println!("  monitor    Web UI + SSE (aliases: ui, dashboard; start is deprecated)");
     println!("  port       Show or set the monitor port (`{bin} port 9000`)");
-    println!("  index      Index the current workspace into the project graph");
+    println!("  index      Index workspace (default engine=fast; --mode hybrid for embed)");
     println!("  status     Unified workspace + graph + telemetry snapshot");
     println!("  usage      MCP/CLI token telemetry (`--all`, `--limit N`; alias: telemetry, logs)");
     println!("  store      Where project data lives (managed home vs trusted local)");
@@ -271,7 +301,8 @@ fn print_help() {
     println!(
         "  eval       Gold-task recall / precision / fill budget (alias: evaluate, benchmark)"
     );
-    println!("  doctor     Workspace root, scan, MCP env, monitor port (`--mcp`)");
+    println!("  doctor     Workspace root, scan, MCP/proxy/embed (`--mcp`, `--proxy`, `--embed`, `--bench`)");
+    println!("  embed      Warm bundled MiniLM (`embed prefetch`, `--quiet`)");
     println!("  init       Ensure NeuroMesh data directories exist");
     println!("  models     List configured / local AI models");
     println!("  version    Print version (-v, --version)");

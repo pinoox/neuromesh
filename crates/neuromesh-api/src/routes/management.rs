@@ -20,7 +20,7 @@ pub fn get_status(state: &AppState) -> Value {
         "graph_backend": state.config.read().graph_backend.backend.as_str(),
         "graph_backend_active": state.mcp_handler.graph_backend_label(),
         "graph_proxy_connected": state.mcp_handler.graph_proxy_active(),
-        "seed_engine": state.config.read().seed_resolution.engine.as_str(),
+        "retrieval_engine": state.config.read().retrieval.engine.as_str(),
         "session_folds": state.registry.fold_count(),
         "last_packet": state.activator.last_packet(),
         "local_model": {

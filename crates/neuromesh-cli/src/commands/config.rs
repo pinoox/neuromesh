@@ -1,4 +1,4 @@
-use neuromesh_core::{Config, GraphBackendId, NeuroMeshError, Result, SeedEngineId};
+use neuromesh_core::{Config, GraphBackendId, NeuroMeshError, Result, RetrievalEngine};
 use neuromesh_graph_proxy::resolve_for_workspace;
 
 pub fn execute(args: &[String]) -> Result<()> {
@@ -9,20 +9,20 @@ pub fn execute(args: &[String]) -> Result<()> {
             print_help();
             Ok(())
         }
-        Some("seed-engine") | Some("seed_engine") | Some("engine") => {
-            handle_seed_engine(args.get(3).map(String::as_str), global_flag(args))
+        Some("retrieval-engine") | Some("retrieval_engine") | Some("engine") => {
+            handle_retrieval_engine(args.get(3).map(String::as_str), global_flag(args))
         }
         Some("graph-backend") | Some("graph_backend") | Some("graph") => {
             handle_graph_backend(args.get(3).map(String::as_str), global_flag(args))
         }
-        Some(other) if SeedEngineId::parse(other).is_some() => {
-            handle_seed_engine(Some(other), global_flag(args))
+        Some(other) if RetrievalEngine::parse(other).is_some() => {
+            handle_retrieval_engine(Some(other), global_flag(args))
         }
         Some(other) if GraphBackendId::parse(other).is_some() => {
             handle_graph_backend(Some(other), global_flag(args))
         }
         Some(other) => Err(NeuroMeshError::Config(format!(
-            "unknown config command: {other} (try: config seed-engine, config graph-backend, config show)"
+            "unknown config command: {other} (try: config engine, config graph-backend, config show)"
         ))),
     }
 }
@@ -99,48 +99,83 @@ fn print_graph_backend_status() -> Result<()> {
     Ok(())
 }
 
-fn handle_seed_engine(value: Option<&str>, global: bool) -> Result<()> {
+fn handle_retrieval_engine(value: Option<&str>, global: bool) -> Result<()> {
     match value {
-        None | Some("get") | Some("show") => print_seed_engine_status(),
+        None | Some("get") | Some("show") => print_retrieval_engine_status(),
         Some("help") | Some("-h") | Some("--help") => {
-            print_seed_engine_help();
+            print_retrieval_engine_help();
             Ok(())
         }
         Some(raw) => {
-            let engine = parse_engine(raw)?;
+            let engine = parse_retrieval_engine(raw)?;
             if global {
-                set_global(engine)
+                set_global_retrieval(engine)
             } else {
-                set_project(engine)
+                set_project_retrieval(engine)
             }
         }
     }
 }
 
-fn parse_engine(raw: &str) -> Result<SeedEngineId> {
-    SeedEngineId::parse(raw).ok_or_else(|| {
+fn parse_retrieval_engine(raw: &str) -> Result<RetrievalEngine> {
+    RetrievalEngine::parse(raw).ok_or_else(|| {
         NeuroMeshError::Config(format!(
-            "invalid seed engine: {raw} (expected: {})",
-            SeedEngineId::help_line()
+            "invalid retrieval engine: {raw} (expected: {})",
+            RetrievalEngine::help_line()
         ))
     })
 }
 
-fn set_global(engine: SeedEngineId) -> Result<()> {
-    let path = Config::set_global_seed_engine(engine)?;
-    println!("Global seed engine : {}", engine.as_str());
-    println!("Saved              : {}", path.display());
-    println!("Applies to         : all workspaces (unless overridden by nm.config.json or NEUROMESH_SEED_ENGINE)");
+fn set_global_retrieval(engine: RetrievalEngine) -> Result<()> {
+    let path = Config::set_global_retrieval_engine(engine)?;
+    println!("Global retrieval engine : {}", engine.as_str());
+    println!("Saved                   : {}", path.display());
     Ok(())
 }
 
-fn set_project(engine: SeedEngineId) -> Result<()> {
+fn set_project_retrieval(engine: RetrievalEngine) -> Result<()> {
     let ws = std::env::current_dir()?;
-    let path = Config::set_workspace_seed_engine(&ws, engine)?;
-    println!("Project seed engine: {}", engine.as_str());
-    println!("Saved              : {}", path.display());
+    let path = Config::set_workspace_retrieval_engine(&ws, engine)?;
+    println!("Project retrieval engine: {}", engine.as_str());
+    println!("Saved                   : {}", path.display());
     println!("Commit nm.config.json to share engine choice with the team.");
     Ok(())
+}
+
+fn print_retrieval_engine_status() -> Result<()> {
+    let ws = std::env::current_dir()?;
+    let cfg = Config::load();
+    println!(
+        "Effective retrieval engine: {}",
+        cfg.retrieval.engine.as_str()
+    );
+    println!(
+        "  embeddings (derived)      : {}",
+        if cfg.embeddings.enabled { "on" } else { "off" }
+    );
+    println!(
+        "  optimization mode         : {}",
+        format!("{:?}", cfg.mode).to_lowercase()
+    );
+    print_retrieval_engine_layers(&ws)?;
+    Ok(())
+}
+
+fn print_retrieval_engine_help() {
+    println!(
+        "\
+Usage: neuromesh config engine [ENGINE] [--global]
+
+  neuromesh config engine                  show effective retrieval engine
+  neuromesh config engine fast             zero-embed graph + lexical (default)
+  neuromesh config engine hybrid           MiniLM sidecar + graph
+  neuromesh config engine deep             max quality + dedup + centroids
+
+Engines: {}
+Env     : NEUROMESH_ENGINE=<engine>
+",
+        RetrievalEngine::help_line()
+    );
 }
 
 fn print_status() -> Result<()> {
@@ -148,14 +183,15 @@ fn print_status() -> Result<()> {
     let cfg = Config::load();
     println!("\nNeuroMesh config (effective for this workspace)");
     println!(
-        "Seed engine        : {}",
-        cfg.seed_resolution.engine.as_str()
+        "Retrieval engine   : {} (embed={})",
+        cfg.retrieval.engine.as_str(),
+        if cfg.embeddings.enabled { "on" } else { "off" }
     );
     println!(
         "Graph backend      : {}",
         cfg.graph_backend.backend.as_str()
     );
-    print_seed_engine_layers(&ws)?;
+    print_retrieval_engine_layers(&ws)?;
     println!("Monitor port       : {}  ({})", cfg.port, cfg.host);
     println!(
         "Packet header      : {}",
@@ -167,8 +203,8 @@ fn print_status() -> Result<()> {
     );
     println!();
     println!("Manage:");
-    println!("  neuromesh config seed-engine <engine>           project (nm.config.json)");
-    println!("  neuromesh config seed-engine <engine> --global  ~/.neuromesh/config.json");
+    println!("  neuromesh config engine fast|hybrid|deep       project (nm.config.json)");
+    println!("  neuromesh config engine hybrid --global        ~/.neuromesh/config.json");
     println!(
         "  neuromesh config graph-backend auto              detect CBM/Graphify from MCP configs"
     );
@@ -177,32 +213,15 @@ fn print_status() -> Result<()> {
     Ok(())
 }
 
-fn print_seed_engine_status() -> Result<()> {
-    let ws = std::env::current_dir()?;
-    let cfg = Config::load();
-    println!(
-        "Effective seed engine: {}",
-        cfg.seed_resolution.engine.as_str()
-    );
-    print_seed_engine_layers(&ws)?;
-    Ok(())
-}
-
-fn print_seed_engine_layers(ws: &std::path::Path) -> Result<()> {
-    if let Some(global) = Config::global_seed_engine() {
+fn print_retrieval_engine_layers(ws: &std::path::Path) -> Result<()> {
+    if let Some(global) = Config::global_retrieval_engine() {
         println!("  global (~/.neuromesh/config.json): {}", global.as_str());
     }
-    if let Some(project) = Config::workspace_seed_engine(ws) {
+    if let Some(project) = Config::workspace_retrieval_engine(ws) {
         println!("  project (nm.config.json)         : {}", project.as_str());
     }
-    if let Some(slot) = Config::project_slot_config(ws) {
-        println!(
-            "  project slot (managed config)    : {}",
-            slot.seed_resolution.engine.as_str()
-        );
-    }
-    if let Ok(raw) = std::env::var("NEUROMESH_SEED_ENGINE") {
-        println!("  env (NEUROMESH_SEED_ENGINE)      : {raw}");
+    if let Ok(raw) = std::env::var("NEUROMESH_ENGINE") {
+        println!("  env (NEUROMESH_ENGINE)           : {raw}");
     }
     Ok(())
 }
@@ -210,23 +229,22 @@ fn print_seed_engine_layers(ws: &std::path::Path) -> Result<()> {
 fn print_help() {
     println!(
         "\
-Usage: neuromesh config [show|seed-engine|graph-backend]
+Usage: neuromesh config [show|engine|graph-backend]
 
 Show or change NeuroMesh settings globally and per project.
 
   neuromesh config                         effective settings for cwd
-  neuromesh config seed-engine             show seed engine + layers
-  neuromesh config seed-engine hybrid      write nm.config.json in cwd
-  neuromesh config seed-engine hybrid -g     write ~/.neuromesh/config.json
+  neuromesh config engine                  show retrieval engine + layers
+  neuromesh config engine hybrid           write nm.config.json in cwd
+  neuromesh config engine hybrid -g        write ~/.neuromesh/config.json
 
-Engines: {}
-Env     : NEUROMESH_SEED_ENGINE=<engine>
+Retrieval engines: {}
+Env               : NEUROMESH_ENGINE=<engine>
 
 Global defaults live in ~/.neuromesh/config.json.
 Project overrides live in nm.config.json (commit-friendly).
-Managed project slot config.json can also set seed_resolution when using neuromesh port/index persist.
 ",
-        SeedEngineId::help_line()
+        RetrievalEngine::help_line()
     );
 }
 
@@ -248,31 +266,16 @@ Doctor  : neuromesh doctor --proxy
     );
 }
 
-fn print_seed_engine_help() {
-    println!(
-        "\
-Usage: neuromesh config seed-engine [ENGINE] [--global]
-
-  neuromesh config seed-engine                  show effective engine
-  neuromesh config seed-engine semantic_lite    project override (nm.config.json)
-  neuromesh config seed-engine hybrid --global  machine-wide default
-
-Engines: {}
-",
-        SeedEngineId::help_line()
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn parses_engine_names() {
+    fn parses_retrieval_engine_names() {
         assert_eq!(
-            parse_engine("keywords_expanded").unwrap(),
-            SeedEngineId::KeywordsExpanded
+            parse_retrieval_engine("hybrid").unwrap(),
+            RetrievalEngine::Hybrid
         );
-        assert!(parse_engine("nope").is_err());
+        assert!(parse_retrieval_engine("nope").is_err());
     }
 }

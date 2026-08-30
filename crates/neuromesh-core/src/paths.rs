@@ -183,7 +183,13 @@ fn migrate_legacy_dotdir(workspace: &Path, dest: &Path) {
     if !src.is_dir() {
         return;
     }
-    for name in ["graph.bin", "graph.json", "neuromesh.json", "config.json"] {
+    for name in [
+        "graph.bin",
+        "graph.json",
+        "embeddings.bin",
+        "neuromesh.json",
+        "config.json",
+    ] {
         copy_if_missing(&src.join(name), &dest.join(name));
     }
 }
@@ -200,6 +206,10 @@ pub fn ensure_project_data_dir(workspace: &Path) -> Result<PathBuf> {
 
 pub fn graph_path(workspace: &Path) -> PathBuf {
     project_data_dir(workspace).join("graph.bin")
+}
+
+pub fn embeddings_path(workspace: &Path) -> PathBuf {
+    project_data_dir(workspace).join("embeddings.bin")
 }
 
 pub fn memory_db_path(workspace: &Path) -> PathBuf {
@@ -221,7 +231,13 @@ pub fn leftover_workspace_dotdir(workspace: &Path) -> Option<PathBuf> {
 
 pub fn copy_store_files(from: &Path, to: &Path) -> Result<()> {
     fs::create_dir_all(to)?;
-    for name in ["graph.bin", "graph.json", "neuromesh.json", "config.json"] {
+    for name in [
+        "graph.bin",
+        "graph.json",
+        "embeddings.bin",
+        "neuromesh.json",
+        "config.json",
+    ] {
         copy_if_missing(&from.join(name), &to.join(name));
     }
     Ok(())

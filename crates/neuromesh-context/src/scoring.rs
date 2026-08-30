@@ -222,6 +222,7 @@ mod tests {
             node_type: NodeType::Function,
             name: name.into(),
             signature: None,
+            doc_summary: None,
             line_range: Some(1..10),
             token_cost: 40,
             content: None,

@@ -4,7 +4,102 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
-Nothing yet.
+## 0.9.0 — 2026-08-30
+
+### Retrieval phase 2.1 (TEAM_REVIEW fixes)
+
+- **CLI alias** — single Cargo bin `neuromesh`; `nmx` is install/release hard link or symlink (no duplicate compile).
+- **Fast L3 unlock (F1a)** — remove `needs_embedding_escalation` sidecar early-return; `ensure_file_tier_sidecar` before L3 activate; `embedding_confidence` honors loaded sidecar when `enabled=false`.
+- **Fast instant index (F1)** — `index_on_build: false`; sidecar built on first weak-lexical L3 (~90s cold on large repos; one-shot warn log).
+- **L3 skip (F3)** — strong lexical seeds (confidence ≥0.6) skip L3; removed `prompt_has_alias_cluster_match` EN block; `ort_session_active=false` when L3 never fires.
+- **Keyword bridge (F7)** — client `keywords` blob runs through alias code seeds + expansion before activation.
+- **Embed gates (F2/F6)** — `embed_runtime_active` helper; lazy symbol embed + gap-fill + incremental refresh when sidecar exists.
+- **Stem union precision (F4)** — drop generic ASCII ≥4 token union; concept triggers only.
+
+### Retrieval phase 2 (test6 team)
+
+- **Farsi lexical (J)** — Persian terms in plugin/validation/errors/content_type clusters; `alias_code_seeds_for_prompt` bridge; pure-Farsi server-assisted inference.
+- **Embed tier prune (A)** — `is_embed_tier_noise_path` skips docs/types/md from file ANN index.
+- **File ANN rerank (B)** — lib boost + stem match + G.3 cosine floor guards; generic stem union at query time.
+- **Passage quality (C)** — lib implementation titles; error-handler symbol boost; types penalty in passages.
+- **Hybrid matryoshka 256 (E)** — sidecar size only; ORT session RAM unchanged (~630 MB idle documented).
+- **Precision (F)** — `.d.ts` seed penalty when lib stem in prompt; MCP precision ≥15% holdout gate.
+- **Fast L3 (H)** — hierarchical sidecar deferred until first L3; L3 embed for hard weak-lexical NL; strong lexical seeds skip L3.
+- **Hybrid lexical fallback (I)** — sufficiency-guarded `alias_gap_fill` when embed scores weak.
+- **MCP telemetry** — `retrieval.embedding_used`, `resolution_tier`, `ort_session_active` in minimal JSON.
+
+### Retrieval optimization (test6 follow-up)
+
+- **Hybrid preset** — `file_ann_top_k: 8`, `file_min_cosine: 0.30`, optional-file dedup 0.90; coarse-first lazy embed (32 symbols/file, 128 total).
+- **Prompt-only embed engines** — MCP/CLI ignore client `keywords` / `expansion` on `engine: hybrid|deep`; `auto_extract_keywords` applies to **`fast` only**.
+- **Fast lexical clusters** — content-type, plugin, validation, errors alias families (zero-embed `fast` path).
+- **File passage** — file stem in tier-0 passage; stem-matching symbols prioritized.
+- **Precision** — path-stem seed boost; hybrid optional cap 2; light dedup on connector files.
+- **Quality** — `mini-fastify` fixture; Fastify holdout release gates (`evaluate_fastify_holdout`).
+
+### Unified retrieval engines (Zero-Embed default)
+
+- **`retrieval.engine` preset** — single knob: `fast` | `hybrid` | `deep` replaces scattered embedding/seed flags.
+- **Default `fast`** — zero-embed index and MCP (no ONNX warm/rebuild); query-side concept expansion + graph traversal.
+- **Hierarchical sidecar v6** — **`hybrid`** indexes **file tier first** (~250 MiniLM passes); symbol tier **lazy** on query. **`deep`** embeds **all symbols** at rebuild (flat sidecar, max recall).
+- **Sidecar safety** — per-workspace write lock + atomic `embeddings.bin` replace; concurrent MCP queries cannot corrupt cache.
+- **Query path** — file ANN → symbol subset ANN + coarse pool fallback; Physarum unchanged.
+- **CLI** — `neuromesh config engine fast|hybrid|deep`, `neuromesh index --mode hybrid`, `neuromesh eval --release-gates --engine fast`, `neuromesh doctor --engine`.
+- **Docs** — README refocused on developer workflow; advanced setup in [configuration.md](configuration.md).
+- **Breaking** — removed `config seed-engine`, `config embeddings`, `NEUROMESH_SEED_ENGINE`, `NEUROMESH_EMBEDDINGS`; sidecar v4/v5 requires `embed rebuild` for hierarchical v6.
+
+### Embed-primary performance (graph-first index)
+
+- **Graph-first index** — `index_on_build: false` by default; `neuromesh index` builds the AST graph quickly; run `neuromesh embed rebuild` (or MCP background build) for NL routing sidecar.
+- **Incremental sidecar v4** — per-symbol `content_hash`; re-index after a single-file edit re-embeds only changed symbols.
+- **Query RAM** — `Arc<EmbeddingIndex>` removes full matrix clone per packet; nested packet cache avoids double ONNX on cache miss.
+- **Lean defaults** — `intra_threads: 2`, optional dedup and module centroids off on `balanced`; both enabled in `max_quality` mode only.
+- **Slim hot path** — defer episodic lookup and mycelium prefetch unless `max_quality`; skip concept seeds when embedding sidecar is loaded; fix L2 double activation.
+
+### Phase A ANN performance
+
+- **SIMD ANN** — `simsimd` dot product in `ann_search` (full and subset scans).
+- **Sidecar v5 Int8** — 4× smaller `embeddings.bin`; rank-correlation gate ≥ 0.99 vs f32 in tests.
+- **Two-stage recall-safe retrieval** — lexical/graph coarse pool (200–500) before fine ANN; full-scan fallback when subset misses.
+- **Embed rebuild batch** — default batch 128 (`NEUROMESH_EMBED_INDEX_BATCH`, max 256).
+- **Criterion bench** — `cargo bench -p neuromesh-graph ann_search` (informational in CI).
+
+## 0.8.6 — 2026-08-30
+
+### MiniLM-first release
+
+- **One embedding model** — **Paraphrase MiniLM multilingual Q** (`minilm_multilingual_q`, 384-dim). Release tarballs include `models/minilm-multilingual-q/`; runtime loads via fastembed `UserDefinedEmbeddingModel` (HF download only as fallback).
+- **Zero-prerequisite install** — `install.sh` / `install.ps1` fetch binary + bundled model, add to PATH. No Rust or Cargo required.
+- **Semantic prompt LRU cache** — near-duplicate MCP prompts skip full activation; fresh `packet_id` + `retrieval.cache_hit: true`.
+- **Optional-file cosine dedup** — drops redundant optional files (default 0.93); test/mock paths exempt.
+- **Module centroids (sidecar v3)** — index-time directory clusters; re-index required.
+- **Embed intent for General (opt-in)** — `embed_intent_for_general: false` by default.
+- **Sketch enrichment** — leading doc comments in symbol passages (sidecar v2+); `embed_seed_cap: 4`.
+- **Singleton embedder** + per-packet query cache + MCP warm; env: `NEUROMESH_SEMANTIC_CACHE`, `NEUROMESH_OPTIONAL_DEDUP`.
+- **Docs & GitHub Pages** — v0.8.6 embed-first landing, developer messaging, agent rules synced.
+- **Embed-primary defaults** — bundled MiniLM + prompt-only routing; hybrid embed+lexical opt-in; L3 recovery; release gates for embed metrics.
+
+## 0.8.4 — 2026-08-30
+
+### L3 local embedding engine (optional)
+
+- **`neuromesh-embed` crate** — fastembed-rs + ONNX Runtime; default model **EmbeddingGemma-300M Q4** (multilingual NL, ~150–200 MB download); fallback **MiniLM multilingual Q**.
+- **L3-only** — vector ANN runs inside `semantic_lite` when L1/L2 still have critical gaps; max 2 recovery seeds; graph resolve after ANN (no file dump).
+- **`embeddings.bin` sidecar** — index-time symbol sketches; invalidated on graph generation / file-hash change.
+- **Config** — `embeddings` block in `config.json` / `nm.config.json`; `NEUROMESH_EMBEDDINGS=1`, `NEUROMESH_EMBED_MODEL=gemma300m_q4`.
+- **CLI** — `neuromesh config embeddings on|off`, `neuromesh doctor --embed`.
+- **Cargo feature** — `embeddings` (default off); build with `cargo build -p neuromesh-cli --features embeddings`.
+- **MCP** — `retrieval.embedding_used` when L3 vector recovery fires.
+
+## 0.8.3 — 2026-08-30
+
+### Server-side assisted default
+
+- **`get_context_packet`** auto-extracts English code `keywords` and related `expansion` from every prompt server-side (`auto_extract_keywords=true` default). Rule-based pipeline: query-intent packs → alias code seeds → embedded symbols → alias concepts. No LLM required.
+- **FILL-ONLY-MISSING** — client-supplied keywords/expansion are never overwritten; only empty sides are populated.
+- **Opt-out** — `auto_extract_keywords` MCP arg, `seed_resolution.auto_extract_keywords` in config, or `NEUROMESH_AUTO_EXTRACT_KEYWORDS=0`.
+- **Tests** — 60-cell Express matrix inference gate (≥2 gold keyword hits), generic-repo regression, partial-fill precedence.
+- **Docs** — MCP descriptors/protocol, agent-guide, quality benchmark table updated after re-run.
 
 ## 0.8.2 — 2026-08-30
 

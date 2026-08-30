@@ -9,26 +9,43 @@ alwaysApply: true
 
 This workspace has the NeuroMesh MCP server. Prefer it for **reading and exploring** code so the agent gets folded skeletons and targeted symbols instead of multi-thousand-line files.
 
-## Default loop
+## Default loop (v0.9.0 — zero-embed fast engine)
 
-1. Start with `get_context_packet` using the task as written (`query` / `task_description` / `prompt` / `task`). For natural-language or non-English prompts, pass `keywords`, `expansion`, and optional `path_hints` / `entity_types`.
-2. If `coverage.claim` is `partial` or `no_seed_resolved`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` for near-miss paths, or `neuromesh_search_symbols` before broad Grep. `bounded` means seeds resolved with optional sidecar fill — proceed unless you need more files.
-3. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` from the packet (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap` for one path).
-4. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers, neighbors, and blast radius.
-5. After a successful edit, call `neuromesh_record_feedback` with `task_success` and the nodes you touched. Use `neuromesh_get_node_weights` before/after to verify learning deltas when debugging routing.
-6. If feedback should have changed the packet but `files[]` looks the same, call `neuromesh_explain_packet` and inspect `selection.candidates` for `emitted`, `drop_stage`, and `score_breakdown`.
+**Default:** `retrieval.engine: fast` — graph index + query-side lexical expansion. **No ONNX** at index or MCP startup. Pass the task as written only — **no** `keywords` / `expansion`.
+
+1. `get_context_packet` with `query` / `task_description` / `prompt` / `task` as written. Optional: `path_hints` / `entity_types`.
+2. Check `retrieval.resolution_tier` — expect **`lexical_primary`** or graph-assisted seeds on NL prompts (not `embedding_primary` unless repo owner set `engine: hybrid`).
+3. If `coverage.claim` is `partial`, `no_seed_resolved`, or `no_confident_match`, follow `packet_gaps` / `next` — `neuromesh_expand_gap` or `neuromesh_search_symbols` before broad Grep.
+4. Expand only what you need: `neuromesh_expand_fold` with a `fold_id` (or `neuromesh_get_file_skeleton` / `neuromesh_expand_gap`).
+5. Use `neuromesh_trace` / `neuromesh_get_dependencies` / `neuromesh_analyze_impact` for callers and blast radius.
+6. After a successful edit: `neuromesh_record_feedback` with `task_success` and nodes touched.
+7. If the packet should have changed but `files[]` did not, call `neuromesh_explain_packet`.
 
 Do not treat a utility fallback file as the answer when coverage says seeds missed or `packet_gaps` is non-empty.
 
+## Engine presets (opt-in via `nm.config.json`)
+
+| `engine` | When | Agent |
+| :--- | :--- | :--- |
+| **`fast` (default)** | Zero-embed; instant index | Prompt only |
+| **`hybrid`** | MiniLM sidecar + graph (Phase A Int8) | Prompt only |
+| **`deep`** | Max quality + dedup + centroids | Prompt only |
+| **CBM proxy** | `graph_backend`: `auto` / `proxy_cbm` | Conservative proxy `claim`; native graph for trace/fold |
+
+```bash
+neuromesh config engine hybrid    # opt-in embeddings
+neuromesh embed rebuild           # after switching to hybrid/deep
+```
+
 ## When not to force NeuroMesh
 
-- Small, already-known paths (a few dozen lines) for a precise edit
-- Applying patches / writing files (use normal editor tools; NeuroMesh does not replace them)
-- Config, lockfiles, generated assets, or binary-ish content
-- After NeuroMesh already reported incomplete coverage and you need a targeted Grep/Read on the gap
+- Small, already-known paths (a few dozen lines)
+- Applying patches / writing files
+- Config, lockfiles, generated assets
+- After incomplete coverage — targeted Grep/Read on the gap
 
 ## Anti-patterns
 
-- Opening large whole source files into context when a packet or skeleton is enough
-- Expanding every fold “just in case”
-- Skipping `neuromesh_record_feedback` after a good edit (no STDP learning for the next packet)
+- Sending `keywords`/`expansion` on default **fast** installs (server auto-expansion handles NL)
+- Opening whole files when a packet or skeleton is enough
+- Skipping `neuromesh_record_feedback` after a good edit

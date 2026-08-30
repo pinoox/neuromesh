@@ -141,6 +141,22 @@ pub fn is_low_priority_source_path(path: &Path) -> bool {
         || is_testdata_path(path)
 }
 
+/// Paths excluded from embed tier-0 (file ANN) and flat symbol rebuild.
+pub fn is_embed_tier_noise_path(path: &Path) -> bool {
+    if is_low_priority_source_path(path) {
+        return true;
+    }
+    let lower = normalized_source_path(path);
+    if lower.contains("/docs/")
+        || lower.ends_with(".md")
+        || lower.ends_with(".rst")
+        || lower.contains("/editors/")
+    {
+        return true;
+    }
+    lower.contains("/types/") || lower.ends_with(".d.ts")
+}
+
 /// `apps/com_shop/...` → `apps/com_shop` so multi-app HMVC (Pinoox) stays in-package.
 pub fn hmvc_app_prefix(path: &Path) -> Option<String> {
     let parts: Vec<String> = path
@@ -399,5 +415,14 @@ mod tests {
         assert!(!prompt_targets_json_schema(
             "how does parse report a validation error path"
         ));
+    }
+
+    #[test]
+    fn embed_tier_noise_excludes_docs_and_types() {
+        assert!(is_embed_tier_noise_path(Path::new(
+            "docs/Guides/Plugins.md"
+        )));
+        assert!(is_embed_tier_noise_path(Path::new("types/plugin.d.ts")));
+        assert!(!is_embed_tier_noise_path(Path::new("lib/plugin-utils.js")));
     }
 }

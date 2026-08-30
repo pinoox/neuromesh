@@ -114,7 +114,7 @@ pub fn canonical_tool_name(name: &str) -> String {
 }
 
 pub fn initialize_instructions() -> &'static str {
-    "NeuroMesh MCP — agent loop: (1) get_context_packet with the user task; for natural-language or any non-English prompt extract 3–5 English code terms into keywords, 3–5 related concepts into expansion, and optional path/entity hints; (2) if coverage is partial/no_seed_resolved, neuromesh_search_symbols or neuromesh_expand_gap; (3) neuromesh_expand_fold only when you need a folded body; (4) neuromesh_trace / neuromesh_get_dependencies for callers and blast radius; (5) after a successful edit, neuromesh_record_feedback with touched nodes. Prefer these tools over reading whole files. neuromesh_get_context is deprecated — use get_context_packet."
+    "NeuroMesh MCP v0.9.0 — agent loop: (1) get_context_packet with the user task as written (default engine: fast — graph + query-side lexical expansion; prompt only; no client keywords; opt in to hybrid/deep for MiniLM embed-primary); (2) if coverage is partial/no_seed_resolved/no_confident_match, neuromesh_search_symbols or neuromesh_expand_gap; (3) neuromesh_expand_fold only when you need a folded body; (4) neuromesh_trace / neuromesh_get_dependencies for callers and blast radius; (5) after a successful edit, neuromesh_record_feedback with touched nodes. Check retrieval.resolution_tier and retrieval.cache_hit. Prefer these tools over reading whole files. neuromesh_get_context is deprecated — use get_context_packet."
 }
 
 pub fn tool_success(id: Option<Value>, val: &Value) -> Value {

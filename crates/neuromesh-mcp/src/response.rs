@@ -88,6 +88,14 @@ struct MinimalRetrieval {
     next_action: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     suggested_keywords: Vec<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    cache_hit: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    embedding_used: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resolution_tier: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    ort_session_active: bool,
 }
 
 #[derive(Serialize)]
@@ -209,6 +217,7 @@ pub struct ContextBuild<'a> {
     pub vs_selected: f32,
     pub elapsed_ms: u64,
     pub index_meta: neuromesh_core::IndexMeta,
+    pub server_inferred_keywords: bool,
 }
 
 impl ContextBuild<'_> {
@@ -244,6 +253,9 @@ impl ContextBuild<'_> {
         if let Some(header) = self.view.packet_header.as_ref() {
             task["packet_header"] = json!(header);
         }
+        if self.server_inferred_keywords {
+            task["server_inferred_keywords"] = json!(true);
+        }
         task
     }
 
@@ -262,6 +274,11 @@ impl ContextBuild<'_> {
                 "eligible_for_early_exit": r.eligible_for_early_exit,
                 "next_action": r.next_action,
                 "suggested_keywords": r.suggested_keywords,
+                "embedding_used": r.embedding_used,
+                "resolution_tier": r.resolution_tier,
+                "max_embedding_score": r.max_embedding_score,
+                "cache_hit": r.cache_hit,
+                "ort_session_active": r.ort_session_active,
             })
         })
     }
@@ -274,6 +291,10 @@ impl ContextBuild<'_> {
             critical_gaps: r.critical_gaps.clone(),
             next_action: r.next_action.clone(),
             suggested_keywords: r.suggested_keywords.clone().unwrap_or_default(),
+            cache_hit: r.cache_hit,
+            embedding_used: r.embedding_used,
+            resolution_tier: r.resolution_tier.clone(),
+            ort_session_active: r.ort_session_active,
         })
     }
 
@@ -704,8 +725,30 @@ pub fn cache_and_build(
     build: &ContextBuild<'_>,
     detail: ResponseDetail,
 ) -> Value {
-    cache.insert(project_id, build.to_details());
+    let details = build.to_details();
+    cache.insert(project_id, details);
     build.serialize(detail)
+}
+
+/// Rehydrate a semantic cache hit with a fresh packet_id and `retrieval.cache_hit`.
+pub fn apply_semantic_cache_hit(
+    packet_cache: &PacketDetailCache,
+    project_id: &str,
+    mut response: Value,
+    mut details: PacketDetails,
+    new_packet_id: String,
+) -> Value {
+    details.packet_id = new_packet_id.clone();
+    packet_cache.insert(project_id, details);
+    if let Some(obj) = response.as_object_mut() {
+        obj.insert("packet_id".into(), json!(new_packet_id));
+        if let Some(retrieval) = obj.get_mut("retrieval").and_then(|r| r.as_object_mut()) {
+            retrieval.insert("cache_hit".into(), json!(true));
+        } else {
+            obj.insert("retrieval".into(), json!({ "cache_hit": true }));
+        }
+    }
+    response
 }
 
 #[cfg(test)]

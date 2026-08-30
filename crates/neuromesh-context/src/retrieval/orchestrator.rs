@@ -27,6 +27,21 @@ impl RetrievalOrchestrator {
         signature: &TaskSignature,
         mode: OptimizationMode,
     ) -> ContextView {
+        #[cfg(feature = "embeddings")]
+        neuromesh_embed::packet_cache_begin();
+        let view = self.run_inner(activator, graph, signature, mode);
+        #[cfg(feature = "embeddings")]
+        neuromesh_embed::packet_cache_end();
+        view
+    }
+
+    fn run_inner(
+        &self,
+        activator: &ContextActivator,
+        graph: &NeuralProjectGraph,
+        signature: &TaskSignature,
+        mode: OptimizationMode,
+    ) -> ContextView {
         let EscalationResult {
             mut view,
             final_tier,
@@ -64,6 +79,14 @@ impl RetrievalOrchestrator {
             eligible_for_early_exit: est.eligible_for_early_exit,
             next_action,
             suggested_keywords,
+            embedding_used: view.embedding_used,
+            resolution_tier: crate::retrieval::embedding_confidence::dominant_resolution_tier(
+                &view.seeds,
+            ),
+            max_embedding_score:
+                crate::retrieval::embedding_confidence::max_embedding_score_from_seeds(&view.seeds),
+            cache_hit: false,
+            ort_session_active: ort_session_active(),
         });
 
         view
@@ -155,4 +178,15 @@ fn suggest_keywords(signature: &TaskSignature, view: &ContextView) -> Vec<String
     }
     out.truncate(8);
     out
+}
+
+fn ort_session_active() -> bool {
+    #[cfg(feature = "embeddings")]
+    {
+        neuromesh_embed::Embedder::is_global_loaded()
+    }
+    #[cfg(not(feature = "embeddings"))]
+    {
+        false
+    }
 }

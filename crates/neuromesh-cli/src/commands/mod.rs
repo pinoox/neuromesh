@@ -2,6 +2,7 @@ pub mod benchmark;
 pub mod config;
 pub mod connect;
 pub mod doctor;
+pub mod embed;
 pub mod evaluate;
 pub mod graph;
 pub mod index;
@@ -205,9 +206,12 @@ mod tests {
     }
 
     #[test]
-    fn nmx_binary_alias_declared() {
+    fn nmx_is_packaging_alias_not_second_cargo_bin() {
         let manifest = include_str!("../../Cargo.toml");
-        assert!(manifest.contains("name = \"nmx\""));
         assert!(manifest.contains("name = \"neuromesh\""));
+        assert!(
+            !manifest.lines().any(|l| l.trim() == "name = \"nmx\""),
+            "nmx must be install/release alias only — see scripts/link-cli-alias.*"
+        );
     }
 }
