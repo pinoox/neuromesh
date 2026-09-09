@@ -1,4 +1,4 @@
-use neuromesh_core::{Config, ProjectId, Result};
+use neuromesh_core::{Config, Result};
 use neuromesh_observability::{filter_history, load_persisted_history, summarize_history};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
@@ -72,7 +72,7 @@ pub fn execute(args: &[String]) -> Result<()> {
         .and_then(|n| n.to_str())
         .unwrap_or("project")
         .to_string();
-    let project_id = ProjectId::new(&project_name);
+    let project_id = neuromesh_core::stable_project_id(&current_dir);
     let workspace = current_dir.display().to_string();
 
     let file_path = neuromesh_observability::telemetry_file_path();

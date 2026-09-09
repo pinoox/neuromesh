@@ -4,7 +4,7 @@ Transport: **stdio JSON-RPC** (`neuromesh mcp <workspace>`). **v0.9.0 default:**
 
 That is what Cursor, Claude, Codex, OpenCode, MiMo CLI, Antigravity, Kilo Code, Trae, Cline, and similar clients launch. Stdio has **no TCP port** — `--port` on `mcp` does nothing. Background index uses the same file-cap rules as `neuromesh index` (`--max-files`, `NEUROMESH_MAX_FILES`, project-slot `config.json`; default auto, ceiling 50,000). See [cli.md](cli.md#index-file-cap).
 
-**Warning:** Never run `neuromesh mcp` without a workspace path (or `NEUROMESH_WORKSPACE`) **unless** the IDE sets `WORKSPACE_FOLDER_PATHS` / `VSCODE_CWD` or sends a workspace root in MCP `initialize`. Without any of those, the server may bind to your home directory and index unrelated projects. For a one-time global install, use the simple config below; `neuromesh connect --global` writes it to `~/.cursor/mcp.json`.
+**Workspace binding:** running `neuromesh mcp` without a workspace path (or `NEUROMESH_WORKSPACE`) is safe — when the IDE sets neither `WORKSPACE_FOLDER_PATHS` / `VSCODE_CWD` nor a workspace root in MCP `initialize`, the server refuses to index rather than binding to your home directory, and says so on stderr. Passing a path is still the most predictable option. Each project is identified by its own path and gets its own graph and memory; see [isolation.md](isolation.md). For a one-time global install, use the simple config below; `neuromesh connect --global` writes it to `~/.cursor/mcp.json`.
 
 Remote / multi-agent: `neuromesh monitor` (optionally `--port 9000` / `neuromesh port 9000`), then SSE and HTTP as in [api.md](api.md).
 

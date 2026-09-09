@@ -1,4 +1,4 @@
-use neuromesh_core::{ProjectId, Result};
+use neuromesh_core::Result;
 use neuromesh_graph::NeuralProjectGraph;
 
 use super::{configured_walker, FileCapArg};
@@ -11,7 +11,7 @@ pub fn execute() -> Result<()> {
         .unwrap_or("project")
         .to_string();
 
-    let project_id = ProjectId::new(&project_name);
+    let project_id = neuromesh_core::stable_project_id(&current_dir);
     let walker = configured_walker(
         current_dir.clone(),
         project_id.clone(),

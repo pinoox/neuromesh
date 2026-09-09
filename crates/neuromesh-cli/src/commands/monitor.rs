@@ -1,5 +1,5 @@
 use neuromesh_api::{AppState, HttpServer};
-use neuromesh_core::{Config, ProjectId, Result};
+use neuromesh_core::{Config, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_memory::MemoryDatabase;
 use neuromesh_provider::ProviderFactory;
@@ -19,13 +19,7 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
     }
     config = apply_file_cap(config, cap);
 
-    let project_name = current_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project")
-        .to_string();
-
-    let project_id = ProjectId::new(&project_name);
+    let project_id = neuromesh_core::stable_project_id(&current_dir);
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     if graph.load_persisted(&current_dir) {
         let stats = graph.stats();
@@ -46,7 +40,9 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
     let bg_graph = graph.clone();
     let bg_dir = current_dir.clone();
     let bg_pid = project_id.clone();
-    super::spawn_live_sync(bg_graph, bg_dir, bg_pid, cap);
+    // `monitor` has no workspace argument; the root is the current directory,
+    // so it is a guess and has to look like a project.
+    super::spawn_live_sync(bg_graph, bg_dir, bg_pid, cap, false);
 
     let state = AppState::new(config, graph, memory_db, provider);
     state.attach_graph_proxy_if_configured().await;

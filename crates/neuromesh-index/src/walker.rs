@@ -87,6 +87,30 @@ impl ProjectWalker {
         self
     }
 
+    /// True when this directory looks like the root of a project.
+    ///
+    /// Same set `discover_workspace` walks up looking for, exposed so callers
+    /// can ask "is this a project at all?" without walking.
+    pub fn has_project_marker(dir: &Path) -> bool {
+        dir.join(".git").exists()
+            || dir.join("Cargo.toml").exists()
+            || dir.join("package.json").exists()
+            || dir.join("pyproject.toml").exists()
+            || dir.join("settings.gradle.kts").exists()
+            || dir.join("settings.gradle").exists()
+            || dir.join("pubspec.yaml").exists()
+            || dir.join("Package.swift").exists()
+            || dir.join("Gemfile").exists()
+            || dir.join("composer.json").exists()
+            || dir.join("artisan").exists()
+            || dir.join("manage.py").exists()
+            || dir.join("app.php").exists()
+            || dir.join("bin").join("pinx").exists()
+            || dir.join("go.mod").exists()
+            || dir.join("angular.json").exists()
+            || dir.join("App.csproj").exists()
+    }
+
     /// Walk up from `start` to a git/cargo root, refusing home and drive roots.
     pub fn discover_workspace(start: &Path) -> PathBuf {
         let mut current = start.to_path_buf();
@@ -94,24 +118,7 @@ impl ProjectWalker {
             if !Self::is_safe_workspace(&current) {
                 break;
             }
-            if current.join(".git").exists()
-                || current.join("Cargo.toml").exists()
-                || current.join("package.json").exists()
-                || current.join("pyproject.toml").exists()
-                || current.join("settings.gradle.kts").exists()
-                || current.join("settings.gradle").exists()
-                || current.join("pubspec.yaml").exists()
-                || current.join("Package.swift").exists()
-                || current.join("Gemfile").exists()
-                || current.join("composer.json").exists()
-                || current.join("artisan").exists()
-                || current.join("manage.py").exists()
-                || current.join("app.php").exists()
-                || current.join("bin").join("pinx").exists()
-                || current.join("go.mod").exists()
-                || current.join("angular.json").exists()
-                || current.join("App.csproj").exists()
-            {
+            if Self::has_project_marker(&current) {
                 return current;
             }
             match current.parent() {
@@ -120,6 +127,50 @@ impl ProjectWalker {
             }
         }
         start.to_path_buf()
+    }
+
+    /// Why `path` must not be indexed at all, or `None` when it is usable.
+    ///
+    /// Safety only — it deliberately does *not* require a project marker,
+    /// because an explicitly given path is the user telling us where to look.
+    /// `explicit_workspace` supports pointing at a nested folder with no
+    /// manifest, and that must keep working.
+    pub fn workspace_rejection_reason(path: &Path) -> Option<String> {
+        if !path.exists() {
+            return Some(format!("{} does not exist", path.display()));
+        }
+        if !path.is_dir() {
+            return Some(format!("{} is not a directory", path.display()));
+        }
+        if !Self::is_safe_workspace(path) {
+            return Some(format!(
+                "{} is a home, drive, or system directory",
+                path.display()
+            ));
+        }
+        None
+    }
+
+    /// Same, plus a project marker — for a root that was *guessed* rather than
+    /// given.
+    ///
+    /// `discover_workspace` falls back to its starting point when the walk up
+    /// finds no marker, so a server started with no workspace path, no
+    /// `NEUROMESH_WORKSPACE`, and no IDE env would happily index whatever sat
+    /// in the current directory. That is the "binds to your home directory and
+    /// indexes unrelated projects" failure the docs warn about. A guess with no
+    /// project in it is not worth indexing; an explicit path still is.
+    pub fn discovered_workspace_rejection_reason(path: &Path) -> Option<String> {
+        if let Some(reason) = Self::workspace_rejection_reason(path) {
+            return Some(reason);
+        }
+        if !Self::has_project_marker(path) {
+            return Some(format!(
+                "{} has no project marker (.git, Cargo.toml, package.json, pyproject.toml, go.mod, composer.json, …)",
+                path.display()
+            ));
+        }
+        None
     }
 
     /// Honor an explicit MCP/CLI directory instead of walking to a parent git root.
@@ -141,6 +192,19 @@ impl ProjectWalker {
 
     pub fn is_safe_workspace(path: &Path) -> bool {
         crate::confine::is_safe_workspace(path)
+    }
+
+    /// True when `path` sits in an ignored directory *of this project*.
+    ///
+    /// `is_ignored` inspects every component of whatever it is handed, so
+    /// passing an absolute path also inspects the directories *above* the
+    /// workspace. A project that legitimately lives under a folder named
+    /// `build`, `dist`, `vendor`, `target` — or, on Windows, anywhere beneath
+    /// `AppData`, which is where `std::env::temp_dir()` points — then has every
+    /// one of its files filtered out and indexes to nothing. Only the part
+    /// below the workspace root describes the project's own structure.
+    pub fn is_ignored_within(root: &Path, path: &Path) -> bool {
+        Self::is_ignored(path.strip_prefix(root).unwrap_or(path))
     }
 
     pub fn is_ignored(path: &Path) -> bool {
@@ -227,11 +291,12 @@ impl ProjectWalker {
 
         let mut candidates: Vec<(PathBuf, PathBuf, u64, DateTime<Utc>)> = Vec::new();
 
+        let walk_root = self.root_path.clone();
         for entry in WalkDir::new(&self.root_path)
             .max_depth(10)
             .follow_links(false)
             .into_iter()
-            .filter_entry(|e| !Self::is_ignored(e.path()))
+            .filter_entry(|e| !Self::is_ignored_within(&walk_root, e.path()))
             .filter_map(|e| e.ok())
         {
             if !entry.file_type().is_file() {
@@ -326,7 +391,7 @@ impl ProjectWalker {
 
     /// Read one workspace file for the live watcher.
     pub fn read_indexed(&self, full_path: &Path) -> Option<(IndexedFile, String)> {
-        if Self::is_ignored(full_path) {
+        if Self::is_ignored_within(&self.root_path, full_path) {
             return None;
         }
         if crate::confine::path_escapes_workspace(full_path, &self.root_path) {
@@ -601,6 +666,85 @@ mod tests {
             .ends_with("src/a.rs"));
         assert_eq!(third.unchanged, 1);
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn directories_above_the_workspace_do_not_make_everything_ignored() {
+        // A project that happens to live under `build`, `dist`, `vendor`, or —
+        // on Windows — anywhere under `AppData` (where temp_dir() points) must
+        // still index. Only its own subdirectories count.
+        let root = Path::new("C:/Users/x/AppData/Local/Temp/my-app");
+        assert!(
+            !ProjectWalker::is_ignored_within(root, &root.join("src/main.rs")),
+            "an ignored component above the root must not filter the project out"
+        );
+        let vendored = Path::new("/home/x/vendor/my-app");
+        assert!(!ProjectWalker::is_ignored_within(
+            vendored,
+            &vendored.join("src/lib.rs")
+        ));
+
+        // The project's *own* ignored directories still count.
+        assert!(ProjectWalker::is_ignored_within(
+            root,
+            &root.join("node_modules/pkg/index.js")
+        ));
+        assert!(ProjectWalker::is_ignored_within(
+            vendored,
+            &vendored.join("target/debug/build.rs")
+        ));
+    }
+
+    #[test]
+    fn a_directory_with_no_project_marker_is_refused() {
+        let root = std::env::temp_dir().join(format!("nm-reject-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("notes")).unwrap();
+        fs::write(root.join("notes/todo.txt"), "buy milk\n").unwrap();
+
+        assert!(!ProjectWalker::has_project_marker(&root));
+        let reason = ProjectWalker::discovered_workspace_rejection_reason(&root)
+            .expect("a guessed marker-less directory must be refused");
+        assert!(
+            reason.contains("no project marker"),
+            "unexpected reason: {reason}"
+        );
+        // An explicitly given path is still allowed to have no manifest.
+        assert_eq!(ProjectWalker::workspace_rejection_reason(&root), None);
+
+        // One marker is enough to make it a project.
+        fs::write(root.join("package.json"), "{}\n").unwrap();
+        assert!(ProjectWalker::has_project_marker(&root));
+        assert_eq!(
+            ProjectWalker::discovered_workspace_rejection_reason(&root),
+            None
+        );
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn missing_paths_and_files_are_refused() {
+        let missing = std::env::temp_dir().join("nm-definitely-not-here-zzzz");
+        assert!(ProjectWalker::workspace_rejection_reason(&missing)
+            .is_some_and(|r| r.contains("does not exist")));
+
+        let file = std::env::temp_dir().join(format!("nm-not-a-dir-{}.txt", std::process::id()));
+        fs::write(&file, "x").unwrap();
+        assert!(ProjectWalker::workspace_rejection_reason(&file)
+            .is_some_and(|r| r.contains("not a directory")));
+        let _ = fs::remove_file(&file);
+    }
+
+    #[test]
+    fn the_home_directory_is_refused() {
+        if let Some(home) = dirs::home_dir() {
+            let reason = ProjectWalker::workspace_rejection_reason(&home);
+            assert!(
+                reason.is_some(),
+                "the home directory must never be indexable"
+            );
+        }
     }
 
     #[test]

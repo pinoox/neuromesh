@@ -2,7 +2,7 @@ use neuromesh_context::gold::{packet_file_names, packet_paths};
 use neuromesh_context::retrieval::apply_auto_extract_keywords;
 use neuromesh_context::{ContextActivator, ReversibleContextRegistry};
 use neuromesh_core::{
-    Config, OptimizationMode, ProjectId, Result, RetrievalEngine, RetrievalMetadata, TaskSignature,
+    Config, OptimizationMode, Result, RetrievalEngine, RetrievalMetadata, TaskSignature,
 };
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_task::TaskSignatureExtractor;
@@ -64,12 +64,7 @@ pub fn execute(args: &[String]) -> Result<()> {
     })?;
 
     let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
-    let project_name = current_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project")
-        .to_string();
-    let project_id = ProjectId::new(&project_name);
+    let project_id = neuromesh_core::stable_project_id(&current_dir);
     let walker = configured_walker(
         current_dir.clone(),
         project_id.clone(),

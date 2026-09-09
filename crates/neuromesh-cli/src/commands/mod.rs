@@ -132,8 +132,22 @@ pub fn spawn_live_sync(
     dir: std::path::PathBuf,
     pid: ProjectId,
     cap: FileCapArg,
+    explicit: bool,
 ) {
-    if !ProjectWalker::is_safe_workspace(&dir) {
+    // The one choke point where the CLI starts a scan. A path the user gave us
+    // only has to be safe; a path we guessed also has to look like a project,
+    // which is what stops a server launched with no workspace from indexing
+    // whatever happens to sit in the current directory.
+    let rejection = if explicit {
+        ProjectWalker::workspace_rejection_reason(&dir)
+    } else {
+        ProjectWalker::discovered_workspace_rejection_reason(&dir)
+    };
+    if let Some(reason) = rejection {
+        eprintln!("NeuroMesh will not index this workspace: {reason}");
+        eprintln!(
+            "NeuroMesh: pass a project path (`neuromesh mcp <path>`) or set NEUROMESH_WORKSPACE"
+        );
         graph.mark_index_ready();
         return;
     }

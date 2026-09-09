@@ -82,6 +82,17 @@ pub enum IndexState {
     Failed,
 }
 
+/// Outcome of reconciling a loaded snapshot's project id with the current one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectIdReconciliation {
+    /// Every node already belongs to the current project, or the graph is empty.
+    AlreadyCurrent,
+    /// The snapshot carried a single older id; that many nodes were re-stamped.
+    Restamped(usize),
+    /// The snapshot carried several ids — a real leak. Nothing was re-stamped.
+    Mixed(usize),
+}
+
 struct IndexGate {
     state: Mutex<IndexState>,
     cv: Condvar,
@@ -212,6 +223,138 @@ impl NeuralProjectGraph {
         data.stale_files.clear();
         data.generation = data.generation.saturating_add(1);
         data.indexed_at = Some(chrono::Utc::now());
+    }
+
+    /// Nodes in the mesh that belong to a *different* project than this graph.
+    ///
+    /// `ContextNode::file_path` is relative (`src/main.rs`), so "is this path
+    /// under the workspace root?" cannot separate a leaked node from a
+    /// legitimate one — and two projects very often share relative paths. The
+    /// owning `project_id`, recorded at ingest time, can, with no I/O.
+    ///
+    /// Returns `(foreign project id, relative path)` pairs for reporting.
+    pub fn foreign_nodes(&self) -> Vec<(String, String)> {
+        let current = self.project_id.read().clone();
+        let data = self.inner.read();
+        data.mesh
+            .nodes()
+            .filter(|node| node.project_id != current)
+            .map(|node| {
+                (
+                    node.project_id.to_string(),
+                    node.file_path.to_string_lossy().replace('\\', "/"),
+                )
+            })
+            .collect()
+    }
+
+    /// The single-project invariant: every node belongs to the current project.
+    ///
+    /// Isolation in the baseline is *incidental* — `prune_absent_files` happens
+    /// to drop most of a previous project's nodes on re-index. It does not hold
+    /// when two projects share a relative path whose contents hash identically,
+    /// because `ingest_file_keep` then skips the file and leaves the previous
+    /// project's nodes in place. This turns that into a checked invariant.
+    pub fn assert_single_project(&self) -> std::result::Result<(), Vec<(String, String)>> {
+        let foreign = self.foreign_nodes();
+        if foreign.is_empty() {
+            Ok(())
+        } else {
+            Err(foreign)
+        }
+    }
+
+    /// Drop every node owned by another project, file by file, so the derived
+    /// indexes stay consistent and `file_hashes` loses the stale entry — which
+    /// makes the next scan re-ingest that path for the current project.
+    ///
+    /// Returns the number of files evicted.
+    pub fn evict_foreign_nodes(&self) -> usize {
+        let current = self.project_id.read().clone();
+        let paths: Vec<PathBuf> = {
+            let data = self.inner.read();
+            let mut seen: HashSet<PathBuf> = HashSet::new();
+            for node in data.mesh.nodes() {
+                if node.project_id != current {
+                    seen.insert(node.file_path.clone());
+                }
+            }
+            seen.into_iter().collect()
+        };
+        if paths.is_empty() {
+            return 0;
+        }
+        let mut data = self.inner.write();
+        for path in &paths {
+            remove_file_nodes_locked(&mut data, path);
+        }
+        data.generation = data.generation.saturating_add(1);
+        paths.len()
+    }
+
+    /// Reconcile the project id carried by a freshly loaded snapshot.
+    ///
+    /// A persisted snapshot always comes from a single project slot. When every
+    /// node carries one and the same *older* id — a graph written before ids
+    /// were derived from the project path, say — re-stamping is correct and
+    /// avoids throwing away a valid index for a full re-scan.
+    ///
+    /// A snapshot holding *several* ids is genuinely contaminated. That case is
+    /// reported, not re-stamped, and left to `enforce_single_project`:
+    /// re-stamping there would launder a real leak into looking clean.
+    pub fn reconcile_loaded_project_id(&self) -> ProjectIdReconciliation {
+        let current = self.project_id.read().clone();
+        let mut data = self.inner.write();
+
+        let mut foreign_ids: HashSet<ProjectId> = HashSet::new();
+        let mut foreign_nodes = 0usize;
+        for node in data.mesh.nodes() {
+            if node.project_id != current {
+                foreign_nodes += 1;
+                foreign_ids.insert(node.project_id.clone());
+            }
+        }
+
+        if foreign_nodes == 0 {
+            return ProjectIdReconciliation::AlreadyCurrent;
+        }
+        if foreign_ids.len() > 1 {
+            return ProjectIdReconciliation::Mixed(foreign_nodes);
+        }
+
+        for node in data.mesh.nodes_mut() {
+            node.project_id = current.clone();
+        }
+        for edge in data.mesh.edges_mut() {
+            edge.project_id = current.clone();
+        }
+        ProjectIdReconciliation::Restamped(foreign_nodes)
+    }
+
+    /// Check the single-project invariant and self-heal if it is violated.
+    ///
+    /// Logs at error level with a sample of the offending paths so a leak is
+    /// never silent, then evicts. Returns the number of files evicted.
+    pub fn enforce_single_project(&self) -> usize {
+        let foreign = self.foreign_nodes();
+        if foreign.is_empty() {
+            return 0;
+        }
+        let current = self.project_id.read().clone();
+        let sample: Vec<&str> = foreign
+            .iter()
+            .take(5)
+            .map(|(_, path)| path.as_str())
+            .collect();
+        tracing::error!(
+            nodes = foreign.len(),
+            current_project = %current,
+            ?sample,
+            "cross-project nodes found in graph; evicting"
+        );
+        let evicted = self.evict_foreign_nodes();
+        tracing::warn!(files = evicted, "evicted cross-project files");
+        evicted
     }
 
     pub fn add_file_node(&self, file: &IndexedFile, content: Option<String>) -> ContextNode {
@@ -1462,6 +1605,22 @@ impl NeuralProjectGraph {
             self.load_from(&Self::persist_json_path(workspace))
                 .unwrap_or(false)
         };
+        if loaded {
+            // A stored graph belongs to exactly one project, but the id it
+            // recorded can predate path-derived ids. Reconcile before anything
+            // checks the invariant, or `enforce_single_project` would evict a
+            // perfectly good index and force a full re-scan.
+            match self.reconcile_loaded_project_id() {
+                ProjectIdReconciliation::Restamped(nodes) => {
+                    tracing::info!(nodes, "re-stamped stored graph onto current project id");
+                }
+                ProjectIdReconciliation::Mixed(nodes) => {
+                    // Left dirty on purpose: eviction, not laundering.
+                    tracing::error!(nodes, "stored graph holds several projects");
+                }
+                ProjectIdReconciliation::AlreadyCurrent => {}
+            }
+        }
         if loaded && self.stats().total_nodes > 0 {
             self.mark_index_ready();
         }
@@ -1563,6 +1722,7 @@ impl NeuralProjectGraph {
         match walker.scan_report_with(&self.file_fingerprints()) {
             Ok(report) => {
                 self.ingest_scan_report(&report);
+                self.enforce_single_project();
                 self.inner.write().parser_epoch = GRAPH_PARSER_EPOCH;
                 let _ = self.save_persisted(workspace);
                 #[cfg(feature = "embeddings")]
@@ -1609,9 +1769,16 @@ impl NeuralProjectGraph {
     }
 
     fn ingest_workspace_inner(&self, scanned: &[(IndexedFile, String)], keep_source: bool) {
-        if let Some((file, _)) = scanned.first() {
-            if let Some(root) = infer_workspace_root(file) {
-                self.set_workspace(&root);
+        // Only *infer* a workspace root when nobody has established one. Callers
+        // like `reindex_incremental` already set the authoritative root; letting a
+        // guess taken from the first file of the batch overwrite it made the root
+        // drift, which matters inside a monorepo where the guess can land on a
+        // nested package.
+        if self.workspace_root().is_none() {
+            if let Some((file, _)) = scanned.first() {
+                if let Some(root) = infer_workspace_root(file) {
+                    self.set_workspace(&root);
+                }
             }
         }
         let parsed: Vec<_> = scanned

@@ -79,12 +79,7 @@ pub fn collect_from_cwd(
 ) -> Result<ProjectSnapshot, neuromesh_core::NeuroMeshError> {
     let cwd = std::env::current_dir()?;
     let root = ProjectWalker::discover_workspace(&cwd);
-    let project_name = root
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project")
-        .to_string();
-    let project_id = ProjectId::new(&project_name);
+    let project_id = neuromesh_core::stable_project_id(&root);
     let graph = NeuralProjectGraph::new(project_id.clone());
     let _ = graph.load_persisted(&root);
     Ok(collect(&root, &project_id, &graph, all_projects))

@@ -285,6 +285,12 @@ impl MeshStore {
         self.edges.iter_mut().filter_map(|e| e.as_mut())
     }
 
+    /// Bumps `node_revision` up front, since the caller may mutate any node.
+    pub fn nodes_mut(&mut self) -> impl Iterator<Item = &mut ContextNode> {
+        self.node_revision = self.node_revision.wrapping_add(1);
+        self.nodes.iter_mut().filter_map(|n| n.as_mut())
+    }
+
     #[allow(dead_code)]
     pub fn node_ids(&self) -> impl Iterator<Item = &NodeId> {
         self.node_of.keys()

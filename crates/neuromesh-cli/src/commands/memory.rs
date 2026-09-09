@@ -1,15 +1,9 @@
-use neuromesh_core::{ProjectId, Result};
+use neuromesh_core::Result;
 use neuromesh_memory::MemoryDatabase;
 
 pub fn execute() -> Result<()> {
     let current_dir = std::env::current_dir()?;
-    let project_name = current_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project")
-        .to_string();
-
-    let project_id = ProjectId::new(&project_name);
+    let project_id = neuromesh_core::stable_project_id(&current_dir);
     let db_path = neuromesh_core::memory_db_path(&current_dir);
 
     println!("\n🧠 NeuroMesh Persistent Memory");

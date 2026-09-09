@@ -32,6 +32,9 @@ jobs:
       - name: Run Automated Unit & Integration Tests
         run: cargo test --all --verbose
 
+      - name: Cross-project isolation gate
+        run: cargo test -p neuromesh-context --test cross_project_isolation -- --nocapture
+
       - name: Embedding feature tests
         run: cargo test -p neuromesh-context --features embeddings --verbose
 
