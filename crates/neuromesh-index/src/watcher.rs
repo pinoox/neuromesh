@@ -97,7 +97,7 @@ fn collect_event(
 ) {
     let is_delete = matches!(event.kind, EventKind::Remove(_));
     for path in event.paths {
-        if ProjectWalker::is_ignored(&path) {
+        if ProjectWalker::is_ignored_within(root, &path) {
             continue;
         }
         if crate::confine::path_escapes_workspace(&path, root) {

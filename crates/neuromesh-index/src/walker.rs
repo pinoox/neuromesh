@@ -194,6 +194,19 @@ impl ProjectWalker {
         crate::confine::is_safe_workspace(path)
     }
 
+    /// True when `path` sits in an ignored directory *of this project*.
+    ///
+    /// `is_ignored` inspects every component of whatever it is handed, so
+    /// passing an absolute path also inspects the directories *above* the
+    /// workspace. A project that legitimately lives under a folder named
+    /// `build`, `dist`, `vendor`, `target` — or, on Windows, anywhere beneath
+    /// `AppData`, which is where `std::env::temp_dir()` points — then has every
+    /// one of its files filtered out and indexes to nothing. Only the part
+    /// below the workspace root describes the project's own structure.
+    pub fn is_ignored_within(root: &Path, path: &Path) -> bool {
+        Self::is_ignored(path.strip_prefix(root).unwrap_or(path))
+    }
+
     pub fn is_ignored(path: &Path) -> bool {
         for component in path.components() {
             let s = component.as_os_str().to_string_lossy();
@@ -278,11 +291,12 @@ impl ProjectWalker {
 
         let mut candidates: Vec<(PathBuf, PathBuf, u64, DateTime<Utc>)> = Vec::new();
 
+        let walk_root = self.root_path.clone();
         for entry in WalkDir::new(&self.root_path)
             .max_depth(10)
             .follow_links(false)
             .into_iter()
-            .filter_entry(|e| !Self::is_ignored(e.path()))
+            .filter_entry(|e| !Self::is_ignored_within(&walk_root, e.path()))
             .filter_map(|e| e.ok())
         {
             if !entry.file_type().is_file() {
@@ -377,7 +391,7 @@ impl ProjectWalker {
 
     /// Read one workspace file for the live watcher.
     pub fn read_indexed(&self, full_path: &Path) -> Option<(IndexedFile, String)> {
-        if Self::is_ignored(full_path) {
+        if Self::is_ignored_within(&self.root_path, full_path) {
             return None;
         }
         if crate::confine::path_escapes_workspace(full_path, &self.root_path) {
@@ -652,6 +666,33 @@ mod tests {
             .ends_with("src/a.rs"));
         assert_eq!(third.unchanged, 1);
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn directories_above_the_workspace_do_not_make_everything_ignored() {
+        // A project that happens to live under `build`, `dist`, `vendor`, or —
+        // on Windows — anywhere under `AppData` (where temp_dir() points) must
+        // still index. Only its own subdirectories count.
+        let root = Path::new("C:/Users/x/AppData/Local/Temp/my-app");
+        assert!(
+            !ProjectWalker::is_ignored_within(root, &root.join("src/main.rs")),
+            "an ignored component above the root must not filter the project out"
+        );
+        let vendored = Path::new("/home/x/vendor/my-app");
+        assert!(!ProjectWalker::is_ignored_within(
+            vendored,
+            &vendored.join("src/lib.rs")
+        ));
+
+        // The project's *own* ignored directories still count.
+        assert!(ProjectWalker::is_ignored_within(
+            root,
+            &root.join("node_modules/pkg/index.js")
+        ));
+        assert!(ProjectWalker::is_ignored_within(
+            vendored,
+            &vendored.join("target/debug/build.rs")
+        ));
     }
 
     #[test]
