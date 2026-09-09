@@ -163,6 +163,23 @@ impl McpServer {
         // two projects happened to share byte-for-byte.
         graph.clear(Some(pid.clone()));
         graph.set_workspace(&p_buf);
+
+        // The memory store has to follow the project too. The handler is built
+        // once, for the startup workspace; leaving it pinned wrote this
+        // project's episodes into the previous project's `neuromesh.json` and
+        // hid this project's own memory, since every read filters by project id.
+        // The warmup below reads from it, so swap first.
+        let db_path = neuromesh_core::memory_db_path(&p_buf);
+        if let Ok(db) = neuromesh_memory::MemoryDatabase::open(&db_path)
+            .or_else(|_| neuromesh_memory::MemoryDatabase::open_in_memory())
+        {
+            let db = std::sync::Arc::new(db);
+            for fact in neuromesh_memory::extract_project_facts(&p_buf, &pid) {
+                let _ = db.save_project_fact(&fact);
+            }
+            self.handler.swap_memory_db(db);
+        }
+
         // `load_persisted` reconciles the stored project id itself; anything it
         // cannot reconcile is evicted by the guard after the re-index below.
         let _ = graph.load_persisted(&p_buf);

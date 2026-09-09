@@ -33,7 +33,9 @@ pub struct McpToolHandler {
     graph: Arc<NeuralProjectGraph>,
     activator: Arc<ContextActivator>,
     expansion_engine: Arc<ExpansionEngine>,
-    memory_db: Arc<MemoryDatabase>,
+    /// Swappable: the handler outlives a workspace change, and the store must
+    /// follow the project rather than stay pinned to the startup workspace.
+    memory_store: RwLock<Arc<MemoryDatabase>>,
     working_memory: Arc<parking_lot::RwLock<WorkingMemory>>,
     mycelium: Arc<MyceliumCache>,
     packet_cache: PacketDetailCache,
@@ -92,7 +94,7 @@ impl McpToolHandler {
             graph,
             activator,
             expansion_engine,
-            memory_db,
+            memory_store: RwLock::new(memory_db),
             working_memory,
             mycelium: Arc::new(MyceliumCache::new(MyceliumConfig::default())),
             packet_cache: PacketDetailCache::new(),
@@ -147,13 +149,28 @@ impl McpToolHandler {
         *self.client_id.write() = Some(client);
     }
 
+    fn memory_db(&self) -> Arc<MemoryDatabase> {
+        self.memory_store.read().clone()
+    }
+
+    /// Point the memory store at a different project's slot.
+    ///
+    /// The handler is built once, for the startup workspace, but MCP clients
+    /// hand the real workspace over in `initialize` and may later switch.
+    /// Leaving the store pinned wrote the new project's episodes into the
+    /// previous project's `neuromesh.json`, and hid the new project's own
+    /// memory, because every read filters by the (now different) project id.
+    pub fn swap_memory_db(&self, db: Arc<MemoryDatabase>) {
+        *self.memory_store.write() = db;
+    }
+
     pub fn graph(&self) -> &Arc<NeuralProjectGraph> {
         &self.graph
     }
 
     pub fn warmup_persisted_learning(&self) {
         let pid = self.graph.project_id();
-        let _ = crate::learning::warmup_project_learning(&self.memory_db, &self.graph, &pid);
+        let _ = crate::learning::warmup_project_learning(&self.memory_db(), &self.graph, &pid);
     }
 
     pub fn persist_project_state(&self) {
@@ -295,7 +312,7 @@ impl McpToolHandler {
                     apply_server_assisted_defaults(&mut signature, &task_desc, auto_extract);
                 if requested_mode == neuromesh_core::OptimizationMode::MaxQuality {
                     if let Ok(episodes) = self
-                        .memory_db
+                        .memory_db()
                         .find_similar_episodes(&self.graph.project_id(), &task_desc)
                     {
                         for ep in episodes.into_iter().filter(|e| e.success).take(3) {
@@ -915,7 +932,7 @@ impl McpToolHandler {
 
                 let pid = self.graph.project_id();
                 let learning_episodes_in_store = self
-                    .memory_db
+                    .memory_db()
                     .list_project_episodes(&pid)
                     .map(|eps| eps.len())
                     .unwrap_or(0);
@@ -937,7 +954,7 @@ impl McpToolHandler {
                         0,
                     );
                     episode_id = episode.id.clone();
-                    let _ = self.memory_db.save_episodic_record(&episode);
+                    let _ = self.memory_db().save_episodic_record(&episode);
                 }
                 if !episode_id.is_empty() {
                     self.graph.mark_learning_episode_applied(&episode_id);
@@ -972,7 +989,7 @@ impl McpToolHandler {
             "neuromesh_get_project_memory" => {
                 let start_time = std::time::Instant::now();
                 let pid = self.graph.project_id();
-                let facts = self.memory_db.get_project_facts(&pid)?;
+                let facts = self.memory_db().get_project_facts(&pid)?;
                 self.emit_telemetry(ToolTelemetry {
                     nodes_after: facts.len(),
                     latency_ms: start_time.elapsed().as_millis() as u64,
@@ -993,7 +1010,7 @@ impl McpToolHandler {
                     .or_else(|| arguments["task_similarity_query"].as_str())
                     .unwrap_or("");
                 let pid = self.graph.project_id();
-                let episodes = self.memory_db.find_similar_episodes(&pid, query)?;
+                let episodes = self.memory_db().find_similar_episodes(&pid, query)?;
                 self.emit_telemetry(ToolTelemetry {
                     nodes_after: episodes.len(),
                     latency_ms: start_time.elapsed().as_millis() as u64,
