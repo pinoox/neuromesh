@@ -10,6 +10,7 @@ Start with the [README](../README.md) for install and the agent loop.
 | [Configuration](configuration.md) | Engine presets, proxy, env vars, monitor, file cap, build from source |
 | [Engines](engines.md) | Quick overview of `fast` / `hybrid` / `deep` |
 | [Architecture](architecture.md) | Pipeline, tiered retrieval, crate map |
+| [Isolation](isolation.md) | Project identity, the single-project invariant, what will not be indexed |
 | [Quality](quality.md) | Gold harness, `neuromesh eval`, release gates, measured numbers |
 | [Graph proxy](graph-proxy.md) | Optional CBM backend via MCP stdio |
 | [HTTP monitor](api.md) | Local UI, SSE, management endpoints |
