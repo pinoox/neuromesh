@@ -11,6 +11,8 @@ pub mod query;
 pub mod synapse;
 
 #[cfg(test)]
+mod isolation_tests;
+#[cfg(test)]
 mod quality_tests;
 #[cfg(test)]
 mod repo_quality_tests;
