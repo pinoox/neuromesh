@@ -167,12 +167,17 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                     .or_else(|_| MemoryDatabase::open_in_memory())
                     .unwrap_or_else(|_| MemoryDatabase::open_in_memory().unwrap()),
             );
-            if neuromesh_index::ProjectWalker::is_safe_workspace(&current_dir) {
-                for fact in neuromesh_memory::extract_project_facts(&current_dir, &project_id) {
-                    let _ = memory_db.save_project_fact(&fact);
+            match neuromesh_index::ProjectWalker::workspace_rejection_reason(&current_dir) {
+                None => {
+                    for fact in neuromesh_memory::extract_project_facts(&current_dir, &project_id) {
+                        let _ = memory_db.save_project_fact(&fact);
+                    }
                 }
-            } else {
-                graph.mark_index_ready();
+                Some(_) => {
+                    // Serve, but seed nothing. `spawn_live_sync` reports why and
+                    // skips the scan.
+                    graph.mark_index_ready();
+                }
             }
 
             let registry = Arc::new(neuromesh_context::ReversibleContextRegistry::new());
@@ -258,7 +263,13 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             {
                 graph.mark_index_loading();
             }
-            commands::spawn_live_sync(graph.clone(), current_dir.clone(), project_id.clone(), cap);
+            commands::spawn_live_sync(
+                graph.clone(),
+                current_dir.clone(),
+                project_id.clone(),
+                cap,
+                explicit,
+            );
 
             let server = neuromesh_mcp::McpServer::new(handler);
             server.run_stdio().await?;

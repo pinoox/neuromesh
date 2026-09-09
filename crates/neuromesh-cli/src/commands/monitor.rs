@@ -46,7 +46,9 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
     let bg_graph = graph.clone();
     let bg_dir = current_dir.clone();
     let bg_pid = project_id.clone();
-    super::spawn_live_sync(bg_graph, bg_dir, bg_pid, cap);
+    // `monitor` has no workspace argument; the root is the current directory,
+    // so it is a guess and has to look like a project.
+    super::spawn_live_sync(bg_graph, bg_dir, bg_pid, cap, false);
 
     let state = AppState::new(config, graph, memory_db, provider);
     state.attach_graph_proxy_if_configured().await;
