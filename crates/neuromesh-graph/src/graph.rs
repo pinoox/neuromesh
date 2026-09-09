@@ -82,6 +82,17 @@ pub enum IndexState {
     Failed,
 }
 
+/// Outcome of reconciling a loaded snapshot's project id with the current one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectIdReconciliation {
+    /// Every node already belongs to the current project, or the graph is empty.
+    AlreadyCurrent,
+    /// The snapshot carried a single older id; that many nodes were re-stamped.
+    Restamped(usize),
+    /// The snapshot carried several ids — a real leak. Nothing was re-stamped.
+    Mixed(usize),
+}
+
 struct IndexGate {
     state: Mutex<IndexState>,
     cv: Condvar,
@@ -279,6 +290,45 @@ impl NeuralProjectGraph {
         }
         data.generation = data.generation.saturating_add(1);
         paths.len()
+    }
+
+    /// Reconcile the project id carried by a freshly loaded snapshot.
+    ///
+    /// A persisted snapshot always comes from a single project slot. When every
+    /// node carries one and the same *older* id — a graph written before ids
+    /// were derived from the project path, say — re-stamping is correct and
+    /// avoids throwing away a valid index for a full re-scan.
+    ///
+    /// A snapshot holding *several* ids is genuinely contaminated. That case is
+    /// reported, not re-stamped, and left to `enforce_single_project`:
+    /// re-stamping there would launder a real leak into looking clean.
+    pub fn reconcile_loaded_project_id(&self) -> ProjectIdReconciliation {
+        let current = self.project_id.read().clone();
+        let mut data = self.inner.write();
+
+        let mut foreign_ids: HashSet<ProjectId> = HashSet::new();
+        let mut foreign_nodes = 0usize;
+        for node in data.mesh.nodes() {
+            if node.project_id != current {
+                foreign_nodes += 1;
+                foreign_ids.insert(node.project_id.clone());
+            }
+        }
+
+        if foreign_nodes == 0 {
+            return ProjectIdReconciliation::AlreadyCurrent;
+        }
+        if foreign_ids.len() > 1 {
+            return ProjectIdReconciliation::Mixed(foreign_nodes);
+        }
+
+        for node in data.mesh.nodes_mut() {
+            node.project_id = current.clone();
+        }
+        for edge in data.mesh.edges_mut() {
+            edge.project_id = current.clone();
+        }
+        ProjectIdReconciliation::Restamped(foreign_nodes)
     }
 
     /// Check the single-project invariant and self-heal if it is violated.
@@ -1555,6 +1605,22 @@ impl NeuralProjectGraph {
             self.load_from(&Self::persist_json_path(workspace))
                 .unwrap_or(false)
         };
+        if loaded {
+            // A stored graph belongs to exactly one project, but the id it
+            // recorded can predate path-derived ids. Reconcile before anything
+            // checks the invariant, or `enforce_single_project` would evict a
+            // perfectly good index and force a full re-scan.
+            match self.reconcile_loaded_project_id() {
+                ProjectIdReconciliation::Restamped(nodes) => {
+                    tracing::info!(nodes, "re-stamped stored graph onto current project id");
+                }
+                ProjectIdReconciliation::Mixed(nodes) => {
+                    // Left dirty on purpose: eviction, not laundering.
+                    tracing::error!(nodes, "stored graph holds several projects");
+                }
+                ProjectIdReconciliation::AlreadyCurrent => {}
+            }
+        }
         if loaded && self.stats().total_nodes > 0 {
             self.mark_index_ready();
         }

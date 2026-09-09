@@ -145,23 +145,30 @@ impl McpServer {
         if !p_buf.exists() || !neuromesh_index::ProjectWalker::is_safe_workspace(&p_buf) {
             return;
         }
-        if neuromesh_index::same_workspace_path(
-            self.handler.graph().workspace_root().as_deref(),
-            &p_buf,
-        ) {
+        let graph = self.handler.graph();
+        let pid = neuromesh_core::stable_project_id(&p_buf);
+        // Skip only a genuine no-op: same project identity *and* same root.
+        // Comparing paths alone served the previous project's graph whenever
+        // workspace discovery collapsed two projects onto one directory, and the
+        // old id was the workspace *directory name*, so unrelated checkouts both
+        // called `app` compared equal.
+        let same_root =
+            neuromesh_index::same_workspace_path(graph.workspace_root().as_deref(), &p_buf);
+        if same_root && graph.project_id() == pid {
             return;
         }
-        let p_name = p_buf
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "project".to_string());
-        let pid = neuromesh_core::ProjectId::new(&p_name);
-        self.handler.graph().set_project_id(pid.clone());
-        self.handler.graph().set_workspace(&p_buf);
-        let _ = self.handler.graph().load_persisted(&p_buf);
+
+        // A real switch. Drop the previous project's graph up front: leaving it
+        // to `prune_absent_files` during re-index kept nodes for every path the
+        // two projects happened to share byte-for-byte.
+        graph.clear(Some(pid.clone()));
+        graph.set_workspace(&p_buf);
+        // `load_persisted` reconciles the stored project id itself; anything it
+        // cannot reconcile is evicted by the guard after the re-index below.
+        let _ = graph.load_persisted(&p_buf);
         self.handler.warmup_persisted_learning();
-        if self.handler.graph().stats().total_nodes == 0 {
-            self.handler.graph().mark_index_loading();
+        if graph.stats().total_nodes == 0 {
+            graph.mark_index_loading();
         }
         let bg_graph = self.handler.graph().clone();
         let bg_dir = p_buf.clone();

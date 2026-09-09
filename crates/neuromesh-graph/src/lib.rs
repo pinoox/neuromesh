@@ -30,7 +30,7 @@ pub use embeddings::{
 pub use embeddings::{load_sidecar, EmbeddingIndex, EmbeddingSidecar};
 pub use graph::{
     node_learning_bonus, path_echoes_symbol, GraphStats, IndexState, NeuralProjectGraph,
-    NodeLearningProfile, GRAPH_PARSER_EPOCH,
+    NodeLearningProfile, ProjectIdReconciliation, GRAPH_PARSER_EPOCH,
 };
 pub use node::NodeFactory;
 pub use physarum::{PhysarumConfig, PhysarumResult, PhysarumSolver};

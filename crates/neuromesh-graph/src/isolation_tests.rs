@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::NeuralProjectGraph;
+    use crate::{NeuralProjectGraph, ProjectIdReconciliation};
     use neuromesh_core::ProjectId;
     use neuromesh_index::{IndexedFile, SourceLanguage};
     use neuromesh_parser::CodeIntelligenceEngine;
@@ -105,6 +105,62 @@ mod tests {
             !hashes.contains_key("src/stale.rs"),
             "foreign project dropped"
         );
+    }
+
+    #[test]
+    fn reconcile_is_a_noop_for_a_graph_already_on_the_current_project() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("project-a"));
+        ingest(&graph, "src/lib.rs", "hash-a", SHARED);
+
+        assert_eq!(
+            graph.reconcile_loaded_project_id(),
+            ProjectIdReconciliation::AlreadyCurrent
+        );
+    }
+
+    /// A stored graph written before ids were derived from the project path
+    /// carries one uniform, now-stale id. Re-stamping keeps a valid index
+    /// instead of forcing a full re-scan.
+    #[test]
+    fn reconcile_restamps_a_uniformly_stale_snapshot() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("app"));
+        ingest(&graph, "src/lib.rs", "hash-a", SHARED);
+        ingest(&graph, "src/other.rs", "hash-b", "pub fn other() {}\n");
+
+        // What loading that snapshot under a path-derived id looks like.
+        graph.set_project_id(ProjectId::new("9f2c1ab4d0e5f671"));
+
+        let outcome = graph.reconcile_loaded_project_id();
+        assert!(
+            matches!(outcome, ProjectIdReconciliation::Restamped(n) if n > 0),
+            "expected a re-stamp, got {outcome:?}"
+        );
+        assert_eq!(graph.assert_single_project(), Ok(()));
+        // The index survived: re-stamping must not drop files.
+        let hashes = graph.file_hashes();
+        assert!(hashes.contains_key("src/lib.rs"));
+        assert!(hashes.contains_key("src/other.rs"));
+    }
+
+    /// Several ids in one snapshot is a genuine leak, not a stale id. Laundering
+    /// it by re-stamping would make a contaminated graph look clean.
+    #[test]
+    fn reconcile_refuses_to_launder_a_mixed_snapshot() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("project-a"));
+        ingest(&graph, "src/a.rs", "hash-a", "pub fn a() {}\n");
+        graph.set_project_id(ProjectId::new("project-b"));
+        ingest(&graph, "src/b.rs", "hash-b", "pub fn b() {}\n");
+        graph.set_project_id(ProjectId::new("project-c"));
+
+        let outcome = graph.reconcile_loaded_project_id();
+        assert!(
+            matches!(outcome, ProjectIdReconciliation::Mixed(n) if n > 0),
+            "expected mixed, got {outcome:?}"
+        );
+        // Left dirty on purpose, for the eviction path to deal with.
+        assert!(graph.assert_single_project().is_err());
+        assert_eq!(graph.enforce_single_project(), 2);
+        assert_eq!(graph.assert_single_project(), Ok(()));
     }
 
     /// P0-5: an authoritative workspace root must survive ingest.

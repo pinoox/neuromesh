@@ -1,6 +1,6 @@
 mod commands;
 
-use neuromesh_core::{Config, ProjectId, Result};
+use neuromesh_core::{Config, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_graph_proxy::{resolve_mcp_launch_spec, GraphProxySession};
 use neuromesh_memory::MemoryDatabase;
@@ -155,13 +155,9 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 neuromesh_index::resolve_mcp_startup_workspace()
             };
             eprintln!("NeuroMesh MCP workspace: {}", current_dir.display());
-            let project_name = current_dir
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("project")
-                .to_string();
-
-            let project_id = ProjectId::new(&project_name);
+            // Derived from the canonical project path, not the directory name:
+            // unrelated checkouts both called `app` used to share one identity.
+            let project_id = neuromesh_core::stable_project_id(&current_dir);
             let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
             graph.set_workspace(&current_dir);
 
