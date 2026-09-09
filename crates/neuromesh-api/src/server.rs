@@ -475,7 +475,7 @@ impl HttpServer {
                                 .map(|n| n.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| "project".to_string());
 
-                            let new_project_id = ProjectId::new(&project_name);
+                            let new_project_id = neuromesh_core::stable_project_id(&target_path);
                             state.graph.clear(Some(new_project_id.clone()));
                             state.graph.set_workspace(&target_path);
                             let walker =
@@ -574,11 +574,11 @@ impl HttpServer {
                         let fallback_dir =
                             std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
                         *state.workspace_path.write() = fallback_dir.clone();
-                        let fallback_name = fallback_dir
+                        let _fallback_name = fallback_dir
                             .file_name()
                             .map(|n| n.to_string_lossy().into_owned())
                             .unwrap_or_else(|| "project".to_string());
-                        let new_pid = ProjectId::new(&fallback_name);
+                        let new_pid = neuromesh_core::stable_project_id(&fallback_dir);
                         state.graph.clear(Some(new_pid.clone()));
                         let walker = Self::project_walker(&state, fallback_dir, new_pid);
                         if let Ok(scanned) = walker.scan() {

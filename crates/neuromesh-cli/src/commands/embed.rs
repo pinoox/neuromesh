@@ -80,11 +80,7 @@ fn rebuild(args: &[String]) -> Result<()> {
                     .into(),
             ));
         }
-        let project_name = current_dir
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("project");
-        let project_id = neuromesh_core::ProjectId::new(project_name);
+        let project_id = neuromesh_core::stable_project_id(&current_dir);
         let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
         let _ = graph.load_persisted(&current_dir);
         if graph.stats().total_nodes == 0 {

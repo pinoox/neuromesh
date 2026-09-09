@@ -1,4 +1,4 @@
-use neuromesh_core::{Config, ProjectId, Result, RetrievalEngine};
+use neuromesh_core::{Config, Result, RetrievalEngine};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_memory::{MemoryDatabase, ProjectFact};
 use std::fs;
@@ -15,12 +15,6 @@ pub fn execute(
     }
     let cfg = Config::load();
     let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
-    let project_name = current_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("neuromesh-project")
-        .to_string();
-
     if let Some(path) = persist_file_cap(cap)? {
         let label = match cap {
             FileCapArg::Auto => "auto".to_string(),
@@ -30,7 +24,7 @@ pub fn execute(
         println!("Saved          : {} (max_files = {label})", path.display());
     }
 
-    let project_id = ProjectId::new(&project_name);
+    let project_id = neuromesh_core::stable_project_id(&current_dir);
     let walker = configured_walker(current_dir.clone(), project_id.clone(), cap);
 
     println!(

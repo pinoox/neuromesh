@@ -1,5 +1,5 @@
 use neuromesh_api::{AppState, HttpServer};
-use neuromesh_core::{Config, ProjectId, Result};
+use neuromesh_core::{Config, Result};
 use neuromesh_graph::NeuralProjectGraph;
 use neuromesh_memory::MemoryDatabase;
 use neuromesh_provider::ProviderFactory;
@@ -19,13 +19,7 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
     }
     config = apply_file_cap(config, cap);
 
-    let project_name = current_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project")
-        .to_string();
-
-    let project_id = ProjectId::new(&project_name);
+    let project_id = neuromesh_core::stable_project_id(&current_dir);
     let graph = Arc::new(NeuralProjectGraph::new(project_id.clone()));
     if graph.load_persisted(&current_dir) {
         let stats = graph.stats();

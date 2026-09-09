@@ -142,9 +142,7 @@ impl McpServer {
         } else {
             neuromesh_index::ProjectWalker::discover_workspace(&raw)
         };
-        if let Some(reason) =
-            neuromesh_index::ProjectWalker::workspace_rejection_reason(&p_buf)
-        {
+        if let Some(reason) = neuromesh_index::ProjectWalker::workspace_rejection_reason(&p_buf) {
             eprintln!("NeuroMesh refused the workspace from initialize: {reason}");
             return;
         }
