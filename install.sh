@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # ==============================================================================
 # NeuroMesh — Zero-prerequisite installer (Linux & macOS)
 # Downloads the latest pre-built release binary (MiniLM embeddings included).
@@ -28,7 +28,7 @@ cat << 'EOF'
  |_| \_|\___|\__,_|_|  \___/|_|  |_|\___||___/_| |_|
 EOF
 printf "${NC}\n"
-printf "${BOLD}NeuroMesh v0.9.0 — zero-embed fast engine · MCP context engine${NC}\n\n"
+printf "${BOLD}NeuroMesh v0.9.1 — zero-embed fast engine · MCP context engine${NC}\n\n"
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"

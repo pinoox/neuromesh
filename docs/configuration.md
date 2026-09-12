@@ -1,6 +1,6 @@
-# Configuration & advanced setup
+﻿# Configuration & advanced setup
 
-v0.9.0 uses one **retrieval engine** preset instead of removed v0.8 flags (`config seed-engine`, `config embeddings`, `NEUROMESH_SEED_ENGINE`, `NEUROMESH_EMBEDDINGS`).
+v0.9.1 uses one **retrieval engine** preset instead of removed v0.8 flags (`config seed-engine`, `config embeddings`, `NEUROMESH_SEED_ENGINE`, `NEUROMESH_EMBEDDINGS`).
 
 For install and the daily agent loop, start with the [README](../README.md). This doc covers presets, sidecar, proxy, env vars, and operational tuning.
 
@@ -105,7 +105,7 @@ Cold `neuromesh embed rebuild` runs MiniLM on **all symbol passages** (slower re
 
 Safety (hybrid lazy writes): concurrent MCP queries serialize sidecar writes; `embeddings.bin` is replaced atomically (temp + rename).
 
-Sidecar v4/v5 requires `neuromesh embed rebuild` after upgrading to v0.9.0.
+Sidecar v4/v5 requires `neuromesh embed rebuild` after upgrading to v0.9.1.
 
 ```bash
 neuromesh doctor --embed              # sidecar status + model install check
@@ -263,7 +263,7 @@ Re-run the installer or `cargo install --force --git …`. Restart the IDE so MC
 
 ## Migration from v0.8.x
 
-| Removed (v0.9.0) | Replacement |
+| Removed (v0.9.1) | Replacement |
 | :--- | :--- |
 | `neuromesh config seed-engine …` | `neuromesh config engine fast\|hybrid\|deep` |
 | `neuromesh config embeddings …` | `neuromesh config engine hybrid\|deep` + `embed rebuild` |

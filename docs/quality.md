@@ -1,4 +1,4 @@
-# Quality
+﻿# Quality
 
 Claims in this project come from commands you can run, not from a padded corpus.
 
@@ -111,7 +111,7 @@ MCP telemetry: `retrieval.embedding_used`, `resolution_tier`, `ort_session_activ
 
 Holdout: **60 cells** (8 questions × 5 languages: en/es/fa/de/zh) on a Fastify clone. MCP stdio `get_context_packet`, **prompt only**.
 
-**Last full re-run:** 2026-08-30 (phase 2 retrieval; release v0.9.0). Artifacts: `C:\projects\benchmark\nm_vs_cbm\test6\team\`.
+**Last full re-run:** 2026-08-30 (phase 2 retrieval; release v0.9.1). Artifacts: `C:\projects\benchmark\nm_vs_cbm\test6\team\`.
 
 Corpus: 361 files · 1,318 graph nodes · ~882K workspace tokens.
 
