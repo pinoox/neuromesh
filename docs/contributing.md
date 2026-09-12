@@ -39,3 +39,16 @@ Rust and TypeScript already go through tree-sitter **queries** (`src/queries/*.s
 ## Docs
 
 User-facing markdown lives in [`docs/`](README.md). The root [README](../README.md) is the product page. Version history is [CHANGELOG.md](CHANGELOG.md) — do not dump release notes into the README.
+
+## Releasing & Version Bumping
+
+To bump version across all manifests, scripts, MCP descriptors, and documentation in one step, run:
+
+```bash
+pwsh ./scripts/bump-version.ps1 <new_version>
+# or on Linux/macOS:
+./scripts/bump-version.sh <new_version>
+```
+
+See the complete checklist in [releasing.md](releasing.md).
+

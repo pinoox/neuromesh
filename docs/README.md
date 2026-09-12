@@ -17,6 +17,7 @@ Start with the [README](../README.md) for install and the agent loop.
 | [Living systems](nature.md) | Physarum, STDP, exons — mapped to crates |
 | [Agent rule](agent-rule.mdc) | Cursor-ready `.mdc` template |
 | [Contributing](contributing.md) | Tests, clippy, adding a language |
+| [Releasing](releasing.md) | Bumping version & release process |
 | [Changelog](CHANGELOG.md) | Version history |
 
 ## v0.9.2 in one line
