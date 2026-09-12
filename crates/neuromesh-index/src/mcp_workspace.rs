@@ -1,4 +1,5 @@
 use crate::walker::ProjectWalker;
+use neuromesh_core::{canonicalize, strip_verbatim_prefix};
 use std::path::{Path, PathBuf};
 
 const IDE_ENV_KEYS: &[&str] = &[
@@ -17,7 +18,7 @@ pub fn workspace_from_ide_env() -> Option<PathBuf> {
         if let Ok(raw) = std::env::var(key) {
             if let Some(path) = parse_workspace_folder_paths(&raw) {
                 if path.exists() {
-                    return Some(path);
+                    return Some(strip_verbatim_prefix(&path));
                 }
             }
         }
@@ -25,13 +26,14 @@ pub fn workspace_from_ide_env() -> Option<PathBuf> {
     None
 }
 
-/// Comma-separated `KEY=value` pairs for doctor / status MCP diagnostics.
+/// Human-readable list of IDE variables currently present (diagnostic only).
 pub fn mcp_workspace_env_summary() -> Option<String> {
     let mut parts = Vec::new();
     for key in IDE_ENV_KEYS {
-        if let Ok(v) = std::env::var(key) {
-            if !v.trim().is_empty() {
-                parts.push(format!("{key}={v}"));
+        if let Ok(val) = std::env::var(key) {
+            let t = val.trim();
+            if !t.is_empty() {
+                parts.push(format!("{key}={t}"));
             }
         }
     }
@@ -45,10 +47,12 @@ pub fn mcp_workspace_env_summary() -> Option<String> {
 /// Resolve the MCP workspace at process start (no CLI path / no explicit env pin).
 pub fn resolve_mcp_startup_workspace() -> PathBuf {
     if let Some(path) = workspace_from_ide_env() {
-        return ProjectWalker::explicit_workspace(&path);
+        return strip_verbatim_prefix(&ProjectWalker::explicit_workspace(&path));
     }
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    ProjectWalker::discover_workspace(&cwd)
+    let cwd = std::env::current_dir()
+        .map(|p| strip_verbatim_prefix(&p))
+        .unwrap_or_else(|_| PathBuf::from("."));
+    strip_verbatim_prefix(&ProjectWalker::discover_workspace(&cwd))
 }
 
 /// Parse Cursor/VS Code multi-root env values and plain paths.
@@ -81,7 +85,7 @@ fn best_project_root(paths: impl Iterator<Item = PathBuf>) -> Option<PathBuf> {
         if !path.exists() {
             continue;
         }
-        let root = strip_verbatim_prefix(ProjectWalker::explicit_workspace(&path));
+        let root = strip_verbatim_prefix(&ProjectWalker::explicit_workspace(&path));
         if ProjectWalker::is_safe_workspace(&root) && has_project_marker(&root) {
             return Some(root);
         }
@@ -107,32 +111,11 @@ fn first_existing_path(raw: &str) -> Option<PathBuf> {
     if trimmed.is_empty() {
         return None;
     }
-    let path = normalize_env_path(trimmed);
+    let path = strip_verbatim_prefix(Path::new(trimmed));
     if !path.exists() {
         return None;
     }
-    Some(
-        path.canonicalize()
-            .map(strip_verbatim_prefix)
-            .unwrap_or(path),
-    )
-}
-
-fn normalize_env_path(raw: &str) -> PathBuf {
-    if let Some(rest) = raw.strip_prefix(r"\\?\") {
-        PathBuf::from(rest)
-    } else {
-        PathBuf::from(raw)
-    }
-}
-
-fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
-    let s = path.to_string_lossy();
-    if let Some(rest) = s.strip_prefix(r"\\?\") {
-        PathBuf::from(rest)
-    } else {
-        path
-    }
+    Some(canonicalize(&path).unwrap_or(path))
 }
 
 /// True when two paths refer to the same existing directory (best-effort canonicalize).
@@ -140,14 +123,8 @@ pub fn same_workspace_path(a: Option<&Path>, b: &Path) -> bool {
     let Some(a) = a else {
         return false;
     };
-    let a_canon = a
-        .canonicalize()
-        .map(strip_verbatim_prefix)
-        .unwrap_or_else(|_| strip_verbatim_prefix(a.to_path_buf()));
-    let b_canon = b
-        .canonicalize()
-        .map(strip_verbatim_prefix)
-        .unwrap_or_else(|_| strip_verbatim_prefix(b.to_path_buf()));
+    let a_canon = canonicalize(a).unwrap_or_else(|_| strip_verbatim_prefix(a));
+    let b_canon = canonicalize(b).unwrap_or_else(|_| strip_verbatim_prefix(b));
     a_canon == b_canon
 }
 
@@ -161,10 +138,7 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("nm-mcp-ws-{}", std::process::id()));
         let _ = fs::create_dir_all(&tmp);
         let json = serde_json::to_string(&vec![tmp.to_string_lossy().to_string()]).unwrap();
-        let expected = tmp
-            .canonicalize()
-            .map(strip_verbatim_prefix)
-            .unwrap_or(tmp.clone());
+        let expected = canonicalize(&tmp).unwrap_or(tmp.clone());
         assert_eq!(parse_workspace_folder_paths(&json).unwrap(), expected);
         let _ = fs::remove_dir_all(&tmp);
     }
@@ -174,10 +148,7 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("nm-mcp-ws2-{}", std::process::id()));
         let _ = fs::create_dir_all(&tmp);
         let raw = format!("C:\\missing\\nope;{}", tmp.display());
-        let expected = tmp
-            .canonicalize()
-            .map(strip_verbatim_prefix)
-            .unwrap_or(tmp.clone());
+        let expected = canonicalize(&tmp).unwrap_or(tmp.clone());
         assert_eq!(parse_workspace_folder_paths(&raw).unwrap(), expected);
         let _ = fs::remove_dir_all(&tmp);
     }

@@ -76,9 +76,40 @@ fn home_store_policy() -> HomeStorePolicy {
     policy
 }
 
+/// Strip Windows extended-length (verbatim) path prefix (`\\?\` or `\\?\UNC\`),
+/// returning a standard clean path for display, comparison, and cross-platform consistency.
+pub fn strip_verbatim_prefix(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let s = path.to_string_lossy();
+        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = s.strip_prefix("//?/UNC/") {
+            return PathBuf::from(format!("//{rest}"));
+        }
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+        if let Some(rest) = s.strip_prefix("//?/") {
+            return PathBuf::from(rest);
+        }
+        path.to_path_buf()
+    }
+    #[cfg(not(windows))]
+    {
+        path.to_path_buf()
+    }
+}
+
+/// Canonicalize `path` and strip any Windows verbatim prefix (`\\?\`).
+pub fn canonicalize(path: &Path) -> std::io::Result<PathBuf> {
+    path.canonicalize().map(|p| strip_verbatim_prefix(&p))
+}
+
 /// Canonical lowercase `/`-separated path used as a stable project key.
 pub fn normalize_workspace(path: &Path) -> String {
-    let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let canon = canonicalize(path).unwrap_or_else(|_| strip_verbatim_prefix(path));
     let mut s = canon.to_string_lossy().replace('\\', "/");
     if let Some(rest) = s.strip_prefix("//?/") {
         s = rest.to_string();
@@ -358,5 +389,28 @@ mod tests {
             ProjectStore::Managed
         );
         assert!(ProjectStore::parse("nope").is_err());
+    }
+
+    #[test]
+    fn strip_verbatim_prefix_cleans_paths() {
+        #[cfg(windows)]
+        {
+            assert_eq!(
+                strip_verbatim_prefix(Path::new(r"\\?\C:\foo\bar")),
+                PathBuf::from(r"C:\foo\bar")
+            );
+            assert_eq!(
+                strip_verbatim_prefix(Path::new(r"\\?\UNC\server\share\file")),
+                PathBuf::from(r"\\server\share\file")
+            );
+            assert_eq!(
+                strip_verbatim_prefix(Path::new(r"//?/C:/foo/bar")),
+                PathBuf::from(r"C:/foo/bar")
+            );
+        }
+        assert_eq!(
+            strip_verbatim_prefix(Path::new("/normal/path")),
+            PathBuf::from("/normal/path")
+        );
     }
 }

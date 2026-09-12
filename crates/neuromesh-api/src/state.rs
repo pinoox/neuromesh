@@ -64,7 +64,9 @@ impl AppState {
             working_memory.clone(),
         ));
 
-        let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let current_dir = std::env::current_dir()
+            .map(|p| neuromesh_core::strip_verbatim_prefix(&p))
+            .unwrap_or_else(|_| PathBuf::from("."));
         let mut access_times = std::collections::HashMap::new();
         access_times.insert(
             current_dir.display().to_string(),

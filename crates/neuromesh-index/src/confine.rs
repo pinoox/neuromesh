@@ -1,19 +1,17 @@
-use neuromesh_core::{NeuroMeshError, Result};
+use neuromesh_core::{canonicalize, strip_verbatim_prefix, NeuroMeshError, Result};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 /// True when `path` is a project root, not home / Users / a drive or UNC root.
 pub fn is_safe_workspace(path: &Path) -> bool {
-    let candidate = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    let candidate = strip_verbatim_prefix(&candidate);
+    let candidate = canonicalize(path).unwrap_or_else(|_| strip_verbatim_prefix(path));
 
     if is_filesystem_root(&candidate) {
         return false;
     }
 
     if let Some(home) = dirs::home_dir() {
-        let home = home.canonicalize().unwrap_or(home);
-        let home = strip_verbatim_prefix(&home);
+        let home = canonicalize(&home).unwrap_or_else(|_| strip_verbatim_prefix(&home));
         if paths_equal(&candidate, &home) {
             return false;
         }
@@ -54,7 +52,7 @@ pub fn assert_safe_workspace(path: &Path) -> Result<PathBuf> {
             path.display()
         )));
     }
-    let canonical = path.canonicalize().map_err(|e| {
+    let canonical = canonicalize(path).map_err(|e| {
         NeuroMeshError::Config(format!(
             "refusing unsafe workspace: {} ({e})",
             path.display()
@@ -74,13 +72,12 @@ pub fn resolve_workspace_file(workspace: &Path, requested: &Path) -> Result<Path
     if requested.as_os_str().is_empty() {
         return Err(NeuroMeshError::Config("path is empty".into()));
     }
-    let root = workspace.canonicalize().map_err(|e| {
+    let root = canonicalize(workspace).map_err(|e| {
         NeuroMeshError::Config(format!("workspace is not a readable directory: {e}"))
     })?;
-    let root = strip_verbatim_prefix(&root);
 
     let candidate = if requested.is_absolute() {
-        requested.to_path_buf()
+        strip_verbatim_prefix(requested)
     } else {
         root.join(requested)
     };
@@ -89,11 +86,10 @@ pub fn resolve_workspace_file(workspace: &Path, requested: &Path) -> Result<Path
         return Err(NeuroMeshError::Config("path is outside workspace".into()));
     }
 
-    let canonical = candidate.canonicalize().map_err(|_| {
+    let canonical = canonicalize(&candidate).map_err(|_| {
         NeuroMeshError::Config("path is outside workspace or is not a readable file".into())
     })?;
-    let canonical_cmp = strip_verbatim_prefix(&canonical);
-    if !is_path_within(&canonical_cmp, &root) {
+    if !is_path_within(&canonical, &root) {
         return Err(NeuroMeshError::Config("path is outside workspace".into()));
     }
     if !canonical.is_file() {
@@ -117,12 +113,11 @@ pub fn is_path_within(child: &Path, root: &Path) -> bool {
 
 /// Skip files whose canonical target leaves `root` (symlink escape).
 pub fn path_escapes_workspace(full_path: &Path, root: &Path) -> bool {
-    let Ok(root) = root.canonicalize() else {
+    let Ok(root) = canonicalize(root) else {
         return true;
     };
-    let root = strip_verbatim_prefix(&root);
-    match full_path.canonicalize() {
-        Ok(canon) => !is_path_within(&strip_verbatim_prefix(&canon), &root),
+    match canonicalize(full_path) {
+        Ok(canon) => !is_path_within(&canon, &root),
         Err(_) => fs::symlink_metadata(full_path)
             .map(|m| m.file_type().is_symlink())
             .unwrap_or(true),
@@ -152,24 +147,6 @@ fn normalize_lexical(path: &Path) -> PathBuf {
         }
     }
     out
-}
-
-fn strip_verbatim_prefix(path: &Path) -> PathBuf {
-    #[cfg(windows)]
-    {
-        let s = path.to_string_lossy();
-        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
-            return PathBuf::from(format!(r"\\{rest}"));
-        }
-        if let Some(rest) = s.strip_prefix(r"\\?\") {
-            return PathBuf::from(rest);
-        }
-        path.to_path_buf()
-    }
-    #[cfg(not(windows))]
-    {
-        path.to_path_buf()
-    }
 }
 
 fn paths_equal(a: &Path, b: &Path) -> bool {
@@ -309,5 +286,17 @@ mod tests {
             Path::new("/tmp/project/src/lib.rs"),
             Path::new("/tmp/project")
         ));
+    }
+
+    #[test]
+    fn assert_safe_workspace_strips_verbatim_prefix() {
+        let root = temp_workspace();
+        let safe = assert_safe_workspace(&root).unwrap();
+        let s = safe.to_string_lossy();
+        assert!(
+            !s.starts_with(r"\\?\"),
+            "workspace path should not start with verbatim prefix: {s}"
+        );
+        let _ = fs::remove_dir_all(&root);
     }
 }

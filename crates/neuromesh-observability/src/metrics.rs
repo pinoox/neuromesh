@@ -139,11 +139,7 @@ pub fn filter_history(
 
 fn canonical_path_key(raw: &str) -> String {
     let path = std::path::PathBuf::from(raw);
-    path.canonicalize()
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/")
-        .to_lowercase()
+    neuromesh_core::normalize_workspace(&path)
 }
 
 pub fn summarize_history(history: &[OptimizationMetadata]) -> AggregatedMetrics {

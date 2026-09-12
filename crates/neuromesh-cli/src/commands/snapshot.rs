@@ -35,7 +35,8 @@ pub fn collect(
     all_projects: bool,
 ) -> ProjectSnapshot {
     let stats = graph.stats();
-    let workspace_str = workspace.display().to_string();
+    let clean_workspace = neuromesh_core::strip_verbatim_prefix(workspace);
+    let workspace_str = clean_workspace.display().to_string();
     let history = load_persisted_history();
     let filtered = filter_history(&history, project_id, &workspace_str, all_projects);
     let telemetry = summarize_history(&filtered);
@@ -48,15 +49,15 @@ pub fn collect(
     } else {
         format!("{monitor_url} (offline — run neuromesh monitor)")
     };
-    let persisted_graph = neuromesh_core::graph_path(workspace).exists();
-    let store_mode = if neuromesh_core::uses_local_dotdir(workspace) {
+    let persisted_graph = neuromesh_core::graph_path(&clean_workspace).exists();
+    let store_mode = if neuromesh_core::uses_local_dotdir(&clean_workspace) {
         "local (.neuromesh trusted)"
     } else {
         "managed (~/.neuromesh/projects/…)"
     };
 
     ProjectSnapshot {
-        workspace: workspace.to_path_buf(),
+        workspace: clean_workspace,
         project_id: project_id.clone(),
         graph_nodes: stats.total_nodes,
         graph_edges: stats.total_edges,

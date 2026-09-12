@@ -32,7 +32,8 @@ const MAX_ANCESTOR_WALK: usize = 64;
 /// worktree or submodule, so both are accepted. Does not shell out to `git`, so
 /// it works with no git binary on PATH.
 pub fn project_root(start: &Path) -> PathBuf {
-    let canonical = start.canonicalize().unwrap_or_else(|_| start.to_path_buf());
+    let canonical = crate::paths::canonicalize(start)
+        .unwrap_or_else(|_| crate::paths::strip_verbatim_prefix(start));
     let mut current = canonical.as_path();
     for _ in 0..MAX_ANCESTOR_WALK {
         if current.join(".git").exists() {

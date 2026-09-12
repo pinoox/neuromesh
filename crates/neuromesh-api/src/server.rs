@@ -269,10 +269,9 @@ impl HttpServer {
                     .unwrap_or_else(|| "default".to_string());
 
                 let stats = state.graph.stats();
-                let current_canonical = current_ws
-                    .canonicalize()
-                    .unwrap_or_else(|_| current_ws.clone());
-                let current_path_str = current_ws.display().to_string();
+                let current_canonical = neuromesh_core::canonicalize(&current_ws)
+                    .unwrap_or_else(|_| neuromesh_core::strip_verbatim_prefix(&current_ws));
+                let current_path_str = current_canonical.display().to_string();
                 seen_paths.insert(current_canonical);
 
                 // Helper to count files in an inactive project quickly
@@ -322,10 +321,10 @@ impl HttpServer {
                         for entry in entries.flatten() {
                             if let Ok(ft) = entry.file_type() {
                                 if ft.is_dir() {
-                                    let path = entry.path();
-                                    let path_str = path.display().to_string();
-                                    let path_canonical =
-                                        path.canonicalize().unwrap_or_else(|_| path.clone());
+                                    let path = neuromesh_core::strip_verbatim_prefix(&entry.path());
+                                    let path_canonical = neuromesh_core::canonicalize(&path)
+                                        .unwrap_or_else(|_| path.clone());
+                                    let path_str = path_canonical.display().to_string();
 
                                     if !deleted.contains(&path_str)
                                         && !deleted.contains(&path_canonical.display().to_string())
@@ -469,6 +468,7 @@ impl HttpServer {
                             )
                             .await?;
                         } else if target_path.exists() {
+                            let target_path = neuromesh_core::strip_verbatim_prefix(&target_path);
                             *state.workspace_path.write() = target_path.clone();
                             let project_name = target_path
                                 .file_name()
@@ -538,9 +538,9 @@ impl HttpServer {
             // Delete Project Data completely from NeuroMesh
             ("POST", "/api/project/delete") => {
                 if let Some(target_path_str) = body_json["path"].as_str() {
-                    let target_path = PathBuf::from(target_path_str);
-                    let canonical = target_path
-                        .canonicalize()
+                    let target_path =
+                        neuromesh_core::strip_verbatim_prefix(&PathBuf::from(target_path_str));
+                    let canonical = neuromesh_core::canonicalize(&target_path)
                         .unwrap_or_else(|_| target_path.clone());
 
                     state

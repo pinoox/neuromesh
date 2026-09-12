@@ -185,9 +185,9 @@ impl ProjectWalker {
             start.to_path_buf()
         };
         if dir.is_dir() && Self::is_safe_workspace(&dir) {
-            return dir.canonicalize().unwrap_or(dir);
+            return neuromesh_core::canonicalize(&dir).unwrap_or(dir);
         }
-        Self::discover_workspace(&dir)
+        neuromesh_core::strip_verbatim_prefix(&Self::discover_workspace(&dir))
     }
 
     pub fn is_safe_workspace(path: &Path) -> bool {
@@ -204,7 +204,9 @@ impl ProjectWalker {
     /// one of its files filtered out and indexes to nothing. Only the part
     /// below the workspace root describes the project's own structure.
     pub fn is_ignored_within(root: &Path, path: &Path) -> bool {
-        Self::is_ignored(path.strip_prefix(root).unwrap_or(path))
+        let clean_root = neuromesh_core::strip_verbatim_prefix(root);
+        let clean_path = neuromesh_core::strip_verbatim_prefix(path);
+        Self::is_ignored(clean_path.strip_prefix(&clean_root).unwrap_or(&clean_path))
     }
 
     pub fn is_ignored(path: &Path) -> bool {

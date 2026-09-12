@@ -301,12 +301,7 @@ fn find_stable_binary(current: &Path) -> Option<PathBuf> {
 }
 
 fn strip_verbatim(path: PathBuf) -> PathBuf {
-    let s = path.to_string_lossy();
-    if let Some(rest) = s.strip_prefix(r"\\?\") {
-        PathBuf::from(rest)
-    } else {
-        path
-    }
+    neuromesh_core::strip_verbatim_prefix(&path)
 }
 
 fn all_targets() -> Vec<Target> {

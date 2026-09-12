@@ -83,6 +83,7 @@ fn main() -> Result<()> {
         }
         "projects" => {
             let current = env::current_dir()?;
+            let current = neuromesh_core::strip_verbatim_prefix(&current);
             let name = current
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
@@ -154,6 +155,7 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
             } else {
                 neuromesh_index::resolve_mcp_startup_workspace()
             };
+            let current_dir = neuromesh_core::strip_verbatim_prefix(&current_dir);
             eprintln!("NeuroMesh MCP workspace: {}", current_dir.display());
             // Derived from the canonical project path, not the directory name:
             // unrelated checkouts both called `app` used to share one identity.
