@@ -1,4 +1,4 @@
-﻿# HTTP monitor
+# HTTP monitor
 
 `neuromesh monitor` binds **http://127.0.0.1:8765** by default (local only). Change it with `neuromesh port 9000`, `neuromesh monitor --port 9000`, or `NEUROMESH_PORT`. See [cli.md](cli.md#monitor-port). Re-index honors the same file cap as the CLI (`--max-files` / `NEUROMESH_MAX_FILES` / config; default auto, ceiling 50,000 — [cli.md](cli.md#index-file-cap)). Use this for the graph UI and for clients that speak HTTP/SSE instead of stdio MCP.
 
@@ -19,7 +19,7 @@
 | `POST` | `/api/v1/projects/index` | Re-index |
 | `POST` | `/api/v1/context/activate` | Packet without an LLM in the middle |
 | `POST` | `/api/v1/context/expand` | Expand a fold or inactive node |
-| `GET` | `/api/engines` | Effective graph backend + retrieval engine (v0.9.1) |
+| `GET` | `/api/engines` | Effective graph backend + retrieval engine (v0.9.2) |
 | `POST` | `/api/engines` | Save graph backend / retrieval engine to `nm.config.json` |
 | `GET` | `/api/graph-proxy/probe` | Live CBM connect + sample packet (same as `doctor --proxy --probe`) |
 

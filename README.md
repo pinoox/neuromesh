@@ -1,4 +1,4 @@
-﻿
+
 
 # NeuroMesh
 
@@ -85,7 +85,7 @@ Curious about the biology metaphor? **[docs/nature.md](docs/nature.md)**
 
 ## Install
 
-**Pre-built binary** (no Rust required). v0.9.1 defaults to **`engine: fast`** — instant graph index, no ONNX warm at startup.
+**Pre-built binary** (no Rust required). v0.9.2 defaults to **`engine: fast`** — instant graph index, no ONNX warm at startup.
 
 **macOS / Linux**
 
@@ -107,7 +107,7 @@ neuromesh connect         # write MCP configs (Cursor, VS Code, Claude, …)
 neuromesh index           # build the graph (<30s typical)
 ```
 
-Restart your IDE so MCP picks up the new server. Re-run the installer to **update** — then `neuromesh -V` should show **v0.9.1**.
+Restart your IDE so MCP picks up the new server. Re-run the installer to **update** — then `neuromesh -V` should show **v0.9.2**.
 
 
 | Platform      | Binary                                            |
@@ -224,7 +224,7 @@ Rust, TypeScript, Python, Go, Java, Kotlin, PHP, C#, Dart, Swift, Ruby, and more
 
 Savings are **per task**, after folding — not a marketing average. Run `neuromesh eval` on your own repo to see your numbers.
 
-Example from a **650k-token monorepo** (release **v0.9.1**, default `engine: fast`):
+Example from a **650k-token monorepo** (release **v0.9.2**, default `engine: fast`):
 
 | Task (plain language) | Mode | Full repo | Before fold | Packet sent | Saved vs repo | Extra greps | ms |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -246,7 +246,7 @@ Index on that project: **340 files · 552 ms**. Methodology and multilingual hol
 | [Configuration](docs/configuration.md) | Switch engines, proxy, advanced tuning           |
 | [Engines](docs/engines.md)             | `fast` vs `hybrid` vs `deep` in one page         |
 | [Docs index](docs/README.md)           | Full map                                         |
-| [Changelog](docs/CHANGELOG.md)         | What changed in v0.9.1                           |
+| [Changelog](docs/CHANGELOG.md)         | What changed in v0.9.2                           |
 
 
 MIT · [LICENSE](LICENSE)
