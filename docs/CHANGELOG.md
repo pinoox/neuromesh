@@ -4,6 +4,14 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.9.1 — 2026-09-12
+
+### Fixes & housekeeping
+
+- **Clippy CI** — gate install-prompt tests with `#[cfg(test)]` so release builds pass `--deny warnings` without stubs.
+- **MiniLM bundled** — bundle MiniLM weights in-repo and drop the CI fetch step; zero-network cold install for the embed model.
+- **Docs refresh** — refocus GitHub README and Pages landing for end-user developers (install flow, agent loop, engine table).
+
 ## 0.9.0 — 2026-08-30
 
 ### On-demand embed model install

@@ -1,4 +1,4 @@
-# NeuroMesh docs
+﻿# NeuroMesh docs
 
 Start with the [README](../README.md) for install and the agent loop.
 
@@ -19,6 +19,6 @@ Start with the [README](../README.md) for install and the agent loop.
 | [Contributing](contributing.md) | Tests, clippy, adding a language |
 | [Changelog](CHANGELOG.md) | Version history |
 
-## v0.9.0 in one line
+## v0.9.1 in one line
 
 **`get_context_packet`** with default **`engine: fast`** — graph routing, prompt only, folded evidence packet. Opt in to **`hybrid`** / **`deep`** after `neuromesh install embed minilm`. Details: [configuration.md](configuration.md) · [quality.md](quality.md).

@@ -1,4 +1,4 @@
-# Teach the agent to use NeuroMesh
+﻿# Teach the agent to use NeuroMesh
 
 `neuromesh connect` only registers the MCP **server**. Most IDEs still default to opening whole files unless you add **project instructions**. This guide covers every client NeuroMesh connects to.
 
@@ -22,7 +22,7 @@ Paste this body into whatever “project instructions / rules / AGENTS” file y
 
 Prefer NeuroMesh MCP for **reading and exploring** code — folded skeletons and targeted symbols, not multi-thousand-line dumps.
 
-## Default loop (v0.9.0 — zero-embed fast engine)
+## Default loop (v0.9.1 — zero-embed fast engine)
 
 **Default:** `retrieval.engine: fast` — graph index + query-side lexical expansion. **No ONNX** at index or MCP startup. Pass the task as written only — **no** `keywords` / `expansion`.
 
