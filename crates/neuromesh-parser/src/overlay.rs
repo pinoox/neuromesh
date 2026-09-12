@@ -930,7 +930,7 @@ fn push_pinoox_http_routes(content: &str, ast: &mut AstAnalysisResult) {
         let line = line_of(content, start);
         let window = content
             .get(start..)
-            .map(|s| &s[..s.len().min(280)])
+            .map(|s| &s[..s.floor_char_boundary(280)])
             .unwrap_or("");
         if verb == "FALLBACK" {
             push_api(ast, "FALLBACK", "fallback()".into(), line);
