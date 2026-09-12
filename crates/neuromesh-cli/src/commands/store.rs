@@ -19,8 +19,11 @@ pub fn execute(arg: Option<&str>) -> Result<()> {
 }
 
 fn current_ws() -> Result<std::path::PathBuf> {
-    Ok(neuromesh_core::canonicalize(&std::env::current_dir()?)
-        .unwrap_or_else(|_| neuromesh_core::strip_verbatim_prefix(&std::env::current_dir().unwrap_or_default())))
+    Ok(
+        neuromesh_core::canonicalize(&std::env::current_dir()?).unwrap_or_else(|_| {
+            neuromesh_core::strip_verbatim_prefix(&std::env::current_dir().unwrap_or_default())
+        }),
+    )
 }
 
 fn print_status() -> Result<()> {

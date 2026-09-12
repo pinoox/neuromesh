@@ -457,7 +457,9 @@ impl HttpServer {
                         .await?;
                     } else {
                         let target_path = neuromesh_core::canonicalize(Path::new(target_path_str))
-                            .unwrap_or_else(|_| neuromesh_core::strip_verbatim_prefix(Path::new(target_path_str)));
+                            .unwrap_or_else(|_| {
+                                neuromesh_core::strip_verbatim_prefix(Path::new(target_path_str))
+                            });
                         if !neuromesh_index::ProjectWalker::is_safe_workspace(&target_path) {
                             Self::send_json(
                                 &mut stream,
@@ -569,7 +571,7 @@ impl HttpServer {
 
                     // If currently active, switch back to main/current_dir
                     let is_active =
-                        neuromesh_core::paths_equal(&*state.workspace_path.read(), &target_path);
+                        neuromesh_core::paths_equal(&state.workspace_path.read(), &target_path);
                     if is_active {
                         let fallback_dir =
                             std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

@@ -172,8 +172,8 @@ pub fn paths_equal(a: &Path, b: &Path) -> bool {
         return true;
     }
 
-    let a_canon = canonicalize(&a_clean).unwrap_or_else(|_| a_clean);
-    let b_canon = canonicalize(&b_clean).unwrap_or_else(|_| b_clean);
+    let a_canon = canonicalize(&a_clean).unwrap_or(a_clean);
+    let b_canon = canonicalize(&b_clean).unwrap_or(b_clean);
 
     components_equal_path(&a_canon, &b_canon)
 }
@@ -214,7 +214,7 @@ pub fn is_path_within(child: &Path, root: &Path) -> bool {
         }
         child_clean.clone()
     });
-    let root_canon = canonicalize(&root_clean).unwrap_or_else(|_| root_clean.clone());
+    let root_canon = canonicalize(&root_clean).unwrap_or(root_clean);
 
     component_starts_with(&child_canon, &root_canon)
 }
@@ -228,8 +228,8 @@ pub fn strip_prefix_within(child: &Path, root: &Path) -> Option<PathBuf> {
         return Some(rel);
     }
 
-    let child_canon = canonicalize(&child_clean).unwrap_or_else(|_| child_clean.clone());
-    let root_canon = canonicalize(&root_clean).unwrap_or_else(|_| root_clean.clone());
+    let child_canon = canonicalize(&child_clean).unwrap_or(child_clean);
+    let root_canon = canonicalize(&root_clean).unwrap_or(root_clean);
 
     component_strip_prefix(&child_canon, &root_canon)
 }
@@ -452,7 +452,11 @@ pub fn trust_workspace_local(workspace: &Path) -> Result<PathBuf> {
     let key = normalize_workspace(workspace);
     let store = current_project_store();
     let mut trust = current_trust_list();
-    if store != ProjectStore::Local && !trust.iter().any(|e| paths_equal(Path::new(e), Path::new(&key))) {
+    if store != ProjectStore::Local
+        && !trust
+            .iter()
+            .any(|e| paths_equal(Path::new(e), Path::new(&key)))
+    {
         trust.push(key);
     }
     save_store_policy(store, trust)?;
@@ -473,7 +477,9 @@ pub fn untrust_workspace_local(workspace: &Path) -> Result<PathBuf> {
     let key = normalize_workspace(workspace);
     let trust: Vec<String> = current_trust_list()
         .into_iter()
-        .filter(|e| !paths_equal(Path::new(e), Path::new(&key)) && !paths_equal(Path::new(e), workspace))
+        .filter(|e| {
+            !paths_equal(Path::new(e), Path::new(&key)) && !paths_equal(Path::new(e), workspace)
+        })
         .collect();
     save_store_policy(ProjectStore::Managed, trust)?;
     let managed = ensure_project_data_dir(workspace)?;
