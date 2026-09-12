@@ -113,20 +113,21 @@ impl ProjectWalker {
 
     /// Walk up from `start` to a git/cargo root, refusing home and drive roots.
     pub fn discover_workspace(start: &Path) -> PathBuf {
-        let mut current = start.to_path_buf();
+        let clean_start = neuromesh_core::strip_verbatim_prefix(start);
+        let mut current = clean_start.clone();
         loop {
             if !Self::is_safe_workspace(&current) {
                 break;
             }
             if Self::has_project_marker(&current) {
-                return current;
+                return neuromesh_core::canonicalize(&current).unwrap_or(current);
             }
             match current.parent() {
                 Some(parent) => current = parent.to_path_buf(),
                 None => break,
             }
         }
-        start.to_path_buf()
+        clean_start
     }
 
     /// Why `path` must not be indexed at all, or `None` when it is usable.
@@ -187,7 +188,8 @@ impl ProjectWalker {
         if dir.is_dir() && Self::is_safe_workspace(&dir) {
             return neuromesh_core::canonicalize(&dir).unwrap_or(dir);
         }
-        neuromesh_core::strip_verbatim_prefix(&Self::discover_workspace(&dir))
+        let discovered = Self::discover_workspace(&dir);
+        neuromesh_core::canonicalize(&discovered).unwrap_or(discovered)
     }
 
     pub fn is_safe_workspace(path: &Path) -> bool {
@@ -204,9 +206,9 @@ impl ProjectWalker {
     /// one of its files filtered out and indexes to nothing. Only the part
     /// below the workspace root describes the project's own structure.
     pub fn is_ignored_within(root: &Path, path: &Path) -> bool {
-        let clean_root = neuromesh_core::strip_verbatim_prefix(root);
-        let clean_path = neuromesh_core::strip_verbatim_prefix(path);
-        Self::is_ignored(clean_path.strip_prefix(&clean_root).unwrap_or(&clean_path))
+        let rel = neuromesh_core::paths::strip_prefix_within(path, root)
+            .unwrap_or_else(|| neuromesh_core::strip_verbatim_prefix(path));
+        Self::is_ignored(&rel)
     }
 
     pub fn is_ignored(path: &Path) -> bool {

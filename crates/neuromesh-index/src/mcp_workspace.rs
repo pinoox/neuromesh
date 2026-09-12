@@ -1,5 +1,5 @@
 use crate::walker::ProjectWalker;
-use neuromesh_core::{canonicalize, strip_verbatim_prefix};
+use neuromesh_core::{canonicalize, paths_equal, strip_verbatim_prefix};
 use std::path::{Path, PathBuf};
 
 const IDE_ENV_KEYS: &[&str] = &[
@@ -76,6 +76,18 @@ pub fn parse_workspace_folder_paths(raw: &str) -> Option<PathBuf> {
             return best_project_root(paths.into_iter());
         }
     }
+    #[cfg(unix)]
+    {
+        if raw.contains(':') {
+            let paths: Vec<PathBuf> = std::env::split_paths(raw)
+                .filter(|p| p.exists())
+                .map(|p| canonicalize(&p).unwrap_or(p))
+                .collect();
+            if !paths.is_empty() {
+                return best_project_root(paths.into_iter());
+            }
+        }
+    }
     first_existing_path(raw).and_then(|p| best_project_root(std::iter::once(p)))
 }
 
@@ -123,9 +135,7 @@ pub fn same_workspace_path(a: Option<&Path>, b: &Path) -> bool {
     let Some(a) = a else {
         return false;
     };
-    let a_canon = canonicalize(a).unwrap_or_else(|_| strip_verbatim_prefix(a));
-    let b_canon = canonicalize(b).unwrap_or_else(|_| strip_verbatim_prefix(b));
-    a_canon == b_canon
+    paths_equal(a, b)
 }
 
 #[cfg(test)]

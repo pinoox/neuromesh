@@ -101,11 +101,16 @@ fn normalize_os_path(s: &str) -> PathBuf {
         } else if bytes.len() >= 2 && bytes[1] == b'|' {
             t.replace_range(1..2, ":");
         }
-        PathBuf::from(t)
+        if t.len() >= 2 && t.as_bytes()[1] == b':' && t.as_bytes()[0].is_ascii_lowercase() {
+            let mut chars: Vec<char> = t.chars().collect();
+            chars[0] = chars[0].to_ascii_uppercase();
+            t = chars.into_iter().collect();
+        }
+        neuromesh_core::strip_verbatim_prefix(std::path::Path::new(&t))
     }
     #[cfg(not(windows))]
     {
-        PathBuf::from(s.replace('\\', "/"))
+        neuromesh_core::strip_verbatim_prefix(std::path::Path::new(&s.replace('\\', "/")))
     }
 }
 

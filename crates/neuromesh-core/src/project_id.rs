@@ -79,17 +79,7 @@ fn project_id_hex(root: &Path) -> String {
 /// Relative paths never match an absolute root — callers holding the relative
 /// `ContextNode::file_path` should compare project ids instead.
 pub fn path_is_within(path: &Path, root: &Path) -> bool {
-    let root_key = normalize_workspace(root);
-    let path_key = normalize_workspace(path);
-    if path_key == root_key {
-        return true;
-    }
-    let prefix = if root_key.ends_with('/') {
-        root_key
-    } else {
-        format!("{root_key}/")
-    };
-    path_key.starts_with(&prefix)
+    crate::paths::is_path_within(path, root)
 }
 
 #[cfg(test)]

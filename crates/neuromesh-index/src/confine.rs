@@ -1,4 +1,7 @@
-use neuromesh_core::{canonicalize, strip_verbatim_prefix, NeuroMeshError, Result};
+pub use neuromesh_core::{
+    canonicalize, is_path_within, paths_equal, strip_prefix_within, strip_verbatim_prefix,
+};
+use neuromesh_core::{NeuroMeshError, Result};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -25,10 +28,16 @@ pub fn is_safe_workspace(path: &Path) -> bool {
         name.as_str(),
         "" | "users"
             | "windows"
+            | "system32"
+            | "syswow64"
             | "program files"
             | "program files (x86)"
+            | "programdata"
             | "appdata"
             | "home"
+            | "recovery"
+            | "$recycle.bin"
+            | "system volume information"
             | "/"
     ) {
         return false;
@@ -36,7 +45,30 @@ pub fn is_safe_workspace(path: &Path) -> bool {
 
     #[cfg(unix)]
     {
-        if candidate == Path::new("/home") || candidate == Path::new("/Users") {
+        if candidate == Path::new("/home")
+            || candidate == Path::new("/root")
+            || candidate == Path::new("/Users")
+            || candidate == Path::new("/System")
+            || candidate == Path::new("/Volumes")
+            || candidate == Path::new("/Library")
+            || candidate == Path::new("/Applications")
+            || candidate == Path::new("/private")
+            || candidate == Path::new("/private/tmp")
+            || candidate == Path::new("/private/var")
+            || candidate == Path::new("/private/etc")
+            || candidate == Path::new("/tmp")
+            || candidate == Path::new("/etc")
+            || candidate == Path::new("/var")
+            || candidate == Path::new("/usr")
+            || candidate == Path::new("/bin")
+            || candidate == Path::new("/sbin")
+            || candidate == Path::new("/boot")
+            || candidate == Path::new("/dev")
+            || candidate == Path::new("/proc")
+            || candidate == Path::new("/sys")
+            || candidate == Path::new("/opt")
+            || candidate == Path::new("/srv")
+        {
             return false;
         }
     }
@@ -76,20 +108,36 @@ pub fn resolve_workspace_file(workspace: &Path, requested: &Path) -> Result<Path
         NeuroMeshError::Config(format!("workspace is not a readable directory: {e}"))
     })?;
 
-    let candidate = if requested.is_absolute() {
-        strip_verbatim_prefix(requested)
+    let requested_clean = strip_verbatim_prefix(requested);
+    let candidate = if requested_clean.is_absolute() {
+        if is_path_within(&requested_clean, &root) || is_path_within(&requested_clean, workspace) {
+            requested_clean
+        } else {
+            // Check if stripping leading slash/backslash targets a file inside root
+            let s = requested_clean.to_string_lossy();
+            let trimmed = s.trim_start_matches(['/', '\\']);
+            let rel_cand = root.join(trimmed);
+            if rel_cand.exists() {
+                rel_cand
+            } else {
+                requested_clean
+            }
+        }
     } else {
-        root.join(requested)
+        // Strip leading slashes to prevent root.join("/foo") from jumping to drive root on Windows
+        let s = requested_clean.to_string_lossy();
+        let trimmed = s.trim_start_matches(['/', '\\']);
+        root.join(trimmed)
     };
     let lexical = normalize_lexical(&candidate);
-    if !is_path_within(&lexical, &root) {
+    if !is_path_within(&lexical, &root) && !is_path_within(&lexical, workspace) {
         return Err(NeuroMeshError::Config("path is outside workspace".into()));
     }
 
     let canonical = canonicalize(&candidate).map_err(|_| {
         NeuroMeshError::Config("path is outside workspace or is not a readable file".into())
     })?;
-    if !is_path_within(&canonical, &root) {
+    if !is_path_within(&canonical, &root) && !is_path_within(&canonical, workspace) {
         return Err(NeuroMeshError::Config("path is outside workspace".into()));
     }
     if !canonical.is_file() {
@@ -102,13 +150,6 @@ pub fn read_workspace_file(workspace: &Path, requested: &Path) -> Result<String>
     let resolved = resolve_workspace_file(workspace, requested)?;
     fs::read_to_string(&resolved)
         .map_err(|e| NeuroMeshError::Config(format!("unable to read workspace file: {e}")))
-}
-
-/// True when `child` is `root` or a descendant (component-safe, not byte `starts_with`).
-pub fn is_path_within(child: &Path, root: &Path) -> bool {
-    let child = strip_verbatim_prefix(child);
-    let root = strip_verbatim_prefix(root);
-    child.strip_prefix(&root).is_ok()
 }
 
 /// Skip files whose canonical target leaves `root` (symlink escape).
@@ -128,9 +169,11 @@ fn is_filesystem_root(path: &Path) -> bool {
     let mut comps = path.components();
     match comps.next() {
         Some(Component::RootDir) => comps.next().is_none(),
-        Some(Component::Prefix(_)) => {
-            matches!(comps.next(), Some(Component::RootDir)) && comps.next().is_none()
-        }
+        Some(Component::Prefix(_)) => match comps.next() {
+            None => true,
+            Some(Component::RootDir) => comps.next().is_none(),
+            _ => false,
+        },
         _ => false,
     }
 }
@@ -147,18 +190,6 @@ fn normalize_lexical(path: &Path) -> PathBuf {
         }
     }
     out
-}
-
-fn paths_equal(a: &Path, b: &Path) -> bool {
-    #[cfg(windows)]
-    {
-        a.to_string_lossy()
-            .eq_ignore_ascii_case(&b.to_string_lossy())
-    }
-    #[cfg(not(windows))]
-    {
-        a == b
-    }
 }
 
 #[cfg(test)]

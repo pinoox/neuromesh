@@ -4,7 +4,7 @@ use neuromesh_graph::NeuralProjectGraph;
 use super::{configured_walker, FileCapArg};
 
 pub fn execute() -> Result<()> {
-    let current_dir = std::env::current_dir()?;
+    let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
     let project_name = current_dir
         .file_name()
         .and_then(|n| n.to_str())

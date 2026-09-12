@@ -2,7 +2,7 @@ use crate::{NeuroMeshError, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 /// Where NeuroMesh keeps state that is not the user's repo.
 /// Default `~/.neuromesh`. Override with `NEUROMESH_HOME`.
@@ -77,34 +77,176 @@ fn home_store_policy() -> HomeStorePolicy {
 }
 
 /// Strip Windows extended-length (verbatim) path prefix (`\\?\` or `\\?\UNC\`),
+/// Win32 device prefixes (`\\.\`), and NT namespaces (`\??\`),
 /// returning a standard clean path for display, comparison, and cross-platform consistency.
+/// Runs unconditionally across all operating systems.
 pub fn strip_verbatim_prefix(path: &Path) -> PathBuf {
-    #[cfg(windows)]
+    let s = path.to_string_lossy();
+    let stripped = if s.len() >= 8
+        && (s[..8].eq_ignore_ascii_case(r"\\?\UNC\")
+            || s[..8].eq_ignore_ascii_case(r"\\.\UNC\")
+            || s[..8].eq_ignore_ascii_case(r"\??\UNC\"))
     {
-        let s = path.to_string_lossy();
-        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
-            return PathBuf::from(format!(r"\\{rest}"));
-        }
-        if let Some(rest) = s.strip_prefix("//?/UNC/") {
-            return PathBuf::from(format!("//{rest}"));
-        }
-        if let Some(rest) = s.strip_prefix(r"\\?\") {
-            return PathBuf::from(rest);
-        }
-        if let Some(rest) = s.strip_prefix("//?/") {
-            return PathBuf::from(rest);
-        }
-        path.to_path_buf()
-    }
-    #[cfg(not(windows))]
+        format!(r"\\{}", &s[8..])
+    } else if s.len() >= 8
+        && (s[..8].eq_ignore_ascii_case("//?/UNC/")
+            || s[..8].eq_ignore_ascii_case("//./UNC/")
+            || s[..8].eq_ignore_ascii_case("/??/UNC/"))
     {
-        path.to_path_buf()
+        format!("//{}", &s[8..])
+    } else if let Some(rest) = s.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else if let Some(rest) = s.strip_prefix("//?/") {
+        rest.to_string()
+    } else if let Some(rest) = s.strip_prefix(r"\??\") {
+        rest.to_string()
+    } else if let Some(rest) = s.strip_prefix("/??/") {
+        rest.to_string()
+    } else if let Some(rest) = s.strip_prefix(r"\\.\") {
+        rest.to_string()
+    } else if let Some(rest) = s.strip_prefix("//./") {
+        rest.to_string()
+    } else {
+        s.into_owned()
+    };
+
+    // Normalize drive letter to uppercase for cross-platform consistency (e.g. c:\ -> C:\ or c:/ -> C:/)
+    let bytes = stripped.as_bytes();
+    if bytes.len() >= 2
+        && bytes[0].is_ascii_lowercase()
+        && bytes[1] == b':'
+        && (bytes.len() == 2 || bytes[2] == b'\\' || bytes[2] == b'/')
+    {
+        let mut chars: Vec<char> = stripped.chars().collect();
+        chars[0] = chars[0].to_ascii_uppercase();
+        return PathBuf::from(chars.into_iter().collect::<String>());
     }
+
+    PathBuf::from(stripped)
 }
 
 /// Canonicalize `path` and strip any Windows verbatim prefix (`\\?\`).
 pub fn canonicalize(path: &Path) -> std::io::Result<PathBuf> {
     path.canonicalize().map(|p| strip_verbatim_prefix(&p))
+}
+
+/// Check if two path components are equal according to the current platform's filesystem semantics.
+/// Windows and macOS are case-insensitive by default; Linux/Unix is case-sensitive.
+pub fn components_equal(a: &Component, b: &Component) -> bool {
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        a.as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&b.as_os_str().to_string_lossy())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        a == b
+    }
+}
+
+/// Compare two paths component-by-component without canonicalization.
+pub fn components_equal_path(a: &Path, b: &Path) -> bool {
+    let mut a_comps = a.components();
+    let mut b_comps = b.components();
+    loop {
+        match (a_comps.next(), b_comps.next()) {
+            (None, None) => return true,
+            (Some(ca), Some(cb)) => {
+                if !components_equal(&ca, &cb) {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+    }
+}
+
+/// True when two paths refer to the same location across OSes.
+/// Handles case-insensitivity (Windows/macOS), separators, verbatim prefixes, and symlinks.
+pub fn paths_equal(a: &Path, b: &Path) -> bool {
+    let a_clean = strip_verbatim_prefix(a);
+    let b_clean = strip_verbatim_prefix(b);
+
+    if components_equal_path(&a_clean, &b_clean) {
+        return true;
+    }
+
+    let a_canon = canonicalize(&a_clean).unwrap_or_else(|_| a_clean);
+    let b_canon = canonicalize(&b_clean).unwrap_or_else(|_| b_clean);
+
+    components_equal_path(&a_canon, &b_canon)
+}
+
+/// Check if child components start with root components.
+fn component_starts_with(child: &Path, root: &Path) -> bool {
+    let mut child_comps = child.components();
+    for root_comp in root.components() {
+        let Some(child_comp) = child_comps.next() else {
+            return false;
+        };
+        if !components_equal(&child_comp, &root_comp) {
+            return false;
+        }
+    }
+    true
+}
+
+/// True when `child` lies inside `root` or equals `root`.
+/// Handles case-insensitivity on Windows/macOS, slashes, verbatim prefixes, and symlinks (e.g. /tmp on macOS).
+pub fn is_path_within(child: &Path, root: &Path) -> bool {
+    let child_clean = strip_verbatim_prefix(child);
+    let root_clean = strip_verbatim_prefix(root);
+
+    // 1. Direct component check
+    if component_starts_with(&child_clean, &root_clean) {
+        return true;
+    }
+
+    // 2. Canonical check (resolving symlinks like /tmp -> /private/tmp on macOS)
+    let child_canon = canonicalize(&child_clean).unwrap_or_else(|_| {
+        if let Some(parent) = child_clean.parent() {
+            if let Ok(canon_parent) = canonicalize(parent) {
+                if let Some(name) = child_clean.file_name() {
+                    return canon_parent.join(name);
+                }
+            }
+        }
+        child_clean.clone()
+    });
+    let root_canon = canonicalize(&root_clean).unwrap_or_else(|_| root_clean.clone());
+
+    component_starts_with(&child_canon, &root_canon)
+}
+
+/// Strip `root` from `child`, returning the relative path if `child` is within `root`.
+pub fn strip_prefix_within(child: &Path, root: &Path) -> Option<PathBuf> {
+    let child_clean = strip_verbatim_prefix(child);
+    let root_clean = strip_verbatim_prefix(root);
+
+    if let Some(rel) = component_strip_prefix(&child_clean, &root_clean) {
+        return Some(rel);
+    }
+
+    let child_canon = canonicalize(&child_clean).unwrap_or_else(|_| child_clean.clone());
+    let root_canon = canonicalize(&root_clean).unwrap_or_else(|_| root_clean.clone());
+
+    component_strip_prefix(&child_canon, &root_canon)
+}
+
+fn component_strip_prefix(child: &Path, root: &Path) -> Option<PathBuf> {
+    let mut child_comps = child.components();
+    for root_comp in root.components() {
+        let child_comp = child_comps.next()?;
+        if !components_equal(&child_comp, &root_comp) {
+            return None;
+        }
+    }
+    let mut rel = PathBuf::new();
+    for rem in child_comps {
+        rel.push(rem.as_os_str());
+    }
+    Some(rel)
 }
 
 /// Canonical lowercase `/`-separated path used as a stable project key.
@@ -114,12 +256,12 @@ pub fn normalize_workspace(path: &Path) -> String {
     if let Some(rest) = s.strip_prefix("//?/") {
         s = rest.to_string();
     }
-    s.to_lowercase()
-}
-
-fn paths_equal(a: &str, b: &str) -> bool {
-    a.replace('\\', "/")
-        .eq_ignore_ascii_case(&b.replace('\\', "/"))
+    let trimmed = if s.len() > 1 && s.ends_with('/') {
+        s.trim_end_matches('/').to_string()
+    } else {
+        s
+    };
+    trimmed.to_lowercase()
 }
 
 fn workspace_is_trusted(policy: &HomeStorePolicy, workspace: &Path) -> bool {
@@ -127,10 +269,10 @@ fn workspace_is_trusted(policy: &HomeStorePolicy, workspace: &Path) -> bool {
         return true;
     }
     let n = normalize_workspace(workspace);
-    policy
-        .trust_local
-        .iter()
-        .any(|entry| paths_equal(entry, &n) || paths_equal(entry, &workspace.to_string_lossy()))
+    policy.trust_local.iter().any(|entry| {
+        paths_equal(Path::new(entry), workspace)
+            || entry.replace('\\', "/").eq_ignore_ascii_case(&n)
+    })
 }
 
 /// True when this workspace is allowed to use `<workspace>/.neuromesh`.
@@ -310,7 +452,7 @@ pub fn trust_workspace_local(workspace: &Path) -> Result<PathBuf> {
     let key = normalize_workspace(workspace);
     let store = current_project_store();
     let mut trust = current_trust_list();
-    if store != ProjectStore::Local && !trust.iter().any(|e| paths_equal(e, &key)) {
+    if store != ProjectStore::Local && !trust.iter().any(|e| paths_equal(Path::new(e), Path::new(&key))) {
         trust.push(key);
     }
     save_store_policy(store, trust)?;
@@ -331,7 +473,7 @@ pub fn untrust_workspace_local(workspace: &Path) -> Result<PathBuf> {
     let key = normalize_workspace(workspace);
     let trust: Vec<String> = current_trust_list()
         .into_iter()
-        .filter(|e| !paths_equal(e, &key) && !paths_equal(e, &workspace.to_string_lossy()))
+        .filter(|e| !paths_equal(Path::new(e), Path::new(&key)) && !paths_equal(Path::new(e), workspace))
         .collect();
     save_store_policy(ProjectStore::Managed, trust)?;
     let managed = ensure_project_data_dir(workspace)?;
@@ -393,24 +535,94 @@ mod tests {
 
     #[test]
     fn strip_verbatim_prefix_cleans_paths() {
-        #[cfg(windows)]
-        {
-            assert_eq!(
-                strip_verbatim_prefix(Path::new(r"\\?\C:\foo\bar")),
-                PathBuf::from(r"C:\foo\bar")
-            );
-            assert_eq!(
-                strip_verbatim_prefix(Path::new(r"\\?\UNC\server\share\file")),
-                PathBuf::from(r"\\server\share\file")
-            );
-            assert_eq!(
-                strip_verbatim_prefix(Path::new(r"//?/C:/foo/bar")),
-                PathBuf::from(r"C:/foo/bar")
-            );
-        }
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\C:\foo\bar")),
+            PathBuf::from(r"C:\foo\bar")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\c:\foo\bar")),
+            PathBuf::from(r"C:\foo\bar")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\UNC\server\share\file")),
+            PathBuf::from(r"\\server\share\file")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\unc\server\share\file")),
+            PathBuf::from(r"\\server\share\file")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"//?/unc/server/share/file")),
+            PathBuf::from("//server/share/file")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\.\C:\foo\bar")),
+            PathBuf::from(r"C:\foo\bar")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\??\C:\foo\bar")),
+            PathBuf::from(r"C:\foo\bar")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"//?/c:/foo/bar")),
+            PathBuf::from("C:/foo/bar")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new("c:/foo/bar")),
+            PathBuf::from("C:/foo/bar")
+        );
         assert_eq!(
             strip_verbatim_prefix(Path::new("/normal/path")),
             PathBuf::from("/normal/path")
         );
+    }
+
+    #[test]
+    fn normalize_workspace_trims_trailing_slash_and_lowercases() {
+        let p1 = Path::new("/projects/app");
+        let p2 = Path::new("/projects/app/");
+        assert_eq!(normalize_workspace(p1), normalize_workspace(p2));
+    }
+
+    #[test]
+    fn test_cross_platform_path_matching() {
+        assert!(is_path_within(
+            Path::new("/tmp/project/src/lib.rs"),
+            Path::new("/tmp/project")
+        ));
+        assert!(is_path_within(
+            Path::new("/tmp/project"),
+            Path::new("/tmp/project")
+        ));
+        assert!(!is_path_within(
+            Path::new("/tmp/project-evil/secret"),
+            Path::new("/tmp/project")
+        ));
+        assert_eq!(
+            strip_prefix_within(
+                Path::new("/tmp/project/src/main.rs"),
+                Path::new("/tmp/project")
+            ),
+            Some(PathBuf::from("src/main.rs"))
+        );
+
+        #[cfg(windows)]
+        {
+            assert!(is_path_within(
+                Path::new(r"C:\Projects\app\src\main.rs"),
+                Path::new(r"c:\projects\app")
+            ));
+            assert!(paths_equal(
+                Path::new(r"c:\projects\app"),
+                Path::new(r"C:\projects\app")
+            ));
+            assert_eq!(
+                strip_prefix_within(
+                    Path::new(r"C:\Projects\app\src\main.rs"),
+                    Path::new(r"c:\projects\app")
+                ),
+                Some(PathBuf::from(r"src\main.rs"))
+            );
+        }
     }
 }

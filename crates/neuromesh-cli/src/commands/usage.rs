@@ -66,7 +66,9 @@ pub fn execute(args: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    let current_dir = std::env::current_dir()?;
+    let raw_cwd = std::env::current_dir()?;
+    let current_dir = neuromesh_core::canonicalize(&raw_cwd)
+        .unwrap_or_else(|_| neuromesh_core::strip_verbatim_prefix(&raw_cwd));
     let project_name = current_dir
         .file_name()
         .and_then(|n| n.to_str())

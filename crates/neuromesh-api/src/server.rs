@@ -6,7 +6,7 @@ use neuromesh_observability::{filter_history, summarize_history};
 use neuromesh_parser::CodeIntelligenceEngine;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -456,7 +456,8 @@ impl HttpServer {
                         )
                         .await?;
                     } else {
-                        let target_path = PathBuf::from(target_path_str);
+                        let target_path = neuromesh_core::canonicalize(Path::new(target_path_str))
+                            .unwrap_or_else(|_| neuromesh_core::strip_verbatim_prefix(Path::new(target_path_str)));
                         if !neuromesh_index::ProjectWalker::is_safe_workspace(&target_path) {
                             Self::send_json(
                                 &mut stream,
@@ -468,7 +469,6 @@ impl HttpServer {
                             )
                             .await?;
                         } else if target_path.exists() {
-                            let target_path = neuromesh_core::strip_verbatim_prefix(&target_path);
                             *state.workspace_path.write() = target_path.clone();
                             let project_name = target_path
                                 .file_name()
@@ -569,7 +569,7 @@ impl HttpServer {
 
                     // If currently active, switch back to main/current_dir
                     let is_active =
-                        state.workspace_path.read().to_string_lossy() == target_path_str;
+                        neuromesh_core::paths_equal(&*state.workspace_path.read(), &target_path);
                     if is_active {
                         let fallback_dir =
                             std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

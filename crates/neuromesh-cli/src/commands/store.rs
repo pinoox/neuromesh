@@ -18,8 +18,13 @@ pub fn execute(arg: Option<&str>) -> Result<()> {
     }
 }
 
+fn current_ws() -> Result<std::path::PathBuf> {
+    Ok(neuromesh_core::canonicalize(&std::env::current_dir()?)
+        .unwrap_or_else(|_| neuromesh_core::strip_verbatim_prefix(&std::env::current_dir().unwrap_or_default())))
+}
+
 fn print_status() -> Result<()> {
-    let ws = std::env::current_dir()?;
+    let ws = current_ws()?;
     let global = current_project_store();
     let local = uses_local_dotdir(&ws);
     let dir = project_data_dir(&ws);
@@ -48,7 +53,7 @@ fn print_status() -> Result<()> {
 }
 
 fn set_local() -> Result<()> {
-    let ws = std::env::current_dir()?;
+    let ws = current_ws()?;
     let dir = trust_workspace_local(&ws)?;
     println!("Trusted local store for this workspace");
     println!("Directory : {}", dir.display());
@@ -57,7 +62,7 @@ fn set_local() -> Result<()> {
 }
 
 fn set_managed() -> Result<()> {
-    let ws = std::env::current_dir()?;
+    let ws = current_ws()?;
     let dir = untrust_workspace_local(&ws)?;
     println!("Managed store (default)");
     println!("Directory : {}", dir.display());

@@ -2,7 +2,7 @@ use neuromesh_core::Result;
 use neuromesh_memory::MemoryDatabase;
 
 pub fn execute() -> Result<()> {
-    let current_dir = std::env::current_dir()?;
+    let current_dir = neuromesh_index::assert_safe_workspace(&std::env::current_dir()?)?;
     let project_id = neuromesh_core::stable_project_id(&current_dir);
     let db_path = neuromesh_core::memory_db_path(&current_dir);
 
