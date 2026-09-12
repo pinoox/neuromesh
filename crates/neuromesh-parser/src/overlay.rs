@@ -2950,4 +2950,36 @@ mod tests {
             svg.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
         );
     }
+
+    /// Regression test: parsing a PHP route file that contains multi-byte Unicode
+    /// characters (e.g. `─` U+2500, 3 bytes each) whose byte position falls near the
+    /// 280-byte window cut-off must not panic.
+    ///
+    /// Before the fix `&s[..s.len().min(280)]` could slice inside a multi-byte
+    /// codepoint; `floor_char_boundary(280)` always rounds down to a safe boundary.
+    #[test]
+    fn route_window_unicode_boundary_no_panic() {
+        // ─ is U+2500 and takes 3 bytes in UTF-8.
+        // We craft a source file where the regex match for Route::get starts at some
+        // offset, and exactly 280 bytes later we land in the middle of a ─ character.
+        //
+        // Padding before Route:: call: 7 bytes ("<?php\n//") + filler
+        // We want byte-280 from the match start to be inside a ─, so we add a comment
+        // block of ─ characters right after the route declaration.
+        let unicode_filler = "─".repeat(33); // 99 bytes of 3-byte chars
+        let src = format!(
+            "<?php\n// {filler}\nRoute::get('/sms', [SmsController::class, 'index']);\n// {filler2}\n",
+            filler = unicode_filler,
+            filler2 = "─".repeat(60), // ensures ─ chars are inside the 280-byte window
+        );
+
+        // Must not panic — this was the regression.
+        let ast = analyze("routes/web.php", &src, SourceLanguage::PHP);
+
+        assert!(
+            has_api(&ast, "GET /sms"),
+            "route must still be detected; symbols = {:?}",
+            ast.symbols.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
 }
