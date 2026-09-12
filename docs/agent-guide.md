@@ -22,7 +22,7 @@ Paste this body into whatever “project instructions / rules / AGENTS” file y
 
 Prefer NeuroMesh MCP for **reading and exploring** code — folded skeletons and targeted symbols, not multi-thousand-line dumps.
 
-## Default loop (v0.9.2 — zero-embed fast engine)
+## Default loop (v0.9.3 — zero-embed fast engine)
 
 **Default:** `retrieval.engine: fast` — graph index + query-side lexical expansion. **No ONNX** at index or MCP startup. Pass the task as written only — **no** `keywords` / `expansion`.
 

@@ -4,6 +4,17 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.9.3 — 2026-09-12
+
+### Fixes & Cross-Platform Path Normalization
+
+- **Cross-platform path detection & stripping** — Centralized `strip_verbatim_prefix` and `canonicalize` across the workspace to strip Windows extended-length (`\\?\`, `//?/`), Win32 device (`\\.\`, `//./`), NT namespace (`\??\`), and UNC paths (`\\?\UNC\...`, `\\?\unc\...`).
+- **Consistent drive letter casing** — Drive letters (`c:\`, `c:/`) are normalized to uppercase (`C:\`, `C:/`) across all operating systems.
+- **Cross-platform filesystem semantics** — Case-insensitive comparison on Windows and macOS (`paths_equal`, `components_equal`, `is_path_within`, `strip_prefix_within`) while preserving case-sensitivity on Linux.
+- **macOS symlink resolution** — Resolved `/tmp` -> `/private/tmp` and `/var` -> `/private/var` symlink mismatches in workspace containment checks via dual component and canonical matching.
+- **Safe workspace enforcement** — Expanded `is_safe_workspace` and `is_filesystem_root` across Windows, Linux, and macOS to reject all OS-level system roots and directories.
+- **Leading slash normalization** — Fixed `resolve_workspace_file` to handle leading slashes gracefully without escaping or misinterpreting workspace bounds.
+
 ## 0.9.2 — 2026-09-12
 
 ### Fixes

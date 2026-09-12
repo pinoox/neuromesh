@@ -2,7 +2,7 @@
 
 NeuroMesh can delegate **indexing and graph queries** to an external MCP server while keeping **folding, packet assembly, and MCP tools** in NeuroMesh.
 
-Default is **`native`** — built-in graph (`neuromesh index`, tiered retrieval). **v0.9.2 default `engine: fast`** uses native graph + lexical routing with no ONNX. Proxy is opt-in when CBM is already indexed in your IDE.
+Default is **`native`** — built-in graph (`neuromesh index`, tiered retrieval). **v0.9.3 default `engine: fast`** uses native graph + lexical routing with no ONNX. Proxy is opt-in when CBM is already indexed in your IDE.
 
 ## v0.8.2 stabilization
 

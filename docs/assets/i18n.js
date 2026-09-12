@@ -19,7 +19,7 @@ window.NMI18n = (function () {
       'nav.installBtn': 'Get started',
 
       'hero.slimeTag': 'Built for AI-assisted coding',
-      'hero.badgeRelease': 'v0.9.2 — zero-embed fast engine · instant index',
+      'hero.badgeRelease': 'v0.9.3 — zero-embed fast engine · instant index',
       'hero.badgeLocal': 'Local-first',
       'hero.desc': 'Your AI agent does not need three thousand lines of boilerplate to fix one bug. NeuroMesh indexes your repo into a live graph, routes your prompt to the right symbols, and sends a <strong>folded evidence packet</strong> — not whole-file dumps. Default <strong>engine: fast</strong> needs no model download; opt in to <strong>hybrid</strong> for semantic search when you want it.',
       'hero.ctaInstall': 'Install in 30 seconds',
@@ -142,7 +142,7 @@ window.NMI18n = (function () {
       'stats.label': 'Real numbers',
       'stats.title': 'Measured on a real monorepo',
       'stats.lead': 'Token savings are <em>per task</em>, after folding — not a marketing average. Run <code>neuromesh eval</code> on your repo.',
-      'stats.sub': 'v0.9.2 · default fast engine · up to ~97% fewer tokens vs attaching the whole project',
+      'stats.sub': 'v0.9.3 · default fast engine · up to ~97% fewer tokens vs attaching the whole project',
       'stats.s1': '% token savings (fix MCP handler task)',
       'stats.s2': '% token savings (trace routing code task)',
       'stats.s3': 'Files indexed in benchmark project',
@@ -157,7 +157,7 @@ window.NMI18n = (function () {
 
       'engines.label': 'Defaults',
       'engines.title': 'Fast by default. Embeddings opt-in.',
-      'engines.lead': 'v0.9.2 ships with <strong>engine: fast</strong> — instant graph index, no ONNX warm. Install, index, pass your prompt — done. Opt in to <strong>hybrid</strong> / <strong>deep</strong> when you need semantic search.',
+      'engines.lead': 'v0.9.3 ships with <strong>engine: fast</strong> — instant graph index, no ONNX warm. Install, index, pass your prompt — done. Opt in to <strong>hybrid</strong> / <strong>deep</strong> when you need semantic search.',
       'engines.graphTitle': 'Retrieval engine',
       'engines.graphDesc': '<strong>fast</strong> (default) — graph + prompt expansion, no download. <strong>hybrid</strong> / <strong>deep</strong> — add MiniLM when NL recall needs a boost.',
       'engines.seedTitle': 'Connect your editor',
@@ -248,7 +248,7 @@ window.NMI18n = (function () {
       'nav.installBtn': 'شروع کن',
 
       'hero.slimeTag': 'برای کدنویسی با AI ساخته شده',
-      'hero.badgeRelease': 'نسخه 0.9.2 — موتور fast بدون embed · index فوری',
+      'hero.badgeRelease': 'نسخه 0.9.3 — موتور fast بدون embed · index فوری',
       'hero.badgeLocal': 'محلی — بدون cloud',
       'hero.desc': 'Agent شما برای fix یک باگ به سه هزار خط boilerplate نیاز ندارد. NeuroMesh repo را به گراف زنده تبدیل می‌کند، prompt را به symbol درست می‌رساند و <strong>بستهٔ تا‌شده</strong> می‌فرستد — نه dump کل فایل. پیش‌فرض <strong>engine: fast</strong> بدون دانلود مدل؛ برای جستجوی معنایی <strong>hybrid</strong> را فعال کنید.',
       'hero.ctaInstall': 'نصب در ۳۰ ثانیه',
@@ -371,7 +371,7 @@ window.NMI18n = (function () {
       'stats.label': 'اعداد واقعی',
       'stats.title': 'روی یک monorepo واقعی',
       'stats.lead': 'صرفه‌جویی <em>به ازای هر task</em> است، بعد از fold — نه میانگین تبلیغاتی. روی repo خودتان <code>neuromesh eval</code> بزنید.',
-      'stats.sub': 'نسخه 0.9.2 · engine fast پیش‌فرض · تا ~۹۷٪ توکن کمتر نسبت به attach کل پروژه',
+      'stats.sub': 'نسخه 0.9.3 · engine fast پیش‌فرض · تا ~۹۷٪ توکن کمتر نسبت به attach کل پروژه',
       'stats.s1': '٪ صرفه‌جویی (fix handler ابزار MCP)',
       'stats.s2': '٪ صرفه‌جویی (trace کد routing)',
       'stats.s3': 'فایل index‌شده در پروژه benchmark',
@@ -386,7 +386,7 @@ window.NMI18n = (function () {
 
       'engines.label': 'پیش‌فرض',
       'engines.title': 'پیش‌فرض fast. embed اختیاری.',
-      'engines.lead': 'نسخه 0.9.2 با <strong>engine: fast</strong> می‌آید — index گراف فوری، بدون ONNX. نصب، index، prompt — تمام. برای جستجوی معنایی <strong>hybrid</strong> / <strong>deep</strong> را فعال کنید.',
+      'engines.lead': 'نسخه 0.9.3 با <strong>engine: fast</strong> می‌آید — index گراف فوری، بدون ONNX. نصب، index، prompt — تمام. برای جستجوی معنایی <strong>hybrid</strong> / <strong>deep</strong> را فعال کنید.',
       'engines.graphTitle': 'موتور retrieval',
       'engines.graphDesc': '<strong>fast</strong> (پیش‌فرض) — گراف + گسترش prompt، بدون دانلود. <strong>hybrid</strong> / <strong>deep</strong> — MiniLM وقتی recall NL لازم است.',
       'engines.seedTitle': 'editor را وصل کن',

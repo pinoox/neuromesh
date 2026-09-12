@@ -82,7 +82,7 @@ Or in `~/.neuromesh/config.json`:
 
 ## Retrieval engine & config
 
-NeuroMesh v0.9.2 uses one **retrieval engine** preset: `fast` | `hybrid` | `deep`. Default **`fast`** — graph index + query-side lexical expansion; pass the prompt only.
+NeuroMesh v0.9.3 uses one **retrieval engine** preset: `fast` | `hybrid` | `deep`. Default **`fast`** — graph index + query-side lexical expansion; pass the prompt only.
 
 | Layer | File | Scope |
 | :--- | :--- | :--- |
@@ -161,7 +161,7 @@ neuromesh eval --calibrate        # dev/holdout calibration from test3 JSON
 
 `eval --learning` indexes `tests/fixtures/learning-causal/`, sweeps reinforcement levels on `PromoCodeInput`, and prints bonus → rank → emitted → MRR. See [quality.md](quality.md#learning--emission-v0715).
 
-`eval --release-gates` runs the v0.9.2 tiered holdout matrix per engine (`--engine fast|hybrid|deep`; recall ≥55%, precision ≥73%, no_seed ≤2).
+`eval --release-gates` runs the v0.9.3 tiered holdout matrix per engine (`--engine fast|hybrid|deep`; recall ≥55%, precision ≥73%, no_seed ≤2).
 
 The process uses the **current working directory** as the project. `neuromesh connect` writes that path into each client's MCP config so the IDE does not have to guess.
 

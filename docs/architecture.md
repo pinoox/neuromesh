@@ -2,7 +2,7 @@
 
 NeuroMesh builds a **structural project graph**, then a **task-conditioned packet**. The graph is the nervous system. The packet is the thought.
 
-**v0.9.2 default:** **`engine: fast`** — native graph + query-side lexical expansion; **no ONNX** at index or MCP startup. Opt in to **`hybrid`** (hierarchical sidecar v6) or **`deep`** (full symbol embed). CBM graph proxy remains opt-in.
+**v0.9.3 default:** **`engine: fast`** — native graph + query-side lexical expansion; **no ONNX** at index or MCP startup. Opt in to **`hybrid`** (hierarchical sidecar v6) or **`deep`** (full symbol embed). CBM graph proxy remains opt-in.
 
 ```
 Prompt (any language)
@@ -35,7 +35,7 @@ Evidence packet → MCP client
       └─ expand_fold restores a body from the registry
 ```
 
-## Fast engine routing (v0.9.2 default)
+## Fast engine routing (v0.9.3 default)
 
 Default **`engine: fast`** builds the AST graph only (`neuromesh index`). At query time:
 

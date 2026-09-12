@@ -19,7 +19,7 @@
 | `POST` | `/api/v1/projects/index` | Re-index |
 | `POST` | `/api/v1/context/activate` | Packet without an LLM in the middle |
 | `POST` | `/api/v1/context/expand` | Expand a fold or inactive node |
-| `GET` | `/api/engines` | Effective graph backend + retrieval engine (v0.9.2) |
+| `GET` | `/api/engines` | Effective graph backend + retrieval engine (v0.9.3) |
 | `POST` | `/api/engines` | Save graph backend / retrieval engine to `nm.config.json` |
 | `GET` | `/api/graph-proxy/probe` | Live CBM connect + sample packet (same as `doctor --proxy --probe`) |
 
