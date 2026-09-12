@@ -4,6 +4,12 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.9.2 — 2026-09-12
+
+### Fixes
+
+- **Parser panic on Unicode routes** — `overlay.rs` was slicing the 280-byte route-window at a raw byte offset, which panicked when a multi-byte character (e.g. `─` U+2500, 3 bytes) straddled the boundary. Switched to `floor_char_boundary(280)` so the cut always lands on a valid UTF-8 code-point edge. Regression test added (`route_window_unicode_boundary_no_panic`).
+
 ## 0.9.1 — 2026-09-12
 
 ### Fixes & housekeeping
