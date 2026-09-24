@@ -117,11 +117,22 @@ impl PhysarumSolver {
             };
         }
 
-        // Initialize adjacency map: NodeId -> Vec<(NeighborId, EdgeId, length)>
+        // Every loop below walks a fixed order, never a `HashMap`'s. The
+        // relaxation is Gauss-Seidel (each node reads its neighbours' latest
+        // values), flux is a floating-point sum over incident edges, and the
+        // source seed anchors the potential field: all three change with
+        // visiting order, and the standard library reseeds every map. The
+        // sorted views cost one allocation per solve and make the tube a
+        // function of the graph alone.
+        let mut ordered_edges: Vec<(&EdgeId, &ContextEdge)> = edges.iter().collect();
+        ordered_edges.sort_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+
+        // Adjacency: NodeId -> Vec<(NeighborId, EdgeId, length)>, neighbours in edge order.
         let mut adj: HashMap<NodeId, Vec<(NodeId, EdgeId, f32)>> = HashMap::new();
         let mut conductance: HashMap<EdgeId, f32> = HashMap::new();
 
-        for (edge_id, edge) in edges {
+        for (edge_id, edge) in &ordered_edges {
+            let edge_id = *edge_id;
             let length = (1.0 / (edge.pheromone_weight.max(0.1))).clamp(0.5, 5.0);
             let initial_d = (edge.pheromone_weight * 2.0).clamp(0.2, 1.0);
             conductance.insert(edge_id.clone(), initial_d);
@@ -138,7 +149,11 @@ impl PhysarumSolver {
             ));
         }
 
-        let seed_list: Vec<NodeId> = seed_nodes.iter().cloned().collect();
+        let mut relax_order: Vec<&NodeId> = adj.keys().collect();
+        relax_order.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+
+        let mut seed_list: Vec<NodeId> = seed_nodes.iter().cloned().collect();
+        seed_list.sort_by(|a, b| a.as_str().cmp(b.as_str()));
         let source_node = &seed_list[0];
         let sink_nodes: HashSet<NodeId> = seed_list[1..].iter().cloned().collect();
 
@@ -159,7 +174,9 @@ impl PhysarumSolver {
             let sor_iters = self.config.sor_iterations.max(4);
             for _ in 0..sor_iters {
                 let mut max_delta: f32 = 0.0;
-                for (node_id, neighbors) in &adj {
+                for node_id in &relax_order {
+                    let node_id = *node_id;
+                    let neighbors = &adj[node_id];
                     if node_id == source_node || sink_nodes.contains(node_id) {
                         continue;
                     }
@@ -197,7 +214,8 @@ impl PhysarumSolver {
             node_flux.clear();
             edge_flux.clear();
 
-            for (edge_id, edge) in edges {
+            for (edge_id, edge) in &ordered_edges {
+                let edge_id = *edge_id;
                 let p_src = potentials.get(&edge.source).copied().unwrap_or(5.0);
                 let p_tgt = potentials.get(&edge.target).copied().unwrap_or(5.0);
                 let d = conductance.get(edge_id).copied().unwrap_or(0.1);
@@ -250,14 +268,14 @@ impl PhysarumSolver {
             active_nodes.insert(seed.clone());
         }
 
-        for (edge_id, &d) in &conductance {
+        for (edge_id, edge) in &ordered_edges {
+            let edge_id = *edge_id;
+            let d = conductance.get(edge_id).copied().unwrap_or(0.0);
             let flux = edge_flux.get(edge_id).copied().unwrap_or(0.0);
             if flux >= 0.08 * max_edge_flux && d >= self.config.prune_threshold {
                 active_edges.insert(edge_id.clone());
-                if let Some(edge) = edges.get(edge_id) {
-                    active_nodes.insert(edge.source.clone());
-                    active_nodes.insert(edge.target.clone());
-                }
+                active_nodes.insert(edge.source.clone());
+                active_nodes.insert(edge.target.clone());
             }
         }
 
@@ -355,5 +373,113 @@ mod tests {
         assert!(res.active_nodes.contains(&n2)); // Intermediate connector preserved!
         assert!(res.active_nodes.contains(&n3));
         assert!(!res.active_nodes.contains(&n_irrelevant)); // Irrelevant branch pruned!
+    }
+}
+
+#[cfg(test)]
+mod determinism_tests {
+    use super::*;
+    use chrono::Utc;
+    use neuromesh_core::{EdgeType, NodeType, ProjectId};
+    use std::path::PathBuf;
+
+    fn node(project: &ProjectId, id: &str) -> ContextNode {
+        ContextNode {
+            id: NodeId::new(id),
+            project_id: project.clone(),
+            file_path: PathBuf::from(id.trim_start_matches("file:")),
+            node_type: NodeType::File,
+            name: id.to_string(),
+            signature: None,
+            doc_summary: None,
+            line_range: None,
+            token_cost: 100,
+            content: None,
+            content_hash: "hash".into(),
+            parent: None,
+            base_relevance: 1.0,
+            access_count: 1,
+            last_accessed: Utc::now(),
+        }
+    }
+
+    fn edge(project: &ProjectId, src: &str, tgt: &str, w: f32) -> ContextEdge {
+        let (s, t) = (NodeId::new(src), NodeId::new(tgt));
+        ContextEdge {
+            id: EdgeId::new(&s, &t, &EdgeType::Imports),
+            project_id: project.clone(),
+            source: s,
+            target: t,
+            edge_type: EdgeType::Imports,
+            pheromone_weight: w,
+            reinforcement_count: 1,
+            failure_count: 0,
+            last_reinforced: Utc::now(),
+            confidence: neuromesh_core::EdgeConfidence::Proven,
+        }
+    }
+
+    /// A ring of 40 files with two rival routes between the seeds and a
+    /// third seed hanging off a spur. Small enough to solve in microseconds,
+    /// wide enough that which seed is treated as the source, and in which
+    /// order the relaxation visits nodes, changes the surviving tube.
+    fn rival_routes(
+        project: &ProjectId,
+    ) -> (HashMap<NodeId, ContextNode>, HashMap<EdgeId, ContextEdge>) {
+        let mut nodes = HashMap::new();
+        let mut edges = HashMap::new();
+        for i in 0..40 {
+            let id = format!("file:n{i}.rs");
+            nodes.insert(NodeId::new(&id), node(project, &id));
+        }
+        let mut add = |a: usize, b: usize, w: f32| {
+            let e = edge(
+                project,
+                &format!("file:n{a}.rs"),
+                &format!("file:n{b}.rs"),
+                w,
+            );
+            edges.insert(e.id.clone(), e);
+        };
+        for i in 0..39 {
+            add(i, i + 1, 0.5 + (i % 3) as f32 * 0.1);
+        }
+        add(39, 0, 0.5);
+        add(0, 20, 0.55);
+        add(10, 30, 0.55);
+        add(5, 25, 0.45);
+        (nodes, edges)
+    }
+
+    /// Solve the same subgraph 40 times, each with a freshly built seed set
+    /// (so the standard library's per-instance hash seed varies) and demand a
+    /// single answer. The solver's output decides what goes into a packet;
+    /// if two runs disagree, so do two packets for the same question.
+    #[test]
+    fn same_seeds_same_tube_regardless_of_hash_order() {
+        let project = ProjectId::new("det");
+        let (nodes, edges) = rival_routes(&project);
+        let solver = PhysarumSolver::new(PhysarumConfig::hot_path());
+        let seed_ids = ["file:n0.rs", "file:n10.rs", "file:n25.rs"];
+        let mut answers: Vec<Vec<String>> = Vec::new();
+        for round in 0..40 {
+            let mut seeds = HashSet::new();
+            // Rotate insertion order as well as hash seed.
+            for k in 0..seed_ids.len() {
+                seeds.insert(NodeId::new(seed_ids[(k + round) % seed_ids.len()]));
+            }
+            let res = solver.optimize_subgraph(&nodes, &edges, &seeds);
+            let mut active: Vec<String> = res.active_nodes.iter().map(|n| n.to_string()).collect();
+            active.sort();
+            answers.push(active);
+        }
+        let distinct: HashSet<&Vec<String>> = answers.iter().collect();
+        assert_eq!(
+            distinct.len(),
+            1,
+            "solver gave {} different tubes for the same seeds across 40 runs: {:?}",
+            distinct.len(),
+            distinct
+        );
     }
 }

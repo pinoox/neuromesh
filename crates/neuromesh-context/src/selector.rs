@@ -591,10 +591,15 @@ pub fn select(
     }
 
     let mut required_ids: Vec<NodeId> = required.iter().cloned().collect();
+    // Score, then path: this is the order the packet is emitted in, and two
+    // seed files that tie on score must not swap places between runs.
+    let required_keys = path_sort_keys(graph, required_ids.iter());
     required_ids.sort_by(|a, b| {
         let sa = scores.get(a).copied().unwrap_or(0.0);
         let sb = scores.get(b).copied().unwrap_or(0.0);
-        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+        sb.partial_cmp(&sa)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| sort_key(&required_keys, a).cmp(sort_key(&required_keys, b)))
     });
 
     let mut node_ids = required_ids.clone();

@@ -1022,6 +1022,10 @@ impl NeuralProjectGraph {
                         .unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .then_with(|| a.name.len().cmp(&b.name.len()))
+                // Total order. Without it two equally good hits keep the
+                // `scored` map's iteration order, which changes per instance,
+                // and whoever reads `hits[0]` gets a different seed each call.
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
         });
         hits.dedup_by(|a, b| a.id == b.id);
         hits.truncate(limit);
@@ -1389,7 +1393,11 @@ impl NeuralProjectGraph {
                 (score, id.clone())
             })
             .collect();
-        ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        ranked.sort_by(|a, b| {
+            b.0.partial_cmp(&a.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.1.as_str().cmp(b.1.as_str()))
+        });
         let best = ranked[0].1.clone();
         let dominant = ranked.len() == 1 || ranked[0].0 >= ranked[1].0 + 8.0;
         Some((

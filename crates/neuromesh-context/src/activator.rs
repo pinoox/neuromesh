@@ -39,7 +39,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 const MAX_INACTIVE: usize = 12;
-const PHYSARUM_SLA_MS: u64 = 20;
 const MAX_PHYSARUM_SIDECAR_FILES: usize = 3;
 
 struct MaterializedNode {
@@ -122,6 +121,7 @@ pub struct ContextActivator {
     registry: Arc<ReversibleContextRegistry>,
     last_physarum: Mutex<PhysarumTelemetry>,
     last_packet: Mutex<Option<PacketSnapshot>>,
+    physarum_sidecar: bool,
 }
 
 impl ContextActivator {
@@ -131,7 +131,21 @@ impl ContextActivator {
             registry,
             last_physarum: Mutex::new(PhysarumTelemetry::default()),
             last_packet: Mutex::new(None),
+            physarum_sidecar: true,
         }
+    }
+
+    /// Drop the Physarum sidecar from this activator's packets.
+    ///
+    /// An ablation switch. The sidecar is deterministic — the tube depends on
+    /// the graph and the seeds only — so the production path is what the
+    /// quality harness measures. Turn it off to see what the tube contributes
+    /// to a packet, or in a test that pins the seed-then-fill path alone.
+    /// Per-activator rather than a global switch: a process-wide flag would
+    /// leak into every other test sharing the binary.
+    pub fn without_physarum_sidecar(mut self) -> Self {
+        self.physarum_sidecar = false;
+        self
     }
 
     pub fn registry(&self) -> &Arc<ReversibleContextRegistry> {
@@ -450,6 +464,65 @@ impl ContextActivator {
             selection.optional.truncate(2);
         }
         tighten_focused_view_selection(graph, signature, &mut selection);
+
+        let mut physarum_used = false;
+        let mut physarum_ms = 0u64;
+        if self.physarum_sidecar && seed_set.len() >= 2 && !call_graph_task {
+            // The solve is bounded by the neighbourhood caps inside
+            // `solve_physarum_tube` (node/edge count, iteration count), not by
+            // the clock. Whatever it returns is used: the packet must be a
+            // function of the graph and the question, and an elapsed-time check
+            // here would make it a function of machine load as well (issue #15).
+            // `physarum_ms` stays as telemetry only.
+            let started = Instant::now();
+            let tube = graph.solve_physarum_tube(&seed_set, hops.min(2));
+            physarum_ms = started.elapsed().as_millis() as u64;
+            let ran = tube.iterations_converged > 0;
+            if ran {
+                physarum_used = true;
+                let mut physarum_candidates: Vec<(NodeId, f32)> = Vec::new();
+                for id in &tube.active_nodes {
+                    let Some(node) = graph.get_node(id) else {
+                        continue;
+                    };
+                    let Some(file_id) = graph.file_id_for_path(&node.file_path) else {
+                        continue;
+                    };
+                    if selection.required.contains(&file_id) {
+                        continue;
+                    }
+                    let score = selection.scores.get(&file_id).copied().unwrap_or(8.0);
+                    physarum_candidates.push((file_id, score));
+                }
+                let path_keys = path_sort_keys(graph, physarum_candidates.iter().map(|(id, _)| id));
+                physarum_candidates.sort_by(|(a, sa), (b, sb)| {
+                    sb.partial_cmp(sa)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| sort_key(&path_keys, a).cmp(sort_key(&path_keys, b)))
+                });
+                physarum_candidates.dedup_by(|(a, _), (b, _)| a == b);
+                for (file_id, _) in physarum_candidates
+                    .into_iter()
+                    .take(MAX_PHYSARUM_SIDECAR_FILES)
+                {
+                    let entry = selection.scores.entry(file_id.clone()).or_insert(0.0);
+                    if *entry < 8.0 {
+                        *entry = 8.0;
+                    }
+                    if !selection.optional.contains(&file_id) {
+                        selection.optional.push(file_id.clone());
+                    }
+                    seed_reasons
+                        .entry(file_id)
+                        .or_insert_with(|| "physarum_tube".into());
+                }
+                selection.method = "physarum_seed_fill";
+            }
+        }
+        // After the sidecar on purpose: a tube file is optional like any other
+        // and goes through the same noise filter. Run before it, the filter was
+        // bypassed by whatever the tube added, and a style question shipped the
+        // cart drawer because it happens to include the same mixin.
         let mut skipped_files: Vec<SkippedFile> = Vec::new();
         if is_style_task(signature) {
             selection.required.retain(|id| {
@@ -497,55 +570,6 @@ impl ContextActivator {
             }
         }
         let fill_cap = fill_budget(effective_mode);
-
-        let mut physarum_used = false;
-        let mut physarum_ms = 0u64;
-        if seed_set.len() >= 2 && !call_graph_task {
-            let started = Instant::now();
-            let tube = graph.solve_physarum_tube(&seed_set, hops.min(2));
-            physarum_ms = started.elapsed().as_millis() as u64;
-            let ran = tube.iterations_converged > 0;
-            if ran && physarum_ms <= PHYSARUM_SLA_MS {
-                physarum_used = true;
-                let mut physarum_candidates: Vec<(NodeId, f32)> = Vec::new();
-                for id in &tube.active_nodes {
-                    let Some(node) = graph.get_node(id) else {
-                        continue;
-                    };
-                    let Some(file_id) = graph.file_id_for_path(&node.file_path) else {
-                        continue;
-                    };
-                    if selection.required.contains(&file_id) {
-                        continue;
-                    }
-                    let score = selection.scores.get(&file_id).copied().unwrap_or(8.0);
-                    physarum_candidates.push((file_id, score));
-                }
-                let path_keys = path_sort_keys(graph, physarum_candidates.iter().map(|(id, _)| id));
-                physarum_candidates.sort_by(|(a, sa), (b, sb)| {
-                    sb.partial_cmp(sa)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                        .then_with(|| sort_key(&path_keys, a).cmp(sort_key(&path_keys, b)))
-                });
-                physarum_candidates.dedup_by(|(a, _), (b, _)| a == b);
-                for (file_id, _) in physarum_candidates
-                    .into_iter()
-                    .take(MAX_PHYSARUM_SIDECAR_FILES)
-                {
-                    let entry = selection.scores.entry(file_id.clone()).or_insert(0.0);
-                    if *entry < 8.0 {
-                        *entry = 8.0;
-                    }
-                    if !selection.optional.contains(&file_id) {
-                        selection.optional.push(file_id.clone());
-                    }
-                    seed_reasons
-                        .entry(file_id)
-                        .or_insert_with(|| "physarum_tube".into());
-                }
-                selection.method = "physarum_seed_fill";
-            }
-        }
         let scores = selection.scores.clone();
         let path_keys = path_sort_keys(graph, selection.optional.iter());
         selection.optional.sort_by(|a, b| {
@@ -1954,12 +1978,23 @@ fn prefer_search_seed(
         }
     }
     let Some(hit) = hits
-        .into_iter()
+        .iter()
         .find(|hit| hit.score >= 90.0 && seed_path_allowed(graph, &hit.id, prompt))
+        .cloned()
     else {
         return ranked_id;
     };
     if hit.id == ranked_id {
+        return ranked_id;
+    }
+    // Search only overrides the graph ranking when it is strictly better. On a
+    // tie the ranked candidate stays: that ranking already weighed degree and
+    // body size, which the search score does not, and before this check the
+    // winner of a tie was whichever hit the hash map yielded first.
+    if hits
+        .iter()
+        .any(|h| h.id == ranked_id && h.score >= hit.score)
+    {
         return ranked_id;
     }
     if matches!(hit.node_type, NodeType::File) {
@@ -2622,7 +2657,7 @@ public final class JsonArray {
     }
 
     #[test]
-    fn physarum_tubes_connect_two_seeds_under_sla() {
+    fn physarum_tubes_connect_two_seeds() {
         let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
         let a = r#"
 pub fn start_job() {
@@ -2661,7 +2696,6 @@ pub fn enqueue_job() {
             "need two seeds for Physarum: {:?}",
             view.seeds
         );
-        assert!(view.physarum_ms < 20, "tube latency {}ms", view.physarum_ms);
         assert!(
             view.physarum_used,
             "neighborhood Physarum must run for two seeds: method={}",
@@ -2669,7 +2703,6 @@ pub fn enqueue_job() {
         );
         let tel = activator.last_physarum();
         assert!(tel.used);
-        assert!(tel.ms < 20);
     }
 
     #[test]
