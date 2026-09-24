@@ -675,11 +675,15 @@ impl NeuralProjectGraph {
                     }
                 }
                 EdgeType::Calls => {
+                    let source_file = rel.source_file.to_string_lossy();
+                    // The caller is defined in the file the call was parsed
+                    // from; look there first. `resolve_unique` alone gives up
+                    // when the name is shared (`POST` in every `route.ts`) and
+                    // hangs the edge off the file, so the route's callees never
+                    // reach a seed placed on the route handler.
                     let source = self
-                        .resolve_unique(
-                            &rel.source_symbol,
-                            Some(&rel.source_file.to_string_lossy()),
-                        )
+                        .resolve_in_file(&rel.source_symbol, &source_file)
+                        .or_else(|| self.resolve_unique(&rel.source_symbol, Some(&source_file)))
                         .unwrap_or_else(|| file_id.clone());
                     // Overlay templates (`hello` → `theme/default/hello.twig`) must
                     // bind the file before the stem can steal another symbol.
@@ -1079,6 +1083,25 @@ impl NeuralProjectGraph {
             .into_iter()
             .next()
             .and_then(|hit| self.get_node(&hit.id))
+    }
+
+    /// The one node named `name` defined in exactly `file`, if there is
+    /// exactly one. Case-insensitive on the name, segment-aligned on the
+    /// path (`routes/a/route.ts` matches `route.ts` but not `aroute.ts`).
+    pub fn resolve_in_file(&self, name: &str, file: &str) -> Option<NodeId> {
+        let name_lower = name.to_lowercase();
+        let data = self.inner.read();
+        let ids = data.name_to_nodes.get(&name_lower)?;
+        let mut exact = ids.iter().filter(|id| {
+            data.mesh
+                .node(id)
+                .is_some_and(|n| same_file_path(&n.file_path, file))
+        });
+        let first = exact.next()?;
+        match exact.next() {
+            None => Some(first.clone()),
+            Some(_) => None,
+        }
     }
 
     pub fn resolve_unique(&self, name: &str, file_hint: Option<&str>) -> Option<NodeId> {
@@ -2956,6 +2979,18 @@ fn ranking_bonus(node: &ContextNode, query: &str) -> f32 {
 
 fn normalize_path_hint(value: &str) -> String {
     value.replace('\\', "/").replace('-', "_").to_lowercase()
+}
+
+fn same_file_path(path: &Path, hint: &str) -> bool {
+    let path = normalize_path_hint(&path.to_string_lossy());
+    let hint = normalize_path_hint(hint);
+    if path.is_empty() || hint.is_empty() {
+        return false;
+    }
+    let ends_on_segment = |long: &str, short: &str| {
+        long.ends_with(short) && long[..long.len() - short.len()].ends_with('/')
+    };
+    path == hint || ends_on_segment(&hint, &path) || ends_on_segment(&path, &hint)
 }
 
 /// Relative file paths (`theme/default/hello.twig`) must not match every

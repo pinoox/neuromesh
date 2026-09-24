@@ -301,6 +301,47 @@ impl ContextActivator {
         );
     }
 
+    /// Two route files each export a `POST`; the call inside one of them
+    /// must hang off *that* file's `POST`, not off the file node because the
+    /// name is shared project-wide.
+    #[test]
+    fn call_source_resolves_in_its_own_file_before_the_unique_lookup() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let posts = "import { getUserSubscriptionPlan } from \"@/lib/subscription\"\nexport async function POST(req) {\n  const plan = await getUserSubscriptionPlan(1)\n  return plan\n}\n";
+        let users = "export async function POST(req) {\n  return null\n}\n";
+        let subscription = "export async function getUserSubscriptionPlan(userId) {\n  return { isPro: false }\n}\n";
+        for (path, src) in [
+            ("app/api/posts/route.ts", posts),
+            ("app/api/users/route.ts", users),
+            ("lib/subscription.ts", subscription),
+        ] {
+            graph.ingest_file(
+                &indexed_lang(path, SourceLanguage::TypeScript),
+                &CodeIntelligenceEngine::analyze(
+                    &PathBuf::from(path),
+                    src,
+                    SourceLanguage::TypeScript,
+                ),
+                Some(src),
+            );
+        }
+        graph.finalize_links();
+        let post = graph
+            .resolve_in_file("POST", "app/api/posts/route.ts")
+            .expect("POST in posts/route.ts");
+        let callee = graph.get_neighbor_views(&post).into_iter().find(|n| {
+            n.node.name == "getUserSubscriptionPlan"
+                && n.edge.edge_type == neuromesh_core::EdgeType::Calls
+        });
+        assert!(
+            callee.is_some(),
+            "the call from posts/route.ts::POST is not on that POST node"
+        );
+        assert!(graph
+            .resolve_in_file("POST", "lib/subscription.ts")
+            .is_none());
+    }
+
     #[test]
     fn incremental_hash_skips_and_persist_roundtrips() {
         let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
