@@ -1571,6 +1571,50 @@ class RedirectableUrlMatcher {
     }
 
     #[test]
+    fn typescript_exported_constants_and_objects_are_symbols() {
+        let ast = parse_lang(
+            Grammar::TypeScript,
+            TYPESCRIPT_QUERIES,
+            QueryOptions::typescript(),
+            "lib.ts",
+            "export const MAINTENANCE_SECTION_RULES = { a: 1 };
+export const userNameSchema = z.object({ name: z.string() });
+export const db = new PrismaClient();
+export const revalidate = 60;
+export const helper = 3;
+function f() { const LOCAL_MAX = 2; return LOCAL_MAX; }
+",
+        );
+        let names: Vec<&str> = ast.symbols.iter().map(|s| s.name.as_str()).collect();
+        for want in ["MAINTENANCE_SECTION_RULES", "userNameSchema", "db"] {
+            assert!(names.contains(&want), "{want} missing in {names:?}");
+        }
+        for skip in ["revalidate", "helper", "LOCAL_MAX"] {
+            assert!(!names.contains(&skip), "{skip} present in {names:?}");
+        }
+    }
+
+    #[test]
+    fn typescript_fastify_decoration_is_a_symbol() {
+        let ast = parse_lang(
+            Grammar::TypeScript,
+            TYPESCRIPT_QUERIES,
+            QueryOptions::typescript(),
+            "knex.ts",
+            "export default fp(async (fastify: FastifyInstance, opts) => {
+  fastify.decorate('knex', knex(opts))
+  fastify.decorateRequest('user', null)
+  fastify.addHook('onClose', async (instance) => { await instance.knex.destroy() })
+}, { name: 'knex' })
+",
+        );
+        let names: Vec<&str> = ast.symbols.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"knex"), "{names:?}");
+        assert!(names.contains(&"user"), "{names:?}");
+        assert!(!names.contains(&"onClose"), "{names:?}");
+    }
+
+    #[test]
     fn typescript_jsdoc_becomes_docstring() {
         let ast = parse_lang(
             Grammar::TypeScript,
