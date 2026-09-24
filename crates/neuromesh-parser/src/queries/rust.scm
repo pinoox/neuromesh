@@ -20,3 +20,18 @@
 (use_declaration) @import
 
 (call_expression) @call
+
+; `pub const DEFAULT_PORT: u16 = 8765` — a public SCREAMING_SNAKE constant
+; is a symbol a question names by name. `pub` (any visibility modifier)
+; only occurs at module level, so a `const` inside a function body can
+; never match here. Private/lowercase consts stay out, like before.
+(const_item
+  (visibility_modifier)
+  name: (identifier) @symbol.name
+  (#match? @symbol.name "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$")) @symbol
+
+; `pub static EARLY: …` — same rule for statics.
+(static_item
+  (visibility_modifier)
+  name: (identifier) @symbol.name
+  (#match? @symbol.name "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$")) @symbol

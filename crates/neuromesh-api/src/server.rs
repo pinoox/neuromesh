@@ -72,13 +72,18 @@ impl HttpServer {
         ready_tx: Option<tokio::sync::oneshot::Sender<u16>>,
     ) -> Result<()> {
         let (listener, addr) = self.bind().await?;
-        println!("\n╔═══════════════════════════════════════════════════════════════════════════════════╗");
-        println!(
+        // NOTE: stderr, never stdout. `run_with_port_notify` also serves
+        // the MCP stdio process (`neuromesh mcp` auto-starts this
+        // dashboard in-process); stdout there is pure JSON-RPC and a single
+        // banner line (`╔`) makes strict clients fail the handshake with
+        // `invalid character '╔' looking for beginning of value`.
+        eprintln!("\n╔═══════════════════════════════════════════════════════════════════════════════════╗");
+        eprintln!(
             "║             🌿 NEUROMESH v{} — UI MONITOR & MCP DASHBOARD ACTIVE               ║",
             env!("CARGO_PKG_VERSION")
         );
-        println!("║   Open in browser: \x1b[1;36mhttp://{}\x1b[0m                                      ║", addr);
-        println!("╚═══════════════════════════════════════════════════════════════════════════════════╝\n");
+        eprintln!("║   Open in browser: \x1b[1;36mhttp://{}\x1b[0m                                      ║", addr);
+        eprintln!("╚═══════════════════════════════════════════════════════════════════════════════════╝\n");
         if let Some(tx) = ready_tx {
             let _ = tx.send(addr.port());
         }

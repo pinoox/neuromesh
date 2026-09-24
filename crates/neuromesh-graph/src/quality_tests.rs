@@ -1793,6 +1793,53 @@ class Greeter {
     }
 
     #[test]
+    fn parser_epoch_mismatch_clears_fingerprints_for_full_relink() {
+        use neuromesh_index::FileFingerprint;
+        let dir = std::env::temp_dir().join(format!("neuromesh-epoch-fp-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("graph.bin");
+        let snapshot = GraphSnapshot {
+            version: 2,
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            pending: Vec::new(),
+            unresolved: Vec::new(),
+            file_hashes: [("src/App.vue".into(), "old-hash".into())]
+                .into_iter()
+                .collect(),
+            file_fingerprints: [(
+                "src/App.vue".into(),
+                FileFingerprint {
+                    size: 10,
+                    mtime_unix: 1,
+                    hash: "old-hash".into(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+            export_index: HashMap::new(),
+            generation: 1,
+            indexed_at: None,
+            stale_files: Vec::new(),
+            workspace_root: Some(dir.clone()),
+            parser_epoch: 0,
+            applied_learning_episodes: HashSet::new(),
+            concept_index: crate::concept_index::ConceptIndex::default(),
+            shard_files: Vec::new(),
+        };
+        let bytes = bincode::serialize(&snapshot).expect("serialize");
+        std::fs::write(&path, bytes).expect("write");
+        let graph = NeuralProjectGraph::new(ProjectId::new("epoch-fp"));
+        assert!(graph.load_from(&path).expect("load"));
+        assert!(
+            graph.file_fingerprints().is_empty(),
+            "epoch mismatch must clear fingerprints or the walker skips every file"
+        );
+        assert!(graph.needs_parser_relink());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn mini_shop_vue_trace_finds_template_callers() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/mini-shop");
         if !root.join("src/stores/ui.js").exists() {

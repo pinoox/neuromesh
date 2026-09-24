@@ -31,7 +31,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// Bump when parser/linker output changes; older snapshots re-parse on load.
-pub const GRAPH_PARSER_EPOCH: u32 = 3;
+pub const GRAPH_PARSER_EPOCH: u32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphStats {
@@ -2134,6 +2134,10 @@ impl NeuralProjectGraph {
         }
         if relink_needed {
             data.file_hashes.clear();
+            // Fingerprints (size/mtime) drive the walker's unchanged-skip;
+            // without clearing them the next index would skip every file
+            // and the new parser output would never materialize.
+            data.file_fingerprints.clear();
             data.parser_epoch = 0;
         }
         data.source_overlay.clear();

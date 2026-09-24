@@ -92,6 +92,25 @@ struct MinimalFile {
     /// Fold ids only — full descriptors live in standard/diagnostic.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     folds: Vec<String>,
+    /// How many fold ids were capped off (see `cap_minimal_folds`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    folds_omitted: Option<usize>,
+}
+
+/// Minimal packets cap fold ids per file: a 200-id list is ~7KB of
+/// markers no agent expands one by one (pointer already caps at 6).
+/// Full descriptors stay in standard/diagnostic, and `expand_fold`
+/// also accepts query/node_id, so discovery is not blocked.
+const MINIMAL_FOLDS_PER_FILE: usize = 8;
+
+fn cap_minimal_folds(ids: &[String]) -> (Vec<String>, Option<usize>) {
+    if ids.len() <= MINIMAL_FOLDS_PER_FILE {
+        return (ids.to_vec(), None);
+    }
+    (
+        ids[..MINIMAL_FOLDS_PER_FILE].to_vec(),
+        Some(ids.len() - MINIMAL_FOLDS_PER_FILE),
+    )
 }
 
 fn is_false(v: &bool) -> bool {
@@ -824,7 +843,8 @@ impl ContextBuild<'_> {
             .files
             .iter()
             .map(|f| {
-                let fold_ids: Vec<String> = f.folds.iter().map(|d| d.fold_id.clone()).collect();
+                let all_fold_ids: Vec<String> = f.folds.iter().map(|d| d.fold_id.clone()).collect();
+                let (fold_ids, folds_omitted) = cap_minimal_folds(&all_fold_ids);
                 let is_seed_file = seed_paths.iter().any(|sp| {
                     f.path.eq_ignore_ascii_case(sp) || f.path.ends_with(sp) || sp.ends_with(&f.path)
                 });
@@ -850,6 +870,7 @@ impl ContextBuild<'_> {
                     sidecar: f.sidecar,
                     code,
                     folds: fold_ids,
+                    folds_omitted,
                 }
             })
             .collect();
@@ -1256,6 +1277,34 @@ mod tests {
         let best =
             pick_agent_hint_file(&files, "How does the system estimate the number of tokens?");
         assert_eq!(best.unwrap().path, "crates/neuromesh-core/src/token.rs");
+    }
+    #[test]
+    fn minimal_caps_fold_ids_per_file() {
+        let ids: Vec<String> = (0..20).map(|i| format!("fold_{i}")).collect();
+        let (kept, omitted) = cap_minimal_folds(&ids);
+        assert_eq!(kept.len(), MINIMAL_FOLDS_PER_FILE);
+        assert_eq!(kept[0], "fold_0");
+        assert_eq!(omitted, Some(20 - MINIMAL_FOLDS_PER_FILE));
+        let short = ids[..3].to_vec();
+        let (kept_short, omitted_short) = cap_minimal_folds(&short);
+        assert_eq!(kept_short, short);
+        assert_eq!(omitted_short, None);
+        // Serialized shape: capped list + honest count, nothing else.
+        let file = MinimalFile {
+            path: "src/lib.rs".into(),
+            why: None,
+            sidecar: false,
+            code: String::new(),
+            folds: kept,
+            folds_omitted: omitted,
+        };
+        let dumped = serde_json::to_value(&file).unwrap();
+        assert_eq!(
+            dumped["folds"].as_array().unwrap().len(),
+            MINIMAL_FOLDS_PER_FILE
+        );
+        assert_eq!(dumped["folds_omitted"], 20 - MINIMAL_FOLDS_PER_FILE);
+        assert!(dumped.get("why").is_none());
     }
 
     #[test]

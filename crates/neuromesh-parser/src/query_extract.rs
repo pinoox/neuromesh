@@ -1556,6 +1556,23 @@ class RedirectableUrlMatcher {
             save.line_range
         );
     }
+    #[test]
+    fn rust_public_constants_and_statics_are_symbols() {
+        let ast = parse_lang(
+            Grammar::Rust,
+            RUST_QUERIES,
+            QueryOptions::rust(),
+            "config.rs",
+            "pub const DEFAULT_PORT: u16 = 8765;\npub static EARLY: u8 = 1;\nconst PRIVATE_MAX: usize = 12;\nconst helper: u32 = 1;\npub fn load() {}\nfn f() { const BODY_LOCAL: u32 = 2; }\n",
+        );
+        let names: Vec<&str> = ast.symbols.iter().map(|s| s.name.as_str()).collect();
+        for want in ["DEFAULT_PORT", "EARLY", "load"] {
+            assert!(names.contains(&want), "{want} missing in {names:?}");
+        }
+        for skip in ["PRIVATE_MAX", "helper", "BODY_LOCAL"] {
+            assert!(!names.contains(&skip), "{skip} present in {names:?}");
+        }
+    }
 
     #[test]
     fn typescript_arrow_const_is_a_function() {
