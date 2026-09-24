@@ -4,6 +4,26 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.9.10 — 2026-09-24
+
+### TypeScript retrieval recall (parser + graph)
+
+- **Exported const objects and Fastify decorations are symbols** (#36) — `export const MAX_ATTEMPTS`, `export const userNameSchema = z.object(...)`, `export const db = new PrismaClient()`, and `fastify.decorate('knex', …)` / `decorateRequest` / `decorateReply` now emit graph symbols, so member reads and bare calls bind to the defining file instead of a stranger sharing the member name.
+- **Call source resolves in its own file first** (#37) — a `Calls` edge source tries `resolve_in_file` before the project-wide unique lookup, so shared names like `POST` in every Next.js `route.ts` hang off that file's handler and seeds reach their callees.
+- **Member call on a plain object binds to the object in scope** (#39, stacked on #36) — `userNameSchema.parse(` / `db.user.update(` carry an `obj:<receiver>` hint; the in-scope object is the `Proven` target and a same-named free function elsewhere is at most `Likely`.
+
+### Deterministic packets (correctness)
+
+- **Packet is a function of the graph and the question** (#38) — removes five nondeterminism sources: Physarum sidecar gated on elapsed ms (now always used when it runs; `physarum_ms` is telemetry only), hash-order solver walks (sorted views), `search_symbols` ties (path tiebreak), `cap_and_rank` ties (first-resolved wins), and required-file order (score then path). Tube files pass the same noise filter as other optional files.
+- **CI gate `packet_determinism`** — every fixture gold prompt × 6 fresh-activator rounds must return identical files-in-order, reasons, sidecar flags, folds, tokens, and method; the gate also requires the sidecar to fire so a silently disabled sidecar cannot pass.
+
+### Dashboard usability
+
+- **Live-apply settings, single-process mcp+UI** (#40) — `mode` / `retrieval_engine` / `graph_backend` changes from the dashboard now apply to the live stdio MCP session (`mcp` shares one `AppState`/config with an auto-bound HTTP dashboard); dashboard port walks forward when taken.
+- **Settings panel** — review-before-apply diff with plain-language consequence, real "Reset to defaults" (clears only `mode`/`graph_backend`/`retrieval`, preserves other committed `nm.config.json` fields), mode preset card sync fix; first-run onboarding wizard; re-index confirmation gate.
+- **3D galaxy UX** — HUD panels default collapsed, drag direction matches cursor on both axes, explicit Rotate/Move toggle, single-finger touch rotate/pan, wider smoothed zoom.
+- **Tokens-saved visibility** — per-project totals labeled vs. new all-projects panel, header badge + Overview hero banner from existing telemetry; fixed misleading 0.0% reduction KPI on 0-token handshake rows.
+
 ## 0.9.9 — 2026-09-14
 
 ### Windows crash fix (issue #35)
