@@ -9,6 +9,7 @@ All notable user-facing changes live here. The README stays a product guide, not
 ### Retrieval honesty hotfix (editors decoy)
 
 - **IDE-extension twins no longer steal seeds** — `editors/…` files (e.g. `editors/vscode-neuromesh/lib/monitor.js`) are name-collision decoys for ordinary backend questions: an exact symbol like `monitorHtml` no longer outranks the production `crates/…/monitor.rs`, fixing a real overconfident miss (confidence 1.0, claim `bounded`) that shipped only the VS Code file for a CLI question. The packet is now honestly `no_confident_match` with a `search_symbols` next step when nothing resolves. Questions explicitly about the IDE extensions (`vscode`, `cursor extension`, …) keep `editors/` eligible via `prompt_targets_editors`. Gates: `classifies_editors_dirs_as_decoy_unless_prompt_targets_them`, `editors_twin_does_not_steal_monitor_seed` (verified to fail without the fix).
+- **Search tool lists strongest evidence first** — `neuromesh_search_symbols` results are display-sorted by score (deterministic id tiebreak), so the file-stem-exact File heads the list instead of being buried behind weaker symbols. Engine seed order and packet determinism are untouched. Gate: `search_tool_lists_top_scoring_file_first` (verified to fail without the sort).
 
 ### TypeScript retrieval recall (parser + graph)
 

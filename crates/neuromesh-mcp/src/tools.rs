@@ -805,8 +805,19 @@ impl McpToolHandler {
                     .or_else(|| arguments["name"].as_str())
                     .unwrap_or("");
                 let limit = arguments["limit"].as_u64().unwrap_or(20) as usize;
-                let nodes = self.graph.search_symbols(query, limit);
+                let mut nodes = self.graph.search_symbols(query, limit);
                 let elapsed_ms = start_time.elapsed().as_millis() as u64;
+
+                // Display order only: strongest evidence first so agents
+                // reading top-N meet the best hit (a file-stem-exact File
+                // can outscore every symbol). The engine's own seed order
+                // is untouched; ties break by id for stable output.
+                nodes.sort_by(|a, b| {
+                    b.score
+                        .partial_cmp(&a.score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+                });
 
                 self.emit_telemetry(ToolTelemetry {
                     nodes_after: nodes.len(),
@@ -1825,6 +1836,75 @@ pub fn unused_helper() {
             assert!(packet.get("next").is_none());
             assert!(packet.get("membrane_state").is_none());
             assert!(packet.get("physarum_used").is_none());
+        });
+    }
+
+    /// Display order for `neuromesh_search_symbols` is score-first: the
+    /// file-stem-exact File must head the results even though the engine
+    /// ranks Functions before Files internally. The engine order (seeds,
+    /// determinism) is untouched — only what the agent reads top-down.
+    #[test]
+    fn search_tool_lists_top_scoring_file_first() {
+        let graph = Arc::new(NeuralProjectGraph::new(ProjectId::new("neuromesh")));
+        let backend = "pub async fn execute(port_override: Option<u16>) {}\n";
+        let twin = "function monitorHtml(origin) { return origin; }\n";
+        for (rel, src, lang) in [
+            (
+                "crates/neuromesh-cli/src/commands/monitor.rs",
+                backend,
+                SourceLanguage::Rust,
+            ),
+            (
+                "editors/vscode-neuromesh/lib/monitor.js",
+                twin,
+                SourceLanguage::TypeScript,
+            ),
+        ] {
+            graph.ingest_file(
+                &IndexedFile {
+                    project_id: ProjectId::new("neuromesh"),
+                    relative_path: PathBuf::from(rel),
+                    full_path: PathBuf::from(rel),
+                    blake3_hash: "test".into(),
+                    byte_size: 80,
+                    token_count: 40,
+                    language: lang,
+                    last_modified: chrono::Utc::now(),
+                },
+                &CodeIntelligenceEngine::analyze(&PathBuf::from(rel), src, lang),
+                Some(src),
+            );
+        }
+        graph.finalize_links();
+        let handler = handler_for(graph);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let out = handler
+                .handle_tool_call(
+                    "neuromesh_search_symbols",
+                    &json!({ "query": "monitor", "limit": 5 }),
+                )
+                .await
+                .expect("search");
+            let results = out["results"].as_array().expect("results array");
+            assert!(results.len() >= 2, "both twins must match, out={out:?}");
+            let first = &results[0];
+            assert!(
+                first["file_path"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .replace('\\', "/")
+                    .ends_with("crates/neuromesh-cli/src/commands/monitor.rs"),
+                "top result must be the production file, results={results:?}"
+            );
+            for window in results.windows(2) {
+                let a = window[0]["score"].as_f64().unwrap_or(0.0);
+                let b = window[1]["score"].as_f64().unwrap_or(0.0);
+                assert!(
+                    a >= b,
+                    "tool results must be score-ordered, results={results:?}"
+                );
+            }
         });
     }
 
