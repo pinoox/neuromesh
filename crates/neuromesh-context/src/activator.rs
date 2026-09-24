@@ -2315,6 +2315,77 @@ impl TaskSignatureExtractor {
         assert!(view.seeds.iter().any(|s| s.resolved_id.is_some()));
     }
 
+    /// An IDE-extension namesake must not steal the seed for an ordinary
+    /// backend question: `editors/…/monitor.js` (`monitorHtml`) is a
+    /// name-collision decoy, so the `monitor` seed belongs to
+    /// `crates/…/monitor.rs` and the packet must not ship the editors twin.
+    /// Regression gate for a real overconfident miss (conf 1.0, claim
+    /// `bounded`) that shipped only the VS Code file for a CLI question.
+    #[test]
+    fn editors_twin_does_not_steal_monitor_seed() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("admin"));
+        let backend = r#"
+pub async fn execute(port_override: Option<u16>) -> Result<()> {
+    let mut config = Config::load();
+    if let Some(port) = port_override {
+        config = config.with_port(port);
+    }
+    Ok(())
+}
+"#;
+        graph.ingest_file(
+            &IndexedFile {
+                project_id: ProjectId::new("admin"),
+                relative_path: PathBuf::from("crates/neuromesh-cli/src/commands/monitor.rs"),
+                full_path: PathBuf::from("crates/neuromesh-cli/src/commands/monitor.rs"),
+                blake3_hash: "monitor-rs".into(),
+                byte_size: backend.len() as u64,
+                token_count: 80,
+                language: SourceLanguage::Rust,
+                last_modified: chrono::Utc::now(),
+            },
+            &CodeIntelligenceEngine::analyze(
+                &PathBuf::from("crates/neuromesh-cli/src/commands/monitor.rs"),
+                backend,
+                SourceLanguage::Rust,
+            ),
+            Some(backend),
+        );
+        ingest_js(
+            &graph,
+            "editors/vscode-neuromesh/lib/monitor.js",
+            r#"
+function monitorHtml(origin) {
+    return origin;
+}
+function registerMonitor(context, api) {
+    return api;
+}
+"#,
+        );
+        graph.finalize_links();
+
+        let registry = Arc::new(ReversibleContextRegistry::new());
+        let activator = ContextActivator::new(registry);
+        let signature = TaskSignatureExtractor::extract(
+            "How does the monitor command pass the port to the server?",
+        );
+        let view = activator.activate(&graph, &signature, OptimizationMode::Balanced);
+        let files = packet_paths(&view);
+        assert!(
+            files
+                .iter()
+                .any(|p| p.ends_with("crates/neuromesh-cli/src/commands/monitor.rs")),
+            "packet must include the production monitor.rs, files={files:?} seeds={:?}",
+            view.seeds
+        );
+        assert!(
+            !files.iter().any(|p| p.contains("editors/")),
+            "editors twin must stay out for a backend question, files={files:?} seeds={:?}",
+            view.seeds
+        );
+    }
+
     #[test]
     fn expand_fold_restores_body_without_disk() {
         let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));

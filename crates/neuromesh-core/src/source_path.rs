@@ -120,6 +120,14 @@ pub fn is_core_source_path(path: &Path) -> bool {
         && !is_alt_surface_path(path)
 }
 
+/// IDE extension sources (`editors/vscode-neuromesh/…`). Indexed, but a
+/// namesake twin for ordinary "how does X work" questions: an exact symbol
+/// like `monitorHtml` in `editors/…/monitor.js` must not outrank the
+/// production `crates/…/monitor.rs` the prompt is really about.
+pub fn is_editors_path(path: &Path) -> bool {
+    has_dir_segment(path, &["editors"])
+}
+
 /// Parallel API surfaces that steal seeds via similar names.
 pub fn is_name_collision_decoy(path: &Path) -> bool {
     is_bench_path(path)
@@ -127,10 +135,11 @@ pub fn is_name_collision_decoy(path: &Path) -> bool {
         || is_legacy_path(path)
         || is_alt_surface_path(path)
         || is_schema_path(path)
+        || is_editors_path(path)
 }
 
-/// Test / bench / example / testdata / locale / legacy — indexed but not
-/// first-class for ordinary "how does X work" questions.
+/// Test / bench / example / testdata / locale / legacy / editors — indexed
+/// but not first-class for ordinary "how does X work" questions.
 pub fn is_low_priority_source_path(path: &Path) -> bool {
     is_test_path(path)
         || is_bench_path(path)
@@ -139,6 +148,7 @@ pub fn is_low_priority_source_path(path: &Path) -> bool {
         || is_alt_surface_path(path)
         || is_example_path(path)
         || is_testdata_path(path)
+        || is_editors_path(path)
 }
 
 /// Paths excluded from embed tier-0 (file ANN) and flat symbol rebuild.
@@ -226,7 +236,24 @@ pub fn prompt_targets_types(prompt: &str) -> bool {
         || lower.contains("type-level")
 }
 
-/// True when a bench/locale/legacy/schema path is allowed as a seed for this prompt.
+/// True when the prompt is about the IDE extensions themselves (VS Code /
+/// Cursor / JetBrains / Windsurf integration), so `editors/` twins stay
+/// eligible seeds instead of being treated as decoys.
+pub fn prompt_targets_editors(prompt: &str) -> bool {
+    let lower = prompt.to_lowercase();
+    lower.contains("vscode")
+        || lower.contains("vs code")
+        || lower.contains("visual studio")
+        || lower.contains("jetbrains")
+        || lower.contains("windsurf")
+        || lower.contains("cursor extension")
+        || lower.contains("cursor plugin")
+        || lower.contains("ide extension")
+        || lower.contains("ide plugin")
+        || lower.contains("editors/")
+}
+
+/// True when a bench/locale/legacy/schema/editors path is allowed as a seed for this prompt.
 pub fn decoy_allowed_for_prompt(path: &Path, prompt: &str) -> bool {
     if is_bench_path(path) {
         return prompt_targets_bench(prompt);
@@ -242,6 +269,9 @@ pub fn decoy_allowed_for_prompt(path: &Path, prompt: &str) -> bool {
     }
     if is_schema_path(path) {
         return schema_path_allowed_for_prompt(path, prompt);
+    }
+    if is_editors_path(path) {
+        return prompt_targets_editors(prompt);
     }
     true
 }
@@ -424,5 +454,39 @@ mod tests {
         )));
         assert!(is_embed_tier_noise_path(Path::new("types/plugin.d.ts")));
         assert!(!is_embed_tier_noise_path(Path::new("lib/plugin-utils.js")));
+    }
+
+    #[test]
+    fn classifies_editors_dirs_as_decoy_unless_prompt_targets_them() {
+        assert!(is_editors_path(Path::new(
+            "editors/vscode-neuromesh/lib/monitor.js"
+        )));
+        assert!(is_editors_path(Path::new("editors/foo/bar.ts")));
+        assert!(!is_editors_path(Path::new(
+            "crates/neuromesh-cli/src/commands/monitor.rs"
+        )));
+        assert!(is_name_collision_decoy(Path::new(
+            "editors/vscode-neuromesh/lib/monitor.js"
+        )));
+        assert!(is_low_priority_source_path(Path::new(
+            "editors/vscode-neuromesh/lib/monitor.js"
+        )));
+        // Ordinary backend question: the editors twin is not an allowed seed.
+        assert!(!decoy_allowed_for_prompt(
+            Path::new("editors/vscode-neuromesh/lib/monitor.js"),
+            "How does the monitor command pass the port to the server?"
+        ));
+        // Bare "cursor" (db cursor, cursor position) must not open the gate.
+        assert!(!prompt_targets_editors(
+            "How does the database cursor paginate rows?"
+        ));
+        // Explicit IDE-extension questions keep editors/ eligible.
+        assert!(prompt_targets_editors(
+            "How does the vscode extension show the monitor page?"
+        ));
+        assert!(decoy_allowed_for_prompt(
+            Path::new("editors/vscode-neuromesh/lib/monitor.js"),
+            "How does the vscode extension show the monitor page?"
+        ));
     }
 }

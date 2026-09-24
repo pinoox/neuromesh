@@ -6,6 +6,10 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## 0.9.10 — 2026-09-24
 
+### Retrieval honesty hotfix (editors decoy)
+
+- **IDE-extension twins no longer steal seeds** — `editors/…` files (e.g. `editors/vscode-neuromesh/lib/monitor.js`) are name-collision decoys for ordinary backend questions: an exact symbol like `monitorHtml` no longer outranks the production `crates/…/monitor.rs`, fixing a real overconfident miss (confidence 1.0, claim `bounded`) that shipped only the VS Code file for a CLI question. The packet is now honestly `no_confident_match` with a `search_symbols` next step when nothing resolves. Questions explicitly about the IDE extensions (`vscode`, `cursor extension`, …) keep `editors/` eligible via `prompt_targets_editors`. Gates: `classifies_editors_dirs_as_decoy_unless_prompt_targets_them`, `editors_twin_does_not_steal_monitor_seed` (verified to fail without the fix).
+
 ### TypeScript retrieval recall (parser + graph)
 
 - **Exported const objects and Fastify decorations are symbols** (#36) — `export const MAX_ATTEMPTS`, `export const userNameSchema = z.object(...)`, `export const db = new PrismaClient()`, and `fastify.decorate('knex', …)` / `decorateRequest` / `decorateReply` now emit graph symbols, so member reads and bare calls bind to the defining file instead of a stranger sharing the member name.
