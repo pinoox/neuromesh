@@ -1281,16 +1281,17 @@ fn extract_active_bodies(skeleton: &str, active: &HashSet<String>) -> String {
 
 fn parse_optimization_mode(value: Option<&Value>) -> Result<OptimizationMode> {
     let Some(value) = value else {
-        return Ok(OptimizationMode::Balanced);
+        return Ok(Config::load().mode);
     };
     if value.is_null() {
-        return Ok(OptimizationMode::Balanced);
+        return Ok(Config::load().mode);
     }
     let Some(raw) = value.as_str() else {
         return Err(NeuroMeshError::Config("unknown mode".into()));
     };
     match raw.trim() {
-        "" | "balanced" => Ok(OptimizationMode::Balanced),
+        "" => Ok(Config::load().mode),
+        "balanced" => Ok(OptimizationMode::Balanced),
         "max_quality" => Ok(OptimizationMode::MaxQuality),
         "max_savings" => Ok(OptimizationMode::MaxSavings),
         other => Err(NeuroMeshError::Config(format!(

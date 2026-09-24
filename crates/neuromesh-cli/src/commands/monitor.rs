@@ -49,7 +49,17 @@ pub async fn execute(port_override: Option<u16>, cap: FileCapArg) -> Result<()> 
     state.attach_graph_proxy_if_configured().await;
     let server = HttpServer::new(state);
 
-    server.run().await?;
+    // Open the browser once the real port is known — `run_with_port_notify`
+    // walks forward to the next free one if this port is already held by
+    // another project's own `mcp`/`monitor` process, so this never opens a
+    // dead tab even when several projects are running at once.
+    let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        if let Ok(actual_port) = port_rx.await {
+            crate::open_browser(&format!("http://127.0.0.1:{actual_port}"));
+        }
+    });
+    server.run_with_port_notify(Some(port_tx)).await?;
 
     Ok(())
 }

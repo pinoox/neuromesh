@@ -1,11 +1,47 @@
 mod commands;
 
+use neuromesh_api::{AppState, HttpServer};
 use neuromesh_core::{Config, Result};
 use neuromesh_graph::NeuralProjectGraph;
-use neuromesh_graph_proxy::{resolve_mcp_launch_spec, GraphProxySession};
 use neuromesh_memory::MemoryDatabase;
+use neuromesh_provider::ProviderFactory;
 use std::env;
 use std::sync::Arc;
+
+/// Best-effort: open the system's default browser. Never fatal — the caller
+/// keeps working (stdio MCP, or the dashboard itself) if this fails.
+fn open_browser(url: &str) {
+    let result = if cfg!(target_os = "windows") {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()
+    } else if cfg!(target_os = "macos") {
+        std::process::Command::new("open").arg(url).spawn()
+    } else {
+        std::process::Command::new("xdg-open").arg(url).spawn()
+    };
+    if let Err(e) = result {
+        eprintln!("NeuroMesh: could not open browser automatically ({e}); open {url} manually.");
+    }
+}
+
+/// The `mcp` process is spawned silently and often respawned by the MCP
+/// client (Claude Desktop, Cursor, …), so auto-opening a tab on every launch
+/// would spam the user. Open the dashboard automatically only the very first
+/// time NeuroMesh ever starts on this machine; after that, `neuromesh monitor`
+/// opens it on demand.
+fn maybe_open_ui_first_run(port: u16) {
+    let marker = neuromesh_core::neuromesh_home().join(".ui_opened_once");
+    if marker.exists() {
+        return;
+    }
+    if std::fs::create_dir_all(neuromesh_core::neuromesh_home()).is_err() {
+        return;
+    }
+    if std::fs::write(&marker, b"1").is_ok() {
+        open_browser(&format!("http://127.0.0.1:{port}"));
+    }
+}
 
 fn program_name() -> String {
     env::args()
@@ -205,20 +241,11 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 });
             }
 
-            let registry = Arc::new(neuromesh_context::ReversibleContextRegistry::new());
-            let activator = Arc::new(neuromesh_context::ContextActivator::new(registry.clone()));
-            let expansion_engine = Arc::new(neuromesh_context::ExpansionEngine::new(registry));
-            let working_memory = Arc::new(parking_lot::RwLock::new(
-                neuromesh_memory::WorkingMemory::default(),
-            ));
-
             let cap = commands::max_files_from_args(args)?;
             if indexable {
                 let _ = graph.load_persisted(&current_dir);
             }
-            let _cfg = Config::load();
-            #[cfg(feature = "embeddings")]
-            let cfg = _cfg;
+            let cfg = Config::load();
             #[cfg(feature = "embeddings")]
             if indexable
                 && cfg.retrieval.engine != neuromesh_core::RetrievalEngine::Fast
@@ -254,44 +281,17 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                 );
             }
 
-            let handler = Arc::new({
-                let mut h = neuromesh_mcp::McpToolHandler::new(
-                    graph.clone(),
-                    activator,
-                    expansion_engine,
-                    memory_db,
-                    working_memory,
-                );
-                let cfg = Config::load();
-                if indexable {
-                    if let Some(spec) = resolve_mcp_launch_spec(&cfg.graph_backend, &current_dir) {
-                        match GraphProxySession::connect(spec.clone(), &current_dir).await {
-                            Ok(session) => {
-                                eprintln!(
-                                    "NeuroMesh graph backend: {} ({} — {})",
-                                    cfg.graph_backend.backend.as_str(),
-                                    spec.provider.as_str(),
-                                    spec.command
-                                );
-                                h = h.with_graph_proxy(
-                                    session,
-                                    cfg.graph_backend.fallback_native,
-                                    cfg.graph_backend.backend.as_str(),
-                                );
-                            }
-                            Err(e) if cfg.graph_backend.fallback_native => {
-                                eprintln!(
-                                    "NeuroMesh graph proxy unavailable ({e}); using native graph"
-                                );
-                            }
-                            Err(e) => {
-                                eprintln!("NeuroMesh graph proxy failed: {e}");
-                            }
-                        }
-                    }
-                }
-                h
-            });
+            // Single shared state for both the stdio MCP handler and the local
+            // dashboard: one Config lock, one McpToolHandler, one graph — so a
+            // setting saved from the dashboard (mode, retrieval engine, graph
+            // backend) applies to this same live session, not a separate one.
+            let provider = ProviderFactory::create(&cfg.provider);
+            let state = AppState::new(cfg, graph.clone(), memory_db, provider);
+            if indexable {
+                state.attach_graph_proxy_if_configured().await;
+            }
+            let handler = state.mcp_handler.clone();
+
             if indexable
                 && graph.stats().total_nodes == 0
                 && neuromesh_index::ProjectWalker::is_safe_workspace(&current_dir)
@@ -306,6 +306,34 @@ async fn async_main(command: &str, args: &[String]) -> Result<()> {
                     cap,
                     explicit,
                 );
+            }
+
+            // Local dashboard: best-effort only, and never blocks stdio
+            // startup. `run_with_port_notify` walks forward to the next free
+            // port if the configured one is already held (e.g. a standalone
+            // `neuromesh monitor`, or another project's own `mcp` process) —
+            // so a second or third simultaneously open project still gets a
+            // working dashboard, just on a different port, instead of none.
+            {
+                let dash_state = state.clone();
+                let (port_tx, port_rx) = tokio::sync::oneshot::channel();
+                tokio::spawn(async move {
+                    if let Err(e) = HttpServer::new(dash_state)
+                        .run_with_port_notify(Some(port_tx))
+                        .await
+                    {
+                        eprintln!(
+                            "NeuroMesh dashboard not started ({e}); MCP continues over stdio."
+                        );
+                    }
+                });
+                // Separate task: only open a browser once we know the real
+                // bound port, but this never delays the stdio server below.
+                tokio::spawn(async move {
+                    if let Ok(actual_port) = port_rx.await {
+                        maybe_open_ui_first_run(actual_port);
+                    }
+                });
             }
 
             let server = neuromesh_mcp::McpServer::new(handler);

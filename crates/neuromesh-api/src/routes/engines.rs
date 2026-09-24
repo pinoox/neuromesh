@@ -22,14 +22,21 @@ pub fn engines_status(state: &AppState) -> Value {
         })
         .collect();
 
+    let defaults = neuromesh_core::Config::default();
     json!({
         "graph_backend": cfg.graph_backend.backend.as_str(),
         "graph_backend_active": state.mcp_handler.graph_backend_label(),
         "graph_proxy_connected": state.mcp_handler.graph_proxy_active(),
         "fallback_native": cfg.graph_backend.fallback_native,
         "retrieval_engine": cfg.retrieval.engine.as_str(),
+        "mode": cfg.mode,
         "embeddings_enabled": cfg.embeddings.enabled,
         "detected_proxies": candidates,
+        "defaults": {
+            "mode": defaults.mode,
+            "retrieval_engine": defaults.retrieval.engine.as_str(),
+            "graph_backend": defaults.graph_backend.backend.as_str(),
+        },
     })
 }
 

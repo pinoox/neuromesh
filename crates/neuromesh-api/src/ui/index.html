@@ -409,6 +409,57 @@
             display: block;
         }
 
+        /* TOKENS SAVED SHOWCASE — a hero banner, not just another metric
+           card, so it actually catches the eye when the number gets big. */
+        .tokens-showcase-banner {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: linear-gradient(120deg, rgba(0, 240, 180, 0.12), rgba(0, 210, 255, 0.08));
+            border: 1px solid rgba(0, 240, 180, 0.35);
+            border-radius: 14px;
+            padding: 1rem 1.4rem;
+            margin-bottom: 1.25rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .tokens-showcase-banner:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 240, 180, 0.15);
+        }
+        .tokens-showcase-banner.milestone {
+            border-color: rgba(0, 240, 180, 0.7);
+            box-shadow: 0 0 30px rgba(0, 240, 180, 0.22), inset 0 0 20px rgba(0, 240, 180, 0.06);
+            animation: showcasePulse 2.4s ease-in-out infinite;
+        }
+        @keyframes showcasePulse {
+            0%, 100% { box-shadow: 0 0 30px rgba(0, 240, 180, 0.22), inset 0 0 20px rgba(0, 240, 180, 0.06); }
+            50% { box-shadow: 0 0 44px rgba(0, 240, 180, 0.38), inset 0 0 26px rgba(0, 240, 180, 0.1); }
+        }
+        .tokens-showcase-icon {
+            font-size: 2.1rem;
+            line-height: 1;
+        }
+        .tokens-showcase-value {
+            font-size: 1.9rem;
+            font-weight: 900;
+            color: var(--accent-green);
+            letter-spacing: -0.01em;
+            line-height: 1.15;
+        }
+        .tokens-showcase-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.15rem;
+        }
+        .tokens-showcase-sub {
+            margin-inline-start: auto;
+            font-size: 0.78rem;
+            color: var(--accent-cyan);
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
         /* METRICS GRID */
         .metrics-grid {
             display: grid;
@@ -535,6 +586,24 @@
             cursor: pointer;
         }
 
+        .galaxy-controls-hint {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(12, 16, 23, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 0.35rem 0.9rem;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            pointer-events: none;
+            white-space: nowrap;
+            transition: opacity 0.4s ease;
+        }
+
         .galaxy-hud-top-left {
             position: absolute;
             top: 1.25rem;
@@ -549,7 +618,34 @@
             backdrop-filter: blur(16px);
             z-index: 10;
             max-width: 320px;
+            max-height: calc(100% - 2.5rem);
+            overflow-y: auto;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .galaxy-hud-top-left.collapsed {
+            max-height: none;
+            overflow: visible;
+        }
+
+        .galaxy-hud-top-left.collapsed #galaxyHudBody {
+            display: none;
+        }
+
+        .galaxy-hud-collapse-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            width: 22px;
+            height: 22px;
+            line-height: 1;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .galaxy-hud-collapse-btn:hover {
+            color: #fff;
+            border-color: var(--accent-cyan);
         }
 
         .galaxy-hud-top-right {
@@ -1720,6 +1816,50 @@
         </div>
     </div>
 
+    <!-- 🧭 FIRST-RUN ONBOARDING WIZARD (non-technical: no "graph backend" jargon) -->
+    <div id="onboardingModal" class="project-modal-backdrop" onclick="if(event.target===this) window.dismissOnboarding()">
+        <div class="project-modal-content" style="max-width: 480px;">
+            <div class="project-modal-header">
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <span style="font-size:1.3rem;">🧭</span>
+                    <div>
+                        <div style="font-weight:800; font-size:1.05rem; color:#fff;" data-i18n="onb_title">Welcome — what matters most to you?</div>
+                        <div style="font-size:0.75rem; color:var(--text-secondary);" data-i18n="onb_subtitle">One click sets it up. You can always change it later in Settings.</div>
+                    </div>
+                </div>
+                <button class="btn-secondary" style="padding:0.25rem 0.55rem; font-size:0.85rem;" onclick="window.dismissOnboarding()">✕</button>
+            </div>
+            <div style="padding: 1.1rem 1.25rem 1.35rem; display:flex; flex-direction:column; gap:0.6rem;">
+                <div style="display:flex; align-items:center; justify-content:center; gap:0.4rem; margin-bottom:0.2rem;">
+                    <button class="btn-secondary" id="onbLangFa" onclick="window.selectOnboardingLang('fa')" style="padding:0.3rem 0.9rem; font-size:0.8rem;">فارسی</button>
+                    <button class="btn-secondary" id="onbLangEn" onclick="window.selectOnboardingLang('en')" style="padding:0.3rem 0.9rem; font-size:0.8rem;">English</button>
+                </div>
+                <div class="modal-project-card" onclick="window.applyOnboardingChoice('max_savings')">
+                    <div>
+                        <div style="font-weight:700; color:#fff;">💰 <span data-i18n="onb_savings_title">Save tokens</span></div>
+                        <div style="font-size:0.75rem; color:var(--text-secondary);" data-i18n="onb_savings_sub">Smallest context packets — best for tight budgets</div>
+                    </div>
+                    <span>›</span>
+                </div>
+                <div class="modal-project-card" onclick="window.applyOnboardingChoice('balanced')">
+                    <div>
+                        <div style="font-weight:700; color:#fff;">⚖️ <span data-i18n="onb_balanced_title">Balanced (recommended)</span></div>
+                        <div style="font-size:0.75rem; color:var(--text-secondary);" data-i18n="onb_balanced_sub">Good context, good savings — the default</div>
+                    </div>
+                    <span>›</span>
+                </div>
+                <div class="modal-project-card" onclick="window.applyOnboardingChoice('max_quality')">
+                    <div>
+                        <div style="font-weight:700; color:#fff;">🎯 <span data-i18n="onb_quality_title">Best quality</span></div>
+                        <div style="font-size:0.75rem; color:var(--text-secondary);" data-i18n="onb_quality_sub">Widest context — spends more tokens for accuracy</div>
+                    </div>
+                    <span>›</span>
+                </div>
+                <button class="btn-secondary" style="margin-top:0.4rem; padding:0.5rem; font-size:0.78rem;" onclick="window.dismissOnboarding()" data-i18n="onb_skip">Skip for now</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 🔌 UNIVERSAL MCP INTEGRATION MODAL -->
     <div id="mcpConnectModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); z-index:99999; justify-content:center; align-items:center; padding:1.5rem;">
         <div style="background:var(--card-bg); border:1.5px solid rgba(0, 210, 255, 0.4); border-radius:14px; width:100%; max-width:860px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,0.8); overflow:hidden; animation: fadeIn 0.2s ease-out;">
@@ -1863,6 +2003,10 @@
                             </div>
                         </div>
                     </div>
+                    <div class="status-badge" id="headerTokensSavedBadge" style="border-color: rgba(0, 240, 180, 0.35); color: var(--accent-green); font-weight: 700; cursor:pointer;" onclick="window.switchView('usage')" title="Total tokens saved across all projects">
+                        <span>💎</span>
+                        <span id="headerTokensSavedValue">—</span>
+                    </div>
                     <div class="status-badge header-watcher-badge" title="Live file watcher (&lt;5ms)">
                         <div class="pulse-dot"></div>
                         <span data-i18n="badge_watcher">Live</span>
@@ -1875,6 +2019,15 @@
 
             <!-- VIEW 1: OVERVIEW -->
             <div id="view-overview" class="content-view active-view">
+                <div class="tokens-showcase-banner" id="tokensShowcaseBanner" onclick="window.switchView('usage')">
+                    <div class="tokens-showcase-icon">💎</div>
+                    <div>
+                        <div class="tokens-showcase-value" id="tokensShowcaseValue">—</div>
+                        <div class="tokens-showcase-label" data-i18n="showcase_tokens_saved_label">Tokens saved across all your projects — all time</div>
+                    </div>
+                    <div class="tokens-showcase-sub" id="tokensShowcaseSub"></div>
+                </div>
+
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-label">
@@ -2116,35 +2269,40 @@
             <!-- VIEW 3: 3D NEURAL GALAXY -->
             <div id="view-graph" class="content-view" style="padding: 0.75rem;">
                 <div class="graph-wrapper">
-                    <div class="galaxy-hud-top-left">
+                    <div class="galaxy-hud-top-left" id="galaxyHudTopLeft">
                         <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
                             <span style="font-size: 0.82rem; font-weight: 800; color: var(--text-primary);" data-i18n="galaxy_filter_title">Galaxy Architecture View</span>
-                            <span style="font-size: 0.7rem; color: var(--accent-green);" id="nodeCountBadge">0 Modules</span>
+                            <div style="display:flex; align-items:center; gap:0.4rem;">
+                                <span style="font-size: 0.7rem; color: var(--accent-green);" id="nodeCountBadge">0 Modules</span>
+                                <button class="galaxy-hud-collapse-btn" id="galaxyHudCollapseBtn" onclick="window.toggleGalaxyHud()" title="Collapse">▴</button>
+                            </div>
                         </div>
-                        <div id="galaxyBreadcrumb" style="font-size:0.75rem; font-weight:700; color:var(--accent-cyan);">
-                            <span id="galaxyViewModeText">🌌 Macro Architectural Constellation</span>
-                        </div>
-                        <input type="text" id="graphSearchInput" placeholder="Filter module, file or symbol..." oninput="window.onGraphSearch(this.value)" style="padding: 0.4rem 0.65rem; font-size: 0.78rem;">
-                        
-                        <div class="cluster-legend">
-                            <div class="legend-chip active" onclick="window.filterNodeType('all', this)">
-                                <span data-i18n="filter_all">All</span>
+                        <div id="galaxyHudBody">
+                            <div id="galaxyBreadcrumb" style="font-size:0.75rem; font-weight:700; color:var(--accent-cyan);">
+                                <span id="galaxyViewModeText">🌌 Macro Architectural Constellation</span>
                             </div>
-                            <div class="legend-chip" onclick="window.filterNodeType('File', this)">
-                                <span class="legend-dot" style="background: var(--accent-cyan);"></span>
-                                <span data-i18n="filter_files">Files</span>
-                            </div>
-                            <div class="legend-chip" onclick="window.filterNodeType('Component', this)">
-                                <span class="legend-dot" style="background: var(--accent-green);"></span>
-                                <span data-i18n="filter_components">Components</span>
-                            </div>
-                            <div class="legend-chip" onclick="window.filterNodeType('Function', this)">
-                                <span class="legend-dot" style="background: var(--accent-purple);"></span>
-                                <span data-i18n="filter_functions">Functions</span>
-                            </div>
-                            <div class="legend-chip" onclick="window.filterNodeType('Class', this)">
-                                <span class="legend-dot" style="background: var(--accent-amber);"></span>
-                                <span data-i18n="filter_types">Types</span>
+                            <input type="text" id="graphSearchInput" placeholder="Filter module, file or symbol..." oninput="window.onGraphSearch(this.value)" style="padding: 0.4rem 0.65rem; font-size: 0.78rem;">
+
+                            <div class="cluster-legend">
+                                <div class="legend-chip active" onclick="window.filterNodeType('all', this)">
+                                    <span data-i18n="filter_all">All</span>
+                                </div>
+                                <div class="legend-chip" onclick="window.filterNodeType('File', this)">
+                                    <span class="legend-dot" style="background: var(--accent-cyan);"></span>
+                                    <span data-i18n="filter_files">Files</span>
+                                </div>
+                                <div class="legend-chip" onclick="window.filterNodeType('Component', this)">
+                                    <span class="legend-dot" style="background: var(--accent-green);"></span>
+                                    <span data-i18n="filter_components">Components</span>
+                                </div>
+                                <div class="legend-chip" onclick="window.filterNodeType('Function', this)">
+                                    <span class="legend-dot" style="background: var(--accent-purple);"></span>
+                                    <span data-i18n="filter_functions">Functions</span>
+                                </div>
+                                <div class="legend-chip" onclick="window.filterNodeType('Class', this)">
+                                    <span class="legend-dot" style="background: var(--accent-amber);"></span>
+                                    <span data-i18n="filter_types">Types</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2166,9 +2324,18 @@
                         <button class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;" onclick="window.resetCanvas()" data-i18n="btn_center_orbit">
                             Center Orbit
                         </button>
+                        <div style="display:flex; align-items:center; gap:0.25rem; background:rgba(0,0,0,0.35); border:1px solid var(--border-color); border-radius:6px; padding:0.15rem;">
+                            <button class="btn-secondary" id="btnDragModeRotate" style="padding: 0.3rem 0.65rem; font-size: 0.78rem;" onclick="window.setGalaxyDragMode('rotate')" title="Drag to rotate">🔄 <span data-i18n="drag_mode_rotate">Rotate</span></button>
+                            <button class="btn-secondary" id="btnDragModePan" style="padding: 0.3rem 0.65rem; font-size: 0.78rem;" onclick="window.setGalaxyDragMode('pan')" title="Drag to move the view">✋ <span data-i18n="drag_mode_pan">Move</span></button>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.25rem; background:rgba(0,0,0,0.35); border:1px solid var(--border-color); border-radius:6px; padding:0.15rem;">
+                            <button class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; line-height:1;" onclick="window.zoomGalaxy(1.35)" title="Zoom in">+</button>
+                            <button class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; line-height:1;" onclick="window.zoomGalaxy(1/1.35)" title="Zoom out">−</button>
+                        </div>
                     </div>
 
                     <canvas id="neuralCanvas"></canvas>
+                    <div id="galaxyControlsHint" class="galaxy-controls-hint" data-i18n="galaxy_controls_hint">Drag to rotate · Shift+drag to pan · Scroll or +/− to zoom · Double-click to reset</div>
                     <div id="galaxyHoverTip" class="galaxy-hover-tip"></div>
                     <div id="slimePlayBanner" class="slime-play-banner">
                         <div class="slime-eq" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
@@ -2177,9 +2344,11 @@
 
                     <!-- 👁️ FLOATING DISPLAY LAYER TOGGLES -->
                     <div class="galaxy-layer-toggles" id="galaxyLayerToggles">
-                        <div class="layer-toggle-title">
+                        <div class="layer-toggle-title" style="cursor:pointer;" onclick="window.toggleGalaxyLayersPanel()">
                             <span>👁️</span> <span data-i18n="galaxy_layers_title">Display Filters:</span>
+                            <span id="galaxyLayersCollapseIcon" style="margin-inline-start:0.3rem; color:var(--text-secondary);">▾</span>
                         </div>
+                        <div id="galaxyLayersBody" style="display:contents;">
                         <label class="layer-checkbox-label">
                             <input type="checkbox" id="layerToggleSymbols" checked onchange="window.toggleGalaxyLayer('symbols', this.checked)">
                             <span data-i18n="layer_symbols">AST Symbols (Functions/Types)</span>
@@ -2200,6 +2369,7 @@
                             <input type="checkbox" id="layerToggleStars" checked onchange="window.toggleGalaxyLayer('stars', this.checked)">
                             <span data-i18n="layer_stars">Cosmic Starfield</span>
                         </label>
+                        </div>
                     </div>
 
                     <!-- INSPECTOR DRAWER -->
@@ -2217,6 +2387,7 @@
 
             <!-- VIEW: 📊 USAGE & REQUEST TELEMETRY -->
             <div id="view-usage" class="content-view">
+                <div style="font-size: 0.78rem; font-weight: 700; color: var(--accent-green); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem;" data-i18n="usage_this_project_label">📍 This project</div>
                 <!-- TOP KPI METRICS -->
                 <div class="metrics-grid" style="margin-bottom: 1.25rem;">
                     <div class="metric-card">
@@ -2262,6 +2433,30 @@
                         </div>
                         <div class="metric-value" id="usageCacheRate"><span class="skeleton-shimmer skeleton-line" style="width: 60px;">&nbsp;</span></div>
                         <div class="metric-sub" data-i18n="usage_cache_rate_sub">Semantic & tool cache efficiency</div>
+                    </div>
+                </div>
+
+                <!-- ALL-PROJECTS AVERAGE SAVINGS PANEL -->
+                <div class="panel-card" style="margin-bottom: 1.25rem;">
+                    <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+                        <div class="panel-title">🌐 <span data-i18n="usage_all_projects_title">Long-term, across all projects</span></div>
+                        <div class="metric-sub" data-i18n="usage_all_projects_sub" style="margin:0;">From locally stored telemetry — no re-computation, no extra tokens</div>
+                    </div>
+                    <div id="allProjectsSummary" style="display:flex; gap:2rem; flex-wrap:wrap; padding: 0.5rem 0 0.25rem;">
+                        <span class="skeleton-shimmer skeleton-line" style="width: 220px;">&nbsp;</span>
+                    </div>
+                    <div style="overflow-x:auto; margin-top: 0.75rem;">
+                        <table style="width:100%; min-width:480px;">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="th_project">Project</th>
+                                    <th data-i18n="th_req_id_count">Requests</th>
+                                    <th data-i18n="th_reduction">Reduction %</th>
+                                    <th data-i18n="usage_tokens_saved">Tokens Saved</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allProjectsTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -2525,11 +2720,29 @@
                                 </div>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.6rem;">
-                                <button class="btn-secondary" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;" onclick="window.resetSettingsToDefaults()">
+                                <button class="btn-secondary" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;" onclick="window.reviewResetToDefaults()">
                                     <span>🔄</span> <span data-i18n="btn_reset_defaults">Reset Defaults</span>
                                 </button>
-                                <button class="btn-primary" style="padding: 0.45rem 1.1rem; font-size: 0.8rem;" onclick="window.saveSettings()">
+                                <button class="btn-primary" id="saveSettingsBtn" style="padding: 0.45rem 1.1rem; font-size: 0.8rem;" onclick="window.reviewSaveSettings()">
                                     <span>💾</span> <span data-i18n="btn_save_settings">Save Changes</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="applyStatusBadge" style="margin-top: 0.7rem; font-size: 0.75rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem;"></div>
+
+                        <!-- REVIEW-BEFORE-APPLY PANEL: same page, grows open in place — no new page. -->
+                        <div id="settingsReviewPanel" style="display:none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <div style="font-weight: 800; font-size: 0.9rem; color: #fff; display:flex; align-items:center; gap:0.4rem;">
+                                <span>🔎</span> <span data-i18n="review_title">Review before applying</span>
+                            </div>
+                            <div id="settingsReviewDiff" style="margin-top: 0.75rem; display:flex; flex-direction:column; gap:0.6rem;"></div>
+                            <div id="settingsReviewSummary" style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary); background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.6rem 0.8rem;"></div>
+                            <div style="margin-top: 0.9rem; display:flex; gap:0.6rem;">
+                                <button class="btn-primary" id="settingsReviewConfirmBtn" style="padding: 0.45rem 1.1rem; font-size: 0.8rem;" onclick="window.confirmSettingsReview()">
+                                    <span>✅</span> <span data-i18n="review_confirm">Yes, apply this</span>
+                                </button>
+                                <button class="btn-secondary" style="padding: 0.45rem 1.1rem; font-size: 0.8rem;" onclick="window.cancelSettingsReview()">
+                                    <span data-i18n="review_cancel">Cancel</span>
                                 </button>
                             </div>
                         </div>
@@ -2887,6 +3100,7 @@
                 btn_reindex: 'Index',
                 badge_watcher: 'Live',
                 btn_test_context: 'Test',
+                showcase_tokens_saved_label: 'Tokens saved across all your projects — all time',
                 kpi_reduction_title: 'REDUCTION VS WORKSPACE',
                 kpi_reduction_peak: 'from get_context',
                 kpi_reduction_sub: 'Packet tokens vs indexed workspace dump — not a global 99% claim',
@@ -2920,6 +3134,9 @@
                 filter_types: 'Types',
                 btn_mode: 'Mode:',
                 btn_center_orbit: 'Center Orbit',
+                galaxy_controls_hint: 'Drag to rotate · Shift+drag to pan · Scroll or +/− to zoom · Double-click to reset',
+                drag_mode_rotate: 'Rotate',
+                drag_mode_pan: 'Move',
                 btn_back_galaxy: 'Back to Constellation',
                 btn_fire_impulse: 'Neural Impulse',
                 btn_slime_play: 'Play slime',
@@ -2940,10 +3157,14 @@
                 btn_switch_project: 'Switch Project',
                 title_module_summary: 'Workspace Architecture & Subsystem Summary',
                 desc_module_summary: 'High-level breakdown of codebase subsystems, token volume, and AST density.',
+                usage_this_project_label: '📍 This project',
                 usage_total_requests: 'TOTAL REQUESTS',
                 usage_total_requests_sub: 'Total processed prompts & tool calls',
                 usage_tokens_saved: 'TOTAL TOKENS SAVED',
                 usage_tokens_saved_sub: 'Folded vs workspace dump (see neuromesh eval)',
+                usage_all_projects_title: 'Long-term, across all projects',
+                usage_all_projects_sub: 'From locally stored telemetry — no re-computation, no extra tokens',
+                th_req_id_count: 'Requests',
                 usage_avg_reduction: 'AVG REDUCTION',
                 usage_avg_reduction_sub: 'Average token reduction ratio',
                 usage_avg_latency: 'AVG LATENCY',
@@ -3039,6 +3260,18 @@
                 logs_live_badge: 'Live Stream Connected',
                 btn_clear_logs: 'Clear Logs',
                 btn_copy_logs: 'Copy All',
+                onb_title: 'Welcome — what matters most to you?',
+                onb_subtitle: 'One click sets it up. You can always change it later in Settings.',
+                onb_savings_title: 'Save tokens',
+                onb_savings_sub: 'Smallest context packets — best for tight budgets',
+                onb_balanced_title: 'Balanced (recommended)',
+                onb_balanced_sub: 'Good context, good savings — the default',
+                onb_quality_title: 'Best quality',
+                onb_quality_sub: 'Widest context — spends more tokens for accuracy',
+                onb_skip: 'Skip for now',
+                review_title: 'Review before applying',
+                review_confirm: 'Yes, apply this',
+                review_cancel: 'Cancel',
                 modal_proj_title: 'Select Active Workspace',
                 modal_proj_subtitle: 'Search among projects or select Collective Multi-Mesh (Top 40 MRU)',
                 lbl_filter: 'Filter:',
@@ -3079,6 +3312,7 @@
                 btn_reindex: 'ایندکس',
                 badge_watcher: 'زنده',
                 btn_test_context: 'تست',
+                showcase_tokens_saved_label: 'توکن‌های ذخیره‌شده روی همه‌ی پروژه‌هات — از ابتدا تا حالا',
                 kpi_reduction_title: 'کاهش نسبت به کل ورک‌اسپیس',
                 kpi_reduction_peak: 'از get_context',
                 kpi_reduction_sub: 'توکن پکت در برابر دامپ کل ایندکس — ادعای جهانی ۹۹٪ نیست',
@@ -3112,6 +3346,9 @@
                 filter_types: 'تایپ‌ها',
                 btn_mode: 'حالت:',
                 btn_center_orbit: 'مرکز مدار',
+                galaxy_controls_hint: 'درگ برای چرخش · Shift+درگ برای جابه‌جایی · اسکرول یا +/− برای زوم · دابل‌کلیک برای بازنشانی',
+                drag_mode_rotate: 'چرخش',
+                drag_mode_pan: 'جابه‌جایی',
                 btn_back_galaxy: 'بازگشت به نمای کل کهکشان',
                 btn_fire_impulse: 'انفجار پالس عصبی',
                 btn_slime_play: 'پخش اسلایم',
@@ -3133,10 +3370,14 @@
                 btn_switch_project: 'انتخاب به عنوان پروژه فعال',
                 title_module_summary: 'خلاصه ساختار معماری و ماژول‌ها',
                 desc_module_summary: 'خلاصه سطح بالای زیرسیستم‌ها، حجم توکن‌ها و تراکم نودهای کد.',
+                usage_this_project_label: '📍 همین پروژه',
                 usage_total_requests: 'تعداد کل درخواست‌ها',
                 usage_total_requests_sub: 'مجموع پرامپت‌ها و ابزارهای اجراشده',
                 usage_tokens_saved: 'مجموع توکن‌های ذخیره‌شده',
                 usage_tokens_saved_sub: 'صرفه‌جویی با الگوریتم ژنتیک و فیزاروم',
+                usage_all_projects_title: 'بلندمدت، روی همه‌ی پروژه‌ها',
+                usage_all_projects_sub: 'از تله‌متری ذخیره‌شده‌ی لوکال — بدون محاسبه‌ی جدید، بدون توکن اضافه',
+                th_req_id_count: 'تعداد درخواست',
                 usage_avg_reduction: 'میانگین فشرده‌سازی',
                 usage_avg_reduction_sub: 'درصد میانگین کاهش حجم کانتکست',
                 usage_avg_latency: 'میانگین تاخیر',
@@ -3229,6 +3470,18 @@
                 logs_live_badge: 'جریان زنده فعال',
                 btn_clear_logs: 'پاک‌سازی لاگ‌ها',
                 btn_copy_logs: 'کپی همه',
+                onb_title: 'خوش اومدی — چی برات مهم‌تره؟',
+                onb_subtitle: 'با یه کلیک تنظیم می‌شه. هر وقت خواستی از Settings عوضش کن.',
+                onb_savings_title: 'صرفه‌جویی توکن',
+                onb_savings_sub: 'کوچیک‌ترین پکت‌های context — برای بودجه‌ی محدود',
+                onb_balanced_title: 'متعادل (پیشنهادی)',
+                onb_balanced_sub: 'context خوب، صرفه‌جویی خوب — حالت پیش‌فرض',
+                onb_quality_title: 'بهترین کیفیت',
+                onb_quality_sub: 'گسترده‌ترین context — توکن بیشتر برای دقت بیشتر',
+                onb_skip: 'فعلاً رد کن',
+                review_title: 'بررسی تغییرات پیش از اعمال',
+                review_confirm: 'بله، اعمال کن',
+                review_cancel: 'انصراف',
                 modal_proj_title: 'انتخاب پروژه فعال',
                 modal_proj_subtitle: 'جستجو میان پروژه‌ها یا انتخاب مش کلان همه پروژه‌ها (۴۰ پروژه آخر)',
                 lbl_filter: 'فیلتر:',
@@ -3397,6 +3650,16 @@
             if (view) view.classList.add('active-view');
 
             if (viewId === 'graph') {
+                let hudCollapsed = true, layersCollapsed = true;
+                try {
+                    const savedHud = localStorage.getItem('neuromesh_galaxy_hud_collapsed');
+                    const savedLayers = localStorage.getItem('neuromesh_galaxy_layers_collapsed');
+                    if (savedHud !== null) hudCollapsed = savedHud === '1';
+                    if (savedLayers !== null) layersCollapsed = savedLayers === '1';
+                } catch (e) {}
+                window.toggleGalaxyHud(hudCollapsed);
+                window.toggleGalaxyLayersPanel(layersCollapsed);
+                if (typeof window.syncGalaxyDragModeButtons === 'function') window.syncGalaxyDragModeButtons();
                 setTimeout(() => {
                     resizeCanvas();
                     if (typeof window.syncGalaxyLayerCheckboxes === 'function') {
@@ -3407,6 +3670,7 @@
                 }, 40);
             } else if (viewId === 'usage') {
                 window.fetchUsage();
+                window.fetchAllProjectsUsage();
             } else if (viewId === 'projects') {
                 window.loadFilesTable();
             } else if (viewId === 'settings') {
@@ -3828,7 +4092,14 @@
                 if (elRequests) elRequests.innerText = `${reqCount}`;
 
                 const red = data.metrics ? data.metrics.overall_reduction_pct : null;
-                const hasRed = reqCount > 0 && red != null && !Number.isNaN(Number(red));
+                // `total_requests` counts every tool call, including 0-token
+                // ones (handshake, search_symbols, stats) — those alone would
+                // make `overall_reduction_pct` a misleading 0.0% while still
+                // showing "N requests". Gate on `total_tokens_before` instead:
+                // it's only > 0 once at least one real context packet has
+                // actually been fetched, historically, not just this session.
+                const hasPacketHistory = data.metrics && data.metrics.total_tokens_before > 0;
+                const hasRed = hasPacketHistory && red != null && !Number.isNaN(Number(red));
                 if (elRed) elRed.innerText = hasRed ? `${Number(red).toFixed(1)}%` : '—';
                 if (elPeak) elPeak.innerText = hasRed
                     ? (currentLang === 'fa' ? 'میانگین اندازه‌گیری‌شده' : 'measured mean')
@@ -4328,6 +4599,11 @@
         };
 
         window.triggerReindex = async function() {
+            const msg = currentLang === 'fa'
+                ? 'ایندکس مجدد کل پروژه رو دوباره می‌سازه و ممکنه چند لحظه طول بکشه. اگه وسط کار روی پروژه هستی، مطمئنی می‌خوای الان این کار رو انجام بدی؟'
+                : 'This rebuilds the whole project index and may take a moment. If you\'re mid-work on this project, are you sure you want to do this now?';
+            if (!confirm(msg)) return;
+
             showLoading(currentLang === 'fa' ? 'در حال ایندکس مجدد فایل‌ها...' : 'Re-indexing project workspace...');
             try {
                 const res = await fetch('/api/reindex', { method: 'POST' });
@@ -4454,6 +4730,68 @@
                     window.showToast(currentLang === 'fa' ? 'گزارش مصرف و درخواست‌ها تازه‌سازی شد.' : 'Usage telemetry refreshed.', 'info');
                 }
             } catch (e) {}
+        };
+
+        // Reads the same in-memory telemetry `/api/usage` already loads — one
+        // extra local aggregation, not one call per project, so this never
+        // burns tokens on its own.
+        // Shared by the header badge (every view) and the Overview hero
+        // banner. A round number gets a subtle celebratory glow — the ask
+        // was for this to actually catch the eye when it's a big number.
+        window.renderTokensSavedShowcase = function(total, meanPct) {
+            const fmtTok = (n) => n >= 1000000 ? `${(n / 1000000).toFixed(2)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
+            const headerVal = document.getElementById('headerTokensSavedValue');
+            if (headerVal) headerVal.innerText = fmtTok(total);
+
+            const bannerVal = document.getElementById('tokensShowcaseValue');
+            const bannerSub = document.getElementById('tokensShowcaseSub');
+            const banner = document.getElementById('tokensShowcaseBanner');
+            if (bannerVal) {
+                bannerVal.innerText = currentLang === 'fa'
+                    ? `${fmtTok(total)} توکن`
+                    : `${fmtTok(total)} tokens`;
+            }
+            if (bannerSub) {
+                bannerSub.innerText = meanPct > 0
+                    ? (currentLang === 'fa' ? `میانگین ${meanPct.toFixed(0)}٪ کاهش` : `avg ${meanPct.toFixed(0)}% reduction`)
+                    : '';
+            }
+            if (banner) banner.classList.toggle('milestone', total >= 100000);
+        };
+
+        window.fetchAllProjectsUsage = async function() {
+            const summaryEl = document.getElementById('allProjectsSummary');
+            const bodyEl = document.getElementById('allProjectsTableBody');
+            try {
+                const res = await fetch('/api/usage/all-projects');
+                const data = await res.json();
+                const overall = data.overall || {};
+                const projects = data.projects || [];
+
+                if (summaryEl) {
+                    const fmtTok = (n) => n >= 1000000 ? `~${(n/1000000).toFixed(2)}M` : n >= 1000 ? `~${(n/1000).toFixed(1)}k` : `${n}`;
+                    summaryEl.innerHTML = currentLang === 'fa'
+                        ? `<span><b style="color:var(--accent-green);">${(overall.mean_reduction_pct || 0).toFixed(1)}%</b> میانگین کاهش توکن</span>
+                           <span><b style="color:var(--accent-cyan);">${fmtTok(overall.total_tokens_saved || 0)}</b> توکن ذخیره‌شده در مجموع</span>
+                           <span><b>${data.project_count || 0}</b> پروژه · <b>${overall.total_requests || 0}</b> درخواست</span>`
+                        : `<span><b style="color:var(--accent-green);">${(overall.mean_reduction_pct || 0).toFixed(1)}%</b> mean token reduction</span>
+                           <span><b style="color:var(--accent-cyan);">${fmtTok(overall.total_tokens_saved || 0)}</b> tokens saved total</span>
+                           <span><b>${data.project_count || 0}</b> projects · <b>${overall.total_requests || 0}</b> requests</span>`;
+                }
+                if (bodyEl) {
+                    bodyEl.innerHTML = projects.length ? projects.map(p => `
+                        <tr>
+                            <td>${p.project_id}</td>
+                            <td>${p.requests}</td>
+                            <td>${(p.mean_reduction_pct || 0).toFixed(1)}%</td>
+                            <td>${p.total_tokens_saved}</td>
+                        </tr>
+                    `).join('') : `<tr><td colspan="4" style="color:var(--text-secondary);">${currentLang === 'fa' ? 'هنوز داده‌ای نیست' : 'No data yet'}</td></tr>`;
+                }
+                window.renderTokensSavedShowcase(overall.total_tokens_saved || 0, overall.mean_reduction_pct || 0);
+            } catch (e) {
+                if (summaryEl) summaryEl.innerHTML = '';
+            }
         };
 
         window.onUsageSearch = function(val) {
@@ -5116,10 +5454,13 @@
                 const data = await res.json();
                 const backend = data.graph_backend || 'native';
                 const engine = data.retrieval_engine || 'fast';
+                const mode = data.mode || 'balanced';
                 const backendCards = document.getElementById('presetGraphBackendCards');
                 const engineCards = document.getElementById('presetRetrievalEngineCards');
+                const modeCards = document.getElementById('presetModeCards');
                 const backendMap = { native: 0, auto: 1, proxy_cbm: 2, proxy_graphify: 2 };
                 const engineMap = { fast: 0, hybrid: 1, deep: 2 };
+                const modeMapToCard = { balanced: ['Balanced', 0], max_savings: ['MaxSavings', 1], max_quality: ['MaxQuality', 2] };
                 const bIdx = backendMap[backend] != null ? backendMap[backend] : 0;
                 const eIdx = engineMap[engine] != null ? engineMap[engine] : 0;
                 if (backendCards) {
@@ -5130,6 +5471,15 @@
                     const card = engineCards.querySelectorAll('.preset-card')[eIdx];
                     if (card) window.selectRetrievalEngine(engine, card);
                 }
+                if (modeCards) {
+                    // The card grid, not always /api/engines' own truth — this
+                    // is the one place that was missing before, which let the
+                    // mode card visually drift from what was actually applied
+                    // (e.g. after Reset) while the status badge stayed correct.
+                    const [cardValue, mIdx] = modeMapToCard[mode] || modeMapToCard.balanced;
+                    const card = modeCards.querySelectorAll('.preset-card')[mIdx];
+                    if (card) window.selectPresetMode(cardValue, card);
+                }
                 const statusEl = document.getElementById('graphProxyStatus');
                 if (statusEl) {
                     const active = data.graph_backend_active || backend;
@@ -5138,6 +5488,17 @@
                         : active;
                     statusEl.style.color = data.graph_proxy_connected ? 'var(--accent-green)' : 'var(--text-secondary)';
                 }
+                window.renderApplyStatus(
+                    data.mode || 'balanced',
+                    engine,
+                    data.graph_backend_active || backend,
+                    !!data.graph_proxy_connected,
+                    false
+                );
+                // Cached so Save/Reset can diff "what's live now" vs "what
+                // the form says" without another round trip.
+                window.__liveConfig = { mode: data.mode || 'balanced', retrieval_engine: engine, graph_backend: backend };
+                window.__defaultsConfig = data.defaults || { mode: 'balanced', retrieval_engine: 'fast', graph_backend: 'native' };
             } catch (e) {}
         };
 
@@ -5176,37 +5537,241 @@
             if (el) el.classList.add('active');
         };
 
-        window.resetSettingsToDefaults = function() {
-            window.selectPresetMode('Balanced', document.querySelector('#presetModeCards .preset-card:nth-child(1)'));
+        // These sliders aren't sent to the server by Save (they're local-only
+        // display prefs), so they're not part of the review diff — but the
+        // old Reset button used to snap them back too, and that shouldn't
+        // silently regress just because Reset now goes through the review panel.
+        function resetLocalUiSliders() {
             window.selectPermMode('Isotonic', document.querySelector('#presetPermCards .preset-card:nth-child(1)'));
-            
+
             const alpha = document.getElementById('settingPhysarumAlpha');
-            if (alpha) { 
-                alpha.value = 1.0; 
-                document.getElementById('valBadgeAlpha').innerText = '1.0'; 
+            if (alpha) {
+                alpha.value = 1.0;
+                document.getElementById('valBadgeAlpha').innerText = '1.0';
             }
 
             const stdp = document.getElementById('settingStdpRate');
-            if (stdp) { 
-                stdp.value = 0.8; 
-                document.getElementById('valBadgeStdp').innerText = '0.80'; 
+            if (stdp) {
+                stdp.value = 0.8;
+                document.getElementById('valBadgeStdp').innerText = '0.80';
             }
 
             const watcher = document.getElementById('settingWatcherDebounce');
-            if (watcher) { 
-                watcher.value = 5; 
-                document.getElementById('valBadgeWatcher').innerText = '5 ms'; 
+            if (watcher) {
+                watcher.value = 5;
+                document.getElementById('valBadgeWatcher').innerText = '5 ms';
             }
+        }
 
-            window.showToast(currentLang === 'fa' ? 'تنظیمات به حالت پیش‌فرض پیشنهادی بازنشانی شدند.' : 'Settings reset to recommended defaults.', 'info');
+        // First-run wizard: skips the "graph backend" / "retrieval engine"
+        // jargon in the full Settings panel and just asks what matters —
+        // then applies it through the same live /api/config path as Save.
+        window.maybeShowOnboarding = function() {
+            try {
+                if (localStorage.getItem('nm_onboarded')) return;
+            } catch (e) { return; }
+            const modal = document.getElementById('onboardingModal');
+            if (modal) modal.classList.add('open');
+            window.syncOnboardingLangButtons();
         };
 
-        window.saveSettings = async function() {
+        // First-time (often non-English-first) visitors should be able to
+        // pick their language right here, not hunt for the small header
+        // dropdown — this is the very first thing they see.
+        window.selectOnboardingLang = function(lang) {
+            window.selectLanguage(lang);
+            window.syncOnboardingLangButtons();
+        };
+
+        window.syncOnboardingLangButtons = function() {
+            const fa = document.getElementById('onbLangFa');
+            const en = document.getElementById('onbLangEn');
+            if (!fa || !en) return;
+            fa.classList.toggle('btn-primary', currentLang === 'fa');
+            fa.classList.toggle('btn-secondary', currentLang !== 'fa');
+            en.classList.toggle('btn-primary', currentLang === 'en');
+            en.classList.toggle('btn-secondary', currentLang !== 'en');
+        };
+
+        window.dismissOnboarding = function() {
+            try { localStorage.setItem('nm_onboarded', '1'); } catch (e) {}
+            const modal = document.getElementById('onboardingModal');
+            if (modal) modal.classList.remove('open');
+        };
+
+        window.applyOnboardingChoice = async function(mode) {
+            try {
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode, persist: true })
+                });
+                window.showToast(currentLang === 'fa' ? 'تنظیم شد — هر وقت خواستی از Settings عوضش کن.' : 'All set — change it anytime in Settings.', 'success');
+            } catch (e) {
+                window.showToast(currentLang === 'fa' ? 'اعمال نشد، از Settings دستی امتحان کن.' : 'Could not apply — try Settings manually.', 'info');
+            }
+            window.dismissOnboarding();
+        };
+
+        window.renderApplyStatus = function(modeLabel, engine, backend, proxyConnected, pending) {
+            const el = document.getElementById('applyStatusBadge');
+            if (!el) return;
+            if (pending) {
+                el.style.color = 'var(--text-secondary)';
+                el.innerHTML = currentLang === 'fa' ? '⏳ در حال اعمال روی سشن زنده…' : '⏳ Applying to the live session…';
+                return;
+            }
+            const backendLabel = proxyConnected ? `${backend} · live` : backend;
+            const text = currentLang === 'fa'
+                ? `✅ روی سشن زنده اعمال شد — حالت: ${modeLabel} · موتور: ${engine} · گراف: ${backendLabel}`
+                : `✅ Applied to the live session — mode: ${modeLabel} · engine: ${engine} · graph: ${backendLabel}`;
+            el.style.color = 'var(--accent-green)';
+            el.innerHTML = text;
+        };
+
+        // --- Review-before-apply panel (same page, expands in place) ---
+        const T = (k) => (i18n[currentLang] && i18n[currentLang][k]) || (i18n.en && i18n.en[k]) || k;
+        const REVIEW_FIELD_LABELS = {
+            mode: { fa: 'حالت مصرف توکن', en: 'Token usage mode' },
+            retrieval_engine: { fa: 'موتور بازیابی', en: 'Retrieval engine' },
+            graph_backend: { fa: 'بک‌اند گراف', en: 'Graph backend' },
+        };
+        const REVIEW_VALUE_I18N = {
+            mode: { balanced: ['opt_mode_balanced_short', 'opt_mode_balanced_desc'], max_savings: ['opt_mode_savings_short', 'opt_mode_savings_desc'], max_quality: ['opt_mode_quality_short', 'opt_mode_quality_desc'] },
+            retrieval_engine: { fast: ['opt_engine_fast_short', 'opt_engine_fast_desc'], hybrid: ['opt_engine_hybrid_short', 'opt_engine_hybrid_desc'], deep: ['opt_engine_deep_short', 'opt_engine_deep_desc'] },
+            graph_backend: { native: ['opt_graph_native_short', 'opt_graph_native_desc'], auto: ['opt_graph_auto_short', 'opt_graph_auto_desc'], proxy_cbm: ['opt_graph_cbm_short', 'opt_graph_cbm_desc'], proxy_graphify: ['opt_graph_cbm_short', 'opt_graph_cbm_desc'] },
+        };
+        function reviewValueLabel(field, raw) {
+            const pair = (REVIEW_VALUE_I18N[field] || {})[raw];
+            return pair ? T(pair[0]) : raw;
+        }
+        function reviewValueDesc(field, raw) {
+            const pair = (REVIEW_VALUE_I18N[field] || {})[raw];
+            return pair ? T(pair[1]) : '';
+        }
+
+        function readFormConfig() {
+            const modeMap = { Balanced: 'balanced', MaxSavings: 'max_savings', MaxQuality: 'max_quality' };
+            const modeRaw = document.getElementById('settingsModeSelect').value;
+            return {
+                mode: modeMap[modeRaw] || 'balanced',
+                graph_backend: document.getElementById('settingsGraphBackend').value,
+                retrieval_engine: document.getElementById('settingsRetrievalEngine').value,
+            };
+        }
+
+        function diffConfigs(from, to) {
+            const fields = ['mode', 'retrieval_engine', 'graph_backend'];
+            const changes = [];
+            for (const f of fields) {
+                if ((from[f] || '') !== (to[f] || '')) {
+                    changes.push({ field: f, from: from[f], to: to[f] });
+                }
+            }
+            return changes;
+        }
+
+        window.__pendingReview = null; // { action: 'save'|'reset', target: {...} }
+
+        function renderSettingsReview(changes, target, action) {
+            const panel = document.getElementById('settingsReviewPanel');
+            const diffEl = document.getElementById('settingsReviewDiff');
+            const summaryEl = document.getElementById('settingsReviewSummary');
+            if (!panel || !diffEl || !summaryEl) return;
+
+            if (changes.length === 0) {
+                // Nothing actually changed — apply straight away, no review needed.
+                window.__pendingReview = { action, target };
+                window.confirmSettingsReview(true);
+                return;
+            }
+
+            diffEl.innerHTML = changes.map(c => {
+                const label = (REVIEW_FIELD_LABELS[c.field] || {})[currentLang] || c.field;
+                const fromLabel = reviewValueLabel(c.field, c.from) || (currentLang === 'fa' ? '(تنظیم‌نشده)' : '(unset)');
+                const toLabel = reviewValueLabel(c.field, c.to);
+                const toDesc = reviewValueDesc(c.field, c.to);
+                return `
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.6rem 0.8rem;">
+                        <div style="font-size: 0.8rem; font-weight: 700; color: #fff;">${label}</div>
+                        <div style="font-size: 0.8rem; margin-top: 0.25rem; color: var(--text-secondary);">
+                            <span style="text-decoration: line-through; opacity: 0.6;">${fromLabel}</span>
+                            <span style="margin: 0 0.4rem; color: var(--accent-cyan);">→</span>
+                            <span style="color: var(--accent-green); font-weight: 700;">${toLabel}</span>
+                        </div>
+                        ${toDesc ? `<div style="font-size: 0.75rem; margin-top: 0.2rem; color: var(--text-muted, var(--text-secondary));">${toDesc}</div>` : ''}
+                    </div>`;
+            }).join('');
+
+            const n = changes.length;
+            summaryEl.innerText = currentLang === 'fa'
+                ? `در مجموع ${n} مورد تغییر می‌کنه و روی سشن زنده‌ی همین پروژه اعمال می‌شه. روی پروژه‌های دیگه اثری نداره.`
+                : `${n} setting${n > 1 ? 's' : ''} will change and apply to this project's live session. Other projects are unaffected.`;
+
+            window.__pendingReview = { action, target };
+            panel.style.display = 'block';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        window.reviewSaveSettings = function() {
+            const target = readFormConfig();
+            const live = window.__liveConfig || { mode: 'balanced', retrieval_engine: 'fast', graph_backend: 'native' };
+            renderSettingsReview(diffConfigs(live, target), target, 'save');
+        };
+
+        window.reviewResetToDefaults = function() {
+            const defaults = window.__defaultsConfig || { mode: 'balanced', retrieval_engine: 'fast', graph_backend: 'native' };
+            const live = window.__liveConfig || defaults;
+            renderSettingsReview(diffConfigs(live, defaults), defaults, 'reset');
+        };
+
+        window.cancelSettingsReview = function() {
+            window.__pendingReview = null;
+            const panel = document.getElementById('settingsReviewPanel');
+            if (panel) panel.style.display = 'none';
+        };
+
+        window.confirmSettingsReview = async function(silent) {
+            const pending = window.__pendingReview;
+            const panel = document.getElementById('settingsReviewPanel');
+            if (!pending) return;
+            window.__pendingReview = null;
+            if (panel) panel.style.display = 'none';
+
+            if (pending.action === 'reset') {
+                const btn = document.getElementById('saveSettingsBtn');
+                if (btn) btn.disabled = true;
+                window.renderApplyStatus(null, null, null, false, true);
+                try {
+                    const res = await fetch('/api/config/reset', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        if (!silent) window.showToast(currentLang === 'fa' ? 'تنظیمات این پروژه به حالت پیش‌فرض برگشت.' : 'This project was reset to defaults.', 'success');
+                        resetLocalUiSliders();
+                        window.loadEngineSettings();
+                        window.fetchStatus();
+                    } else {
+                        window.showToast(data.error || 'Reset failed', 'info');
+                    }
+                } catch (e) {
+                    window.showToast(String(e), 'info');
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            } else {
+                await window.saveSettings(silent);
+            }
+        };
+
+        window.saveSettings = async function(silent) {
             const modeMap = { Balanced: 'balanced', MaxSavings: 'max_savings', MaxQuality: 'max_quality' };
             const modeRaw = document.getElementById('settingsModeSelect').value;
             const mode = modeMap[modeRaw] || 'balanced';
             const graph_backend = document.getElementById('settingsGraphBackend').value;
             const retrieval_engine = document.getElementById('settingsRetrievalEngine').value;
+            const btn = document.getElementById('saveSettingsBtn');
+            if (btn) btn.disabled = true;
+            window.renderApplyStatus(null, null, null, false, true);
             try {
                 const res = await fetch('/api/config', {
                     method: 'POST',
@@ -5216,13 +5781,35 @@
                 const data = await res.json();
                 if (data.success) {
                     window.showToast(currentLang === 'fa' ? 'تنظیمات بیومیمتیک با موفقیت ذخیره شدند.' : 'Biomimetic settings saved successfully.', 'success');
+                    // Confirm against what the server actually applied, not what
+                    // the form said — the real definition of "Apply worked".
+                    const appliedMode = (data.config && data.config.mode) || mode;
+                    window.renderApplyStatus(
+                        appliedMode,
+                        (data.config && data.config.retrieval && data.config.retrieval.engine) || retrieval_engine,
+                        data.graph_backend_active || graph_backend,
+                        !!data.graph_proxy_connected,
+                        false
+                    );
                     window.loadEngineSettings();
                     window.fetchStatus();
                 } else {
                     window.showToast(data.error || 'Save failed', 'info');
+                    const el = document.getElementById('applyStatusBadge');
+                    if (el) {
+                        el.style.color = 'var(--accent-amber, #d97706)';
+                        el.innerHTML = currentLang === 'fa' ? `❌ اعمال نشد: ${data.error || 'خطا'}` : `❌ Not applied: ${data.error || 'error'}`;
+                    }
                 }
             } catch (e) {
                 window.showToast(String(e), 'info');
+                const el = document.getElementById('applyStatusBadge');
+                if (el) {
+                    el.style.color = 'var(--accent-amber, #d97706)';
+                    el.innerHTML = currentLang === 'fa' ? `❌ اعمال نشد: ${e}` : `❌ Not applied: ${e}`;
+                }
+            } finally {
+                if (btn) btn.disabled = false;
             }
         };
 
@@ -5366,6 +5953,17 @@
         let is3D = true;
         let rotX = 0.95; // Comfortable natural 3D angle (~54 deg)
         let rotY = 0.05;
+        // 'rotate' = plain drag orbits the shape (old default, still needs
+        // Shift/right-click for a one-off pan). 'pan' flips it: plain drag
+        // just slides the whole view around — easier for "go look over there"
+        // exploration than fighting rotation to reach a corner.
+        let galaxyDragMode = (function () {
+            try { return localStorage.getItem('neuromesh_galaxy_drag_mode') || 'rotate'; } catch (e) { return 'rotate'; }
+        })();
+        // Wide enough that a dense, multi-thousand-node graph can be zoomed
+        // out to see the whole shape, or zoomed in to read one dense cluster.
+        const GALAXY_MIN_ZOOM = 0.06;
+        const GALAXY_MAX_ZOOM = 10.0;
         let scale = 1.0;
         let panX = 0;
         let panY = 0;
@@ -5421,6 +6019,29 @@
                     el.checked = !!galaxyLayers[key];
                 }
             }
+        };
+
+        // Both HUD panels default to collapsed: together they used to cover
+        // ~70% of the canvas height, which is exactly why rotating/panning
+        // felt stuck — most drags landed on an opaque panel, not the graph.
+        window.toggleGalaxyHud = function(forceState) {
+            const hud = document.getElementById('galaxyHudTopLeft');
+            const btn = document.getElementById('galaxyHudCollapseBtn');
+            if (!hud) return;
+            const collapsed = typeof forceState === 'boolean' ? forceState : !hud.classList.contains('collapsed');
+            hud.classList.toggle('collapsed', collapsed);
+            if (btn) btn.innerText = collapsed ? '▾' : '▴';
+            try { localStorage.setItem('neuromesh_galaxy_hud_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+        };
+
+        window.toggleGalaxyLayersPanel = function(forceState) {
+            const body = document.getElementById('galaxyLayersBody');
+            const icon = document.getElementById('galaxyLayersCollapseIcon');
+            if (!body) return;
+            const collapsed = typeof forceState === 'boolean' ? forceState : body.style.display !== 'none';
+            body.style.display = collapsed ? 'none' : 'contents';
+            if (icon) icon.innerText = collapsed ? '▸' : '▾';
+            try { localStorage.setItem('neuromesh_galaxy_layers_collapsed', collapsed ? '1' : '0'); } catch (e) {}
         };
 
         window.toggleGalaxyLayer = function(layerKey, isChecked) {
@@ -6455,68 +7076,68 @@
             e.preventDefault();
         });
 
-        canvas.addEventListener('mousedown', e => {
-            const pos = canvasToWorld(e);
-            dragStartX = e.clientX;
-            dragStartY = e.clientY;
+        // Shared by mouse AND touch so the two never drift apart. `pointer`
+        // is anything with .clientX/.clientY (a MouseEvent, or one Touch).
+        function galaxyPointerDown(pointer, wantPan) {
+            const pos = canvasToWorld(pointer);
+            dragStartX = pointer.clientX;
+            dragStartY = pointer.clientY;
             hasMovedSignificantly = false;
             lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-            const hit = (e.button === 0 && !e.shiftKey) ? findNodeAtScreenPos(pos.x, pos.y) : null;
-            dragNode = hit;
-
-            const wantPan = e.button === 2 || e.button === 1 || e.shiftKey;
+            dragNode = wantPan ? null : findNodeAtScreenPos(pos.x, pos.y);
             isDragging = true;
             isRightDragging = wantPan;
-            lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
-        });
+            lastMouseX = pointer.clientX;
+            lastMouseY = pointer.clientY;
+        }
 
-        canvas.addEventListener('mousemove', e => {
-            const pos = canvasToWorld(e);
-            hoveredNode = findNodeAtScreenPos(pos.x, pos.y);
-            canvas.classList.toggle('can-click', !!hoveredNode);
-            canvas.style.cursor = hoveredNode ? 'pointer' : (isDragging ? (isRightDragging || !is3D ? 'move' : 'grabbing') : 'grab');
-            updateHoverTip(hoveredNode, pos.sx, pos.sy);
-
-            if (isDragging) {
-                const deltaX = e.clientX - lastMouseX;
-                const deltaY = e.clientY - lastMouseY;
-
-                if (Math.abs(e.clientX - dragStartX) > 8 || Math.abs(e.clientY - dragStartY) > 8) {
-                    hasMovedSignificantly = true;
-                }
-
-                if (!hasMovedSignificantly) {
-                    lastMouseX = e.clientX;
-                    lastMouseY = e.clientY;
-                    return;
-                }
-
-                lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
-                if (isRightDragging || !is3D) {
-                    panX += deltaX;
-                    panY += deltaY;
-                    targetPanX = panX;
-                    targetPanY = panY;
-                } else {
-                    rotY += deltaX * 0.005;
-                    rotX += deltaY * 0.005;
-                    rotX = Math.max(0.15, Math.min(1.48, rotX));
-                }
-
-                lastMouseX = e.clientX;
-                lastMouseY = e.clientY;
+        function galaxyPointerMove(pointer, updateHover) {
+            if (updateHover) {
+                const pos = canvasToWorld(pointer);
+                hoveredNode = findNodeAtScreenPos(pos.x, pos.y);
+                canvas.classList.toggle('can-click', !!hoveredNode);
+                canvas.style.cursor = hoveredNode ? 'pointer' : (isDragging ? (isRightDragging || !is3D ? 'move' : 'grabbing') : 'grab');
+                updateHoverTip(hoveredNode, pos.sx, pos.sy);
             }
-        });
 
-        canvas.addEventListener('mouseleave', () => {
-            hoveredNode = null;
-            canvas.classList.remove('can-click');
-            updateHoverTip(null, 0, 0);
-        });
+            if (!isDragging) return;
 
-        window.addEventListener('mouseup', () => {
+            const deltaX = pointer.clientX - lastMouseX;
+            const deltaY = pointer.clientY - lastMouseY;
+
+            if (Math.abs(pointer.clientX - dragStartX) > 8 || Math.abs(pointer.clientY - dragStartY) > 8) {
+                hasMovedSignificantly = true;
+            }
+
+            if (!hasMovedSignificantly) {
+                lastMouseX = pointer.clientX;
+                lastMouseY = pointer.clientY;
+                return;
+            }
+
+            lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+            if (isRightDragging || !is3D) {
+                // Direct manipulation: content follows the finger/cursor,
+                // like panning a map — not the inverse "orbit camera" feel.
+                panX += deltaX;
+                panY += deltaY;
+                targetPanX = panX;
+                targetPanY = panY;
+            } else {
+                // Same rule for rotation: dragging right should visibly turn
+                // the shape *toward* the right, matching the drag direction
+                // (previously this was inverted and felt "backwards").
+                rotY -= deltaX * 0.005;
+                rotX += deltaY * 0.005;
+                rotX = Math.max(0.15, Math.min(1.48, rotX));
+            }
+
+            lastMouseX = pointer.clientX;
+            lastMouseY = pointer.clientY;
+        }
+
+        function galaxyPointerUp() {
             if (!hasMovedSignificantly && dragNode) {
                 lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
                 if (dragNode.isMacroHub) {
@@ -6536,6 +7157,47 @@
             targetPanX = panX;
             targetPanY = panY;
             targetScale = scale;
+        }
+
+        canvas.addEventListener('mousedown', e => {
+            // Right/middle click always pans (an escape hatch regardless of
+            // mode); Shift temporarily gives the *other* behavior; otherwise
+            // follow the Rotate/Move toggle.
+            const wantPan = (e.button === 2 || e.button === 1)
+                ? true
+                : (e.shiftKey ? galaxyDragMode !== 'pan' : galaxyDragMode === 'pan');
+            galaxyPointerDown(e, wantPan);
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            galaxyPointerMove(e, true);
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            hoveredNode = null;
+            canvas.classList.remove('can-click');
+            updateHoverTip(null, 0, 0);
+        });
+
+        // Single-finger touch: rotate (mirrors plain left-drag). Two-finger
+        // is handled separately below by the pinch-to-zoom listeners.
+        canvas.addEventListener('touchstart', e => {
+            if (e.touches.length !== 1) return;
+            galaxyPointerDown(e.touches[0], galaxyDragMode === 'pan');
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', e => {
+            if (e.touches.length !== 1 || !isDragging) return;
+            e.preventDefault();
+            galaxyPointerMove(e.touches[0], false);
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            if (isDragging) galaxyPointerUp();
+        }, { passive: true });
+
+        window.addEventListener('mouseup', () => {
+            if (isDragging) galaxyPointerUp();
         });
 
         canvas.addEventListener('wheel', e => {
@@ -6543,24 +7205,95 @@
             lastInteractAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
             const rect = canvas.getBoundingClientRect();
             const factor = e.deltaY < 0 ? 1.12 : 0.89;
-            const newScale = Math.max(0.25, Math.min(4.0, scale * factor));
+            const newScale = Math.max(GALAXY_MIN_ZOOM, Math.min(GALAXY_MAX_ZOOM, targetScale * factor));
 
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            panX = mouseX - (mouseX - panX) * (newScale / scale);
-            panY = mouseY - (mouseY - panY) * (newScale / scale);
-
-            scale = newScale;
+            // Zoom toward the cursor, but only move the *target* — the render
+            // loop's easing (`scale += (targetScale - scale) * 0.12`) does the
+            // actual smoothing, so fast wheel flicks glide instead of snapping.
+            targetPanX = mouseX - (mouseX - targetPanX) * (newScale / targetScale);
+            targetPanY = mouseY - (mouseY - targetPanY) * (newScale / targetScale);
             targetScale = newScale;
-            targetPanX = panX;
-            targetPanY = panY;
         }, { passive: false });
+
+        // Pinch-to-zoom (trackpads / touch) toward the gesture midpoint.
+        let pinchStartDist = null;
+        let pinchStartScale = 1;
+        canvas.addEventListener('touchstart', e => {
+            if (e.touches.length === 2) {
+                const [a, b] = e.touches;
+                pinchStartDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+                pinchStartScale = targetScale;
+            }
+        }, { passive: true });
+        canvas.addEventListener('touchmove', e => {
+            if (e.touches.length === 2 && pinchStartDist) {
+                e.preventDefault();
+                const [a, b] = e.touches;
+                const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+                const rect = canvas.getBoundingClientRect();
+                const midX = (a.clientX + b.clientX) / 2 - rect.left;
+                const midY = (a.clientY + b.clientY) / 2 - rect.top;
+                const newScale = Math.max(GALAXY_MIN_ZOOM, Math.min(GALAXY_MAX_ZOOM, pinchStartScale * (dist / pinchStartDist)));
+                targetPanX = midX - (midX - targetPanX) * (newScale / targetScale);
+                targetPanY = midY - (midY - targetPanY) * (newScale / targetScale);
+                targetScale = newScale;
+            }
+        }, { passive: false });
+        canvas.addEventListener('touchend', e => {
+            if (e.touches.length < 2) pinchStartDist = null;
+        }, { passive: true });
 
         canvas.addEventListener('dblclick', () => {
             window.resetCanvas();
         });
         }
+
+        // Fade the controls hint out once the user is clearly already
+        // navigating, so it doesn't sit in the way forever.
+        setInterval(() => {
+            const hint = document.getElementById('galaxyControlsHint');
+            if (!hint) return;
+            const idleMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - lastInteractAt;
+            hint.style.opacity = idleMs < 6000 ? '1' : '0.35';
+        }, 500);
+
+        window.setGalaxyDragMode = function(mode) {
+            galaxyDragMode = mode === 'pan' ? 'pan' : 'rotate';
+            try { localStorage.setItem('neuromesh_galaxy_drag_mode', galaxyDragMode); } catch (e) {}
+            window.syncGalaxyDragModeButtons();
+        };
+
+        window.syncGalaxyDragModeButtons = function() {
+            const rotateBtn = document.getElementById('btnDragModeRotate');
+            const panBtn = document.getElementById('btnDragModePan');
+            if (rotateBtn) {
+                rotateBtn.classList.toggle('btn-primary', galaxyDragMode === 'rotate');
+                rotateBtn.classList.toggle('btn-secondary', galaxyDragMode !== 'rotate');
+            }
+            if (panBtn) {
+                panBtn.classList.toggle('btn-primary', galaxyDragMode === 'pan');
+                panBtn.classList.toggle('btn-secondary', galaxyDragMode !== 'pan');
+            }
+            const hint = document.getElementById('galaxyControlsHint');
+            if (hint) {
+                hint.innerText = galaxyDragMode === 'pan'
+                    ? (currentLang === 'fa' ? 'درگ برای جابه‌جایی · Shift+درگ برای چرخش · اسکرول یا +/− برای زوم · دابل‌کلیک برای بازنشانی' : 'Drag to move · Shift+drag to rotate · Scroll or +/− to zoom · Double-click to reset')
+                    : (currentLang === 'fa' ? 'درگ برای چرخش · Shift+درگ برای جابه‌جایی · اسکرول یا +/− برای زوم · دابل‌کلیک برای بازنشانی' : 'Drag to rotate · Shift+drag to pan · Scroll or +/− to zoom · Double-click to reset');
+            }
+        };
+
+        window.zoomGalaxy = function(factor) {
+            if (!canvas) return;
+            const newScale = Math.max(GALAXY_MIN_ZOOM, Math.min(GALAXY_MAX_ZOOM, targetScale * factor));
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            targetPanX = cx - (cx - targetPanX) * (newScale / targetScale);
+            targetPanY = cy - (cy - targetPanY) * (newScale / targetScale);
+            targetScale = newScale;
+        };
 
         window.resetCanvas = function() {
             rotX = 0.95;
@@ -6616,10 +7349,12 @@
         window.loadGraphData();
         window.loadFilesTable();
         window.fetchUsage();
+        window.fetchAllProjectsUsage();
         window.fetchMemory();
         window.fetchLogs();
         if (typeof window.syncSlimePlayButton === 'function') window.syncSlimePlayButton();
         animateGalaxy();
+        window.maybeShowOnboarding();
 
         // ⚡ SMART ADAPTIVE BACKGROUND POLLING ENGINE (Default: 8s with Tab Visibility Auto-Pause)
         let currentPollInterval = parseInt(localStorage.getItem('neuromesh_poll_interval') || '8000', 10);
@@ -6669,6 +7404,10 @@
                 if (usageView && usageView.classList.contains('active-view')) {
                     window.fetchUsage(false);
                 }
+
+                // The tokens-saved badge is visible in the header on every
+                // view, so it keeps refreshing regardless of which tab is open.
+                window.fetchAllProjectsUsage();
             } catch (e) {
             } finally {
                 isPollingActive = false;

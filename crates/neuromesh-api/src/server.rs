@@ -20,16 +20,58 @@ impl HttpServer {
         Self { state }
     }
 
-    pub async fn run(self) -> Result<()> {
-        let (host, port) = {
+    /// Binds a listener, trying the configured port first and then walking
+    /// forward until one is free. This is what makes it safe to run several
+    /// projects' dashboards at once (e.g. more than one `neuromesh mcp`
+    /// process alive in Claude Desktop at the same time) — the second one
+    /// doesn't just fail to get a dashboard, it gets the next free port.
+    /// Updates `state.config.port` to whatever port was actually bound, so
+    /// every consumer (this page's own links, `/api/status`, the caller
+    /// deciding where to open a browser) sees the truth, not the original guess.
+    async fn bind(&self) -> Result<(TcpListener, SocketAddr)> {
+        const MAX_PORT_ATTEMPTS: u16 = 50;
+        let (host, start_port) = {
             let cfg = self.state.config.read();
             (cfg.host.clone(), cfg.port)
         };
-        let addr: SocketAddr = format!("{}:{}", host, port).parse().map_err(|e| {
-            neuromesh_core::NeuroMeshError::Config(format!("Invalid address: {}", e))
-        })?;
+        let mut last_err: Option<std::io::Error> = None;
+        for offset in 0..MAX_PORT_ATTEMPTS {
+            let port = start_port.saturating_add(offset);
+            let addr: SocketAddr = format!("{host}:{port}").parse().map_err(|e| {
+                neuromesh_core::NeuroMeshError::Config(format!("Invalid address: {e}"))
+            })?;
+            match TcpListener::bind(addr).await {
+                Ok(listener) => {
+                    if port != start_port {
+                        self.state.config.write().port = port;
+                    }
+                    return Ok((listener, addr));
+                }
+                Err(e) => last_err = Some(e),
+            }
+        }
+        Err(last_err
+            .map(|e| {
+                neuromesh_core::NeuroMeshError::Config(format!(
+                    "no free port found near {start_port} after {MAX_PORT_ATTEMPTS} attempts: {e}"
+                ))
+            })
+            .unwrap_or_else(|| neuromesh_core::NeuroMeshError::Config("no free port found".into())))
+    }
 
-        let listener = TcpListener::bind(addr).await?;
+    pub async fn run(self) -> Result<()> {
+        self.run_with_port_notify(None).await
+    }
+
+    /// Same as `run`, but reports the port it actually bound through
+    /// `ready_tx` as soon as it's known — before the (otherwise infinite)
+    /// accept loop starts — so a caller that wants to open a browser can
+    /// wait for the *real* address instead of guessing the configured one.
+    pub async fn run_with_port_notify(
+        self,
+        ready_tx: Option<tokio::sync::oneshot::Sender<u16>>,
+    ) -> Result<()> {
+        let (listener, addr) = self.bind().await?;
         println!("\n╔═══════════════════════════════════════════════════════════════════════════════════╗");
         println!(
             "║             🌿 NEUROMESH v{} — UI MONITOR & MCP DASHBOARD ACTIVE               ║",
@@ -37,6 +79,9 @@ impl HttpServer {
         );
         println!("║   Open in browser: \x1b[1;36mhttp://{}\x1b[0m                                      ║", addr);
         println!("╚═══════════════════════════════════════════════════════════════════════════════════╝\n");
+        if let Some(tx) = ready_tx {
+            let _ = tx.send(addr.port());
+        }
 
         let state = Arc::new(self.state);
 
@@ -671,14 +716,14 @@ impl HttpServer {
                 let persist = body_json["persist"].as_bool().unwrap_or(true);
                 let mut graph_backend = None;
                 let mut retrieval_engine = None;
+                let mut mode = None;
 
                 if let Some(mode_str) = body_json["mode"].as_str() {
-                    let new_mode = match mode_str {
+                    mode = Some(match mode_str {
                         "max_quality" => OptimizationMode::MaxQuality,
                         "max_savings" => OptimizationMode::MaxSavings,
                         _ => OptimizationMode::Balanced,
-                    };
-                    state.config.write().mode = new_mode;
+                    });
                 }
                 if let Some(raw) = body_json["graph_backend"].as_str() {
                     if let Some(backend) = parse_graph_backend(raw) {
@@ -690,9 +735,9 @@ impl HttpServer {
                         retrieval_engine = Some(engine);
                     }
                 }
-                if graph_backend.is_some() || retrieval_engine.is_some() {
+                if graph_backend.is_some() || retrieval_engine.is_some() || mode.is_some() {
                     if let Err(e) =
-                        state.update_engine_settings(graph_backend, retrieval_engine, persist)
+                        state.update_engine_settings(graph_backend, retrieval_engine, mode, persist)
                     {
                         Self::send_json(
                             &mut stream,
@@ -726,6 +771,13 @@ impl HttpServer {
                         ),
                     );
                 }
+                if let Some(m) = mode {
+                    state.log(
+                        "INFO",
+                        "CONFIG",
+                        &format!("Optimization mode set to {m} (persist={persist})"),
+                    );
+                }
                 let cfg = state.config.read().clone();
                 Self::send_json(
                     &mut stream,
@@ -739,6 +791,38 @@ impl HttpServer {
                 )
                 .await?;
             }
+
+            // Reset THIS project's settings back to the true defaults —
+            // never touches any other project's `nm.config.json`.
+            ("POST", "/api/config/reset") => match state.reset_engine_settings().await {
+                Ok(()) => {
+                    state.log(
+                        "INFO",
+                        "CONFIG",
+                        "Settings reset to defaults for this project",
+                    );
+                    let cfg = state.config.read().clone();
+                    Self::send_json(
+                        &mut stream,
+                        200,
+                        &json!({
+                            "success": true,
+                            "config": cfg,
+                            "graph_backend_active": state.mcp_handler.graph_backend_label(),
+                            "graph_proxy_connected": state.mcp_handler.graph_proxy_active(),
+                        }),
+                    )
+                    .await?;
+                }
+                Err(e) => {
+                    Self::send_json(
+                        &mut stream,
+                        500,
+                        &json!({ "success": false, "error": e.to_string() }),
+                    )
+                    .await?;
+                }
+            },
 
             ("GET", "/api/engines") | ("GET", "/api/graph-proxy") => {
                 let resp = crate::routes::engines::engines_status(&state);
@@ -1120,6 +1204,62 @@ impl HttpServer {
                             "cache_hits": usage.cache_hits
                         },
                         "history": filtered_history
+                    }),
+                )
+                .await?;
+            }
+
+            // Average token savings across every project ever seen on this
+            // machine. Reads the same in-memory history `/api/usage` already
+            // holds (loaded once from telemetry_history.json at startup) —
+            // pure local aggregation, no re-computation and no extra tokens.
+            ("GET", "/api/usage/all-projects") => {
+                let history = state.metrics.get_history();
+                let overall = summarize_history(&history);
+
+                let mut by_project: std::collections::BTreeMap<
+                    String,
+                    Vec<&neuromesh_core::OptimizationMetadata>,
+                > = std::collections::BTreeMap::new();
+                for row in &history {
+                    by_project
+                        .entry(row.project_id.0.clone())
+                        .or_default()
+                        .push(row);
+                }
+                let mut projects: Vec<Value> = by_project
+                    .into_iter()
+                    .map(|(project_id, rows)| {
+                        let owned: Vec<_> = rows.into_iter().cloned().collect();
+                        let agg = summarize_history(&owned);
+                        json!({
+                            "project_id": project_id,
+                            "requests": agg.total_requests,
+                            "mean_reduction_pct": agg.mean_reduction_pct,
+                            "total_tokens_saved": agg.total_tokens_saved,
+                        })
+                    })
+                    .collect();
+                projects.sort_by(|a, b| {
+                    b["total_tokens_saved"]
+                        .as_u64()
+                        .unwrap_or(0)
+                        .cmp(&a["total_tokens_saved"].as_u64().unwrap_or(0))
+                });
+
+                Self::send_json(
+                    &mut stream,
+                    200,
+                    &json!({
+                        "success": true,
+                        "project_count": projects.len(),
+                        "overall": {
+                            "total_requests": overall.total_requests,
+                            "total_tokens_saved": overall.total_tokens_saved,
+                            "mean_reduction_pct": overall.mean_reduction_pct,
+                            "overall_reduction_pct": overall.overall_reduction_pct,
+                        },
+                        "projects": projects,
                     }),
                 )
                 .await?;

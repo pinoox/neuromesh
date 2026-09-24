@@ -266,6 +266,9 @@ impl Config {
         if let Some(re) = overlay.retrieval {
             self.retrieval = re;
         }
+        if let Some(mode) = overlay.mode {
+            self.mode = mode;
+        }
     }
 
     fn overlay_project(&mut self, other: Self) {
@@ -466,6 +469,44 @@ impl Config {
         overlay.retrieval = Some(retrieval);
         fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
         Ok(path)
+    }
+
+    pub fn set_workspace_mode(workspace: &Path, mode: OptimizationMode) -> Result<PathBuf> {
+        let path = Self::workspace_nm_config_path(workspace);
+        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
+        overlay.mode = Some(mode);
+        fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
+        Ok(path)
+    }
+
+    /// "Reset to defaults": clear only `mode` / `graph_backend` / `retrieval`
+    /// from this project's `nm.config.json` — the fields the dashboard's
+    /// Settings panel actually shows and manages — rather than writing
+    /// today's default *values* into them, so the project genuinely falls
+    /// back to `Config::default()` (plus any machine-wide home config) and
+    /// stays correct if defaults ever change.
+    ///
+    /// `nm.config.json` is documented as commit-friendly (`neuromesh config
+    /// engine hybrid` writes into the same file for a whole team to share),
+    /// so this must NOT blow away unrelated fields such as `packet_header`
+    /// that a teammate or the CLI may have deliberately committed. The file
+    /// is only deleted outright once every field in it is empty. Never
+    /// touches other projects: each has its own `nm.config.json`.
+    pub fn reset_workspace_overrides(workspace: &Path) -> Result<()> {
+        let path = Self::workspace_nm_config_path(workspace);
+        if !path.exists() {
+            return Ok(());
+        }
+        let mut overlay = Self::read_nm_config(workspace).unwrap_or_default();
+        overlay.mode = None;
+        overlay.graph_backend = None;
+        overlay.retrieval = None;
+        if overlay.packet_header.is_none() {
+            fs::remove_file(&path)?;
+        } else {
+            fs::write(&path, serde_json::to_string_pretty(&overlay)?)?;
+        }
+        Ok(())
     }
 
     pub fn global_retrieval_engine() -> Option<RetrievalEngine> {

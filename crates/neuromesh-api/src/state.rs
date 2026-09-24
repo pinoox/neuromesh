@@ -217,6 +217,7 @@ impl AppState {
         &self,
         graph_backend: Option<GraphBackendId>,
         retrieval_engine: Option<neuromesh_core::RetrievalEngine>,
+        mode: Option<neuromesh_core::OptimizationMode>,
         persist: bool,
     ) -> neuromesh_core::Result<()> {
         {
@@ -228,6 +229,9 @@ impl AppState {
                 cfg.retrieval.engine = engine;
                 cfg.apply_retrieval_preset();
             }
+            if let Some(m) = mode {
+                cfg.mode = m;
+            }
         }
         if persist {
             let ws = self.workspace();
@@ -237,7 +241,23 @@ impl AppState {
             if let Some(engine) = retrieval_engine {
                 Config::set_workspace_retrieval_engine(&ws, engine)?;
             }
+            if let Some(m) = mode {
+                Config::set_workspace_mode(&ws, m)?;
+            }
         }
+        Ok(())
+    }
+
+    /// "Reset to defaults": drop this project's `nm.config.json` override,
+    /// reload config from scratch (default + any machine-wide home config),
+    /// and reapply the resulting graph backend. Only ever touches this one
+    /// workspace's override file — other projects are untouched.
+    pub async fn reset_engine_settings(&self) -> neuromesh_core::Result<()> {
+        let ws = self.workspace();
+        Config::reset_workspace_overrides(&ws)?;
+        let fresh = Config::load();
+        *self.config.write() = fresh.clone();
+        self.apply_graph_backend(&fresh.graph_backend, &ws).await;
         Ok(())
     }
 }

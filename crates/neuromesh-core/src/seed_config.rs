@@ -150,4 +150,6 @@ pub struct NmConfigOverlay {
     pub graph_backend: Option<GraphProxyConfig>,
     #[serde(default)]
     pub retrieval: Option<RetrievalConfig>,
+    #[serde(default)]
+    pub mode: Option<crate::OptimizationMode>,
 }
