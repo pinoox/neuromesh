@@ -125,16 +125,24 @@ pub fn extract_calls_from_line_ctx(
                     if before.ends_with("self.") || before.ends_with("this.") {
                         Some(format!("field:{recv}"))
                     } else {
-                        None
+                        // A member call on a plain object (`db.user.update(`):
+                        // the linker must not bind it to a free function
+                        // that merely shares the name (F83).
+                        Some(format!("obj:{recv}"))
                     }
                 }),
             None => impl_parent.map(|p| format!("impl:{p}")),
         };
 
+        // One edge per (caller, member, object) — see `record_call`.
         if result.relationships.iter().any(|rel| {
             rel.source_symbol == caller
                 && rel.target_symbol == name
                 && rel.relationship == EdgeType::Calls
+                && (rel.receiver_hint == receiver_hint
+                    || !receiver_hint
+                        .as_deref()
+                        .is_some_and(|h| h.starts_with("obj:")))
         }) {
             continue;
         }

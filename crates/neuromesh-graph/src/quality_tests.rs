@@ -342,6 +342,63 @@ impl ContextActivator {
             .is_none());
     }
 
+    /// `userNameSchema.parse(` is a call on the schema object defined in
+    /// the imported file. The edge goes to that object, not to some other
+    /// module's free `parse` function that shares the member's name.
+    #[test]
+    fn member_call_on_a_plain_object_binds_to_the_object_in_scope() {
+        let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));
+        let route = "import { userNameSchema } from \"@/lib/validations/user\"\nexport async function PATCH(req) {\n  const body = userNameSchema.parse(await req.json())\n  return body\n}\n";
+        let schema = "import * as z from \"zod\"\nexport const userNameSchema = z.object({ name: z.string() })\n";
+        let stranger = "export function parse(input) {\n  return input\n}\n";
+        for (path, src) in [
+            ("app/api/users/route.ts", route),
+            ("lib/validations/user.ts", schema),
+            ("lib/markdown.ts", stranger),
+        ] {
+            graph.ingest_file(
+                &indexed_lang(path, SourceLanguage::TypeScript),
+                &CodeIntelligenceEngine::analyze(
+                    &PathBuf::from(path),
+                    src,
+                    SourceLanguage::TypeScript,
+                ),
+                Some(src),
+            );
+        }
+        graph.finalize_links();
+        let patch = graph
+            .resolve_unique("PATCH", Some("app/api/users/route.ts"))
+            .expect("PATCH");
+        let calls: Vec<(String, String, neuromesh_core::EdgeConfidence)> = graph
+            .get_neighbor_views(&patch)
+            .into_iter()
+            .filter(|n| n.edge.edge_type == neuromesh_core::EdgeType::Calls)
+            .map(|n| {
+                (
+                    n.node.name.clone(),
+                    n.node.file_path.to_string_lossy().replace('\\', "/"),
+                    n.edge.confidence,
+                )
+            })
+            .collect();
+        assert!(
+            calls
+                .iter()
+                .any(|(name, file, conf)| name == "userNameSchema"
+                    && file.ends_with("lib/validations/user.ts")
+                    && *conf == neuromesh_core::EdgeConfidence::Proven),
+            "{calls:?}"
+        );
+        assert!(
+            !calls
+                .iter()
+                .any(|(_, file, conf)| file.ends_with("lib/markdown.ts")
+                    && *conf == neuromesh_core::EdgeConfidence::Proven),
+            "the stranger's parse must not be a proven callee: {calls:?}"
+        );
+    }
+
     #[test]
     fn incremental_hash_skips_and_persist_roundtrips() {
         let graph = NeuralProjectGraph::new(ProjectId::new("neuromesh"));

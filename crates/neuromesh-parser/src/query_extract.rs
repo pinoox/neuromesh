@@ -521,10 +521,17 @@ fn record_call(
     if name.is_empty() || !is_callable_name(&name) || name == caller {
         return;
     }
+    // One edge per (caller, member, object): `routeContextSchema.parse(` and
+    // `userNameSchema.parse(` are calls on two different objects, and the
+    // second must not vanish behind the first (F83).
     if result.relationships.iter().any(|rel| {
         rel.source_symbol == caller
             && rel.target_symbol == name
             && rel.relationship == EdgeType::Calls
+            && (rel.receiver_hint == receiver_hint
+                || !receiver_hint
+                    .as_deref()
+                    .is_some_and(|h| h.starts_with("obj:")))
     }) {
         return;
     }
@@ -743,7 +750,10 @@ fn hint_from_receiver(recv: Node, impl_parent: Option<&str>, src: &[u8]) -> Opti
             } else if t.chars().next().is_some_and(|c| c.is_uppercase()) {
                 Some(format!("type:{t}"))
             } else {
-                None
+                // A plain object (`db.user.update(`): the linker must not
+                // bind the member to a free function that merely shares
+                // the name (F83).
+                Some(format!("obj:{t}"))
             }
         }
         "field_expression" | "member_expression" => {
