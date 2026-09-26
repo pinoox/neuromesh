@@ -929,7 +929,11 @@ impl NeuralProjectGraph {
         let mut scored: HashMap<NodeId, (f32, String)> = HashMap::new();
 
         let mut exact_type_hit = false;
+        let mut exact_hit = false;
         if let Some(ids) = data.name_to_nodes.get(&query_lower) {
+            if !ids.is_empty() {
+                exact_hit = true;
+            }
             for id in ids {
                 let class_like = data.mesh.node(id).is_some_and(|n| {
                     matches!(
@@ -962,7 +966,12 @@ impl NeuralProjectGraph {
                     scored.entry(id.clone()).or_insert((score, "prefix".into()));
                 }
             }
-            if !exact_type_hit {
+            // Issue #41: an exact-name hit makes the full-map substring scan
+            // pure overhead (prefix + token indexes already cover camel/snake
+            // infixes like `safeParse` for `parse`). The substring pass is
+            // O(distinct names) per call and `select` issues dozens of calls
+            // per packet, so skip it once the exact bucket is non-empty.
+            if !exact_type_hit && !exact_hit {
                 for (name, ids) in &data.name_to_nodes {
                     if name == &query_lower || name.starts_with(&query_lower) {
                         continue;

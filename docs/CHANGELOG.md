@@ -4,6 +4,18 @@ All notable user-facing changes live here. The README stays a product guide, not
 
 ## Unreleased
 
+## 0.9.11 — 2026-09-26
+
+### L1 packet latency fix (issue #41)
+
+- **Exact-symbol packets no longer stall in L1** — an exact-symbol lookup (seed resolution ~6ms) could spend ~120s of single-threaded CPU inside L1 before returning one file, while `search_symbols`/`skeleton` answered in ~25ms. Four hot paths share the blame, all fixed without changing ranking:
+  - `search_symbols` skipped its `O(distinct names)` full-map substring scan only for class-like exact hits; any other exact hit still paid the scan on every call, and `select` issues dozens of calls per packet. The substring pass is now skipped whenever the exact bucket is non-empty (prefix + token indexes already cover camel/snake infixes such as `safeParse` for `parse`).
+  - `select` cloned the whole `unresolved_refs` list and did a full `get_node` per ref per seed; seed files are now precomputed once with cheap path-only lookups and resolver calls are capped at 64 per packet.
+  - `select` ran `search_symbols` per optional file per stem inside the `owned_stems` filter (`O(files × stems)` scans); now one lookup per stem, reused for all files.
+  - `prefer_search_seed` ran a full `search_symbols` per seed query even when the graph had already resolved the exact symbol with `Proven` confidence (a tie keeps the ranked candidate by rule); that scan is now skipped.
+  - `detect_brace_spans` / `detect_python_spans` recompiled their regexes on every skeletonize call; both are now `OnceLock` singletons.
+- Local verification on this repo (473 files, ~4.4k nodes): exact-symbol `packet` → L1 ~127ms, `cargo test --all` green, `clippy -D warnings` clean.
+
 ## 0.9.10 — 2026-09-24
 
 ### MCP protocol fix (critical)

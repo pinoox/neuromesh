@@ -114,7 +114,7 @@ pub fn canonical_tool_name(name: &str) -> String {
 }
 
 pub fn initialize_instructions() -> &'static str {
-    "NeuroMesh MCP v0.9.10 — agent loop: (1) get_context_packet with the user task as written (pointer first if you only need where; prompt only; no client keywords); (2) if coverage is partial/no_seed_resolved/no_confident_match, neuromesh_search_symbols or neuromesh_expand_gap; (3) neuromesh_expand_fold only when you need a folded body; (4) neuromesh_trace / neuromesh_get_dependencies for callers; (5) after a successful edit, neuromesh_record_feedback. If you already know the exact file path, pass path_hints or skip to neuromesh_get_file_skeleton / Read — do not spend a full packet. Prefer these tools over whole-repo Read/Grep when the target is unknown. neuromesh_get_context is deprecated — use get_context_packet."
+    "NeuroMesh MCP v0.9.11 — agent loop: (1) get_context_packet with the user task as written (pointer first if you only need where; prompt only; no client keywords); (2) if coverage is partial/no_seed_resolved/no_confident_match, neuromesh_search_symbols or neuromesh_expand_gap; (3) neuromesh_expand_fold only when you need a folded body; (4) neuromesh_trace / neuromesh_get_dependencies for callers; (5) after a successful edit, neuromesh_record_feedback. If you already know the exact file path, pass path_hints or skip to neuromesh_get_file_skeleton / Read — do not spend a full packet. Prefer these tools over whole-repo Read/Grep when the target is unknown. neuromesh_get_context is deprecated — use get_context_packet."
 }
 
 pub fn tool_success(id: Option<Value>, val: &Value) -> Value {

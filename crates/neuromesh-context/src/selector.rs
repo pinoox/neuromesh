@@ -370,19 +370,34 @@ pub fn select(
         }
     }
 
-    for u in graph.unresolved_refs() {
-        let from_seed = seeds.iter().any(|s| {
-            graph
-                .get_node(s)
-                .is_some_and(|n| n.file_path == u.from_file)
-        });
-        if !from_seed {
-            continue;
+    // Issue #41: the old loop cloned every unresolved ref and did a full
+    // `get_node` per ref per seed (O(U × S) clones + locks), then a
+    // `resolve_ranked` per ref from the seed file. Precompute the seed file
+    // set once with cheap path-only lookups and bound resolver calls.
+    const MAX_UNRESOLVED_RESOLVES: usize = 64;
+    {
+        let mut seed_files: HashSet<std::path::PathBuf> = HashSet::new();
+        for s in seeds {
+            if let Some(p) = graph.node_file_path(s) {
+                seed_files.insert(p);
+            }
         }
-        if let Some((id, _)) = graph.resolve_ranked(&u.name, None, None) {
-            if let Some(node) = graph.get_node(&id) {
-                if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
-                    bump_file(&mut file_scores, &file_id, 11.0);
+        if !seed_files.is_empty() {
+            let mut resolves = 0usize;
+            for u in graph.unresolved_refs() {
+                if !seed_files.contains(&u.from_file) {
+                    continue;
+                }
+                if resolves >= MAX_UNRESOLVED_RESOLVES {
+                    break;
+                }
+                resolves += 1;
+                if let Some((id, _)) = graph.resolve_ranked(&u.name, None, None) {
+                    if let Some(node) = graph.get_node(&id) {
+                        if let Some(file_id) = graph.file_id_for_path(&node.file_path) {
+                            bump_file(&mut file_scores, &file_id, 11.0);
+                        }
+                    }
                 }
             }
         }
@@ -459,16 +474,29 @@ pub fn select(
             }
         }
     }
+    // Issue #41: the old filter ran `search_symbols` per optional file per
+    // stem (O(F × S) full-index scans). Hoist to one lookup per stem.
+    let mut stem_owner_files: HashMap<String, HashSet<NodeId>> = HashMap::new();
+    for t in &owned_stems {
+        let mut owners = HashSet::new();
+        for hit in graph.search_symbols(t, 12) {
+            if hit.name.eq_ignore_ascii_case(t) {
+                if let Some(fid) = graph.file_id_for_path(&hit.file_path) {
+                    owners.insert(fid);
+                }
+            }
+        }
+        stem_owner_files.insert(t.clone(), owners);
+    }
     optional_files.retain(|(id, _)| {
         let Some(node) = graph.get_node(id) else {
             return false;
         };
         !owned_stems.iter().any(|t| {
             !file_stem_eq(&node.file_path, t)
-                && graph.search_symbols(t, 12).iter().any(|hit| {
-                    hit.name.eq_ignore_ascii_case(t)
-                        && graph.file_id_for_path(&hit.file_path).as_ref() == Some(id)
-                })
+                && stem_owner_files
+                    .get(t)
+                    .is_some_and(|owners| owners.contains(id))
         })
     });
     for term in focus_terms {

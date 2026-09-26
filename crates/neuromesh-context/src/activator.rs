@@ -1967,6 +1967,17 @@ fn prefer_search_seed(
     ranked_confidence: EdgeConfidence,
     prompt: &str,
 ) -> NodeId {
+    // Issue #41: `search_symbols` is a full-index scan per call and this runs
+    // per seed query. When the graph already resolved the exact symbol with
+    // Proven confidence, the search can only tie (ranked stays) — skip it.
+    if ranked_confidence == EdgeConfidence::Proven
+        && !prompt_targets_types(prompt)
+        && graph
+            .get_node(&ranked_id)
+            .is_some_and(|n| n.name.eq_ignore_ascii_case(query))
+    {
+        return ranked_id;
+    }
     let hits = graph.search_symbols(query, 8);
     if prompt_targets_types(prompt) {
         if let Some(hit) = hits.iter().find(|hit| {

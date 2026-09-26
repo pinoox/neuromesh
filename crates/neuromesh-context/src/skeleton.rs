@@ -4,6 +4,25 @@ use neuromesh_core::TokenCounter;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::sync::OnceLock;
+
+// Issue #41: these regexes were recompiled on every skeletonize call.
+// Compile once per process.
+static BRACE_FN_RE: OnceLock<Regex> = OnceLock::new();
+static PY_FN_RE: OnceLock<Regex> = OnceLock::new();
+
+fn brace_fn_re() -> &'static Regex {
+    BRACE_FN_RE.get_or_init(|| {
+        Regex::new(
+            r"^\s*(?:export\s+|pub\s+|async\s+|public\s+|private\s+|protected\s+|static\s+)*(?:fn|function|def)?\s*([a-zA-Z0-9_]+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)",
+        )
+        .unwrap()
+    })
+}
+
+fn py_fn_re() -> &'static Regex {
+    PY_FN_RE.get_or_init(|| Regex::new(r"^(\s*)(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\(").unwrap())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionSpan {
@@ -192,10 +211,7 @@ fn header_indent(line: &str) -> String {
 
 fn detect_brace_spans(content: &str) -> Vec<FunctionSpan> {
     let lines: Vec<&str> = content.lines().collect();
-    let fn_regex = Regex::new(
-        r"^\s*(?:export\s+|pub\s+|async\s+|public\s+|private\s+|protected\s+|static\s+)*(?:fn|function|def)?\s*([a-zA-Z0-9_]+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)",
-    )
-    .unwrap();
+    let fn_regex = brace_fn_re();
     let mut spans = Vec::new();
     let mut i = 0;
     while i < lines.len() {
@@ -244,7 +260,7 @@ fn detect_brace_spans(content: &str) -> Vec<FunctionSpan> {
 
 fn detect_python_spans(content: &str) -> Vec<FunctionSpan> {
     let lines: Vec<&str> = content.lines().collect();
-    let py_fn_regex = Regex::new(r"^(\s*)(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\(").unwrap();
+    let py_fn_regex = py_fn_re();
     let mut spans = Vec::new();
     let mut i = 0;
     while i < lines.len() {
